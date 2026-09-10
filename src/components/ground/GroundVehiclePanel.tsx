@@ -3,8 +3,48 @@ import React, { useState, useRef, useEffect } from 'react';
 import { windowFrame } from '../../utils/windowFrame';
 import { usePolling } from '../../hooks/usePollingRegistry';
 import { useDockableWindow } from '../../hooks/useDockableWindow';
+import { PERMIT_STATUS_COLOR, effectivePermitStatus, permitStatusKey } from '../../utils/permitStatus';
 
-export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClose?: () => void }) {
+/**
+ * תג אישור הכניסה של מבקש הכניסה - מוצג **לפני** שהפקח מאשר לו מסלול.
+ *
+ * הנתונים מגיעים מ-GET /api/vehicle-requests, שמצרף את האישור לפי הקישור
+ * המפורש ובהיעדרו לפי רישוי או שם. בלי התג, אישור מסלול היה נעשה בלי לדעת
+ * אם למי שדופק בשער בכלל יש אישור בתוקף.
+ */
+function PermitBadge({ req, onOpenPermits, subColor }: { req: any; onOpenPermits?: (driverId: number | null) => void; subColor: string }) {
+  if (!req.permit_driver_match_id) {
+    return (
+      <div style={{ fontSize: '10px', color: '#f87171', marginTop: '2px' }}>⚠ {tr('permits.reqPermitNone')}</div>
+    );
+  }
+  const status = effectivePermitStatus({
+    permit_from: req.permit_from, permit_until: req.permit_until, status_override: req.permit_status_override,
+  });
+  const zoneNames: string[] = Array.isArray(req.permit_zone_names) ? req.permit_zone_names : [];
+  const color = PERMIT_STATUS_COLOR[status];
+  return (
+    <div style={{ marginTop: '3px', display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+      <span style={{ fontSize: '10px', fontWeight: 'bold', color, border: `1px solid ${color}66`, background: `${color}1f`, borderRadius: 9, padding: '0 6px' }}>
+        🪪 {tr(permitStatusKey(status))}
+      </span>
+      <span style={{ fontSize: '9px', color: subColor }}>
+        {req.permit_until ? tr('permits.reqPermitUntil', { date: String(req.permit_until).slice(0, 10) }) : tr('permits.reqPermitNoExpiry')}
+      </span>
+      {zoneNames.length > 0 && (
+        <span style={{ fontSize: '9px', color: subColor }}>{tr('permits.reqPermitZones', { zones: zoneNames.join(', ') })}</span>
+      )}
+      {onOpenPermits && (
+        <button
+          onClick={e => { e.stopPropagation(); onOpenPermits(req.permit_driver_match_id); }}
+          style={{ background: 'none', border: 'none', color: '#38bdf8', cursor: 'pointer', fontSize: '9px', padding: 0, textDecoration: 'underline' }}
+        >{tr('permits.reqOpenPermits')}</button>
+      )}
+    </div>
+  );
+}
+
+export function GroundVehiclePanel({ lightMode, onClose, onOpenPermits }: { lightMode: boolean; onClose?: () => void; onOpenPermits?: (driverId: number | null) => void }) {
   const [requests, setRequests] = React.useState<any[]>([]);
   const [routes, setRoutes] = React.useState<any[]>([]);
   const [open, setOpen] = React.useState(true);
@@ -190,6 +230,28 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
     completed: 'הושלם', rejected: 'נדחה', cancelled: 'בוטל'
   };
 
+  // אישור בקשת כניסה רושם נסיעה במרשם האישורים, כדי שההיסטוריה של הנהג תשקף
+  // את מה שבאמת קרה בשדה ולא רק את מה שהוקלד ידנית.
+  const logTripForRequest = React.useCallback(async (reqId: number) => {
+    const req = requests.find(r => r.id === reqId);
+    const driverId = req?.permit_driver_match_id;
+    if (!req || !driverId) return;
+    // לקבע את ההתאמה כקישור מפורש - אחרת היא מתגלגלת מחדש בכל טעינה, ושינוי
+    // ברישוי או בשם היה מנתק נסיעה קיימת מבעליה
+    if (!req.permit_driver_id) {
+      await fetch(`/api/vehicle-requests/${reqId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ permit_driver_id: driverId }) }).catch(() => {});
+    }
+    await fetch(`/api/entry-permits/${driverId}/trips`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from_point_id: req.from_point_id || null, to_point_id: req.to_point_id || null,
+        from_text: req.from_point_id ? '' : (req.origin || ''),
+        to_text: req.to_point_id ? '' : (req.destination || ''),
+        scheduled_at: new Date().toISOString(), purpose: req.supply_type || '',
+        vehicle_request_id: reqId,
+      }) }).catch(() => {});
+  }, [requests]);
+
   const approve = async (reqId: number) => {
     if (!selectedRouteId) { alert('בחר מסלול לפני אישור'); return; }
     await fetch(`/api/vehicle-requests/${reqId}`, {
@@ -197,6 +259,7 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'approved', assigned_route_id: parseInt(selectedRouteId) })
     });
+    await logTripForRequest(reqId);
     setSelected(null); setSelectedRouteId('');
     loadRequests();
   };
@@ -227,6 +290,7 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
     }
     await fetch(`/api/vehicle-requests/${reqId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'approved', assigned_route_id: routeId, via_route_ids: planViaRouteIds, show_on_map: planShowOnMap }) });
+    await logTripForRequest(reqId);
     setSelected(null); setPlanResult(null); setPlanFromId(''); setPlanToId(''); setPlanViaRouteIds([]); setPlanShowOnMap(false);
     loadRequests();
   };
@@ -361,6 +425,7 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
                     {req.base_name} • {req.supply_type} → {req.destination}
                   </div>
                   {req.vehicle_type && <div style={{ fontSize: '10px', color: subColor }}>{req.vehicle_type} {req.plate_number}</div>}
+                  <PermitBadge req={req} onOpenPermits={onOpenPermits} subColor={subColor} />
 
                   {selected?.id === req.id && (
                     <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: `1px solid ${border}` }} onClick={e => e.stopPropagation()}>

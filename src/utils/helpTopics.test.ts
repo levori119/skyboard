@@ -79,7 +79,8 @@ describe('עזרה לעמדה — מוצג רק מה שקיים בעמדה', () 
 
   it('כל נושא וכל כפתור נגישים באיזשהו סוג עמדה (אין סעיף מת)', () => {
     const covered = new Set<string>();
-    for (const ctx of [FULL, { ...FULL, isMissionDeskMode: true }, { ...FULL, isGroundMode: true }]) {
+    for (const ctx of [FULL, { ...FULL, isMissionDeskMode: true }, { ...FULL, isGroundMode: true },
+                       { ...FULL, isGroundMode: true, isGroundMgmtMode: true }]) {
       for (const t of visibleHelpTopics(ctx)) {
         covered.add(t.id);
         for (const i of t.items) covered.add(`${t.id}.${i.id}`);

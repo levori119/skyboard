@@ -77,6 +77,10 @@ export const OPERATIONAL_TABLES = [
   'vehicle_requests',
   'vehicle_gps',
   'vehicle_messages',
+  // נסיעות רכבים - מידע שדה חי, ולכן נסיעה של תרגול לא מזהמת את הייצור.
+  // האישורים עצמם (entry_permit_*) הם מרשם ניהולי ויושבים ב-CONFIG_TABLES,
+  // כדי שתרגול ייעשה מול רשימת המורשים האמיתית.
+  'entry_permit_trips',
   // GAPI — תור יציאה + דדופ אירועים נכנסים (מבודדים פר-סביבה)
   'gapi_outbox',
   'gapi_inbound_events',
@@ -138,6 +142,11 @@ export const CONFIG_TABLES = [
   'joining_point_preset_overrides',
   'airfield_element_types',
   'airfield_polygons',
+  // ניהול רכבים ואישורי כניסה - מרשם מורשים והפרמטרים שלו (הנסיעות תפעוליות)
+  'airfield_permit_params',
+  'entry_permit_drivers',
+  'entry_permit_driver_zones',
+  'entry_permit_vehicles',
   'airfield_sectors',
   'airfield_status_types',
   'element_nav_routes',

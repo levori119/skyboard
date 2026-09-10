@@ -143,13 +143,43 @@ router.get('/api/vehicle-requests', async (req, res) => {
              fp.airfield_id AS from_point_airfield_id,
              tp.airfield_id AS to_point_airfield_id,
              fp.name AS from_point_name,
-             tp.name AS to_point_name
+             tp.name AS to_point_name,
+             pd.id AS permit_driver_match_id,
+             BTRIM(pd.first_name || ' ' || pd.last_name) AS permit_driver_name,
+             pd.national_id AS permit_national_id,
+             pd.permit_from, pd.permit_until,
+             pd.status_override AS permit_status_override,
+             pd.notes AS permit_notes,
+             prole.name AS permit_role_name,
+             COALESCE(pz.zone_names, '[]') AS permit_zone_names
              FROM vehicle_requests vr
              LEFT JOIN base_routes br ON br.id = vr.assigned_route_id
              LEFT JOIN airfields af ON af.id = br.airfield_id
              LEFT JOIN maps m ON m.id = af.map_id
              LEFT JOIN airfield_points fp ON fp.id = vr.from_point_id
-             LEFT JOIN airfield_points tp ON tp.id = vr.to_point_id`;
+             LEFT JOIN airfield_points tp ON tp.id = vr.to_point_id
+             -- אישור הכניסה של מבקש הכניסה. קישור מפורש (permit_driver_id) גובר;
+             -- בהיעדרו מנסים להתאים לפי מספר רישוי קבוע, ורק אז לפי שם מלא - כדי
+             -- שהפקח יראה את מצב האישור גם בבקשה שהגיעה מהאפליקציה בלי קישור.
+             LEFT JOIN LATERAL (
+               SELECT d.* FROM entry_permit_drivers d
+                WHERE (vr.permit_driver_id IS NOT NULL AND d.id = vr.permit_driver_id)
+                   OR (vr.permit_driver_id IS NULL AND COALESCE(vr.plate_number,'') <> '' AND EXISTS (
+                         SELECT 1 FROM entry_permit_vehicles v
+                          WHERE v.driver_id = d.id AND v.plate_fixed
+                            AND BTRIM(v.plate_number) = BTRIM(vr.plate_number)))
+                   OR (vr.permit_driver_id IS NULL AND COALESCE(vr.driver_name,'') <> '' AND
+                       BTRIM(d.first_name || ' ' || d.last_name) = BTRIM(vr.driver_name))
+                ORDER BY (d.id = vr.permit_driver_id) DESC NULLS LAST, d.id
+                LIMIT 1
+             ) pd ON TRUE
+             LEFT JOIN airfield_permit_params prole ON prole.id = pd.transport_role_id
+             LEFT JOIN LATERAL (
+               SELECT json_agg(z.name ORDER BY z.sort_order, z.name) AS zone_names
+                 FROM entry_permit_driver_zones dz
+                 JOIN airfield_permit_params z ON z.id = dz.zone_id
+                WHERE dz.driver_id = pd.id
+             ) pz ON TRUE`;
     const vals = [];
     if (status) { q += ` WHERE vr.status = $1`; vals.push(status); }
     q += ` ORDER BY vr.created_at DESC LIMIT 100`;
@@ -178,7 +208,7 @@ router.post('/api/vehicle-requests', async (req, res) => {
 });
 router.put('/api/vehicle-requests/:id', async (req, res) => {
   try {
-    const { status, assigned_route_id, notes, destination, supply_type, origin, driver_name, vehicle_type, plate_number, via_route_ids, show_on_map } = req.body;
+    const { status, assigned_route_id, notes, destination, supply_type, origin, driver_name, vehicle_type, plate_number, via_route_ids, show_on_map, permit_driver_id } = req.body;
     const fields = ['updated_at=NOW()'], vals = [];
     let idx = 1;
     if (status !== undefined)            { fields.push(`status=$${idx++}`);            vals.push(status); }
@@ -191,7 +221,8 @@ router.put('/api/vehicle-requests/:id', async (req, res) => {
     if (vehicle_type !== undefined)      { fields.push(`vehicle_type=$${idx++}`);      vals.push(vehicle_type); }
     if (plate_number !== undefined)      { fields.push(`plate_number=$${idx++}`);      vals.push(plate_number); }
     if (via_route_ids !== undefined)     { fields.push(`via_route_ids=$${idx++}`);     vals.push(JSON.stringify(via_route_ids || [])); }
-    if (show_on_map !== undefined)       { fields.push(`show_on_map=$${idx++}`);       vals.push(!!show_on_map); }
+    if (show_on_map !== undefined)       { fields.push(`show_on_map=${idx++}`);       vals.push(!!show_on_map); }
+    if (permit_driver_id !== undefined)  { fields.push(`permit_driver_id=${idx++}`);  vals.push(permit_driver_id || null); }
     vals.push(req.params.id);
     const r = await pool.query(
       `UPDATE vehicle_requests SET ${fields.join(',')} WHERE id=$${idx} RETURNING *`,

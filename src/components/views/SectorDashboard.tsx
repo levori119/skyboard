@@ -119,6 +119,7 @@ import OnScreenKeyboard from '../shared/OnScreenKeyboard';
 import { AdminDashboard, TransferFormModal } from '../dashboard/AdminDashboard';
 import { DraggableNeighborPanel, DraggableMapMarker } from '../transfers/DraggablePanels';
 import GroundVehiclePanel from '../ground/GroundVehiclePanel';
+import VehiclePermitsWindow from '../ground/VehiclePermitsWindow';
 import GroundView from './GroundView';
 import WindowContainer, { DockPositionPicker } from '../shared/WindowContainer';
 import { setDockDefaultPosition, setDockPreset } from '../../utils/windowDock';
@@ -1322,6 +1323,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [signalOpenTick, setSignalOpenTick] = useState(0);
   const [showGroundLayers, setShowGroundLayers] = useState(true); // toggle the GroundView 🗂 שכבות panel from תצוגה
   const [showVehiclePanel, setShowVehiclePanel] = useState(false);
+  // ניהול רכבים ואישורי כניסה - המרשם הקבוע, להבדיל מתור הכניסה החי שמעליו
+  const [showVehiclePermits, setShowVehiclePermits] = useState(false);
+  // נהג לפתוח מיד, כשמגיעים לחלון מבקשת כניסה קונקרטית
+  const [permitsFocusDriverId, setPermitsFocusDriverId] = useState<number | null>(null);
   const [showAppCameraWall, setShowAppCameraWall] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   // עדכון חברי העמדה + תחקיר (תפריט המשתמש). התחקיר מצלם את העמדה **לפני**
@@ -11633,6 +11638,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         <span style={{ flex: 1 }}>{tr('ctrl.vehicleEntry')}</span>
                         {showVehiclePanel && <span style={{ fontSize: '10px', background: '#b45309', color: '#fde68a', padding: '1px 6px', borderRadius: '8px' }}>{tr('ctrl.open')}</span>}
                       </button>
+                      {/* ניהול רכבים - תת-פריט של "כניסת רכבים": שם התור החי, כאן
+                          המרשם הקבוע של מי מורשה להיכנס. רק בעמדת ניהול שדה תעופה,
+                          שהיא זו שמנהלת אישורי כניסה. */}
+                      {isGroundMgmtMode && (
+                        <div style={{ background: _menuLight ? '#f1f5f9' : '#0f172a', borderTop: `1px solid ${menuBorder}` }}>
+                          <button
+                            onClick={() => { setPermitsFocusDriverId(null); setShowVehiclePermits(v => !v); setShowViewMenu(false); }}
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', textAlign: 'start', padding: '7px 20px', background: 'none', border: 'none', color: showVehiclePermits ? '#fcd34d' : menuText, cursor: 'pointer', fontSize: '12px', direction: dir }}
+                            onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
+                            onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.background = 'none')}
+                          >
+                            <span>🪪</span>
+                            <span style={{ flex: 1 }}>{tr('permits.menuItem')}</span>
+                            {showVehiclePermits && <span style={{ fontSize: '10px', background: '#b45309', color: '#fde68a', padding: '1px 6px', borderRadius: '8px' }}>{tr('ctrl.open')}</span>}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                   {/* רענן הגדרות — מושך מהשרת את הגדרות התצוגה של העמדה בלי
@@ -11791,7 +11813,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
           {/* Floating vehicle requests panel */}
           {showVehiclePanel && isGroundMode && (
-            <GroundVehiclePanel lightMode={lightMode} onClose={() => setShowVehiclePanel(false)} />
+            <GroundVehiclePanel
+              lightMode={lightMode}
+              onClose={() => setShowVehiclePanel(false)}
+              onOpenPermits={isGroundMgmtMode ? (driverId => { setPermitsFocusDriverId(driverId); setShowVehiclePermits(true); }) : undefined}
+            />
+          )}
+
+          {/* ניהול רכבים ואישורי כניסה - מרשם המורשים (עמדת ניהול שדה תעופה) */}
+          {showVehiclePermits && isGroundMgmtMode && (
+            <VehiclePermitsWindow
+              airfieldId={myPresetConfig?.airfield_id ?? null}
+              themeMode={themeMode}
+              focusDriverId={permitsFocusDriverId}
+              onClose={() => setShowVehiclePermits(false)}
+            />
           )}
 
           {/* ── מז"א ─────────────────────────────────────────────────────────

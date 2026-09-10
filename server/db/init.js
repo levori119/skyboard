@@ -2005,6 +2005,98 @@ async function applySchemaOnce() {
     UNIQUE(polygon_id)
   )`);
 
+  // ── ניהול רכבים ואישורי כניסה ──────────────────────────────────────────────
+  // הפקח בעמדת ניהול שדה מנהל כאן **מי מורשה להיכנס לשדה ובאיזה רכב**, ולא רק
+  // מי נמצא בו כרגע. הישות היא ה**נהג** (אדם, מזוהה בת"ז) - הרכבים תלויים בו,
+  // כי נהג מגיע פעם ברכב קבוע ופעם ברכב מזדמן, וההרשאה היא של האדם.
+  //
+  // חמש טבלאות:
+  //   airfield_permit_params      - הפרמטרים הניתנים לניהול (אזורים, תפקידי הסעה, סוגי רכב)
+  //   entry_permit_drivers        - הנהג + אישור הכניסה שלו
+  //   entry_permit_driver_zones   - לאילו אזורים הנהג מאושר
+  //   entry_permit_vehicles       - הרכבים שתחת הנהג
+  //   entry_permit_trips          - נסיעות (היסטוריה + מתוכננות)
+
+  // פרמטרים פר-שדה בעמודה אחת עם `kind` (אותו דפוס כמו units) - שלוש רשימות
+  // קצרות שנערכות באותו מסך לא מצדיקות שלוש טבלאות זהות.
+  // `polygon_id` רלוונטי ל-kind='zone' בלבד: אזור אישור **יכול** להצביע על
+  // פוליגון שמצויר על מפת השדה, ואז ההרשאה מדברת על שטח אמיתי ולא רק על שם.
+  await sq(`CREATE TABLE IF NOT EXISTS airfield_permit_params (
+    id SERIAL PRIMARY KEY,
+    airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
+    kind VARCHAR(20) NOT NULL DEFAULT 'zone',
+    name VARCHAR(200) NOT NULL,
+    polygon_id INTEGER REFERENCES airfield_polygons(id) ON DELETE SET NULL,
+    color VARCHAR(20) DEFAULT '#3b82f6',
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  await sq(`CREATE UNIQUE INDEX IF NOT EXISTS idx_permit_params_af_kind_name ON airfield_permit_params(airfield_id, kind, name)`);
+
+  // `status_override` NULL = הסטטוס נגזר מהתאריכים. ערך = הכרעה ידנית של
+  // הפקח שגוברת עליהם (למשל "נפסל" בתוך תקופת תוקף תקפה). הנגזרת עצמה חיה
+  // במקום אחד בלבד - src/utils/permitStatus.ts - ולא מחושבת כאן.
+  await sq(`CREATE TABLE IF NOT EXISTS entry_permit_drivers (
+    id SERIAL PRIMARY KEY,
+    airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
+    first_name VARCHAR(100) NOT NULL DEFAULT '',
+    last_name VARCHAR(100) NOT NULL DEFAULT '',
+    national_id VARCHAR(20) NOT NULL DEFAULT '',
+    transport_role_id INTEGER REFERENCES airfield_permit_params(id) ON DELETE SET NULL,
+    permit_from DATE,
+    permit_until DATE,
+    status_override VARCHAR(20) DEFAULT NULL,
+    notes TEXT,
+    approved_by VARCHAR(120) NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  // ת"ז ייחודית פר-שדה, אך רק כשהוזנה - רשומה שנפתחה בלי ת"ז לא חוסמת אחרת
+  await sq(`CREATE UNIQUE INDEX IF NOT EXISTS idx_entry_permit_drivers_af_tz ON entry_permit_drivers(airfield_id, national_id) WHERE national_id <> ''`);
+
+  await sq(`CREATE TABLE IF NOT EXISTS entry_permit_driver_zones (
+    driver_id INTEGER NOT NULL REFERENCES entry_permit_drivers(id) ON DELETE CASCADE,
+    zone_id INTEGER NOT NULL REFERENCES airfield_permit_params(id) ON DELETE CASCADE,
+    PRIMARY KEY (driver_id, zone_id)
+  )`);
+
+  // `plate_fixed=false` = רכב מזדמן שאין לו מספר רישוי קבוע; אז plate_number ריק
+  await sq(`CREATE TABLE IF NOT EXISTS entry_permit_vehicles (
+    id SERIAL PRIMARY KEY,
+    driver_id INTEGER NOT NULL REFERENCES entry_permit_drivers(id) ON DELETE CASCADE,
+    vehicle_type_id INTEGER REFERENCES airfield_permit_params(id) ON DELETE SET NULL,
+    plate_fixed BOOLEAN NOT NULL DEFAULT TRUE,
+    plate_number VARCHAR(30) NOT NULL DEFAULT '',
+    notes TEXT,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_entry_permit_vehicles_driver ON entry_permit_vehicles(driver_id)`);
+
+  // נסיעה אחת = שורה אחת, והחלוקה להיסטוריה/עתידי נגזרת מ-scheduled_at מול
+  // השעון - ולא משדה סטטוס שמישהו צריך לזכור לעדכן.
+  // `vehicle_request_id` מקשר נסיעה שנוצרה מאישור בקשת כניסה בפאנל "כניסת רכבים".
+  await sq(`CREATE TABLE IF NOT EXISTS entry_permit_trips (
+    id SERIAL PRIMARY KEY,
+    driver_id INTEGER NOT NULL REFERENCES entry_permit_drivers(id) ON DELETE CASCADE,
+    vehicle_id INTEGER REFERENCES entry_permit_vehicles(id) ON DELETE SET NULL,
+    from_point_id INTEGER REFERENCES airfield_points(id) ON DELETE SET NULL,
+    to_point_id INTEGER REFERENCES airfield_points(id) ON DELETE SET NULL,
+    from_text VARCHAR(200) NOT NULL DEFAULT '',
+    to_text VARCHAR(200) NOT NULL DEFAULT '',
+    scheduled_at TIMESTAMPTZ,
+    ended_at TIMESTAMPTZ,
+    purpose TEXT,
+    vehicle_request_id INTEGER REFERENCES vehicle_requests(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_entry_permit_trips_driver ON entry_permit_trips(driver_id, scheduled_at DESC)`);
+
+  // הקישור בין בקשת כניסה חיה לאישור הקבוע - כך שהפקח רואה בפאנל "כניסת רכבים"
+  // אם מי שדופק בשער בכלל מורשה, לפני שהוא מאשר לו מסלול.
+  await sq(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS permit_driver_id INTEGER REFERENCES entry_permit_drivers(id) ON DELETE SET NULL`);
+
   // ── דסק משימה כללי (General Mission Desk) ──────────────────────────────────
   // דסק גנרי לרישום. layout_json = עץ BSP (כמו strip_window_layouts) שכל leaf
   // מפנה ל-service_id. סוגי שירות: 'buttons' (מסך ניהול אמצעים) |

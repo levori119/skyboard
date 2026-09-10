@@ -226,6 +226,10 @@
 **תפקיד:** מערכת נהג/רכב — בקשות רכב, GPS, הודעות, מסלולי בסיס, חישוב נתיב (A*), אפליקציית נהג (`/driver`).
 **Endpoints עיקריים:** `/api/vehicle-requests`, `/api/vehicle-gps`, `/api/route-plan`, `/api/base-routes`.
 
+### `server/routes/permits.js` — 16 routes
+**תפקיד:** **ניהול רכבים ואישורי כניסה** - מרשם המורשים להיכנס לשדה, להבדיל מ-`driver.js` שהוא התור החי של מי שדופק בשער. **הישות היא הנהג** (ת"ז) והרכבים תלויים בו. השרת **אינו מחשב סטטוס אישור**: הוא שומר תאריכים + דריסה ידנית, והנגזרת חיה ב-[`src/utils/permitStatus.ts`](src/utils/permitStatus.ts) בלבד. **מייצא:** `PERMIT_PARAM_KINDS`.
+**Endpoints:** `GET/POST /api/permit-params`, `PUT/DELETE /api/permit-params/:id`, `GET /api/entry-permits` (`?airfield_id=`), `GET/PUT/DELETE /api/entry-permits/:id`, `POST /api/entry-permits`, `POST /api/entry-permits/:id/vehicles`, `PUT/DELETE /api/entry-permit-vehicles/:id`, `GET/POST /api/entry-permits/:id/trips`, `PUT/DELETE /api/entry-permit-trips/:id`. (ראה `entry_permit_*` ב-data-model.md)
+
 ### `server/routes/provisional-transfers.js` — 6 routes
 **תפקיד:** נקודות העברה **זמניות** (ad-hoc) בין 2 עמדות — נוצרות בזמן אמת מתפריט "יצירה" (לא במסך ניהול). A יוצר (`pending`) → B מאשר (`active`). דו-כיווני. גרירת פ"מ אליה = העברת עמדה-לעמדה (`transfer-to-preset`) + `touch`. ניקוי אוטומטי: >12ש' ללא שימוש **וגם** אחרי חצות.
 **Endpoints:** `GET/POST /api/provisional-transfer-points`, `POST /api/provisional-transfer-points/:id/approve`, `POST /api/provisional-transfer-points/:id/touch`, `PATCH /api/provisional-transfer-points/:id/pos`, `DELETE /api/provisional-transfer-points/:id`. (ראה `provisional_transfer_points` ב-data-model.md)
@@ -968,6 +972,9 @@ DB מנוהל היה נופל יחד עם העמדה.
 ### `src/components/ground/GroundVehiclePanel.tsx`
 **תפקיד:** ניהול כלי רכב + מערכות מז"א (פטריוט/יבה) — מיקום, סטטוס, עורך ויזואלי. **מייצא:** `GroundVehiclePanel` (default).
 
+### `src/components/ground/VehiclePermitsWindow.tsx`
+**תפקיד:** **חלון ניהול הרכבים ואישורי הכניסה** בעמדת ניהול שדה תעופה (`ground_mgmt`), נפתח מתת-הפריט "ניהול רכבים" שמתחת ל"כניסת רכבים" בתפריט תצוגה. רשימת נהגים מימין (חיפוש לפי שם / ת"ז / רישוי, תג סטטוס בכל שורה) ופרטי הנהג משמאל: ת"ז, תפקיד הסעה, אישור לאזורים (צ'יפים), תאריכי אישור ופקיעה, **סטטוס אישור שנגזר מהתאריכים וניתן לדריסה ידנית** (והמסך אומר *למה* הוא כזה), מאשר, הערה ותאריך עדכון אחרון. תחתיו רכבי הנהג (סוג, קבוע/לא קבוע, רישוי) וטבלת נסיעות מפוצלת ל**עתידיות** ו**היסטוריה** לפי `scheduled_at` מול השעון. חלון **עריכה** (מסגרת כתומה), נגרר בעט ובאצבע ובר-עגינה לקונטיינר. **מייצא:** `VehiclePermitsWindow` (default), `VehiclePermitsWindowProps`.
+
 ### `src/components/ground/JoiningPointPanel.tsx`
 **תפקיד:** **טבלת נקודת ההצטרפות** - התצוגה שמבדילה אותה מנקודת ההעברה. הפריסה לקוחה מהסדק: עמודת הגבהים בצד ההתחלה והפ"ממים לצדה, מהגבוה למטה. השורה העליונה היא מה שמועבר מנקודת המעבר המקושרת ועוד לא שובץ. **שלוש דרכים לשבץ לבלוק**, כי כל אחת מהירה במצב אחר: "קבל" -> טופס גובה מטווח הנקודה · גרירת הכרטיס מהשורה העליונה לבלוק (קבלה + גובה בתנועה אחת) · גרירת פ"מ שכבר שלי מרשימת הפ"ממים שבצד. קונפליקט מסומן **גם ב-⚠ ולא בצבע בלבד**, והסרת פ"מ מהנקודה מחייבת אישור. `+` פורס את מטוסי הפ"מ עם דת"ק, בורר מסלול (רק מסלולים **פעילים לנחיתות**), "שים בהקפה" וסטטוסי ירוקים / אישור לנחות / נחיתה. **מייצא:** `JoiningPointPanel` (default), `JoiningPointView`, `LandingRunway`.
 
@@ -1139,6 +1146,9 @@ DB מנוהל היה נופל יחד עם העמדה.
 
 ### `src/components/admin/AirDefenseSection.tsx`
 **תפקיד:** מסך הניהול הטכני של **הגנ"ש** (שלב א) - שלוש לשוניות: מערכות אש, מערכות גילוי וסוגי איום. הטופס מציג את שדות המשפחה בלבד (טיל וייעוד באש; שני מפתחות הזווית בגילוי), ולכל מערכת **שמורה** נפתחת טבלת היעילות - אחוז 0-100 לכל סוג איום, עם תווית דירוג צבעונית. הוולידציה כולה מגיעה מ-`validateSystemInput` בליבה הטהורה, והרכיב רק **מציג** את מפתחות השגיאה דרך `tr('airDefense.err*')` - אותה הכרעה תשמש את מסך הפריסה בשלב ב. **מייצא:** `AirDefenseSection` (default). **שימוש:** admin (טאב `air_defense` תחת "תפעול").
+
+### `src/components/admin/PermitParamsSection.tsx`
+**תפקיד:** שלוש רשימות הפרמטרים של ניהול הרכבים בטאב "שדות תעופה": **אזורי אישור כניסה** (כל אזור יכול להצביע על פוליגון במפת השדה), **תפקידי הסעה** ו**סוגי רכב**. כולן בטבלה אחת עם `kind`, כמו `units`. **מייצא:** `PermitParamsSection` (default), `PermitParamRow`.
 
 ### `src/components/admin/RouteLinksSection.tsx`
 **תפקיד:** סקשן "🔗 קישורי מסלולים" ביישות שדה התעופה - **רובד בפני עצמו ולא בתוך "מסלולי הסעה"**, כי אותו מסלול פיזי מוגדר בשני שדות בשמות שונים גם כשהוא מסלול המראה. קבוצה אחת מחזיקה N מסלולים (N>=2) מ-N שדות, הבורר הוא **שדה תעופה -> מסלול שלו** (כל סוג מסלול, עם אייקון הסוג), וכפתור השמירה חסום עד שיש שני חברים. **מייצא:** `RouteLinksSection` (default). **שימוש:** admin.

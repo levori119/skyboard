@@ -2956,3 +2956,108 @@ REFACTOR_LOG #045.
 
 מאומת ב-[`server/routes/airDefense.test.js`](server/routes/airDefense.test.js)
 (21 בדיקות מול Postgres אמיתי - PGlite בזיכרון).
+
+## ניהול רכבים ואישורי כניסה - `airfield_permit_params` ו-`entry_permit_*`
+
+**מי מורשה להיכנס לשדה ובאיזה רכב** - מרשם קבוע, להבדיל מ-`vehicle_requests`
+("כניסת רכבים") שהוא **התור החי** של מי שדופק בשער עכשיו. השניים מחוברים דרך
+`vehicle_requests.permit_driver_id` ודרך `entry_permit_trips.vehicle_request_id`.
+
+**הישות היא הנהג** (מזוהה בת"ז) והרכבים תלויים בו: נהג מגיע פעם ברכב קבוע ופעם
+ברכב מזדמן, וההרשאה היא של האדם ולא של הרכב.
+
+| טבלה | סיווג `env-tables.js` | למה |
+|---|---|---|
+| `airfield_permit_params` | CONFIG | פרמטרים שנערכים בניהול |
+| `entry_permit_drivers` | CONFIG | מרשם מורשים - תרגול נעשה מול הרשימה האמיתית |
+| `entry_permit_driver_zones` | CONFIG | ההרשאה עצמה |
+| `entry_permit_vehicles` | CONFIG | הרכבים שתחת הנהג |
+| `entry_permit_trips` | **OPERATIONAL** | מידע שדה חי - נסיעת תרגול לא מזהמת ייצור |
+
+### `airfield_permit_params` - שלוש רשימות הפרמטרים
+
+טבלה אחת עם `kind`, אותו דפוס כמו `units`: שלוש רשימות קצרות שנערכות באותו מסך
+לא מצדיקות שלוש טבלאות זהות שיתפצלו בהתנהגות.
+
+| עמודה | טיפוס | הערות |
+|---|---|---|
+| `id` | SERIAL PK | |
+| `airfield_id` | INT → `airfields` | CASCADE. הפרמטרים שייכים לשדה |
+| `kind` | VARCHAR(20) | `zone` \| `transport_role` \| `vehicle_type` |
+| `name` | VARCHAR(200) | |
+| `polygon_id` | INT → `airfield_polygons` | SET NULL. **`kind='zone'` בלבד** - אזור אישור שמצביע על שטח אמיתי במפת השדה, ולא רק על שם |
+| `color` | VARCHAR(20) | |
+| `active` | BOOLEAN | ערך שהוצא משימוש נשאר, כדי לא לרוקן אישור קיים |
+| `sort_order` | INTEGER | |
+| | **UNIQUE (airfield_id, kind, name)** | |
+
+### `entry_permit_drivers` - הנהג ואישור הכניסה שלו
+
+| עמודה | טיפוס | הערות |
+|---|---|---|
+| `id` | SERIAL PK | |
+| `airfield_id` | INT → `airfields` | CASCADE |
+| `first_name` / `last_name` | VARCHAR(100) | |
+| `national_id` | VARCHAR(20) | **UNIQUE פר-שדה, אך רק כשהוזנה** (אינדקס חלקי `WHERE national_id <> ''`) - רשומה שנפתחה בלי ת"ז לא חוסמת אחרת |
+| `transport_role_id` | INT → `airfield_permit_params` | SET NULL |
+| `permit_from` / `permit_until` | DATE | תאריך אישור כניסה ותאריך פג תוקף |
+| `status_override` | VARCHAR(20) | **NULL = הסטטוס נגזר מהתאריכים.** ערך = הכרעה ידנית שגוברת עליהם |
+| `notes` | TEXT | |
+| `approved_by` | VARCHAR(120) | מאשר כניסה |
+| `created_at` / `updated_at` | TIMESTAMPTZ | `updated_at` = "תאריך עדכון אחרון" במסך |
+
+**הסטטוס אינו עמודה ואינו מחושב בשרת.** הוא נגזר במקום אחד בלבד -
+[`src/utils/permitStatus.ts`](src/utils/permitStatus.ts) - כדי שהפקח יראה אותו
+משתנה בטופס **לפני** השמירה, בלי מימוש שני שיתפצל בשקט:
+
+| מצב | סטטוס נגזר |
+|---|---|
+| אין `permit_until` | בבדיקה (`pending`) |
+| היום > `permit_until` | לא מאושר (`not_approved`) |
+| יש `permit_from` והיום < ממנו | בבדיקה (טרם נכנס לתוקף) |
+| אחרת | מאושר (`approved`) |
+
+ו-`status_override` (`approved` / `not_approved` / `pending` / `rejected`) גובר
+על כולם. מקובע ב-15 בדיקות ב-`src/utils/permitStatus.test.ts`.
+
+> **ברשימת החסימה של הביטול** (`UNDO_DENYLIST`): `entry_permit_drivers` ו-
+> `entry_permit_driver_zones`. CTRL+Z שקט על אישור כניסה עלול להחזיר תוקף לנהג
+> שנפסל, או להרחיב הרשאת אזורים בלי שאיש יידע. ראה [UNDO_SPEC.md](UNDO_SPEC.md) §4.
+
+### `entry_permit_driver_zones` - לאילו אזורים הנהג מאושר
+
+`(driver_id, zone_id)` PK מורכב, שתי העמודות CASCADE. הכתיבה היא **מחיקה
+והכנסה מחדש** ולא diff - הרשימה קצרה, ו-diff הוא מקום קלאסי שבו הסרת הרשאה
+נופלת בשקט.
+
+### `entry_permit_vehicles` - הרכבים תחת הנהג
+
+| עמודה | טיפוס | הערות |
+|---|---|---|
+| `driver_id` | INT → `entry_permit_drivers` | CASCADE |
+| `vehicle_type_id` | INT → `airfield_permit_params` | SET NULL (`kind='vehicle_type'`) |
+| `plate_fixed` | BOOLEAN | "מספר רכב קבוע / לא קבוע" |
+| `plate_number` | VARCHAR(30) | **נכפה לריק כש-`plate_fixed=false`** בשרת - רכב לא קבוע שנושא רישוי הוא "קבוע למחצה" |
+| `notes` / `sort_order` | | |
+
+### `entry_permit_trips` - נסיעות
+
+| עמודה | טיפוס | הערות |
+|---|---|---|
+| `driver_id` | INT → `entry_permit_drivers` | CASCADE |
+| `vehicle_id` | INT → `entry_permit_vehicles` | SET NULL |
+| `from_point_id` / `to_point_id` | INT → `airfield_points` | SET NULL. "מאיפה / לאן" מנקודות השדה |
+| `from_text` / `to_text` | VARCHAR(200) | טקסט חופשי כשהיעד מחוץ לרשימת הנקודות |
+| `scheduled_at` | TIMESTAMPTZ | **החלוקה להיסטוריה/עתידי נגזרת ממנו מול השעון** ולא משדה סטטוס שצריך לזכור לעדכן |
+| `ended_at` | TIMESTAMPTZ | |
+| `purpose` | TEXT | |
+| `vehicle_request_id` | INT → `vehicle_requests` | SET NULL. נסיעה שנרשמה אוטומטית מאישור בקשת כניסה |
+
+### הקישור לבקשות הכניסה החיות
+
+`vehicle_requests.permit_driver_id` (חדש, SET NULL) מקבע את הנהג שהותאם.
+`GET /api/vehicle-requests` מצרף את האישור ב-`LEFT JOIN LATERAL`, בסדר עדיפות:
+**קישור מפורש** → **מספר רישוי קבוע** → **שם מלא**. כך הפקח רואה בפאנל "כניסת
+רכבים" אם למי שדופק בשער בכלל יש אישור בתוקף - **לפני** שהוא מאשר לו מסלול.
+אישור הבקשה מקבע את הקישור ורושם נסיעה, כדי שההתאמה לא תתגלגל מחדש בכל טעינה
+ושינוי ברישוי לא ינתק נסיעה קיימת מבעליה.

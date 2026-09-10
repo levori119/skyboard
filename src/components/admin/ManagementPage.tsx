@@ -43,6 +43,7 @@ import PatternsSection from './PatternsSection';
 import JoiningPointsSection, { type JoiningPointRow } from './JoiningPointsSection';
 import AirDefenseSection from './AirDefenseSection';
 import RouteLinksSection from './RouteLinksSection';
+import PermitParamsSection from './PermitParamsSection';
 import type { LinkGroup } from '../../utils/routeLinks';
 import TrafficPatternLayer from '../map/TrafficPatternLayer';
 import RunwayLayer from '../map/RunwayLayer';
@@ -6772,6 +6773,17 @@ CHARLIE,1,301,`}
                         </>)}
                       </div>
                     )}
+
+                    {/* פרמטרים של ניהול רכבים ואישורי כניסה - מזינים את חלון
+                        "ניהול רכבים" בעמדת ניהול שדה תעופה */}
+                    <PermitParamsSection
+                      apiUrl={API_URL}
+                      airfieldId={selectedAdminAirfieldId ?? null}
+                      polygons={adminAirfieldPolygons}
+                      expanded={adminAFExpanded.has('permit_params')}
+                      onToggle={() => toggleAFSec('permit_params')}
+                      confirmDelete={customConfirm}
+                    />
 
                     {/* Taxiways definition */}
                     {selectedAdminAirfieldId && (

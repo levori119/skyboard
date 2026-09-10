@@ -1,0 +1,358 @@
+{
+  "_group": "ניהול רכבים ואישורי כניסה",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
+  "keys": {
+    "title": {
+      "he": "ניהול רכבים",
+      "en": "Vehicle management"
+    },
+    "menuItem": {
+      "he": "ניהול רכבים",
+      "en": "Vehicle management"
+    },
+    "noAirfield": {
+      "he": "לא הוגדר שדה תעופה לעמדה זו",
+      "en": "No airfield is set for this workstation"
+    },
+    "search": {
+      "he": "חיפוש שם, ת.ז. או רישוי",
+      "en": "Search name, ID or plate"
+    },
+    "newDriver": {
+      "he": "נהג חדש",
+      "en": "New driver"
+    },
+    "noDrivers": {
+      "he": "אין נהגים רשומים בשדה זה",
+      "en": "No drivers registered at this airfield"
+    },
+    "noMatches": {
+      "he": "אין תוצאות לחיפוש",
+      "en": "No search results"
+    },
+    "selectDriver": {
+      "he": "בחר נהג מהרשימה, או הוסף חדש",
+      "en": "Select a driver from the list, or add a new one"
+    },
+    "driverCount": {
+      "he": "{{count}} נהגים",
+      "en": "{{count}} drivers"
+    },
+    "sectionDriver": {
+      "he": "פרטי נהג",
+      "en": "Driver details"
+    },
+    "firstName": {
+      "he": "שם פרטי",
+      "en": "First name"
+    },
+    "lastName": {
+      "he": "שם משפחה",
+      "en": "Last name"
+    },
+    "nationalId": {
+      "he": "מספר ת.ז.",
+      "en": "ID number"
+    },
+    "transportRole": {
+      "he": "תפקיד הסעה",
+      "en": "Transport role"
+    },
+    "noTransportRole": {
+      "he": "ללא תפקיד",
+      "en": "No role"
+    },
+    "unnamed": {
+      "he": "ללא שם",
+      "en": "Unnamed"
+    },
+    "sectionPermit": {
+      "he": "אישור כניסה",
+      "en": "Entry permit"
+    },
+    "zones": {
+      "he": "אישור לאזורים",
+      "en": "Permitted zones"
+    },
+    "noZones": {
+      "he": "לא אושרו אזורים",
+      "en": "No zones permitted"
+    },
+    "zonesEmpty": {
+      "he": "לא הוגדרו אזורי אישור בניהול שדה תעופה",
+      "en": "No permit zones defined in airfield management"
+    },
+    "permitFrom": {
+      "he": "תאריך אישור כניסה",
+      "en": "Permit start date"
+    },
+    "permitUntil": {
+      "he": "תאריך פג תוקף",
+      "en": "Expiry date"
+    },
+    "approvedBy": {
+      "he": "מאשר כניסה",
+      "en": "Approved by"
+    },
+    "notes": {
+      "he": "הערה",
+      "en": "Note"
+    },
+    "updatedAt": {
+      "he": "תאריך עדכון אחרון",
+      "en": "Last updated"
+    },
+    "never": {
+      "he": "טרם עודכן",
+      "en": "Never"
+    },
+    "status": {
+      "he": "סטטוס אישור",
+      "en": "Permit status"
+    },
+    "statusApproved": {
+      "he": "מאושר",
+      "en": "Approved"
+    },
+    "statusNotApproved": {
+      "he": "לא מאושר",
+      "en": "Not approved"
+    },
+    "statusPending": {
+      "he": "בבדיקה",
+      "en": "Under review"
+    },
+    "statusRejected": {
+      "he": "נפסל",
+      "en": "Rejected"
+    },
+    "statusAuto": {
+      "he": "אוטומטי לפי התאריכים",
+      "en": "Automatic, by dates"
+    },
+    "statusOverridden": {
+      "he": "נדרס ידנית",
+      "en": "Manually overridden"
+    },
+    "statusAutoWouldBe": {
+      "he": "לפי התאריכים: {{status}}",
+      "en": "By dates: {{status}}"
+    },
+    "expiresIn": {
+      "he": "פג בעוד {{days}} ימים",
+      "en": "Expires in {{days}} days"
+    },
+    "expiresToday": {
+      "he": "פג היום",
+      "en": "Expires today"
+    },
+    "expiredAgo": {
+      "he": "פג לפני {{days}} ימים",
+      "en": "Expired {{days}} days ago"
+    },
+    "sectionVehicles": {
+      "he": "רכבים",
+      "en": "Vehicles"
+    },
+    "addVehicle": {
+      "he": "הוסף רכב",
+      "en": "Add vehicle"
+    },
+    "vehicleType": {
+      "he": "סוג רכב",
+      "en": "Vehicle type"
+    },
+    "noVehicleType": {
+      "he": "ללא סוג",
+      "en": "No type"
+    },
+    "plateFixed": {
+      "he": "רכב קבוע",
+      "en": "Fixed vehicle"
+    },
+    "plateNotFixed": {
+      "he": "רכב לא קבוע",
+      "en": "Non-fixed vehicle"
+    },
+    "plateNumber": {
+      "he": "מספר רישוי",
+      "en": "Plate number"
+    },
+    "noPlate": {
+      "he": "ללא רישוי קבוע",
+      "en": "No fixed plate"
+    },
+    "noVehicles": {
+      "he": "לא הוגדרו רכבים לנהג זה",
+      "en": "No vehicles defined for this driver"
+    },
+    "vehicleTypesEmpty": {
+      "he": "לא הוגדרו סוגי רכב בניהול שדה תעופה",
+      "en": "No vehicle types defined in airfield management"
+    },
+    "sectionTrips": {
+      "he": "נסיעות",
+      "en": "Trips"
+    },
+    "tripsFuture": {
+      "he": "עתידיות",
+      "en": "Upcoming"
+    },
+    "tripsHistory": {
+      "he": "היסטוריה",
+      "en": "History"
+    },
+    "addTrip": {
+      "he": "הוסף נסיעה",
+      "en": "Add trip"
+    },
+    "noTripsFuture": {
+      "he": "אין נסיעות מתוכננות",
+      "en": "No upcoming trips"
+    },
+    "noTripsHistory": {
+      "he": "אין נסיעות קודמות",
+      "en": "No past trips"
+    },
+    "tripFrom": {
+      "he": "מאיפה",
+      "en": "From"
+    },
+    "tripTo": {
+      "he": "לאן",
+      "en": "To"
+    },
+    "tripPointOther": {
+      "he": "אחר (טקסט חופשי)",
+      "en": "Other (free text)"
+    },
+    "tripWhen": {
+      "he": "מועד",
+      "en": "When"
+    },
+    "tripPurpose": {
+      "he": "מטרה",
+      "en": "Purpose"
+    },
+    "tripVehicle": {
+      "he": "רכב",
+      "en": "Vehicle"
+    },
+    "tripFromRequest": {
+      "he": "מבקשת כניסה",
+      "en": "From entry request"
+    },
+    "pointsEmpty": {
+      "he": "לא הוגדרו נקודות בשדה",
+      "en": "No points defined at this airfield"
+    },
+    "save": {
+      "he": "שמור",
+      "en": "Save"
+    },
+    "add": {
+      "he": "הוסף",
+      "en": "Add"
+    },
+    "cancel": {
+      "he": "בטל",
+      "en": "Cancel"
+    },
+    "delete": {
+      "he": "מחק",
+      "en": "Delete"
+    },
+    "confirmDeleteDriver": {
+      "he": "למחוק את הנהג ואת כל רכביו ונסיעותיו?",
+      "en": "Delete this driver with all their vehicles and trips?"
+    },
+    "confirmDeleteVehicle": {
+      "he": "למחוק את הרכב?",
+      "en": "Delete this vehicle?"
+    },
+    "confirmDeleteTrip": {
+      "he": "למחוק את הנסיעה?",
+      "en": "Delete this trip?"
+    },
+    "errName": {
+      "he": "יש להזין שם פרטי או שם משפחה",
+      "en": "Enter a first or last name"
+    },
+    "errNationalIdExists": {
+      "he": "ת.ז. זו כבר רשומה בשדה",
+      "en": "This ID is already registered at this airfield"
+    },
+    "errSave": {
+      "he": "השמירה נכשלה",
+      "en": "Save failed"
+    },
+    "reqPermitNone": {
+      "he": "אין אישור כניסה רשום",
+      "en": "No entry permit on record"
+    },
+    "reqPermitZones": {
+      "he": "אזורים: {{zones}}",
+      "en": "Zones: {{zones}}"
+    },
+    "reqPermitUntil": {
+      "he": "בתוקף עד {{date}}",
+      "en": "Valid until {{date}}"
+    },
+    "reqPermitNoExpiry": {
+      "he": "ללא תאריך תוקף",
+      "en": "No expiry date"
+    },
+    "reqOpenPermits": {
+      "he": "פתח בניהול רכבים",
+      "en": "Open in vehicle management"
+    },
+    "adminSection": {
+      "he": "🚛 ניהול רכבים - פרמטרים",
+      "en": "🚛 Vehicle management - parameters"
+    },
+    "paramZones": {
+      "he": "אזורי אישור כניסה",
+      "en": "Entry permit zones"
+    },
+    "paramTransportRoles": {
+      "he": "תפקידי הסעה",
+      "en": "Transport roles"
+    },
+    "paramVehicleTypes": {
+      "he": "סוגי רכב",
+      "en": "Vehicle types"
+    },
+    "paramName": {
+      "he": "שם",
+      "en": "Name"
+    },
+    "paramPolygon": {
+      "he": "אזור על המפה",
+      "en": "Map zone"
+    },
+    "paramNoPolygon": {
+      "he": "ללא קישור למפה",
+      "en": "Not linked to the map"
+    },
+    "paramActive": {
+      "he": "פעיל",
+      "en": "Active"
+    },
+    "paramInactive": {
+      "he": "לא פעיל",
+      "en": "Inactive"
+    },
+    "paramEmpty": {
+      "he": "לא הוגדרו ערכים",
+      "en": "No values defined"
+    },
+    "paramSelectAirfield": {
+      "he": "בחר שדה תעופה",
+      "en": "Select an airfield"
+    },
+    "confirmDeleteParam": {
+      "he": "למחוק את הערך? הוא יוסר מכל נהג שאושר לו",
+      "en": "Delete this value? It will be removed from every driver permitted for it"
+    }
+  }
+}

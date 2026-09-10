@@ -1113,6 +1113,14 @@
     "whereLabel": {
       "he": "מיקום",
       "en": "Location"
+    },
+    "viewMenu_vehiclePermitsTitle": {
+      "he": "ניהול רכבים",
+      "en": "Vehicle management"
+    },
+    "viewMenu_vehiclePermitsBody": {
+      "he": "מרשם המורשים להיכנס לשדה: נהג (עם ת.ז.), הרכבים שתחתיו, האזורים שאושרו לו, תוקף האישור ומי אישר. הסטטוס נגזר אוטומטית מהתאריכים וניתן לדריסה ידנית. לכל נהג טבלת נסיעות - היסטוריה ומתוכננות. להבדיל מ\"כניסת רכבים\" שהוא התור החי של מי שדופק בשער עכשיו.",
+      "en": "The registry of who may enter the airfield: driver (with ID), their vehicles, permitted zones, permit validity and approver. The status is derived automatically from the dates and can be overridden manually. Each driver has a trip table - history and planned. Unlike \"Vehicle entry\", which is the live queue of who is at the gate now."
     }
   }
 }

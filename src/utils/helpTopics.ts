@@ -126,6 +126,8 @@ export const HELP_TOPICS: HelpTopic[] = [
     it('viewMenu', 'cameras', '📷', c => c.hasCameras),
     it('viewMenu', 'layers', '🗂', isGround),
     it('viewMenu', 'vehicles', '🚛', isGround),
+    // תת-פריט של "כניסת רכבים", רק בעמדת ניהול שדה תעופה
+    it('viewMenu', 'vehiclePermits', '🪪', c => c.isGroundMode && c.isGroundMgmtMode),
     it('viewMenu', 'refresh', '🔄'),
   ]),
   topic('settingsMenu', '⚙️', undefined, [
