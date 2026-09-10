@@ -11078,9 +11078,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
           )}
           {session.presetId && (
+            /* בסיס האב עובר לבורר הנמענים, שמקבץ לפיו את העמדות (parent_base_name מגיע מהשרת) */
             <SignalBoard
               presetId={Number(session.presetId)}
-              allPresets={workstationPresets.map((p: any) => ({ id: Number(p.id), name: p.name || `עמדה ${p.id}` }))}
+              allPresets={workstationPresets.map((p: any) => ({ id: Number(p.id), name: p.name || `עמדה ${p.id}`, parent_base_id: p.parent_base_id ?? null, parent_base_name: p.aviation_base_name || p.parent_base_name || null }))}
               catalog={Array.isArray(myPresetConfig?.signal_catalog) ? myPresetConfig.signal_catalog : []}
               themeMode={themeMode}
               openTick={signalOpenTick}

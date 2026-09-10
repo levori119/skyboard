@@ -103,7 +103,9 @@
     "severityFor": "Severity - {{text}}",
     "sev_normal": "Normal",
     "sev_severe": "Severe",
-    "sev_critical": "Critical"
+    "sev_critical": "Critical",
+    "selectWholeBase": "Select every workstation in this base",
+    "toggleBase": "Expand / collapse this base"
   },
   "handwriting": {
     "updateAlt": "Update Altitude",

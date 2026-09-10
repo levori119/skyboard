@@ -215,3 +215,87 @@ export function formatStationTime(iso: string | null | undefined, now: Date = ne
   if (d.getFullYear() === now.getFullYear()) return `${dm} ${hm}`;
   return `${dm}/${p2(d.getFullYear() % 100)} ${hm}`;
 }
+
+// ─── הפצה לנמענים: קיבוץ לפי בסיס אב ────────────────────────────────────────
+//
+// בבורר הנמענים של לוח ההודעות הרשימה השטוחה גדלה לעשרות עמדות, ורובן שייכות
+// לבסיסים שאינם רלוונטיים לשולח. הקיבוץ הופך אותה לרשימת בסיסים מכווצת:
+// **הבסיס שלי פתוח, השאר מכווצים**, וסימון הבסיס מסמן את כל העמדות שתחתיו.
+//
+// נבדל מ-`groupItemsByBase` בשניים: הבסיס של השולח עולה לראש (ולא מיון שם בלבד),
+// ו**סדר הקלט נשמר בתוך הקבוצה** - כך הקורא שולט במיון הפנימי (שכיחות לפני שם)
+// בלי שהקיבוץ ידרוס אותו.
+
+export interface RecipientBaseGroup {
+  /** מפתח יציב: `b<id>` לבסיס אב, `none` לחסרי בסיס */
+  key: string;
+  /** null = לעמדות שבקבוצה אין בסיס אב */
+  baseId: number | null;
+  baseName: string | null;
+  presets: PresetLike[];
+  /** קבוצת הבסיס של השולח - היחידה שנפתחת כברירת מחדל */
+  isMine: boolean;
+}
+
+/**
+ * מקבץ נמענים אפשריים לפי בסיס אב.
+ * הסדר: **הבסיס שלי ראשון** → שאר הבסיסים לפי שם → "ללא בסיס אב" אחרון.
+ * `myBaseId` ריק (עמדה בלי בסיס אב) → אין קבוצה מסומנת; סל השאריות אינו
+ * "הבסיס שלי" ולכן אינו נפתח מעצמו.
+ */
+export function groupRecipientsByBase(
+  presets: PresetLike[], myBaseId: number | null | undefined
+): RecipientBaseGroup[] {
+  const mine = myBaseId == null ? null : Number(myBaseId);
+  const myId = mine != null && Number.isFinite(mine) ? mine : null;
+
+  const groups = new Map<string, RecipientBaseGroup>();
+  for (const p of presets || []) {
+    if (!p) continue;
+    const rawId = p.parent_base_id == null ? null : Number(p.parent_base_id);
+    const id = rawId != null && Number.isFinite(rawId) ? rawId : null;
+    const name = id != null ? (p.parent_base_name || null) : null;
+    // בסיס שנמחק / חסר שם - לא מציגים מזהה גולמי למשתמש, מאחדים ל"ללא בסיס אב"
+    const key = id != null && name ? `b${id}` : 'none';
+    let g = groups.get(key);
+    if (!g) {
+      const gid = key === 'none' ? null : id;
+      g = { key, baseId: gid, baseName: key === 'none' ? null : name, presets: [], isMine: gid != null && gid === myId };
+      groups.set(key, g);
+    }
+    g.presets.push(p);
+  }
+
+  return [...groups.values()].sort((a, b) => {
+    if (a.isMine !== b.isMine) return a.isMine ? -1 : 1;
+    if ((a.baseId === null) !== (b.baseId === null)) return a.baseId === null ? 1 : -1;
+    return String(a.baseName || '').localeCompare(String(b.baseName || ''), 'he');
+  });
+}
+
+/** מצב תיבת הסימון של הבסיס: כולן / חלקן (indeterminate) / אף אחת */
+export type GroupCheckState = 'none' | 'some' | 'all';
+
+/**
+ * קבוצה **ריקה** היא `none` ולא `all`: תיבה מסומנת בלי עמדות מאחוריה משדרת
+ * שנבחרו נמענים שלא נבחרו.
+ */
+export function groupCheckState(ids: number[], selected: Iterable<number>): GroupCheckState {
+  if (!ids || ids.length === 0) return 'none';
+  const set = selected instanceof Set ? selected : new Set(selected || []);
+  let on = 0;
+  for (const id of ids) if (set.has(id)) on++;
+  return on === 0 ? 'none' : on === ids.length ? 'all' : 'some';
+}
+
+/**
+ * סימון/ניקוי כל עמדות הבסיס. מחזיר מערך חדש (immutable) ולא נוגע בנמענים
+ * מבסיסים אחרים - סימון בסיס אינו "בחר הכל".
+ */
+export function toggleGroupIds(ids: number[], selected: number[], on: boolean): number[] {
+  const group = new Set(ids || []);
+  const kept = (selected || []).filter(id => on || !group.has(id));
+  if (!on) return kept;
+  const have = new Set(kept);
+  return [...kept, ...(ids || []).filter(id => !have.has(id))];
+}

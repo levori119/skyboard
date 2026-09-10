@@ -103,7 +103,9 @@
     "severityFor": "חומרת ההודעה - {{text}}",
     "sev_normal": "רגיל",
     "sev_severe": "חמור",
-    "sev_critical": "קריטי"
+    "sev_critical": "קריטי",
+    "selectWholeBase": "סמן את כל העמדות בבסיס",
+    "toggleBase": "פתח / כווץ את הבסיס"
   },
   "handwriting": {
     "updateAlt": "עדכון גובה",

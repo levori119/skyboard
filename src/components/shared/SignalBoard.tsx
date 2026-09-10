@@ -16,12 +16,13 @@ import { usePolling } from '../../hooks/usePollingRegistry';
 import FitText from './FitText';
 import { tr } from '../../i18n/tr';
 import { useDockableWindow } from '../../hooks/useDockableWindow';
+import { groupRecipientsByBase, groupCheckState, toggleGroupIds } from '../../utils/presetGroups';
 
 interface SignalBtn { id: number; preset_id: number; text: string; to_all: boolean; recipient_preset_ids: number[]; active: boolean; source: 'preset' | 'adhoc'; sort_order: number; severity: SignalSeverity; }
 interface Incoming { id: number; from_preset_id: number; from_preset_name: string; text: string; severity: SignalSeverity; }
 type CatItem = { text: string; to_all: boolean; recipients: number[]; default: boolean; severity: SignalSeverity };
 type CatInput = string | { text: string; to_all?: boolean; recipients?: number[]; default?: boolean; severity?: string };
-interface Props { presetId: number; allPresets: { id: number; name: string }[]; catalog: CatInput[]; themeMode?: 'light' | 'dark' | 'ocean'; openTick?: number; }
+interface Props { presetId: number; allPresets: { id: number; name: string; parent_base_id?: number | null; parent_base_name?: string | null }[]; catalog: CatInput[]; themeMode?: 'light' | 'dark' | 'ocean'; openTick?: number; }
 
 /** רוחב החלון ב-scale=1. כל מידה בחלון נגזרת ממנו, כדי שגרירת הפינה תגדיל הכל יחד. */
 const BASE_W = 196;
@@ -33,6 +34,11 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
   const catItems = useMemo<CatItem[]>(() => (catalog || []).map(it => typeof it === 'string'
     ? { text: it, to_all: false, recipients: [], default: false, severity: 'normal' as SignalSeverity }
     : { text: it.text || '', to_all: !!it.to_all, recipients: Array.isArray(it.recipients) ? it.recipients.map(Number) : [], default: !!it.default, severity: normSeverity(it.severity) }), [catalog]);
+  /** בסיס האב של העמדה שלי - קבוצת הנמענים היחידה שנפתחת כברירת מחדל */
+  const myBaseId = useMemo(() => {
+    const me = (allPresets || []).find(p => Number(p.id) === Number(presetId));
+    return me?.parent_base_id == null ? null : Number(me.parent_base_id);
+  }, [allPresets, presetId]);
   const didSyncRef = useRef(false);
   const [buttons, setButtons] = useState<SignalBtn[]>([]);
   const [incoming, setIncoming] = useState<Incoming[]>([]);
@@ -40,6 +46,10 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
   const [addOpen, setAddOpen] = useState(false);
   const [recipModal, setRecipModal] = useState<SignalBtn | null>(null);
   const [recipSearch, setRecipSearch] = useState('');
+  // קיבוץ הנמענים לפי בסיס אב מכווץ הכל חוץ מהבסיס שלי. `flipped` מחזיק רק את
+  // הקבוצות שהמשתמש **הפך** מברירת המחדל, כדי שברירת המחדל תישאר הצהרתית
+  // (ולא תלויה בכך שנדע את מפתחות הקבוצות מראש).
+  const [flipped, setFlipped] = useState<Set<string>>(new Set());
   const [sevModal, setSevModal] = useState<SignalBtn | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
@@ -216,7 +226,7 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
                     הכפתור, ובלי השמירה הזו טקסט ארוך נכנס מתחתיה ולא נקרא. */}
                 <FitText max={px(12)} min={fitMin(px)} style={{ paddingBottom: px(9) }}>{b.text}</FitText>
               </button>
-              <span onClick={() => { setRecipModal(b); setRecipSearch(''); }} title={t('signalBoard.recipients')} style={{ position: 'absolute', bottom: px(1), insetInlineStart: px(3), fontSize: px(10), cursor: 'pointer', opacity: 0.75 }}>👥</span>
+              <span onClick={() => { setRecipModal(b); setRecipSearch(''); setFlipped(new Set()); }} title={t('signalBoard.recipients')} style={{ position: 'absolute', bottom: px(1), insetInlineStart: px(3), fontSize: px(10), cursor: 'pointer', opacity: 0.75 }}>👥</span>
               {/* חיווי החומרה - גם כשההודעה כבויה (אפורה) רואים באיזו חומרה היא תידלק */}
               <span onClick={() => setSevModal(b)} title={t('signalBoard.severity')}
                 style={{ position: 'absolute', bottom: 0, insetInlineEnd: 0, width: px(15), height: px(15), display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
@@ -264,21 +274,48 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
         }}
       >⇲</div>
 
-      {/* Recipients picker — large external modal with live search + frequent-first */}
+      {/* Recipients picker — large external modal: live search (station or base name),
+          frequent-first, and the stations grouped under their parent base. Only my own
+          base is expanded by default; a base checkbox selects every station under it. */}
       {recipModal && (() => {
         const b = recipModal;
         const freq = getFreq();
         const q = recipSearch.trim();
         const others = allPresets.filter(p => p.id !== presetId);
+        // החיפוש תופס גם שם בסיס: משהוצגו כותרות הבסיסים, הקלדת "רמת דוד" חייבת
+        // להחזיר את עמדות הבסיס ולא רשימה ריקה.
         const filtered = others
-          .filter(p => !q || p.name.includes(q))
+          .filter(p => !q || p.name.includes(q) || (p.parent_base_name || '').includes(q))
           .sort((a, c) => (freq[c.id] || 0) - (freq[a.id] || 0) || a.name.localeCompare(c.name, 'he'));
         const setToAll = (on: boolean) => { setRecipients(b, on, b.recipient_preset_ids); setRecipModal({ ...b, to_all: on }); };
+        const commit = (ids: number[]) => { setRecipients(b, false, ids); setRecipModal({ ...b, to_all: false, recipient_preset_ids: ids }); };
         const toggleId = (id: number, on: boolean) => {
           const ids = on ? [...b.recipient_preset_ids, id] : b.recipient_preset_ids.filter(x => x !== id);
           if (on) bumpFreq(id);
-          setRecipients(b, false, ids);
-          setRecipModal({ ...b, to_all: false, recipient_preset_ids: ids });
+          commit(ids);
+        };
+        // קיבוץ לפי בסיס אב. חיפוש פעיל פותח כל קבוצה שיש בה התאמה - אחרת
+        // התוצאה מסתתרת מאחורי כותרת מכווצת והחיפוש נראה שבור.
+        const groups = groupRecipientsByBase(filtered, myBaseId);
+        const grouped = groups.length > 1;
+        const flip = (key: string) => setFlipped(prev => {
+          const next = new Set(prev);
+          if (next.has(key)) next.delete(key); else next.add(key);
+          return next;
+        });
+        // סימון בסיס אינו bumpFreq: הכוכב מסמן נמען שנבחר **אישית** שוב ושוב,
+        // ובחירת בסיס שלם הייתה מציפה אותו ומרוקנת אותו ממשמעות.
+        const toggleBase = (ids: number[], on: boolean) => commit(toggleGroupIds(ids, b.recipient_preset_ids, on));
+        const row = (p: { id: number; name: string }) => {
+          const fav = (freq[p.id] || 0) > 0;
+          const on = b.recipient_preset_ids.includes(p.id);
+          return (
+            <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, cursor: 'pointer', padding: '7px 8px', borderRadius: 6, background: on ? '#14532d' : 'transparent' }}>
+              <input type="checkbox" checked={on} onChange={e => toggleId(p.id, e.target.checked)} />
+              <span style={{ flex: 1 }}>{p.name}</span>
+              {fav && <span title={t('signalBoard.frequent')} style={{ fontSize: 11, color: '#fbbf24' }}>★ {t('signalBoard.frequent')}</span>}
+            </label>
+          );
         };
         return (
           <div style={{ position: 'fixed', inset: 0, zIndex: 9200, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setRecipModal(null)}>
@@ -297,14 +334,34 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
               {!b.to_all && (
                 <div style={{ overflowY: 'auto', padding: '8px 14px', display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {filtered.length === 0 && <span style={{ fontSize: 12, color: '#475569', padding: 6 }}>{t('common.noResults')}</span>}
-                  {filtered.map(p => {
-                    const fav = (freq[p.id] || 0) > 0;
+                  {/* בסיס אב יחיד - אין מה לקבץ, וכותרת מתקפלת רק מוסיפה קליק */}
+                  {!grouped && filtered.map(row)}
+                  {grouped && groups.map(g => {
+                    const ids = g.presets.map(p => Number(p.id));
+                    const state = groupCheckState(ids, b.recipient_preset_ids);
+                    const picked = ids.filter(id => b.recipient_preset_ids.includes(id)).length;
+                    const open = !!q || (g.isMine !== flipped.has(g.key));
                     return (
-                      <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, cursor: 'pointer', padding: '7px 8px', borderRadius: 6, background: b.recipient_preset_ids.includes(p.id) ? '#14532d' : 'transparent' }}>
-                        <input type="checkbox" checked={b.recipient_preset_ids.includes(p.id)} onChange={e => toggleId(p.id, e.target.checked)} />
-                        <span style={{ flex: 1 }}>{p.name}</span>
-                        {fav && <span title={t('signalBoard.frequent')} style={{ fontSize: 11, color: '#fbbf24' }}>★ {t('signalBoard.frequent')}</span>}
-                      </label>
+                      <div key={g.key} style={{ marginBottom: 4 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 8px', minHeight: 40, boxSizing: 'border-box', background: '#0b1524', borderRadius: 6, borderInlineStart: `3px solid ${g.isMine ? '#38bdf8' : g.baseId == null ? '#475569' : '#1e3a5f'}` }}>
+                          {/* עטיפה מרופדת: תיבת סימון עירומה קטנה מדי לאצבע ולעט */}
+                          <label title={t('signalBoard.selectWholeBase')} style={{ display: 'flex', alignItems: 'center', alignSelf: 'stretch', padding: '0 4px', cursor: 'pointer' }}>
+                            <input type="checkbox"
+                              ref={el => { if (el) el.indeterminate = state === 'some'; }}
+                              checked={state === 'all'} onChange={e => toggleBase(ids, e.target.checked)}
+                              style={{ width: 15, height: 15, cursor: 'pointer' }} />
+                          </label>
+                          <button type="button" onClick={() => flip(g.key)} aria-expanded={open} title={t('signalBoard.toggleBase')}
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, alignSelf: 'stretch', background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, textAlign: 'start', font: 'inherit' }}>
+                            <span style={{ color: '#64748b', fontSize: 11 }}>{open ? '▼' : '▶'}</span>
+                            <span style={{ flex: 1, fontSize: 13, fontWeight: 'bold', color: g.baseId == null ? '#94a3b8' : g.isMine ? '#7dd3fc' : '#cbd5e1' }}>
+                              {g.baseName || tr('shared.stationNoParentBase')}
+                            </span>
+                            <span style={{ fontSize: 11, color: picked ? '#4ade80' : '#475569' }}>{picked}/{ids.length}</span>
+                          </button>
+                        </div>
+                        {open && <div style={{ paddingInlineStart: 10, marginTop: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>{g.presets.map(row)}</div>}
+                      </div>
                     );
                   })}
                 </div>

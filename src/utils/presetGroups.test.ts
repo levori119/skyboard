@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
   presetStamp, groupPresetsByBase, shouldShowGroupHeaders, formatStationTime,
   allowedBaseKeys, isBaseAllowed, filterByAllowedBases, groupItemsByBase,
+  groupRecipientsByBase, groupCheckState, toggleGroupIds,
   type PresetLike,
 } from './presetGroups';
 
@@ -219,5 +220,105 @@ describe('groupItemsByBase - קיבוץ תוכן admin', () => {
 
   it('רשימה ריקה → אין קבוצות', () => {
     expect(groupItemsByBase([], BASES, (m: any) => m.name)).toEqual([]);
+  });
+});
+
+// ─── הפצה לנמענים: קיבוץ לפי בסיס אב ────────────────────────────────────────
+
+const R = (id: number, name: string, parent_base_id: number | null, parent_base_name: string | null = null): PresetLike =>
+  ({ id, name, parent_base_id, parent_base_name, created_at: null, updated_at: null });
+
+describe('groupRecipientsByBase - קיבוץ נמענים לפי בסיס אב', () => {
+  const list = [
+    R(1, 'מגדל חצור', 2, 'חצור'),
+    R(2, 'יב"א רמת דוד', 1, 'רמת דוד'),
+    R(3, 'מגרש רמת דוד', 1, 'רמת דוד'),
+    R(4, 'דסק חופשי', null),
+    R(5, 'מגדל תל נוף', 3, 'תל נוף'),
+  ];
+
+  it('הבסיס שלי ראשון - הוא הקבוצה שנפתחת כברירת מחדל', () => {
+    const g = groupRecipientsByBase(list, 3);
+    expect(g[0].baseId).toBe(3);
+    expect(g[0].isMine).toBe(true);
+    expect(g.slice(1).every(x => !x.isMine)).toBe(true);
+  });
+
+  it('שאר הבסיסים ממוינים לפי שם, ו"ללא בסיס אב" תמיד אחרון', () => {
+    const g = groupRecipientsByBase(list, 3);
+    expect(g.map(x => x.baseName)).toEqual(['תל נוף', 'חצור', 'רמת דוד', null]);
+  });
+
+  it('בלי בסיס משלי - אין קבוצה מסומנת, והמיון לפי שם בלבד', () => {
+    const g = groupRecipientsByBase(list, null);
+    expect(g.some(x => x.isMine)).toBe(false);
+    expect(g.map(x => x.baseName)).toEqual(['חצור', 'רמת דוד', 'תל נוף', null]);
+  });
+
+  it('סדר הקלט נשמר בתוך הקבוצה - הקורא ממיין (שכיחות/שם) לפני הקיבוץ', () => {
+    const g = groupRecipientsByBase([R(3, 'מגרש', 1, 'רמת דוד'), R(2, 'יב"א', 1, 'רמת דוד')], 1);
+    expect(g[0].presets.map(p => p.id)).toEqual([3, 2]);
+  });
+
+  it('בסיס בלי שם ידוע מתמזג ל"ללא בסיס אב" - לא מציגים מזהה גולמי', () => {
+    const g = groupRecipientsByBase([R(9, 'עמדה', 77, null), R(4, 'דסק', null)], null);
+    expect(g).toHaveLength(1);
+    expect(g[0].baseId).toBeNull();
+    expect(g[0].presets.map(p => p.id)).toEqual([9, 4]);
+  });
+
+  it('רשימה ריקה מחזירה אפס קבוצות ולא קורסת', () => {
+    expect(groupRecipientsByBase([], 1)).toEqual([]);
+    expect(groupRecipientsByBase(null as any, null)).toEqual([]);
+  });
+
+  it('הבסיס שלי ראשון גם כשהוא "ללא בסיס אב"', () => {
+    const g = groupRecipientsByBase(list, null);
+    expect(g[g.length - 1].baseId).toBeNull();
+    // myBaseId=null אינו "הבסיס שלי" - סל שאריות לא נפתח כברירת מחדל
+    expect(g[g.length - 1].isMine).toBe(false);
+  });
+});
+
+describe('groupCheckState - סימון הבסיס משקף את העמדות שתחתיו', () => {
+  it('כל העמדות מסומנות → all', () => {
+    expect(groupCheckState([1, 2, 3], [3, 1, 2, 9])).toBe('all');
+  });
+
+  it('חלק מסומנות → some (המצב שמצייר את ה-indeterminate)', () => {
+    expect(groupCheckState([1, 2, 3], [2])).toBe('some');
+  });
+
+  it('אף אחת לא מסומנת → none', () => {
+    expect(groupCheckState([1, 2, 3], [7, 8])).toBe('none');
+  });
+
+  it('קבוצה ריקה היא none ולא all - אחרת תיבה ריקה נראית מסומנת', () => {
+    expect(groupCheckState([], [1, 2])).toBe('none');
+    expect(groupCheckState([], [])).toBe('none');
+  });
+
+  it('מקבלת גם Set (הקורא מחזיק Set לביצועים)', () => {
+    expect(groupCheckState([1, 2], new Set([1, 2]))).toBe('all');
+  });
+});
+
+describe('toggleGroupIds - סימון בסיס מסמן/מנקה את כל העמדות שתחתיו', () => {
+  it('סימון מוסיף את כל עמדות הבסיס ושומר על מה שכבר נבחר', () => {
+    expect(toggleGroupIds([2, 3], [9], true)).toEqual([9, 2, 3]);
+  });
+
+  it('סימון אינו משכפל עמדה שכבר נבחרה', () => {
+    expect(toggleGroupIds([2, 3], [3], true)).toEqual([3, 2]);
+  });
+
+  it('ביטול סימון מסיר רק את עמדות הבסיס, ולא נמענים מבסיסים אחרים', () => {
+    expect(toggleGroupIds([2, 3], [9, 2, 3, 4], false)).toEqual([9, 4]);
+  });
+
+  it('אינו משנה את המערך המקורי (immutable)', () => {
+    const sel = [9];
+    toggleGroupIds([2], sel, true);
+    expect(sel).toEqual([9]);
   });
 });
