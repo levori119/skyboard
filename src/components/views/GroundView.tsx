@@ -59,7 +59,7 @@ const RUNWAY_PANEL_RESERVE = 120;
 /** כמה מפאנל השכבות חייב להישאר בתוך שטח המפה בגרירה - שלא ייגרר אל מחוץ להישג יד. */
 const LAYERS_KEEP_VISIBLE = 70;
 
-export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onUpdateStripAircraftFault, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, canAddVehicle = false, onDeleteElement, hideStrips, hideElementPanel, hidePatternControls = false, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], runwayAidStatuses = [], airfieldPatterns = [], activeRunwayIdents = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, onCloseLayersPanel, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark',
+export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onUpdateStripAircraftFault, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, canAddVehicle = false, onDeleteElement, hideStrips, hideElementPanel, hidePatternControls = false, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], linkedRouteNotams = [], runwayAidStatuses = [], airfieldPatterns = [], activeRunwayIdents = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, onCloseLayersPanel, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark',
   joiningPoints = [], joiningPointStrips = [], joiningPointAircraft = [], landingRunways = [],
   onAssignJoiningStrip, onRemoveJoiningAircraft, onAcceptToJoiningPoint, onRemoveJoiningStrip, onCoordinateJoiningStrip, onSplitJoiningStrip,
   onUpdateJoiningAircraft, onSetFlightStatus, onSetGreens, onMoveJoiningPoint, onResetJoiningPoint,
@@ -176,6 +176,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   liveRunwayConflicts?: {routeName:string;conflicts:{type:string;name:string;callsign:string}[];recommendations:{id:number;name:string;category:string;display_state:string;blocking_statuses:string[];allowed_statuses:string[]}[]}[];
   airfieldRunways?: any[];
   airfieldRunwayNotams?: any[];
+  linkedRouteNotams?: any[];
   /** סטטוס אמצעי הנחיתה - נצבע על המסלול בין הזברה למספר */
   runwayAidStatuses?: any[];
   airfieldPatterns?: PatternRow[];
@@ -240,6 +241,26 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
     .filter((rw: any) => rw.start_x_pct != null && rw.end_x_pct != null)
     .map((rw: any) => ({ ...rw, is_closed: isRunwayClosed(rw.id, airfieldRunwayNotams) })),
     [airfieldRunways, airfieldRunwayNotams]);
+
+  /**
+   * מסלולים שסגורים בגלל **מסלול המראה מקושר בשדה אחר**.
+   *
+   * בשדה קרקעי אותו אספלט משורטט לרוב כמסלול רגיל ולא כמסלול המראה, ולכן הוא
+   * אינו יושב ב-`airfieldRunways` ולא נצבע על ידי שכבת הסגירה שמעליו. הקישור
+   * שהוגדר בניהול הופך כאן לצבע: הפקח בקרקע רואה שהמסלול סגור, ורואה **מי**
+   * סגר אותו - במקום לגלות זאת כשמטוס כבר מסיע לשם.
+   */
+  const closedLinkedRoutes = React.useMemo(() => {
+    const m = new Map<number, { airfieldName: string; runwayName: string }>();
+    for (const n of linkedRouteNotams || []) {
+      if (n?.notam_type !== 'closed') continue;
+      m.set(Number(n.route_id), {
+        airfieldName: n.source_airfield_name || '',
+        runwayName: n.source_runway_name || '',
+      });
+    }
+    return m;
+  }, [linkedRouteNotams]);
 
   const shownPatterns = React.useMemo(() => {
     const closed = closedRunwayEnds(airfieldRunways || [], airfieldRunwayNotams || []);
@@ -3443,6 +3464,31 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             </svg>
           )}
 
+          {/* ── מסלול קרקעי שסגור בגלל מסלול המראה מקושר ──
+              אותו סימון בדיוק של מסלול סגור, אבל על הקו של המסלול הקרקעי: מבחינת
+              הפקח זה אותו אספלט, ולכן זו לא אמורה להיות תצוגה אחרת. מוצג בלי תלות
+              במתג שכבת המסלולים - סגירה היא מידע תפעולי, לא שרטוט. */}
+          {imgBounds && closedLinkedRoutes.size > 0 && (
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none"
+              style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 16 }}>
+              {(airfieldRoutes || []).map((r: any) => {
+                const src = closedLinkedRoutes.get(Number(r.id));
+                if (!src) return null;
+                const pts: {x:number;y:number}[] = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? (() => { try { return JSON.parse(r.route_path); } catch { return []; } })() : []);
+                if (pts.length < 2) return null;
+                const line = pts.map((p: any) => `${p.x},${p.y}`).join(' ');
+                return (
+                  <g key={r.id} className="rw-closed-line" data-testid={`route-closed-${r.id}`}>
+                    <polyline points={line} fill="none" stroke="#7f1d1d" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                    <polyline points={line} fill="none" stroke="#ef4444" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="2.5,1.5" />
+                    <polyline points={line} fill="none" stroke="#fca5a5" strokeWidth="0.4" strokeLinecap="round" strokeLinejoin="round" opacity="0.6" />
+                    <title>{tr('ground.routeClosedByLink', { airfield: src.airfieldName, runway: src.runwayName })}</title>
+                  </g>
+                );
+              })}
+            </svg>
+          )}
+
           {/* Nav route highlights — trimmed at intersection points */}
           {mapDisplaySettings.showRoutes && imgBounds && Object.entries(elemNavData).map(([elIdStr, nav]) => {
             if (!nav.viaRouteIds.length && !nav.fromPointId && !nav.toPointId) return null;
@@ -5738,7 +5784,9 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                         })
                         .map((rw: any) => rw.id)
                     );
-                    const isClosedRunway = airfieldRunwayNotams.some(
+                    // סגור גם כשהסגירה נרשמה בשדה **מקושר** ולא כאן: מבחינת
+                    // הפקח זה אותו אספלט, ולכן אסור שייבחר להמראה.
+                    const isClosedRunway = closedLinkedRoutes.has(Number(rwy.id)) || airfieldRunwayNotams.some(
                       (n: any) => matchingRwIds.has(n.runway_id) && n.notam_type === 'closed'
                     );
                     // Per-end takeoff state — green if this end has active clearance, red if reciprocal does

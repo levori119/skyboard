@@ -3,7 +3,8 @@ import pool from '../db/pool.js';
 import { sanitizeSvgBody } from '../../shared/sanitizeHtml.js';
 import { syncRunwayRoute } from '../utils/runwayRoute.js';
 import {
-  airfieldOfRunway, resolveAidStatus, resolveEndUse, resolveGrf, resolveLighting, resolveNotams,
+  airfieldOfRunway, resolveAidStatus, resolveEndUse, resolveGrf, resolveLighting,
+  resolveLinkedRouteNotams, resolveNotams,
 } from '../utils/runwayState.js';
 const router = new Router();
 
@@ -1190,6 +1191,22 @@ router.get('/api/runway-notams', async (req, res) => {
     res.status(500).json({ error: 'Failed to get runway notams' });
   }
 });
+// ── NOTAMים שמוקרנים על מסלול קרקעי ──────────────────────────────────────────
+// בשדה קרקעי אותו אספלט משורטט לרוב כ**מסלול רגיל** ולא כמסלול המראה, ולכן
+// `/api/runway-notams` מחזיר לו רשימה ריקה גם כשהמסלול המקושר סגור. כאן חוזרות
+// אותן שורות בדיוק, ממופות ל-`route_id` המקומי - כדי שהמפה בקרקע תצבע את מה
+// שנסגר באוויר. ראה server/utils/runwayState.js.
+router.get('/api/route-notams', async (req, res) => {
+  try {
+    const afId = Number(req.query.airfield_id);
+    if (!afId) return res.json([]);
+    res.json(await resolveLinkedRouteNotams(pq, afId));
+  } catch (err) {
+    console.error('get route notams error:', err.message);
+    res.status(500).json({ error: 'Failed to get route notams' });
+  }
+});
+
 // כתיבה היא **מקומית בלבד**: השורה נשמרת במסלול שבו נכתבה, והקריאה מרכיבה את
 // מצב הקבוצה. אין עותקים - ולכן אין מה שיתיישן, קישור חדש רואה מיד את הקיים,
 // ומחיקה מצד אחד (לפי `id` המקורי שחוזר בקריאה) מסירה את המצב לשני הצדדים.

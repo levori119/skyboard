@@ -139,6 +139,8 @@ ICON + צבע) יש משמעות רק בתוך ההקפה שאליה שויך.
 הוא חל על **כל** סוגי המסלולים, כולל **מסלול המראה**.
 **רכיב:** `admin/RouteLinksSection.tsx` + `utils/routeLinks.ts`.
 **Endpoints:** `/api/route-link-groups` (GET/POST), `/api/route-link-groups/:id` (PUT/DELETE).
+מרגע שקושרו, **סגירת מסלול חוצה את הקישור גם כשהצד השני אינו מסלול המראה**: בשדה קרקעי אותו אספלט משורטט לרוב כמסלול רגיל על מפת הקרקע, והוא נצבע כסגור עם ציון מי סגר אותו.
+**Endpoint נוסף:** `/api/route-notams` (GET) - הסגירות שמוקרנות על מסלולי השדה.
 **מונחים:** קישור מסלולים, קבוצת קישור, חבר קישור, סוג מסלול.
 
 **רכיבים:** `admin/PatternsSection.tsx` + `map/TrafficPatternLayer.tsx` + `utils/trafficPattern.ts`.

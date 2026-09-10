@@ -147,6 +147,51 @@ test('קישור מסלולים: רובד נפרד, שלושה שדות תעופ
   expect(count, 'הקישור חייב להחזיק יותר משני שדות').toBeGreaterThan(2);
 });
 
+// ── הקישור הוא דו-כיווני, וכך הוא גם נראה ─────────────────────────────────────
+// קישור נוצר תוך עריכת שדה אחד, ולכן הוא **חייב** להופיע גם בשדה השני: אחרת מי
+// שנכנס משם רואה סקשן ריק ומקשר שוב, ונוצר קישור כפול. השרת החזיר את זה נכון
+// מלכתחילה, אבל הסקשן במסך הניהול הראה 0: הקישורים נשלפו **בסוף** שרשרת טעינה
+// ארוכה (מפה, אלמנטים, פוליגונים, סקטורים, מסלולים) ובלי לבדוק לאיזה שדה הם
+// שייכים - ולכן הגיעו מאוחר, ולפעמים אל השדה הלא נכון.
+test('קישור שנוצר בשדה אחד מוצג גם בשדה השני, ולא נדבק לשדה שלישי', async ({ page }) => {
+  const routesA = await (await api.get(`${API}/airfield-routes?airfield_id=${airfieldId}`)).json();
+  const routesB = await (await api.get(`${API}/airfield-routes?airfield_id=${airfieldBId}`)).json();
+  const group = await (await api.post(`${API}/route-link-groups`, {
+    data: {
+      name: `${STAMP}_pair`, airfield_id: airfieldId,
+      members: [{ route_id: routesA[0].id }, { route_id: routesB[0].id }],
+    },
+  })).json();
+
+  await setScreenSize(page);
+  await page.goto('/');
+  await identifyViaMirage(page);
+  await page.getByRole('button', { name: /ניהול מערכת/ }).click();
+  await page.getByRole('button', { name: /שדות תעופה/ }).click();
+
+  const selectAirfield = async (label: string) => {
+    await page.locator('select').first().selectOption({ label });
+    await expect(page.getByTestId('route-links-section')).toBeVisible({ timeout: 20000 });
+  };
+  const groupIds = () => page.getByTestId('route-link-group').evaluateAll(
+    els => els.map(e => e.getAttribute('data-group-id')));
+
+  // השדה שממנו נוצר הקישור
+  await selectAirfield(STAMP);
+  await page.getByTestId('route-links-header').click();
+  await expect.poll(groupIds, { timeout: 20000 }).toContain(String(group.id));
+
+  // ההפך: השדה השני, שרק **חבר** בקישור
+  await selectAirfield(STAMP_B);
+  await page.getByTestId('route-links-header').click();
+  await expect.poll(groupIds, { timeout: 20000 }).toContain(String(group.id));
+
+  // שדה שלישי שאינו בקישור - ולא יורש את הרשימה של הקודם
+  await selectAirfield(STAMP_C);
+  await page.getByTestId('route-links-header').click();
+  await expect.poll(groupIds, { timeout: 20000 }).not.toContain(String(group.id));
+});
+
 test('הבורר מציע שדות תעופה - לא עמדות', async ({ page }) => {
   await setScreenSize(page);
   await page.goto('/');

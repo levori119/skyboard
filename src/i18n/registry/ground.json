@@ -614,6 +614,10 @@
       "he": "⚠️ מסלולים דרך אלמנט לא שמיש - לפי אלמנט:",
       "en": "⚠️ Routes through an unserviceable element - by element:"
     },
+    "routeClosedByLink": {
+      "he": "🚫 מסלול סגור - נסגר ב{{airfield}} ({{runway}})",
+      "en": "🚫 Runway closed - closed at {{airfield}} ({{runway}})"
+    },
     "runwayClosedNotam": {
       "he": "🚫 מסלול סגור - NOTAM",
       "en": "🚫 Runway closed - NOTAM"

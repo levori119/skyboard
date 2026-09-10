@@ -540,6 +540,11 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
   // Route links state
   // קישורי מסלולים - קבוצה של N מסלולים בשדות שונים (ראה routeLinks.ts)
   const [adminRouteLinks, setAdminRouteLinks] = useState<LinkGroup[]>([]);
+  // איזה שדה נטען **עכשיו**. `loadAirfieldPoints` ארוך (מפה, אלמנטים, פוליגונים,
+  // סקטורים, מסלולים...), והקישורים נשלפו בסופו בלי שמירה על שייכות - ולכן מי
+  // שהחליף שדה בינתיים ראה את הקישורים של השדה **הקודם**, ומי שלא המתין ראה 0
+  // וחשב שהקישור לא נשמר. כל תשובה ששבה לשדה שכבר אינו הנבחר נזרקת.
+  const loadingAirfieldRef = useRef<number | null>(null);
   const [routeDraftPoints, setRouteDraftPoints] = useState<{x: number; y: number}[]>([]);
   const [pendingNewRoute, setPendingNewRoute] = useState<{name:string;color:string;notes:string;category:string;is_runway:boolean;end_a_name:string;end_b_name:string}|null>(null);
   // Airfield element types (global list)
@@ -4885,7 +4890,9 @@ CHARLIE,1,301,`}
           };
           const loadRouteLinkGroups = async (airfieldId: number) => {
             const r = await fetch(`${API_URL}/route-link-groups?airfield_id=${airfieldId}`);
-            setAdminRouteLinks(r.ok ? await r.json() : []);
+            const rows = r.ok ? await r.json() : [];
+            if (loadingAirfieldRef.current !== airfieldId) return;
+            setAdminRouteLinks(rows);
           };
           const loadAirfieldPatterns = async (airfieldId: number) => {
             const r = await fetch(`${API_URL}/airfield-patterns?airfield_id=${airfieldId}`);
@@ -4897,6 +4904,12 @@ CHARLIE,1,301,`}
           };
           const loadAirfieldPoints = async (airfieldId: number) => {
             setAdminSelMapSrc(null);
+            // הקישורים נטענים **ראשונים** ובלי המתנה לשאר: הם אינם תלויים במפה
+            // ובאלמנטים, וההמתנה להם היא שגרמה לסקשן להראות 0 קישורים בזמן שהם
+            // כבר קיימים. הרשימה הקודמת מתאפסת כדי שלא יוצגו קישורים של שדה אחר.
+            loadingAirfieldRef.current = airfieldId;
+            setAdminRouteLinks([]);
+            loadRouteLinkGroups(airfieldId);
             // איפוס מצב ההקפה **לפני** ה-awaits: הטעינה ארוכה (מפה, אלמנטים, פוליגונים,
             // מסלולים...), ואיפוס בסופה היה מבטל עריכה שהמשתמש כבר פתח בינתיים.
             setEditingPatternId(null); setPatternDraft(null); setPlacingPatternElement(null);
@@ -4927,10 +4940,10 @@ CHARLIE,1,301,`}
             await loadJoiningPoints(airfieldId);
             setPlacingJoiningPointId(null);
             loadAdminAirfieldTaxiways(airfieldId);
-            fetch(`${API_URL}/route-link-groups?airfield_id=${airfieldId}`)
-              .then(r => r.ok ? r.json() : []).then(setAdminRouteLinks).catch(() => {});
             fetch(`${API_URL}/base-routes?airfield_id=${airfieldId}`)
-              .then(r => r.ok ? r.json() : []).then(setBRoutes).catch(() => {});
+              .then(r => r.ok ? r.json() : [])
+              .then(rows => { if (loadingAirfieldRef.current === airfieldId) setBRoutes(rows); })
+              .catch(() => {});
             setDrawingVehicleRouteId(null); setVehicleRouteDraftPoints([]);
           };
           const saveAirfield = async () => {

@@ -211,3 +211,79 @@ export async function airfieldOfRunway(query, runwayId) {
   const { rows } = await query('SELECT airfield_id FROM airfield_runways WHERE id=$1', [Number(runwayId)]);
   return rows[0]?.airfield_id ?? null;
 }
+
+// ─── מסלול קרקעי שאינו מסלול המראה ────────────────────────────────────────────
+//
+// `RUNWAY_GROUP_SQL` מגשר **מסלול המראה למסלול המראה**: שני הצדדים חייבים להיות
+// מוגדרים ביישות "מסלולים" ולהחזיק מסלול ראי. אבל בשדה **קרקעי** אותו אספלט
+// משורטט לרוב כ**מסלול רגיל** על מפת הקרקע, בלי מסלול המראה מאחוריו - ואז
+// הקישור נשמר בניהול ולא קורה כלום: הפקח בקרקע רואה מסלול פתוח בזמן שהוא סגור
+// באוויר. כאן נסגר הפער: מסלול שאין מאחוריו מסלול המראה מקבל את מצב **מסלול
+// ההמראה המקושר אליו**, ומצויר לפיו.
+//
+// כמו כל השאר - נפתר בזמן קריאה, בלי עותקים.
+
+export const LINKED_ROUTE_RUNWAY_SQL = `
+  SELECT DISTINCT
+         mine.id              AS route_id,
+         mine.name            AS route_name,
+         other_rw.id          AS src_runway_id,
+         other_rw.name        AS src_runway_name,
+         other_rw.airfield_id AS src_airfield_id,
+         af.name              AS src_airfield_name
+    FROM airfield_routes mine
+    JOIN route_link_members m_mine ON m_mine.route_id = mine.id
+    JOIN route_link_members m_oth  ON m_oth.group_id = m_mine.group_id
+                                  AND m_oth.route_id <> m_mine.route_id
+    JOIN airfield_routes other     ON other.id = m_oth.route_id
+    JOIN airfield_runways other_rw ON other_rw.id = other.source_runway_id
+    LEFT JOIN airfields af         ON af.id = other_rw.airfield_id
+   WHERE mine.airfield_id = $1
+     AND mine.source_runway_id IS NULL
+     AND other_rw.airfield_id <> mine.airfield_id`;
+
+/**
+ * NOTAMים של מסלולי ההמראה המקושרים, מוקרנים על המסלול הקרקעי.
+ *
+ * `shorten_end` **נמחק**: הוא מיקום ('a'/'b') על מסלול המראה, ולמסלול קרקעי אין
+ * קצוות למפות אליהם. הכמות נשארת - "קוצר ב-300 מ'" הוא מידע נכון גם בלי הקצה,
+ * וקצה מומצא היה מצייר קיצור בצד ההפוך.
+ */
+export function mergeRouteNotams(links, notamRows) {
+  const byRunway = new Map();
+  for (const row of notamRows) {
+    const k = Number(row.runway_id);
+    if (!byRunway.has(k)) byRunway.set(k, []);
+    byRunway.get(k).push(row);
+  }
+  const out = [], seen = new Set();
+  for (const l of links) {
+    for (const row of byRunway.get(Number(l.src_runway_id)) || []) {
+      const key = `${l.route_id}:${row.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        ...row,
+        shorten_end: null,
+        route_id: Number(l.route_id),
+        route_name: l.route_name ?? null,
+        source_runway_id: Number(l.src_runway_id),
+        source_runway_name: l.src_runway_name ?? null,
+        source_airfield_id: l.src_airfield_id ?? null,
+        source_airfield_name: l.src_airfield_name ?? null,
+        is_linked: true,
+      });
+    }
+  }
+  return out.sort((a, b) => a.route_id - b.route_id || Number(a.id) - Number(b.id));
+}
+
+/** ה-NOTAMים שמוקרנים על מסלולי השדה מתוך מסלולי המראה מקושרים. */
+export async function resolveLinkedRouteNotams(query, airfieldId) {
+  const { rows: links } = await query(LINKED_ROUTE_RUNWAY_SQL, [Number(airfieldId)]);
+  if (!links.length) return [];
+  const srcIds = [...new Set(links.map(l => Number(l.src_runway_id)))];
+  const { rows } = await query(
+    'SELECT * FROM runway_notams WHERE runway_id = ANY($1::int[]) ORDER BY id', [srcIds]);
+  return mergeRouteNotams(links, rows);
+}

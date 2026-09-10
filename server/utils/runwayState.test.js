@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { RUNWAY_GROUP_SQL, mergeEndUse, mergeGrf, mergeLighting, mergeNotams } from './runwayState.js';
+import { LINKED_ROUTE_RUNWAY_SQL, RUNWAY_GROUP_SQL, mergeEndUse, mergeGrf, mergeLighting, mergeNotams, mergeRouteNotams } from './runwayState.js';
 
 // מסלול מקושר הוא **מסלול פיזי אחד**, ולכן המצב שלו נפתר בזמן **קריאה** ולא
 // מועתק בזמן כתיבה: אין עותקים שמתיישנים, קישור חדש רואה מיד את המידע הקיים,
@@ -151,5 +151,73 @@ describe('mergeEndUse - כיוון אחד למסלול, גם כשהשכן קבע
       { row: { id: 2, runway_id: 4, end_name: '18', in_takeoff: true, updated_at: at('10') }, src: C, local: C },
     ]);
     expect(out.filter(r => r.in_takeoff)).toHaveLength(2);
+  });
+});
+
+// ─── מסלול קרקעי שאינו מסלול המראה ────────────────────────────────────────────
+//
+// `RUNWAY_GROUP_SQL` מגשר **מסלול המראה למסלול המראה**. שדה שבו אותו אספלט
+// משורטט על מפת הקרקע כ**מסלול רגיל** (ולא כ"מסלול" ביישות המסלולים) לא מקבל
+// דרכו כלום: הקישור נשמר בניהול, והפקח בקרקע ממשיך לראות מסלול פתוח בזמן שהוא
+// סגור באוויר. `mergeRouteNotams` סוגר בדיוק את הפער הזה.
+
+describe('LINKED_ROUTE_RUNWAY_SQL - הגשר מהמסלול הקרקעי למסלול ההמראה המקושר', () => {
+  it('הולך דרך קבוצת הקישור אל מסלול ההמראה שמאחורי הצד השני', () => {
+    expect(LINKED_ROUTE_RUNWAY_SQL).toContain('route_link_members');
+    expect(LINKED_ROUTE_RUNWAY_SQL).toContain('source_runway_id');
+    expect(LINKED_ROUTE_RUNWAY_SQL).toContain('airfield_runways');
+  });
+
+  it('מדלג על מסלול ראי - הוא כבר מקבל את מצבו דרך RUNWAY_GROUP_SQL', () => {
+    expect(LINKED_ROUTE_RUNWAY_SQL).toMatch(/mine\.source_runway_id IS NULL/);
+  });
+});
+
+describe('mergeRouteNotams - מצב מסלול ההמראה מוקרן על המסלול הקרקעי', () => {
+  const LINK = {
+    route_id: 18, route_name: '33',
+    src_runway_id: 6, src_runway_name: '33R/15L',
+    src_airfield_id: 16, src_airfield_name: 'בחא 8 אווירי',
+  };
+
+  it('סגירה שנרשמה באוויר מגיעה למסלול הקרקעי, עם ציון מאיפה', () => {
+    const out = mergeRouteNotams([LINK], [{ id: 53, runway_id: 6, notam_type: 'closed' }]);
+    expect(out).toHaveLength(1);
+    expect(out[0].route_id).toBe(18);
+    expect(out[0].notam_type).toBe('closed');
+    expect(out[0].id, 'מזהה השורה המקורי נשמר - מחיקה מהאוויר מסירה גם כאן').toBe(53);
+    expect(out[0].is_linked).toBe(true);
+    expect(out[0].source_airfield_name).toBe('בחא 8 אווירי');
+    expect(out[0].source_runway_name).toBe('33R/15L');
+  });
+
+  it('NOTAM של מסלול אחר אינו נדבק למסלול הזה', () => {
+    expect(mergeRouteNotams([LINK], [{ id: 1, runway_id: 7, notam_type: 'closed' }])).toHaveLength(0);
+  });
+
+  it('קיצור: הכמות עוברת, הקצה **נמחק** - למסלול קרקעי אין קצוות למפות אליהם', () => {
+    const out = mergeRouteNotams([LINK], [
+      { id: 8, runway_id: 6, notam_type: 'shortening', shorten_end: 'b', shorten_amount_m: 305 },
+    ]);
+    expect(out[0].shorten_amount_m).toBe(305);
+    expect(out[0].shorten_end).toBe(null);
+  });
+
+  it('אותו NOTAM דרך שתי קבוצות קישור מוצג פעם אחת', () => {
+    const out = mergeRouteNotams([LINK, { ...LINK }], [{ id: 53, runway_id: 6, notam_type: 'closed' }]);
+    expect(out).toHaveLength(1);
+  });
+
+  it('בלי קישורים - אין מה להקרין', () => {
+    expect(mergeRouteNotams([], [{ id: 53, runway_id: 6, notam_type: 'closed' }])).toEqual([]);
+  });
+
+  it('שני מסלולים קרקעיים מקושרים מקבלים כל אחד את שלו', () => {
+    const other = { route_id: 13, route_name: 'Z', src_runway_id: 7, src_runway_name: '09/27', src_airfield_id: 16, src_airfield_name: 'בחא 8 אווירי' };
+    const out = mergeRouteNotams([LINK, other], [
+      { id: 53, runway_id: 6, notam_type: 'closed' },
+      { id: 60, runway_id: 7, notam_type: 'text', text_content: 'עבודות' },
+    ]);
+    expect(out.map(r => [r.route_id, r.id])).toEqual([[13, 60], [18, 53]]);
   });
 });

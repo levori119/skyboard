@@ -577,6 +577,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [joiningPointStrips, setJoiningPointStrips] = useState<any[]>([]);
   const [joiningPointAircraft, setJoiningPointAircraft] = useState<any[]>([]);
   const [airfieldRunwayNotams, setAirfieldRunwayNotams] = useState<any[]>([]);
+  // NOTAMים שמוקרנים על **מסלול** של השדה מתוך מסלול המראה מקושר בשדה אחר -
+  // המקרה של שדה קרקעי שבו האספלט משורטט כמסלול רגיל ולא כמסלול המראה.
+  const [linkedRouteNotams, setLinkedRouteNotams] = useState<any[]>([]);
   const [airfieldGeneralNotams, setAirfieldGeneralNotams] = useState<any[]>([]);
   const [generalNotamFloating, setGeneralNotamFloating] = useState(false);
   const [generalNotamEditId, setGeneralNotamEditId] = useState<number | null>(null);
@@ -5460,6 +5463,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         fetch(`${API_URL}/airfield-runways?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldRunways).catch(() => {});
         fetch(`${API_URL}/airfield-patterns?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldPatterns).catch(() => {});
         fetch(`${API_URL}/runway-notams?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldRunwayNotams).catch(() => {});
+        fetch(`${API_URL}/route-notams?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setLinkedRouteNotams).catch(() => {});
         fetch(`${API_URL}/runway-grf?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldRunwayGrf).catch(() => {});
         fetch(`${API_URL}/airfield-taxiways?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldTaxiways).catch(() => {});
         fetch(`${API_URL}/airfield-atis?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(d => setWorkstationAtis(Array.isArray(d) ? (d[0] || null) : null)).catch(() => {});
@@ -13834,6 +13838,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 // ההקפה נדלקת לפי מה שסומן בפאנל "מסלולים בשימוש" - המראה ונחיתה
                 activeRunwayIdents={[...towerTakeoffRunways, ...towerLandingRunways]}
                 airfieldRunwayNotams={airfieldRunwayNotams}
+                linkedRouteNotams={linkedRouteNotams}
                 runwayAidStatuses={runwayAidStatuses}
                 activeTakeoffs={activeTakeoffs}
                 airfieldTaxiways={airfieldTaxiways}
