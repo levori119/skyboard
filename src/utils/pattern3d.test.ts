@@ -22,6 +22,7 @@ import {
   type Camera3D,
   type Vec3,
   shouldRenderPattern3D,
+  shouldShowPatternLabels,
   descentSpans,
 } from './pattern3d';
 
@@ -479,5 +480,19 @@ describe('משטח גובה - הדאטום של כל גובה', () => {
   it('במבט-על אין הזזה אנכית כלל - ושם גם הסרגל וגם המשטחים חסרי משמעות', () => {
     const top = { yaw: 0, tilt: 90, zoom: 1 };
     expect(project({ x: 20, y: 30, z: 0 }, top).y).toBeCloseTo(project({ x: 20, y: 30, z: 50 }, top).y, 12);
+  });
+});
+
+describe('shouldShowPatternLabels - פקד שהוסתר לא משאיר שכבה דלוקה', () => {
+  it('פקדי ההקפה זמינים → התווית לפי בחירת הפקח', () => {
+    expect(shouldShowPatternLabels(true, false)).toBe(true);
+    expect(shouldShowPatternLabels(false, false)).toBe(false);
+  });
+
+  it('פקדי ההקפה מוסתרים → תווית כבויה **גם** כשהעדפה דלוקה', () => {
+    // המלכודת: `showPatternNames` הוא true כברירת מחדל. הסתרת הצ'קבוקס לבדה
+    // הייתה משאירה את שמות ההקפה על המפה בלי שום דרך לכבות אותם.
+    expect(shouldShowPatternLabels(true, true)).toBe(false);
+    expect(shouldShowPatternLabels(false, true)).toBe(false);
   });
 });

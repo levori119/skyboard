@@ -322,3 +322,15 @@ export function altOnLeg(
 export function shouldRenderPattern3D(show3D: boolean): boolean {
   return show3D;
 }
+
+/**
+ * האם להציג את שמות ההקפה על המפה.
+ *
+ * **אותו כלל של `shouldRenderPattern3D`, מהכיוון ההפוך:** פקד שהוסתר אסור לו
+ * להשאיר את השכבה שלו דלוקה. `showPatternNames` הוא `true` כברירת מחדל, ולכן
+ * הסתרת הצ'קבוקס לבדה (בעמדת ניהול שדה, שאין לה עניין בהקפות) הייתה משאירה
+ * את השמות על המפה **בלי שום דרך לכבות אותם** - רעש קבוע במקום פקד מיותר.
+ */
+export function shouldShowPatternLabels(showPatternNames: boolean, hidePatternControls: boolean): boolean {
+  return !hidePatternControls && showPatternNames;
+}

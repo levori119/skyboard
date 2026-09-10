@@ -121,7 +121,8 @@ export const HELP_TOPICS: HelpTopic[] = [
     it('viewMenu', 'table', '📋', c => c.allowViewSwitching && !c.isMissionDeskMode),
     it('viewMenu', 'blockView', '📶', notDesk),
     it('viewMenu', 'load', '📈', c => !c.isGroundMgmtMode),
-    it('viewMenu', 'weather', '🌦'),
+    // אין מז"א בעמדת ניהול שדה - הפריט עצמו מוסתר שם, וחלון העזרה חייב לשקף את המסך
+    it('viewMenu', 'weather', '🌦', c => !c.isGroundMgmtMode),
     it('viewMenu', 'dualSwap', '🔄', c => c.isDualMapMode),
     it('viewMenu', 'cameras', '📷', c => c.hasCameras),
     it('viewMenu', 'layers', '🗂', isGround),

@@ -11579,7 +11579,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   )}
                   {/* מז"א - שכבת Windy. על מפה מעוגנת היא נפרסת על המפה עצמה,
                       ובתצוגה שאין בה מפה היא נפתחת בחלון צף. אותו תפריט שכבות
-                      בשני המצבים. */}
+                      בשני המצבים.
+                      בעמדת ניהול שדה אין מז"א כלל (לא בסרגל המפה ולא כאן):
+                      בלי הגידור הפריט היה נדלק ושום דבר לא היה קורה, כי העמדה
+                      אינה מקבלת את `weather` - בדיוק "פקד שנדלק בלי תוצאה". */}
+                  {!isGroundMgmtMode && (
                   <div
                     onClick={() => { toggleWeather(); setShowViewMenu(false); }}
                     style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: weatherOpen ? '#38bdf8' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: weatherOpen ? 'bold' : 'normal', gap: '6px' }}
@@ -11589,6 +11593,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <span>🌦 {tr('weather.showWeather')}</span>
                     {weatherOpen && <span style={{ fontSize: '10px', color: menuAcc('#38bdf8', '#0284c7') }}>{tr('ctrl.active')}</span>}
                   </div>
+                  )}
                   {/* Swap dual maps (left ↔ right) */}
                   {isDualMapMode && (
                     <div
@@ -13721,7 +13726,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   offReason: airPictureOffReason,
                   themeMode,
                 } : null}
-                weather={{
+                weather={isGroundMgmtMode ? undefined : {
                   open: weatherOpen,
                   prefs: weatherPrefs,
                   onPrefsChange: updateWeatherPrefs,
@@ -13817,6 +13822,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 onDeleteElement={handleDeleteElement}
                 hideStrips={isGroundMgmtMode}
                 hideElementPanel={!isGroundMgmtMode}
+                // עמדת ניהול שדה מנהלת רכבים, אלמנטים ונקודות - לא תנועה אווירית.
+                // שמות ההקפה ומתג התלת מימד הם רעש קבוע בסרגל שלה.
+                hidePatternControls={isGroundMgmtMode}
                 externalCatHighlight={isGroundMgmtMode ? sdCatHighlight : undefined}
                 externalHiddenElements={isGroundMgmtMode ? sdHiddenElements : undefined}
                 topOffset={0}

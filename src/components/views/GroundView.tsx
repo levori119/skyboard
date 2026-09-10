@@ -26,7 +26,7 @@ import Pattern3DSplitPane, { splitMapInset } from '../ground/Pattern3DSplitPane'
 import {
   loadPattern3DPrefs, savePattern3DPrefs, smallWinInArea, type Pattern3DPrefs,
 } from '../ground/pattern3dPrefs';
-import { DEFAULT_CAMERA, shouldRenderPattern3D, type Camera3D } from '../../utils/pattern3d';
+import { DEFAULT_CAMERA, shouldRenderPattern3D, shouldShowPatternLabels, type Camera3D } from '../../utils/pattern3d';
 import { altToDisplay, collectGreensAlerts, greensPoint, type GreensAlertRow } from '../../utils/joiningPoints';
 import { bidiAuto } from '../../utils/bidi';
 import { activePatterns, boundsAspect } from '../../utils/trafficPattern';
@@ -59,7 +59,7 @@ const RUNWAY_PANEL_RESERVE = 120;
 /** כמה מפאנל השכבות חייב להישאר בתוך שטח המפה בגרירה - שלא ייגרר אל מחוץ להישג יד. */
 const LAYERS_KEEP_VISIBLE = 70;
 
-export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onUpdateStripAircraftFault, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, canAddVehicle = false, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], runwayAidStatuses = [], airfieldPatterns = [], activeRunwayIdents = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, onCloseLayersPanel, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark',
+export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onUpdateStripAircraftFault, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, canAddVehicle = false, onDeleteElement, hideStrips, hideElementPanel, hidePatternControls = false, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], runwayAidStatuses = [], airfieldPatterns = [], activeRunwayIdents = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, onCloseLayersPanel, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark',
   joiningPoints = [], joiningPointStrips = [], joiningPointAircraft = [], landingRunways = [],
   onAssignJoiningStrip, onRemoveJoiningAircraft, onAcceptToJoiningPoint, onRemoveJoiningStrip, onCoordinateJoiningStrip, onSplitJoiningStrip,
   onUpdateJoiningAircraft, onSetFlightStatus, onSetGreens, onMoveJoiningPoint, onResetJoiningPoint,
@@ -168,6 +168,8 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   onDeleteElement?: (elementId: number) => Promise<void>;
   hideStrips?: boolean;
   hideElementPanel?: boolean;
+  /** עמדה שאין לה עניין בהקפות (ניהול שדה): מסתיר את "הצג שמות הקפה" ואת מתג התלת מימד */
+  hidePatternControls?: boolean;
   externalCatHighlight?: Set<string>;
   externalHiddenElements?: Set<number>;
   topOffset?: number;
@@ -2759,7 +2761,9 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             <div style={{ padding: '3px 10px', borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#1e3a5f'}`, background: lightMode ? '#f1f5f9' : '#0a1628' }}>
               <div style={{ fontSize: '9px', fontWeight: 'bold', color: lightMode ? '#64748b' : '#64748b', padding: '3px 0 3px', letterSpacing: '0.05em', textTransform: 'uppercase' }}>{tr('ground.displaySettings')}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingBottom: '4px' }}>
-                {[{ key: 'showRoutes', label: 'הצג מסלול נסיעה' }, { key: 'showNames', label: 'הצג שמות' }, { key: 'showPatternNames', label: tr('ground.showPatternNames') }, { key: 'showStatus', label: 'הצג סטטוס' }].map(({ key, label }) => (
+                {[{ key: 'showRoutes', label: 'הצג מסלול נסיעה' }, { key: 'showNames', label: 'הצג שמות' },
+                  ...(hidePatternControls ? [] : [{ key: 'showPatternNames', label: tr('ground.showPatternNames') }]),
+                  { key: 'showStatus', label: 'הצג סטטוס' }].map(({ key, label }) => (
                   <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: headerColor }}>
                     <input type="checkbox" checked={(mapDisplaySettings as any)[key]} onChange={e => setMapDisplaySettings(p => ({ ...p, [key]: e.target.checked }))} />
                     {label}
@@ -2874,12 +2878,17 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               <button onClick={() => setGroundMapZoom(z => Math.max(+(z / 1.25).toFixed(3), 0.2))}
                 style={{ width: '22px', height: '22px', borderRadius: '4px', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, background: lightMode ? '#f1f5f9' : '#1e293b', color: headerColor, cursor: 'pointer', fontSize: '14px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>−</button>
               {/* תלת מימד - כאן ולא ברשימת השכבות: זו בקרת **מבט**, אחות של
-                  הזום, ולא שכבת תוכן שנדלקת ונכבית מעל המפה. */}
+                  הזום, ולא שכבת תוכן שנדלקת ונכבית מעל המפה.
+                  המבט הזה הוא על **ההקפה**, ולכן בעמדה שאין לה הקפות הוא יורד
+                  יחד עם שאר פקדי ההקפה. `show3D` נולד כבוי ורק הכפתור מדליק
+                  אותו, ולכן הסתרתו מספיקה - אין מצב של סצנה שנתקעה פתוחה. */}
+              {!hidePatternControls && (
               <button data-testid="pattern-3d-toggle" data-active={show3D ? '1' : '0'}
                 onClick={toggle3D} title={tr('pattern3d.toggleHint')}
                 style={{ padding: '2px 7px', height: '22px', borderRadius: '4px', border: `1px solid ${show3D ? '#22d3ee' : (lightMode ? '#cbd5e1' : '#334155')}`, background: show3D ? '#0e7490' : (lightMode ? '#f1f5f9' : '#1e293b'), color: show3D ? '#ecfeff' : headerColor, cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', lineHeight: 1, whiteSpace: 'nowrap', flexShrink: 0 }}>
                 {tr('pattern3d.toggle')}
               </button>
+              )}
             </div>
             {/* ציור על המפה - כאן, ליד פקדי הזום, כי זה המקום שהעין מחפשת בו כלי
                 מפה (בעמדת המפה ה-✏ יושב באותה פינה, בסרגל האנכי). */}
@@ -3376,7 +3385,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 patterns={shownPatterns}
                 aspect={boundsAspect(imgBounds)}
                 sz={1 / (effectiveMapScale || 1)}
-                showLabels={mapDisplaySettings.showPatternNames}
+                showLabels={shouldShowPatternLabels(mapDisplaySettings.showPatternNames, hidePatternControls)}
               />
             </svg>
           )}
