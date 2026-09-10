@@ -13578,12 +13578,22 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           } : undefined}
           onMouseLeave={(!tableMode && !isGroundMode && !isClassicMode && !isCivilianMode) ? () => setMapHoverCoord(null) : undefined}
         >
+          {/* ── ערימת באנרי ההתראה העליונים ──
+              שני הבאנרים ישבו כל אחד ב-`top:0` משלו ולכן עלו זה על זה: מי שהגיע
+              עם ה-zIndex הגבוה כיסה את השני לגמרי, וההתראה שמתחת פשוט לא נראתה.
+              כאן הם פריטי flex בערימה אחת - זה **מתחת** לזה, בסדר קבוע.
+              בעמדה קרקעית (`#map-area` הוא עמודת flex) הערימה היא פריט **בזרימה**
+              ולכן היא דוחפת את המפה למטה במקום לכסות את ראשה; בשאר העמדות היא
+              נשארת צפה מעל המפה כקודם. */}
+          <div style={isGroundMode
+            ? { order: -1, flexShrink: 0, position: 'relative', zIndex: 9990, display: 'flex', flexDirection: 'column' }
+            : { position: 'absolute', top: 0, insetInlineStart: 0, insetInlineEnd: 0, zIndex: 9990, display: 'flex', flexDirection: 'column' }}>
           {/* Active takeoff notification banner — shown in ground_mgmt workstation */}
           {isGroundMgmtMode && (() => {
             const visible = activeTakeoffs.filter(t => !dismissedTakeoffs.has(String(t.stripId)));
             if (visible.length === 0) return null;
             return (
-              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9989, background: '#78350f', borderBottom: '2px solid #f59e0b', padding: '5px 14px', display: 'flex', flexDirection: 'column', gap: '4px', direction: dir }}>
+              <div style={{ background: '#78350f', borderBottom: '2px solid #f59e0b', padding: '5px 14px', display: 'flex', flexDirection: 'column', gap: '4px', direction: dir }}>
                 {visible.map(t => (
                   <div key={t.stripId} style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: '15px' }}>✈️</span>
@@ -13633,7 +13643,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const dismissAll = () => zoneWatch.dismissAll();
             const scrolls = rows.length > MAX_VISIBLE;
             return (
-            <div style={{ position: 'absolute', top: 0, insetInlineStart: 0, insetInlineEnd: 0, zIndex: 9990, background: T.surface, borderBottom: '2px solid #ef4444', padding: '5px 14px', direction: dir }}>
+            /* `position:relative` - לשונית המניין וכפתור "מחק הכל" תלויים בו
+               (`position:absolute; bottom:-1`), ואת המיקום המוחלט נטלה הערימה. */
+            <div style={{ position: 'relative', background: T.surface, borderBottom: '2px solid #ef4444', padding: '5px 14px', direction: dir }}>
               <div style={{
                 display: 'flex', flexDirection: 'column', gap: `${GAP}px`,
                 maxHeight: scrolls ? MAX_VISIBLE * ROW_H + (MAX_VISIBLE - 1) * GAP : undefined,
@@ -13676,6 +13688,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
             );
           })()}
+          </div>{/* end ערימת באנרי ההתראה העליונים */}
           {/* Ground View */}
           {isGroundMode && (() => {
             const presetSectors: number[] = myPresetConfig?.relevant_sectors || [];

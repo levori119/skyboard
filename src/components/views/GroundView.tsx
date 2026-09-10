@@ -962,6 +962,37 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   }, [mapBottomOverlay]);
 
   /**
+   * גובה ערימת באנרי ההתראה שבראש אזור המפה - ממנו נגזר ראש כל פאנל שיושב מתחתיה.
+   *
+   * הבאנרים הם `position:absolute; top:0` ולכן אינם דוחפים דבר, בעוד פאנל השכבות,
+   * פאנל "אזורי מפה" ופעמון הקונפליקטים יושבים ב-`top:8px` קבוע. התוצאה שהפקח
+   * ראה: התראת קונפליקט מסלול נפתחת, וכל השורה שמתחתיה - "אזור מפה", מתג
+   * "אזורים", "N קונפליקטים פעילים" - **נעלמת מתחתיה**. וככל שיש יותר
+   * קונפליקטים הבאנר גבוה יותר, כלומר דווקא ברגע העמוס מכסה יותר.
+   *
+   * ⚠️ חלוקה ב---s (CLAUDE.md §גרירה, מלכודת 3): `getBoundingClientRect` מחזיר
+   * פיקסלים אמיתיים בעוד `top` נכתב ביחידות המוגדלות, ובלי החלוקה הדחיפה
+   * יוצאת גדולה פי 1.65.
+   */
+  const bannersRef = React.useRef<HTMLDivElement | null>(null);
+  const [bannersH, setBannersH] = React.useState(0);
+  React.useEffect(() => {
+    const el = bannersRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') { setBannersH(0); return; }
+    const update = () => {
+      const raw = Number(getComputedStyle(document.documentElement).getPropertyValue('--s'));
+      const s = Number.isFinite(raw) && raw > 0 ? raw : 1;
+      setBannersH(el.getBoundingClientRect().height / s);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  /** ראש הפאנלים הצפים שמתחת לערימת הבאנרים - 8px מתחת לקצה התחתון שלה. */
+  const panelsTop = bannersH + 8;
+
+  /**
    * מיקום פאנל השכבות בתוך שטח המפה. `null` = הפינה ההתחלתית (8,8).
    *
    * למה נגרר בכלל: הפאנל יושב בפינה קבועה ומכסה בדיוק את מה שהפקח צריך לראות
@@ -995,8 +1026,14 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
       },
     });
   };
-  /** הקצה העליון בפועל - ממנו נגזר הגובה הפנוי לפאנל אחרי שנגרר. */
-  const layersTop = layersPos ? layersPos.y : 8;
+  /**
+   * הקצה העליון בפועל - ממנו נגזר הגובה הפנוי לפאנל אחרי שנגרר.
+   *
+   * `Math.max` מול ערימת הבאנרים גם למיקום **שנגרר**: התראה שנפתחת מעל הפאנל
+   * מסתירה גם את ידית הגרירה וגם את כפתור איפוס המיקום שבתוכה, כלומר את שתי
+   * הדרכים להוציא אותו משם. הפאנל יורד למשך ההתראה וחוזר למקומו כשהיא חולפת.
+   */
+  const layersTop = Math.max(layersPos ? layersPos.y : 8, panelsTop);
   const layersAvailH = layersMaxH != null ? Math.max(160, layersMaxH + 8 - layersTop) : null;
 
   // ציור על מפת השדה - **אותו סרגל** של עמדת המפה (ראה components/map/MapDrawLayer).
@@ -2548,8 +2585,12 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             setGroundMapZoom(z => Math.max(0.2, Math.min(8, +(z * factor).toFixed(3))));
           }}
         >
-          {/* ── באנרי ההתראה העליונים - נערמים זה מתחת לזה ── */}
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 999, display: 'flex', flexDirection: 'column' }}>
+          {/* ── באנרי ההתראה העליונים - נערמים זה מתחת לזה ──
+              הערימה נמדדת (`bannersRef`) והפאנלים שמתחתיה יורדים ל-`panelsTop`,
+              כדי שהתראה שנפתחת לא תבלע את "אזור מפה", את מתגי השכבות ואת פעמון
+              הקונפליקטים. */}
+          <div ref={bannersRef} data-testid="ground-alert-banners"
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 999, display: 'flex', flexDirection: 'column' }}>
           {greensAlertRows.length > 0 && (
             <div data-testid="greens-alert-banner"
               style={{ background: '#7f1d1d', borderBottom: '2px solid #dc2626', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', direction: 'rtl', animation: 'groundTakeoffFlash 0.8s ease-in-out infinite alternate' }}>
@@ -2611,7 +2652,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               "אזורי מפה" מוצג רק כשיש סקטורים על המפה (חלון ריק אינו מידע),
               ו"הוסף רכב" רק לעמדה שהיכולת הופעלה בה ב"ניהול עמדה". */}
           {(hasMapSectors || canPlaceVehicle || placingExistingElement) && (
-            <div style={{ position: 'absolute', top: '8px', right: '8px', zIndex: 31, direction: 'rtl', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+            <div style={{ position: 'absolute', top: panelsTop, right: '8px', zIndex: 31, direction: 'rtl', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
               {/* Add vehicle button */}
               {canPlaceVehicle && (
                 <button
@@ -2660,7 +2701,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           )}
           {/* Fallback reset button when no sectors exist */}
           {(airfieldSectors || []).length === 0 && focusedSectorId && (
-            <div style={{ position: 'absolute', top: '8px', right: '8px', zIndex: 31 }}>
+            <div style={{ position: 'absolute', top: panelsTop, right: '8px', zIndex: 31 }}>
               <button onClick={() => setFocusedSectorId(null)}
                 style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #22c55e', background: '#052e16ee', color: '#86efac', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 2px 8px #0008' }}>
                 {tr('ground.backToTheFull')}
@@ -2958,7 +2999,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           {/* ── ציור על המפה ── כשפאנל השכבות סגור (מתפריט "תצוגה") הכפתור עדיין
               חייב להיות נגיש, ולכן הוא צף בפינה. */}
           {!showLayersPanel && (
-            <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 31 }} data-nopan>
+            <div style={{ position: 'absolute', top: panelsTop, left: '8px', zIndex: 31 }} data-nopan>
               <MapDrawToggle active={draw.active} themeMode={themeMode} labeled
                 onToggle={() => draw.setActive(v => !v)} />
             </div>
@@ -2990,10 +3031,12 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           )}
           {/* החלון נפתח בפינה השמאלית-העליונה של המפה - **אותו מיקום** של עמדת
               המפה (top:8 left:44), ולא צמוד לפאנל השכבות. הוא מכסה את הפאנל
-              בכוונה: זהו חלון עבודה זמני, והוא נגרר בעט/באצבע למקום אחר. */}
+              בכוונה: זהו חלון עבודה זמני, והוא נגרר בעט/באצבע למקום אחר.
+              ה-`top` יורד מתחת לערימת הבאנרים (z=210 מולה) - אחרת סרגל שהפקח
+              הרגע פתח נבלע בהתראה, וגם את ידית הגרירה שלו אין במה לתפוס. */}
           {draw.active && (
             <MapDrawToolbar
-              style={{ top: '8px', left: '44px' }}
+              style={{ top: panelsTop, left: '44px' }}
               themeMode={themeMode}
               tool={draw.tool} onToolChange={draw.setTool}
               color={draw.color} onColorChange={draw.setColor}
@@ -3009,7 +3052,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
 
           {/* Route conflict warning panel — prominent burst alert */}
           {visibleConflicts.length > 0 && (
-            <div style={{ position: 'absolute', top: '8px', left: '160px', zIndex: 900, direction: 'rtl', maxWidth: '340px', pointerEvents: 'none' }} data-nopan>
+            <div style={{ position: 'absolute', top: panelsTop, left: '160px', zIndex: 900, direction: 'rtl', maxWidth: '340px', pointerEvents: 'none' }} data-nopan>
               {/* Header — always visible, flashing */}
               <div className="conflict-alert-flash"
                 style={{ background: '#7f1d1d', border: '2px solid #ef4444', borderRadius: showConflictPanel ? '10px 10px 0 0' : '10px', padding: '8px 12px', color: '#fca5a5', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', pointerEvents: 'auto' }}
