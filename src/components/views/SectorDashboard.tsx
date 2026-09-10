@@ -18374,14 +18374,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     return (
                       <div style={{ borderTop: `2px solid ${T.border}`, flexShrink: 0 }}>
                         <div onClick={() => setWorkstationAtisOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', cursor: 'pointer', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: workstationAtisOpen ? '4px' : 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', direction: dir, flex: 1, justifyContent: 'flex-end', padding: '0 4px' }}>
-                            <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8' }}>📻 ATIS</span>
+                          <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexShrink: 0 }}>
+                            {workstationAtisOpen && !f && (
+                              <button onClick={e => { e.stopPropagation(); const base = workstationAtis ? { ...dbToForm(workstationAtis), letter: nextLetter(workstationAtis.letter), obs_time: nowUTC() } : { ...emptyForm(), obs_time: nowUTC() }; setWorkstationAtisForm(base); }} style={{ fontSize: '9px', padding: '2px 8px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', flexShrink: 0 }}>{workstationAtis ? 'עדכן' : '+ צור ATIS'}</button>
+                            )}
                             {workstationAtis && !f && <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#fff', background: '#1d4ed8', borderRadius: '3px', padding: '0 6px', fontFamily: 'monospace' }}>{workstationAtis.letter}</span>}
                           </div>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>📻 ATIS</span>
                           <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{workstationAtisOpen ? '▼' : '▶'}</span>
-                          {workstationAtisOpen && !f && (
-                            <button onClick={e => { e.stopPropagation(); const base = workstationAtis ? { ...dbToForm(workstationAtis), letter: nextLetter(workstationAtis.letter), obs_time: nowUTC() } : { ...emptyForm(), obs_time: nowUTC() }; setWorkstationAtisForm(base); }} style={{ fontSize: '9px', padding: '2px 8px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', flexShrink: 0 }}>{workstationAtis ? 'עדכן' : '+ צור ATIS'}</button>
-                          )}
                         </div>
                         {f && (
                           <div style={{ position: 'fixed', top: '55px', right: '270px', width: '420px', maxHeight: '88vh', overflowY: 'auto', background: lightMode ? '#f0f7ff' : '#060e1f', border: '1px solid #1d4ed8', borderRadius: '10px', boxShadow: '0 10px 40px #00000099', zIndex: 9998, direction: dir }}>
