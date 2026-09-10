@@ -28,7 +28,7 @@ import {
 export type ThemeMode = 'light' | 'dark' | 'ocean';
 
 /** פלטת שלוש התמות. ocean היא תמה **כהה** ולכן קרובה ל-dark ולא ל-light. */
-function palette(themeMode: ThemeMode) {
+export function palette(themeMode: ThemeMode) {
   return themeMode === 'light'
     ? { panel: '#f1f5f9', head: '#dbe5f1', border: '#94a3b8', line: '#cbd5e1', text: '#1e293b', muted: '#64748b', input: '#ffffff', rowAlt: '#e8eef6', sel: '#cfe0f2' }
     : themeMode === 'ocean'
@@ -38,10 +38,10 @@ function palette(themeMode: ThemeMode) {
 
 type ParamKind = 'zone' | 'transport_role' | 'vehicle_type';
 
-interface PermitParam { id: number; kind: ParamKind; name: string; polygon_id: number | null; color: string; active: boolean; sort_order: number }
+export interface PermitParam { id: number; kind: ParamKind; name: string; polygon_id: number | null; color: string; active: boolean; sort_order: number }
 interface PermitVehicle { id: number; vehicle_type_id: number | null; vehicle_type_name: string | null; plate_fixed: boolean; plate_number: string; notes: string | null; sort_order: number }
 interface PermitZone { id: number; name: string; color: string; polygon_id: number | null }
-interface PermitDriver {
+export interface PermitDriver {
   id: number; airfield_id: number; first_name: string; last_name: string; national_id: string;
   transport_role_id: number | null; transport_role_name: string | null;
   permit_from: string | null; permit_until: string | null; status_override: string | null;
@@ -79,6 +79,59 @@ const draftOf = (d: PermitDriver): DriverDraft => ({
 
 const fullName = (d: { first_name?: string; last_name?: string }) =>
   `${d.first_name || ''} ${d.last_name || ''}`.trim() || tr('permits.unnamed');
+
+/**
+ * גובה אחיד לכל פקד בטופס.
+ *
+ * `input`, `select` ובמיוחד `input[type=date]` מקבלים מהדפדפן גבהים
+ * **פנימיים שונים**, ובלי קיבוע כל שורת טופס יוצאת מדורגת - זה מה שדווח
+ * מהשטח על שורת הוספת הרכב.
+ */
+export const CTRL_H = 28;
+
+/**
+ * סגנונות הטופס. פונקציה טהורה ולא קוד בתוך הרכיב, כי אלה ההכרעות שהמפעיל
+ * רואה בעיניים - ובלי jsdom אי אפשר להגיע לטופס דרך רינדור כדי לבדוק אותן.
+ */
+export function formStyles(C: ReturnType<typeof palette>, themeMode: ThemeMode) {
+  const inputStyle: React.CSSProperties = {
+    width: '100%', height: CTRL_H, padding: '0 7px', background: C.input, color: C.text,
+    border: `1px solid ${C.border}`, borderRadius: 5, fontSize: 12, boxSizing: 'border-box',
+  };
+  return {
+    inputStyle,
+    /**
+     * שדה תאריך/שעה. `color-scheme` הוא מה שמפעיל את **בורר התאריכים** של
+     * הדפדפן בצבעים הנכונים: בלעדיו הוא מצויר בסכימה בהירה על שדה כהה, סמל
+     * הלוח נבלע ברקע, ולמפעיל השדה נראה כמו תיבת טקסט חופשי שאין במה ללחוץ בה.
+     * ocean היא תמה **כהה** ולכן מקבלת `dark` כמו dark.
+     * `ltr` כי תאריך נקרא משמאל לימין גם בעברית.
+     */
+    dateStyle: {
+      ...inputStyle, direction: 'ltr', textAlign: 'start',
+      colorScheme: themeMode === 'light' ? 'light' : 'dark',
+    } as React.CSSProperties,
+    /** תיבת טקסט רב-שורתית - הגובה הקבוע לא חל עליה */
+    areaStyle: { ...inputStyle, height: 'auto', padding: '5px 7px', resize: 'vertical' } as React.CSSProperties,
+    /** תווית בגובה קבוע, כדי שכל תאי הרשת יתחילו ויסתיימו באותו קו */
+    labelStyle: { fontSize: 10, color: C.muted, display: 'block', height: 13, lineHeight: '13px', marginBottom: 2 } as React.CSSProperties,
+    sectionStyle: {
+      fontSize: 11, fontWeight: 'bold', color: C.text, borderBottom: `1px solid ${C.line}`,
+      paddingBottom: 3, marginBottom: 6, marginTop: 10,
+    } as React.CSSProperties,
+    /** כפתורי טופס בגובה הפקדים, כדי שיישבו על אותו קו איתם */
+    btn: (bg: string, fg = '#fff'): React.CSSProperties => ({
+      height: CTRL_H, padding: '0 12px', background: bg, color: fg, border: 'none', borderRadius: 5,
+      fontSize: 11, fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap',
+    }),
+  };
+}
+
+/** גודל החלון הצף - כמעט מסך מלא. מיוצא כדי שהבדיקה תקבע את הערכים. */
+export const WINDOW_SIZE = {
+  width: 'calc(96vw / var(--s, 1))',
+  height: 'calc(94vh / var(--s, 1))',
+} as const;
 
 export interface VehiclePermitsWindowProps {
   /** השדה שהעמדה מוצמדת אליו. בלעדיו אין למי לשייך אישורים */
@@ -212,20 +265,7 @@ export const VehiclePermitsWindow: React.FC<VehiclePermitsWindowProps> = ({ airf
     floatingPos: () => drag.pos || { x: 60, y: 70 },
   });
 
-  // ── פריטי עזר לעיצוב ───────────────────────────────────────────────────────
-  const inputStyle: React.CSSProperties = {
-    width: '100%', padding: '5px 7px', background: C.input, color: C.text,
-    border: `1px solid ${C.border}`, borderRadius: 5, fontSize: 12, boxSizing: 'border-box',
-  };
-  const labelStyle: React.CSSProperties = { fontSize: 10, color: C.muted, display: 'block', marginBottom: 2 };
-  const sectionStyle: React.CSSProperties = {
-    fontSize: 11, fontWeight: 'bold', color: C.text, borderBottom: `1px solid ${C.line}`,
-    paddingBottom: 3, marginBottom: 6, marginTop: 10,
-  };
-  const btn = (bg: string, fg = '#fff'): React.CSSProperties => ({
-    padding: '5px 10px', background: bg, color: fg, border: 'none', borderRadius: 5,
-    fontSize: 11, fontWeight: 'bold', cursor: 'pointer',
-  });
+  const { inputStyle, dateStyle, areaStyle, labelStyle, sectionStyle, btn } = formStyles(C, themeMode);
 
   const statusOf = (d: { permit_from?: string | null; permit_until?: string | null; status_override?: string | null }) =>
     effectivePermitStatus(d);
@@ -248,9 +288,14 @@ export const VehiclePermitsWindow: React.FC<VehiclePermitsWindowProps> = ({ airf
       ref={winRef}
       style={{
         position: 'fixed', zIndex: 8600,
-        ...(drag.dragged ? { left: drag.pos!.x, top: drag.pos!.y } : { left: 60, top: 70 }),
-        width: 'min(760px, calc(94vw / var(--s, 1)))',
-        maxHeight: 'calc(84vh / var(--s, 1))',
+        ...(drag.dragged
+          ? { left: drag.pos!.x, top: drag.pos!.y }
+          : { left: 'calc(2vw / var(--s, 1))', top: 'calc(3vh / var(--s, 1))' }),
+        // כמעט מסך מלא: זה חלון **ניהול** שעובדים בו, לא תג מצב שמציץ מהצד -
+        // רשימת נהגים, טופס, רכבים וטבלת נסיעות אינם נכנסים לחלון צר.
+        // יחידות החלון מחולקות ב---s כי #root תחת `zoom` מכפיל גם אותן
+        // (/ui-adapt §מלכודת ה-vw/vh). בקונטיינר הגודל נקבע ברוחב העמודה.
+        ...(dock.docked ? {} : WINDOW_SIZE),
         display: 'flex', flexDirection: 'column',
         background: C.panel, color: C.text, direction: dir,
         boxShadow: '0 10px 34px rgba(0,0,0,0.5)',
@@ -291,7 +336,7 @@ export const VehiclePermitsWindow: React.FC<VehiclePermitsWindowProps> = ({ airf
       ) : (
         <div style={{ display: 'flex', minHeight: 0, flex: 1 }}>
           {/* ── רשימת הנהגים ──────────────────────────────────────────────── */}
-          <div style={{ width: 218, flexShrink: 0, borderInlineEnd: `1px solid ${C.line}`, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div style={{ width: 260, flexShrink: 0, borderInlineEnd: `1px solid ${C.line}`, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             <div style={{ padding: 6, display: 'flex', gap: 5, borderBottom: `1px solid ${C.line}` }}>
               <input
                 value={search}
@@ -371,7 +416,7 @@ export const VehiclePermitsWindow: React.FC<VehiclePermitsWindowProps> = ({ airf
                   </div>
                   <div>
                     <label style={labelStyle}>{tr('permits.updatedAt')}</label>
-                    <div style={{ ...inputStyle, background: 'transparent', border: `1px dashed ${C.line}`, color: C.muted, fontSize: 11 }}>
+                    <div style={{ ...inputStyle, background: 'transparent', border: `1px dashed ${C.line}`, color: C.muted, fontSize: 11, display: 'flex', alignItems: 'center' }}>
                       {selected?.updated_at ? new Date(selected.updated_at).toLocaleString(i18n.language) : tr('permits.never')}
                     </div>
                   </div>
@@ -382,11 +427,11 @@ export const VehiclePermitsWindow: React.FC<VehiclePermitsWindowProps> = ({ airf
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.4fr', gap: 7, alignItems: 'start' }}>
                   <div>
                     <label style={labelStyle}>{tr('permits.permitFrom')}</label>
-                    <input type="date" value={draft.permit_from} onChange={e => setDraft(d => ({ ...d, permit_from: e.target.value }))} style={inputStyle} />
+                    <input type="date" value={draft.permit_from} onChange={e => setDraft(d => ({ ...d, permit_from: e.target.value }))} style={dateStyle} />
                   </div>
                   <div>
                     <label style={labelStyle}>{tr('permits.permitUntil')}</label>
-                    <input type="date" value={draft.permit_until} onChange={e => setDraft(d => ({ ...d, permit_until: e.target.value }))} style={inputStyle} />
+                    <input type="date" value={draft.permit_until} onChange={e => setDraft(d => ({ ...d, permit_until: e.target.value }))} style={dateStyle} />
                   </div>
                   <div>
                     <label style={labelStyle}>{tr('permits.status')}</label>
@@ -446,7 +491,7 @@ export const VehiclePermitsWindow: React.FC<VehiclePermitsWindowProps> = ({ airf
 
                 <div style={{ marginTop: 7 }}>
                   <label style={labelStyle}>{tr('permits.notes')}</label>
-                  <textarea value={draft.notes} onChange={e => setDraft(d => ({ ...d, notes: e.target.value }))} rows={2} style={{ ...inputStyle, resize: 'vertical' }} />
+                  <textarea value={draft.notes} onChange={e => setDraft(d => ({ ...d, notes: e.target.value }))} rows={2} style={areaStyle} />
                 </div>
 
                 {error && <div style={{ marginTop: 6, fontSize: 11, color: '#ef4444' }}>{error}</div>}
@@ -463,13 +508,13 @@ export const VehiclePermitsWindow: React.FC<VehiclePermitsWindowProps> = ({ airf
                   <>
                     <VehiclesSection
                       driver={selected} vehicleTypes={vehicleTypes} C={C}
-                      inputStyle={inputStyle} labelStyle={labelStyle} sectionStyle={sectionStyle} btn={btn}
+                      inputStyle={inputStyle} dateStyle={dateStyle} labelStyle={labelStyle} sectionStyle={sectionStyle} btn={btn}
                       adding={addingVehicle} setAdding={setAddingVehicle} onChanged={loadDrivers}
                     />
                     <TripsSection
                       driver={selected} points={points} trips={tripTab === 'future' ? futureTrips : historyTrips}
                       tab={tripTab} setTab={setTripTab} C={C}
-                      inputStyle={inputStyle} labelStyle={labelStyle} sectionStyle={sectionStyle} btn={btn}
+                      inputStyle={inputStyle} dateStyle={dateStyle} labelStyle={labelStyle} sectionStyle={sectionStyle} btn={btn}
                       adding={addingTrip} setAdding={setAddingTrip}
                       onChanged={() => loadTrips(selected.id)}
                     />
@@ -488,9 +533,11 @@ export const VehiclePermitsWindow: React.FC<VehiclePermitsWindowProps> = ({ airf
 
 // ── רכבים תחת הנהג ───────────────────────────────────────────────────────────
 
-interface SubProps {
+export interface SubProps {
   C: ReturnType<typeof palette>;
   inputStyle: React.CSSProperties;
+  /** שדה תאריך/שעה - נבדל ב-color-scheme שמפעיל את בורר התאריכים של הדפדפן */
+  dateStyle: React.CSSProperties;
   labelStyle: React.CSSProperties;
   sectionStyle: React.CSSProperties;
   btn: (bg: string, fg?: string) => React.CSSProperties;
@@ -499,7 +546,7 @@ interface SubProps {
   onChanged: () => void | Promise<void>;
 }
 
-const VehiclesSection: React.FC<SubProps & { driver: PermitDriver; vehicleTypes: PermitParam[] }> = ({
+export const VehiclesSection: React.FC<SubProps & { driver: PermitDriver; vehicleTypes: PermitParam[] }> = ({
   driver, vehicleTypes, C, inputStyle, labelStyle, sectionStyle, btn, adding, setAdding, onChanged,
 }) => {
   const [typeId, setTypeId] = useState('');
@@ -533,28 +580,33 @@ const VehiclesSection: React.FC<SubProps & { driver: PermitDriver; vehicleTypes:
       </div>
 
       {adding && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr auto', gap: 6, alignItems: 'end', marginBottom: 7, padding: 7, background: C.rowAlt, borderRadius: 6 }}>
-          <div>
-            <label style={labelStyle}>{tr('permits.vehicleType')}</label>
-            <select value={typeId} onChange={e => setTypeId(e.target.value)} style={inputStyle}>
-              <option value="">{tr('permits.noVehicleType')}</option>
-              {vehicleTypes.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-            </select>
-            {vehicleTypes.length === 0 && <div style={{ fontSize: 9, color: C.muted, marginTop: 2 }}>{tr('permits.vehicleTypesEmpty')}</div>}
+        <div style={{ marginBottom: 7, padding: 7, background: C.rowAlt, borderRadius: 6 }}>
+          {/* alignItems:'end' + פקדים בגובה קבוע = כל השדות על אותו קו.
+              כל תוספת בתוך תא (רמז, שדה מותנה) מגביהה אותו ומדרגת את השורה,
+              ולכן הרמז יושב **מתחת** לרשת ולא בתוכה. */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr auto', gap: 6, alignItems: 'end' }}>
+            <div>
+              <label style={labelStyle}>{tr('permits.vehicleType')}</label>
+              <select value={typeId} onChange={e => setTypeId(e.target.value)} style={inputStyle}>
+                <option value="">{tr('permits.noVehicleType')}</option>
+                {vehicleTypes.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>{tr('permits.plateFixed')}</label>
+              <select value={fixed ? '1' : '0'} onChange={e => setFixed(e.target.value === '1')} style={inputStyle}>
+                <option value="1">{tr('permits.plateFixed')}</option>
+                <option value="0">{tr('permits.plateNotFixed')}</option>
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>{tr('permits.plateNumber')}</label>
+              {/* רכב לא קבוע אינו נושא רישוי - השדה נחסם ולא רק מתעלמים ממנו */}
+              <input value={fixed ? plate : ''} disabled={!fixed} onChange={e => setPlate(e.target.value)} inputMode="numeric" style={{ ...inputStyle, opacity: fixed ? 1 : 0.5 }} />
+            </div>
+            <button onClick={() => void add()} style={btn('#22c55e')}>{tr('permits.add')}</button>
           </div>
-          <div>
-            <label style={labelStyle}>{tr('permits.plateFixed')}</label>
-            <select value={fixed ? '1' : '0'} onChange={e => setFixed(e.target.value === '1')} style={inputStyle}>
-              <option value="1">{tr('permits.plateFixed')}</option>
-              <option value="0">{tr('permits.plateNotFixed')}</option>
-            </select>
-          </div>
-          <div>
-            <label style={labelStyle}>{tr('permits.plateNumber')}</label>
-            {/* רכב לא קבוע אינו נושא רישוי - השדה נחסם ולא רק מתעלמים ממנו */}
-            <input value={fixed ? plate : ''} disabled={!fixed} onChange={e => setPlate(e.target.value)} inputMode="numeric" style={{ ...inputStyle, opacity: fixed ? 1 : 0.5 }} />
-          </div>
-          <button onClick={() => void add()} style={btn('#22c55e')}>{tr('permits.add')}</button>
+          {vehicleTypes.length === 0 && <div style={{ fontSize: 9, color: C.muted, marginTop: 4 }}>{tr('permits.vehicleTypesEmpty')}</div>}
         </div>
       )}
 
@@ -576,10 +628,10 @@ const VehiclesSection: React.FC<SubProps & { driver: PermitDriver; vehicleTypes:
 
 // ── נסיעות ───────────────────────────────────────────────────────────────────
 
-const TripsSection: React.FC<SubProps & {
+export const TripsSection: React.FC<SubProps & {
   driver: PermitDriver; points: AirfieldPoint[]; trips: PermitTrip[];
   tab: 'future' | 'history'; setTab: (t: 'future' | 'history') => void;
-}> = ({ driver, points, trips, tab, setTab, C, inputStyle, labelStyle, sectionStyle, btn, adding, setAdding, onChanged }) => {
+}> = ({ driver, points, trips, tab, setTab, C, inputStyle, dateStyle, labelStyle, sectionStyle, btn, adding, setAdding, onChanged }) => {
   const [fromId, setFromId] = useState('');
   const [toId, setToId] = useState('');
   const [fromText, setFromText] = useState('');
@@ -634,14 +686,13 @@ const TripsSection: React.FC<SubProps & {
 
       {adding && (
         <div style={{ padding: 7, background: C.rowAlt, borderRadius: 6, marginBottom: 7 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, alignItems: 'end' }}>
             <div>
               <label style={labelStyle}>{tr('permits.tripFrom')}</label>
               <select value={fromId} onChange={e => setFromId(e.target.value)} style={inputStyle}>
                 <option value="">{tr('permits.tripPointOther')}</option>
                 {points.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
-              {!fromId && <input value={fromText} onChange={e => setFromText(e.target.value)} style={{ ...inputStyle, marginTop: 3 }} />}
             </div>
             <div>
               <label style={labelStyle}>{tr('permits.tripTo')}</label>
@@ -649,12 +700,14 @@ const TripsSection: React.FC<SubProps & {
                 <option value="">{tr('permits.tripPointOther')}</option>
                 {points.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
-              {!toId && <input value={toText} onChange={e => setToText(e.target.value)} style={{ ...inputStyle, marginTop: 3 }} />}
             </div>
             <div>
               <label style={labelStyle}>{tr('permits.tripWhen')}</label>
-              <input type="datetime-local" value={when} onChange={e => setWhen(e.target.value)} style={inputStyle} />
+              <input type="datetime-local" value={when} onChange={e => setWhen(e.target.value)} style={dateStyle} />
             </div>
+            {/* שורה שנייה **באותה רשת** - הטקסט החופשי נשאר מיושר לעמודה שלו */}
+            {!fromId ? <input value={fromText} onChange={e => setFromText(e.target.value)} placeholder={tr('permits.tripFrom')} style={{ ...inputStyle, marginTop: 4 }} /> : <div />}
+            {!toId ? <input value={toText} onChange={e => setToText(e.target.value)} placeholder={tr('permits.tripTo')} style={{ ...inputStyle, marginTop: 4 }} /> : <div />}
           </div>
           {points.length === 0 && <div style={{ fontSize: 9, color: C.muted, marginTop: 3 }}>{tr('permits.pointsEmpty')}</div>}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr auto', gap: 6, marginTop: 6, alignItems: 'end' }}>
