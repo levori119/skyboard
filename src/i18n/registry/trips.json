@@ -533,6 +533,10 @@
     "routeViaStops": {
       "he": "דרך {{count}} תחנות",
       "en": "Via {{count}} stops"
+    },
+    "alertsTitle": {
+      "he": "התראות נסיעה",
+      "en": "Trip alerts"
     }
   }
 }

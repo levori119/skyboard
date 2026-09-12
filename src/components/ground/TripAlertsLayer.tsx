@@ -9,16 +9,23 @@
 // היא צריכה להופיע גם כשהמפה מגוללת או מוחלפת, והיא נושאת פעולה (אשר/דחה) -
 // באנר במפה אינו המקום לכפתור שמכריע בבקשה של נהג.
 //
+// **נגררת ובת-עגינה.** ברירת המחדל היא מרכז-עליון, אבל שם היא מכסה בדיוק את
+// מה שהפקח מסתכל עליו כשהוא מכריע. לכן אפשר לגרור את הערימה למקום ריק על
+// המסך, או לדחוף אותה לקונטיינר החלונות - ואז ההתראות נערמות בעמודה במקום
+// לצוף מעל המפה. מיקום הגרירה והעגינה שורדים גם כשהערימה מתרוקנת ונדלקת שוב.
+//
 // ⚠️ ההתראה עולה **פעם אחת**: יציאה מסומנת בשרת (`departure_alerted_at`) כשהפקח
 // סוגר אותה, ופעולות הנהג מתפרצות רק כל עוד הן טריות (isDriverActionFresh).
 // בלי זה אותה התראה חוזרת בכל poll, והפקח לומד להתעלם ממנה - וזה בדיוק מה
 // שהתראה מתפרצת לא יכולה להרשות לעצמה.
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { tr } from '../../i18n/tr';
 import i18n from '../../i18n';
 import { API_URL } from '../../config';
 import { windowPalette, type ThemeMode } from '../../utils/windowPalette';
+import useDragPosition from '../../hooks/useDragPosition';
+import { useDockableWindow } from '../../hooks/useDockableWindow';
 import useAirfieldTrips from '../../hooks/useAirfieldTrips';
 import {
   asTripStatus, hasPendingDriverChange, isDepartureAlertDue, isDriverActionFresh,
@@ -55,6 +62,8 @@ export const TripAlertsLayer: React.FC<TripAlertsLayerProps> = ({ airfieldId, th
   const dir = i18n.dir();
   const { trips, reload } = useAirfieldTrips<Trip>(airfieldId, 'all', POLL_MS);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const stackRef = useRef<HTMLDivElement | null>(null);
+  const drag = useDragPosition(stackRef);
 
   const now = Date.now();
   const alerts = useMemo<TripAlert[]>(() => {
@@ -74,7 +83,19 @@ export const TripAlertsLayer: React.FC<TripAlertsLayerProps> = ({ airfieldId, th
     return out.filter(a => !dismissed.has(a.key));
   }, [trips, dismissed, now]);
 
-  if (!airfieldId || alerts.length === 0) return null;
+  // הגרירה והעגינה **חייבות** לשבת לפני ההחזרה המוקדמת: הוק שנקרא רק כשיש
+  // התראות משנה את סדר ההוקים בין רינדורים ומפיל את React.
+  const dragged = drag.dragged;
+  const hasAlerts = !!airfieldId && alerts.length > 0;
+  // `dockable` כבה כשאין התראות - אחרת הקונטיינר מחזיק משבצת ריקה לחלון שלא
+  // מרנדר כלום. המזהה נשאר ברשימה, ולכן הערימה חוזרת למקומה כשהיא נדלקת שוב.
+  const dock = useDockableWindow('tripAlerts', tr('trips.alertsTitle'), {
+    dockable: hasAlerts,
+    setFloatingPos: (x, y) => drag.moveTo(x, y),
+    floatingPos: () => drag.pos || { x: 0, y: 12 },
+  });
+
+  if (!hasAlerts) return null;
 
   const drop = (key: string) => setDismissed(s => new Set(s).add(key));
 
@@ -118,18 +139,46 @@ export const TripAlertsLayer: React.FC<TripAlertsLayerProps> = ({ airfieldId, th
 
   const endpoint = (name: string | null, text: string) => name || text || '-';
 
-  return (
+  const stack = (
     <div
+      ref={stackRef}
       data-testid="trip-alerts"
       style={{
         // ההתראה שייכת לעמדה ולא למפה, ולכן fixed ולא absolute בתוך המפה.
         // מרכז-עליון בעמודה צרה: מעל הכל, אך בלי לכסות את רוחב המסך כולו -
         // באנרי המפה שמתחתיה נשארים קריאים משני הצדדים.
-        position: 'fixed', top: 12, insetInlineStart: '50%', transform: 'translateX(-50%)',
+        position: 'fixed',
+        // אחרי גרירה המיקום מוחלט, ולכן המרכוז ב-translate **חייב** לרדת -
+        // אחרת הערימה יושבת חצי רוחב משמאל למקום שהמצביע עזב בו
+        ...(dragged
+          ? { top: drag.pos!.y, insetInlineStart: drag.pos!.x }
+          : { top: 12, insetInlineStart: '50%', transform: 'translateX(-50%)' }),
         zIndex: 9995, display: 'flex', flexDirection: 'column', gap: 6,
-        width: 'min(430px, calc(90vw / var(--s, 1)))', direction: dir, pointerEvents: 'none',
+        width: 'min(430px, calc(90vw / var(--s, 1)))', direction: dir,
+        // השקוף מאפשר ללחוץ על המפה **בין** ההתראות; כל מה שנלחץ מחזיר auto.
+        // מעוגן אין מה לחדור אליו, ולכן שם הכל לחיץ.
+        pointerEvents: dock.docked ? 'auto' : 'none',
+        ...dock.rootStyle,
       }}
     >
+      {/* ידית הגרירה - רצועה דקה מעל הערימה. גם ידית העגינה: אותה תנועה
+          דוחפת לקונטיינר, בדיוק כמו בכל חלון צף */}
+      <div
+        {...drag.handleProps}
+        onPointerDown={e => { dock.onHeaderPointerDown(e); drag.handleProps.onPointerDown(e); }}
+        style={{
+          ...drag.handleProps.style, pointerEvents: 'auto',
+          display: 'flex', alignItems: 'center', gap: 6,
+          background: C.head, color: C.muted,
+          border: `1px solid ${C.border}`, borderRadius: 7,
+          padding: '2px 8px', fontSize: 10, fontWeight: 'bold',
+          boxShadow: '0 4px 14px rgba(0,0,0,0.45)',
+        }}
+      >
+        <span style={{ fontSize: 11 }}>⠿</span>
+        <span style={{ flex: 1 }}>{tr('trips.alertsTitle')}</span>
+        <span style={{ color: C.text }}>{alerts.length}</span>
+      </div>
       {alerts.map(a => {
         const ks = KIND_STYLE[a.kind];
         const t = a.trip;
@@ -186,6 +235,8 @@ export const TripAlertsLayer: React.FC<TripAlertsLayerProps> = ({ airfieldId, th
       <style>{`@keyframes tripAlertPulse { from { box-shadow: 0 8px 26px rgba(0,0,0,0.55); } to { box-shadow: 0 8px 26px rgba(0,0,0,0.55), 0 0 0 4px rgba(251,191,36,0.22); } }`}</style>
     </div>
   );
+
+  return dock.render(stack);
 };
 
 export default TripAlertsLayer;

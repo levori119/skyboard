@@ -811,9 +811,18 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
   );
 
   // ── טופס הנסיעה (חדש / עדכון) ──────────────────────────────────────────────
+  // ── רוחב הטופס ──────────────────────────────────────────────────────────
+  // ה**רשימה** רוצה את כל רוחב החלון (יותר עמודות נראות במבט אחד), אבל
+  // ה**טופס** לא: שדה טקסט שנמתח על 1800px הוא שדה שאי אפשר לסרוק בעין, והעין
+  // צריכה לנדוד מהתווית שבצד אחד לערך שבצד השני. לכן הטופס נשאר בעמודה
+  // ממורכזת ברוחב קריא, והחלון עצמו לא משתנה.
+  const FORM_MAX_W = 920;
+  const formColumn: React.CSSProperties = { width: '100%', maxWidth: FORM_MAX_W, marginInline: 'auto' };
+
   const formView = (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
-      <div style={{ padding: 8, display: 'flex', gap: 8, alignItems: 'center', borderBottom: `1px solid ${C.line}` }}>
+      <div style={{ padding: 8, borderBottom: `1px solid ${C.line}` }}>
+      <div style={{ ...formColumn, display: 'flex', gap: 8, alignItems: 'center' }}>
         <button onClick={backToList} style={btn('#334155', '#e2e8f0')}>‹ {tr('trips.backToList')}</button>
         <span style={{ fontSize: 12, fontWeight: 'bold' }}>
           {creating ? tr('trips.newTrip') : tr('trips.editTrip')}
@@ -826,7 +835,10 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
         )}
       </div>
 
+      </div>
+
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 10 }}>
+      <div style={formColumn}>
         {/* שינוי שהנהג הציע - למעלה, כי בלעדיו הפקח מאשר נסיעה אחרת מזו
             שהנהג יוצא אליה בפועל */}
         {selected && !creating && hasPendingDriverChange(selected) && (
@@ -1202,6 +1214,7 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
             <span title={tr('trips.fromRequest')} style={{ fontSize: 13 }}>🚛</span>
           )}
         </div>
+      </div>
       </div>
     </div>
   );
