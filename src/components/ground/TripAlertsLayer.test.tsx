@@ -41,7 +41,22 @@ describe('ערימת ההתראות נגררת', () => {
   it('המרכוז ב-translate יורד אחרי גרירה', () => {
     // בלי זה הערימה נוחתת חצי רוחב משמאל למקום שהמצביע עזב בו
     expect(ALERTS).toContain('dragged');
-    expect(ALERTS).toMatch(/dragged\s*\n?\s*\?\s*\{\s*top: drag\.pos!\.y, insetInlineStart: drag\.pos!\.x \}/);
+    expect(ALERTS).toMatch(/dragged\s*\n?\s*\?\s*\{\s*top: drag\.pos!\.y, left: drag\.pos!\.x \}/);
+  });
+
+  // התקלה שדווחה מהשטח: הערימה נחתה בצד הנגדי ולא במקום שהמצביע עזב בו.
+  // useDragPosition מחזיר x כקואורדינטת **שמאל** (getBoundingClientRect().left),
+  // ו-insetInlineStart בעברית הוא ה**ימין** - כך שכל גרירה יצאה משוקפת.
+  it('המיקום הנגרר ב-left ולא ב-insetInlineStart - אחרת הוא משוקף בעברית', () => {
+    // על השימוש בפועל, לא על המילה: ההערה שמסבירה למה לא משתמשים בה
+    // מכילה אותה בעצמה
+    expect(ALERTS.includes('insetInlineStart: drag.pos')).toBe(false);
+    expect(ALERTS.includes("insetInlineStart: '50%'")).toBe(false);
+    expect(ALERTS).toContain('left: drag.pos!.x');
+  });
+
+  it('גם המרכוז ב-left - transform אינו מודע לכיוון הכתיבה', () => {
+    expect(ALERTS).toContain("left: '50%', transform: 'translateX(-50%)'");
   });
 });
 

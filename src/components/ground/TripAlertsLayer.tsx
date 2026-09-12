@@ -148,11 +148,14 @@ export const TripAlertsLayer: React.FC<TripAlertsLayerProps> = ({ airfieldId, th
         // מרכז-עליון בעמודה צרה: מעל הכל, אך בלי לכסות את רוחב המסך כולו -
         // באנרי המפה שמתחתיה נשארים קריאים משני הצדדים.
         position: 'fixed',
-        // אחרי גרירה המיקום מוחלט, ולכן המרכוז ב-translate **חייב** לרדת -
-        // אחרת הערימה יושבת חצי רוחב משמאל למקום שהמצביע עזב בו
+        // left ולא insetInlineStart: useDragPosition מחזיר x כקואורדינטת
+        // **שמאל** (נקראת מ-getBoundingClientRect().left), ובעברית
+        // insetInlineStart הוא ה**ימין** - כך שהערימה נחתה ממוזערת לצד הנגדי
+        // ולא במקום שהמצביע עזב בו. אותה סיבה למרכוז: transform אינו מודע
+        // לכיוון הכתיבה, ולכן left:50% הוא המרכוז היחיד שעובד בשתי השפות.
         ...(dragged
-          ? { top: drag.pos!.y, insetInlineStart: drag.pos!.x }
-          : { top: 12, insetInlineStart: '50%', transform: 'translateX(-50%)' }),
+          ? { top: drag.pos!.y, left: drag.pos!.x }
+          : { top: 12, left: '50%', transform: 'translateX(-50%)' }),
         zIndex: 9995, display: 'flex', flexDirection: 'column', gap: 6,
         width: 'min(430px, calc(90vw / var(--s, 1)))', direction: dir,
         // השקוף מאפשר ללחוץ על המפה **בין** ההתראות; כל מה שנלחץ מחזיר auto.
