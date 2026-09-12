@@ -17108,11 +17108,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               const isSvg = typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:');
                               const isHidden = sdHiddenElements.has(el.id);
                               // הסטטוסים התפעוליים הם אלה שהוגדרו ל**סוג** האלמנט, כמו בפופאפ
+                              const dsFallback = getElemDisplayStateOpts(el.type_icon || '');
                               const dsOpts = el.type_can_change_status
-                                ? displayStateOptions(el.type_allowed_statuses, getElemDisplayStateOpts(el.type_icon || ''))
+                                ? displayStateOptions(el.type_allowed_statuses, dsFallback)
                                 : [];
                               const curDs = el.display_state || 'normal';
-                              const curDsOpt = dsOpts.find(o => o.key === curDs);
+                              // ערך שאינו ברשימת הסוג (למשל "רגיל" שלא הוגדר לו) עדיין מקבל תווית קריאה
+                              const curDsOpt = dsOpts.find(o => o.key === curDs) || dsFallback.find(o => o.key === curDs);
                               const dsMenuOpen = sdElemDsMenu?.id === el.id;
                               return (
                                 <div key={el.id} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 5px', borderRadius: '4px', background: lightMode ? '#ffffff' : '#0a1628', border: `1px solid ${lightMode ? '#e2e8f0' : '#1a2d4a'}`, opacity: isHidden ? 0.4 : 1, transition: 'opacity 0.15s' }}>
@@ -17133,9 +17135,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                     onClick={e => { e.stopPropagation(); if (dsOpts.length) setSdElemDsMenu(dsMenuOpen ? null : { id: el.id, x: e.clientX, y: e.clientY }); }}
                                     disabled={dsOpts.length === 0}
                                     title={dsOpts.length ? `${tr('shared.displayMode')}: ${curDsOpt?.label || curDs}` : el.name}
-                                    style={{ width: '18px', height: '18px', borderRadius: isSvg ? '3px' : '50%', background: isSvg ? 'transparent' : (el.type_color || '#f59e0b'), border: `2px solid ${st.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', flexShrink: 0, padding: 0, cursor: dsOpts.length ? 'pointer' : 'default' }}>
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined }}>
-                                      {isSvg ? (() => { const parts = el.type_icon.slice(4).split('|'); const svgStr = parts[0]; const color = parts[1] || '#ffffff'; return <svg viewBox="0 0 24 24" width="12" height="12" style={{ fill: 'none', stroke: color, strokeWidth: 2 }} dangerouslySetInnerHTML={{ __html: sanitizeSvgBody(svgStr) }} />; })() : (el.type_icon || (el.category === 'camera' ? '📷' : '🔧'))}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '3px', background: 'transparent', border: 'none', padding: 0, flexShrink: 0, cursor: dsOpts.length ? 'pointer' : 'default' }}>
+                                    {/* הסטטוס התפעולי שנבחר נקרא מהשורה עצמה - בלי לפתוח את התפריט ובלי לחפש
+                                        את האלמנט על המפה. בלעדיו השורה מראה ריבוע ריק ולא רואים מה נבחר. */}
+                                    {dsOpts.length > 0 && (
+                                      <span style={{ fontSize: '8px', fontWeight: 'bold', whiteSpace: 'nowrap', borderRadius: '3px', padding: '1px 4px', maxWidth: '54px', overflow: 'hidden', textOverflow: 'ellipsis', color: curDsOpt?.color || (lightMode ? '#64748b' : '#94a3b8'), background: (curDsOpt?.color || '#64748b') + '22', border: `1px solid ${(curDsOpt?.color || '#64748b')}55` }}>
+                                        {curDsOpt?.label || curDs}
+                                      </span>
+                                    )}
+                                    <span style={{ width: '18px', height: '18px', boxSizing: 'border-box', borderRadius: isSvg ? '3px' : '50%', background: isSvg ? 'transparent' : (el.type_color || '#f59e0b'), border: `2px solid ${st.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', flexShrink: 0 }}>
+                                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined }}>
+                                        {isSvg ? (() => { const parts = el.type_icon.slice(4).split('|'); const svgStr = parts[0]; const color = parts[1] || '#ffffff'; return <svg viewBox="0 0 24 24" width="12" height="12" style={{ fill: 'none', stroke: color, strokeWidth: 2 }} dangerouslySetInnerHTML={{ __html: sanitizeSvgBody(svgStr) }} />; })() : (el.type_icon || (el.category === 'camera' ? '📷' : '🔧'))}
+                                      </span>
                                     </span>
                                   </button>
                                   {/* התפריט נפתח דרך AnchoredPopup: עמודת האלמנטים, כרטיס הקטגוריה והגולל
