@@ -169,6 +169,10 @@ const RULES = [
   { m: ['GET'], p: /^\/api\/maps\/\d+\/imagedata$/, need: NEED.DRIVER, why: 'תמונת המפה לנהג' },
   { m: ['GET'], p: '/api/aviation-bases', need: NEED.DRIVER, why: 'בחירת בסיס בנהג' },
   { m: ['GET'], p: '/api/google-maps-key', need: NEED.DRIVER, why: 'SK-14 - נדרש לניווט; לפחות לא לאנונימי' },
+  // הנסיעות של הנהג עצמו - אישור נסיעה, ובקשה לשנות זמן יציאה / תחנות. אסימון
+  // הנהג אינו זהות אישית, ולכן הנתיב **מחייב מזהה מפורש** (טלפון/ת"ז) ואינו
+  // מחזיר רשימה בלעדיו. ראה routes/permits.js §אפליקציית הנהג.
+  { m: ALL, p: /^\/api\/driver-trips(\/|$)/, need: NEED.DRIVER, why: 'הנסיעות של הנהג - אישור ובקשת שינוי מהאפליקציה' },
 ];
 
 const roleRank = { [ROLE.ADMIN]: 3, [ROLE.TEAM_LEAD]: 2, [ROLE.USER]: 1, [ROLE.DRIVER]: 0 };

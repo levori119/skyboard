@@ -16,6 +16,7 @@ import { tr } from '../../i18n/tr';
 import i18n from '../../i18n';
 import { API_URL } from '../../config';
 import { windowFrame } from '../../utils/windowFrame';
+import { windowPalette, type ThemeMode, type WindowPalette } from '../../utils/windowPalette';
 import useDragPosition from '../../hooks/useDragPosition';
 import { useDockableWindow } from '../../hooks/useDockableWindow';
 import { customConfirm } from '../shared/ConfirmModal';
@@ -25,16 +26,14 @@ import {
   type PermitStatus,
 } from '../../utils/permitStatus';
 
-export type ThemeMode = 'light' | 'dark' | 'ocean';
+export type { ThemeMode };
 
-/** פלטת שלוש התמות. ocean היא תמה **כהה** ולכן קרובה ל-dark ולא ל-light. */
-export function palette(themeMode: ThemeMode) {
-  return themeMode === 'light'
-    ? { panel: '#f1f5f9', head: '#dbe5f1', border: '#94a3b8', line: '#cbd5e1', text: '#1e293b', muted: '#64748b', input: '#ffffff', rowAlt: '#e8eef6', sel: '#cfe0f2' }
-    : themeMode === 'ocean'
-    ? { panel: '#0b3a4a', head: '#0e4b5f', border: '#2b7f96', line: '#1d6579', text: '#cffafe', muted: '#7dd3e8', input: '#062c38', rowAlt: '#0d4353', sel: '#12566b' }
-    : { panel: '#0f172a', head: '#1e293b', border: '#334155', line: '#243447', text: '#e2e8f0', muted: '#94a3b8', input: '#0b1220', rowAlt: '#141f33', sel: '#1e3a5f' };
-}
+/**
+ * פלטת שלוש התמות. מקור האמת עבר ל-`utils/windowPalette.ts` - כאן נשאר רק
+ * השם ההיסטורי, כדי ששני חלונות אחים באותה עמדה ("ניהול נהגים" ו"ניהול
+ * נסיעות") לא ייבדלו בגוון אחד ויראו למפעיל כתקלה.
+ */
+export const palette = windowPalette;
 
 type ParamKind = 'zone' | 'transport_role' | 'vehicle_type';
 
@@ -143,7 +142,7 @@ export interface VehiclePermitsWindowProps {
 }
 
 export const VehiclePermitsWindow: React.FC<VehiclePermitsWindowProps> = ({ airfieldId, themeMode, onClose, focusDriverId }) => {
-  const C = palette(themeMode);
+  const C = windowPalette(themeMode);
   const dir = i18n.dir();
   const winRef = useRef<HTMLDivElement | null>(null);
   const drag = useDragPosition(winRef);
@@ -534,7 +533,7 @@ export const VehiclePermitsWindow: React.FC<VehiclePermitsWindowProps> = ({ airf
 // ── רכבים תחת הנהג ───────────────────────────────────────────────────────────
 
 export interface SubProps {
-  C: ReturnType<typeof palette>;
+  C: WindowPalette;
   inputStyle: React.CSSProperties;
   /** שדה תאריך/שעה - נבדל ב-color-scheme שמפעיל את בורר התאריכים של הדפדפן */
   dateStyle: React.CSSProperties;

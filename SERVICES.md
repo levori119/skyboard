@@ -237,9 +237,9 @@
 **תפקיד:** מערכת נהג/רכב — בקשות רכב, GPS, הודעות, מסלולי בסיס, חישוב נתיב (A*), אפליקציית נהג (`/driver`).
 **Endpoints עיקריים:** `/api/vehicle-requests`, `/api/vehicle-gps`, `/api/route-plan`, `/api/base-routes`.
 
-### `server/routes/permits.js` — 16 routes
-**תפקיד:** **ניהול רכבים ואישורי כניסה** - מרשם המורשים להיכנס לשדה, להבדיל מ-`driver.js` שהוא התור החי של מי שדופק בשער. **הישות היא הנהג** (ת"ז) והרכבים תלויים בו. השרת **אינו מחשב סטטוס אישור**: הוא שומר תאריכים + דריסה ידנית, והנגזרת חיה ב-[`src/utils/permitStatus.ts`](src/utils/permitStatus.ts) בלבד. **מייצא:** `PERMIT_PARAM_KINDS`.
-**Endpoints:** `GET/POST /api/permit-params`, `PUT/DELETE /api/permit-params/:id`, `GET /api/entry-permits` (`?airfield_id=`), `GET/PUT/DELETE /api/entry-permits/:id`, `POST /api/entry-permits`, `POST /api/entry-permits/:id/vehicles`, `PUT/DELETE /api/entry-permit-vehicles/:id`, `GET/POST /api/entry-permits/:id/trips`, `PUT/DELETE /api/entry-permit-trips/:id`. (ראה `entry_permit_*` ב-data-model.md)
+### `server/routes/permits.js` — 23 routes
+**תפקיד:** **ניהול נהגים, אישורי כניסה וניהול נסיעות** - מרשם המורשים להיכנס לשדה, להבדיל מ-`driver.js` שהוא התור החי של מי שדופק בשער. **הישות היא הנהג** (ת"ז) והרכבים תלויים בו. **הנסיעה היא ישות אחת** שמוצגת גם בחלון הנהג וגם בחלון "ניהול נסיעות" - ולא שתי טבלאות שמתפצלות בשקט. השרת **אינו מחשב** סטטוס אישור, אייקון מוצע או חלון התראה: הוא שומר ערכים וחותמות זמן, והנגזרות חיות ב-[`src/utils/permitStatus.ts`](src/utils/permitStatus.ts) וב-[`src/utils/trips.ts`](src/utils/trips.ts) בלבד. גבולות חלון ההתראה מגיעים מהלקוח (`within_minutes`, `stale_hours`), ולכן המספר יושב במקום אחד. **מייצא:** `PERMIT_PARAM_KINDS` (5 סוגים), `TRIP_STATUSES`.
+**Endpoints:** `GET/POST /api/permit-params`, `PUT/DELETE /api/permit-params/:id`, `GET /api/entry-permits` (`?airfield_id=`), `GET/PUT/DELETE /api/entry-permits/:id`, `POST /api/entry-permits`, `POST /api/entry-permits/:id/vehicles`, `PUT/DELETE /api/entry-permit-vehicles/:id`, `GET/POST /api/entry-permits/:id/trips`, `GET /api/trips` (`?airfield_id=&scope=upcoming`), `POST /api/trips`, `PUT/DELETE /api/entry-permit-trips/:id`, `POST /api/entry-permit-trips/:id/alerted`, `POST /api/entry-permit-trips/:id/change/:decision` (approve/reject), `GET /api/driver-trips` (`?phone=` / `?national_id=`), `POST /api/driver-trips/:id/ack`, `POST /api/driver-trips/:id/change`. (ראה `entry_permit_*` ב-data-model.md)
 
 ### `server/routes/provisional-transfers.js` — 6 routes
 **תפקיד:** נקודות העברה **זמניות** (ad-hoc) בין 2 עמדות — נוצרות בזמן אמת מתפריט "יצירה" (לא במסך ניהול). A יוצר (`pending`) → B מאשר (`active`). דו-כיווני. גרירת פ"מ אליה = העברת עמדה-לעמדה (`transfer-to-preset`) + `touch`. ניקוי אוטומטי: >12ש' ללא שימוש **וגם** אחרי חצות.
@@ -647,6 +647,18 @@ DB מנוהל היה נופל יחד עם העמדה.
 **תפקיד:** קוד הצבע של מסגרות החלונות הצפים — **כתום = חלון עריכה**, **תורכיז = חלון צפייה ותפעול** — בשלוש התמות (ocean היא תמה כהה ולכן צבעיה בהירים כמו dark). מקור אמת יחיד: חלון צף לא מקודד צבע מסגרת משלו (CLAUDE.md §מסגרת חלון). **חריג:** חלון שצבעו מזהה *ישות* (נקודת הצטרפות, חלון נתונים, פתק) שומר על צבעו.
 **מייצא:** `frameColor(kind, themeMode)`, `windowFrame(kind, themeMode, radius)`, `FRAME_WIDTH`, `WindowKind`, `FrameTheme`.
 
+### `src/utils/windowPalette.ts`
+**תפקיד:** ה**פנים** של חלון צף בשלוש התמות - רקע, כותרת, קווים, טקסט, שדה קלט ושורה נבחרת. המסגרת מגיעה מ-`windowFrame.ts`; כאן יושב מה שבתוכה. מקור אמת יחיד: עד כה כל חלון הגדיר לעצמו את אותה פלטה מחדש, ושני חלונות אחים באותה עמדה שנבדלים בגוון אחד נראים למפעיל כתקלה ולא כעיצוב.
+**מייצא:** `windowPalette(themeMode)`, `WindowPalette`, `ThemeMode`.
+
+### `src/utils/trips.ts`
+**תפקיד:** **הנגזרות של הנסיעה**, במקום אחד - אותו שיקול של `permitStatus.ts`: השרת שומר ערכים וחותמות זמן, והחישוב חי כאן בלבד. הסטטוס עצמו **אינו** נגזרת אלא הכרעה של המגדל; מה שנגזר הוא חלון ההתראה (מתי הרכב עולה למפה, מתי קופצת ההתראה ומתי היא כבר לא טרייה), האייקון המוצע לפי סוג הרכב, וקריאה סובלנית של תחנות/נלווים/שינוי-מהנהג מ-JSONB.
+**מייצא:** `TRIP_STATUSES`, `TRIP_STATUS_COLOR`, `tripStatusKey`, `asTripStatus`, `DEPARTURE_ALERT_MINUTES`, `STALE_TRIP_HOURS`, `DRIVER_ACTION_ALERT_MINUTES`, `minutesUntilDeparture`, `isVehicleOnMap`, `isDepartureAlertDue`, `isDriverActionFresh`, `TRIP_VEHICLE_ICONS`, `suggestedVehicleIcon`, `tripIcon`, `normalizeStops`, `stopLabel`, `normalizeEscorts`, `DRIVER_EDITABLE_FIELDS`, `hasPendingDriverChange`, `pendingChangeFields`.
+
+### `src/hooks/useAirfieldTrips.ts`
+**תפקיד:** סקר יחיד לנסיעות השדה, דרך `usePollingRegistry`. שלושה צרכנים (חלון הנסיעות, ההתראות, הרכבים על המפה) חולקים אותו במקום שלושה `setInterval`. `scope='upcoming'` שולח לשרת את גבולות חלון ההתראה מ-`trips.ts`, כדי שהמספרים לא יישבו גם שם.
+**מייצא:** `useAirfieldTrips(airfieldId, scope, intervalMs)` (default), `TripScope`.
+
 ### `src/utils/windowDock.ts`
 **תפקיד:** המודל של **קונטיינר החלונות** — אילו חלונות צפים מעוגנים, באיזה סדר, ומה רוחב העמודה. מקור-אמת יחיד עם pub/sub, כי החלונות מפוזרים על עשרה קבצים ועומק עץ שונה. שומר ל-`localStorage` פר-עמדה (ממוטמן — `dockLoad` נקרא ברינדור של כל חלון). בדיקת הפגיעה עובדת על `clientX/clientY` **גולמיים** — הם ו-`getBoundingClientRect` כבר באותן יחידות אחרי `zoom: var(--s)`.
 **מייצא:** `setDockPreset`, `setDockEnabled`, `isDockEnabled`, `registerDockable`, `registerDockZone`, `setDockSlotEl`, `getDockSlotEl`, `dockLoad`, `dockPut`, `dockRemove`, `dockSetWidth`, `dockPlace`, `dockInsertIndex`, `dockInsertIndexGrid`, `dockHitTest`, `beginDockDrag`, `isDocked`, `clampToViewport`, `dockSetPosition`, `dockColumns`, `DOCK_POSITION_ORDER`, `DOCK_POSITIONS`, `DOCK_COL_WIDTH`, `DockPosition`, `DOCKED_ROOT_STYLE`, `DOCK_MIN_WIDTH`/`DOCK_MAX_WIDTH`/`DOCK_DEFAULT_WIDTH`.
@@ -984,7 +996,16 @@ DB מנוהל היה נופל יחד עם העמדה.
 **תפקיד:** ניהול כלי רכב + מערכות מז"א (פטריוט/יבה) — מיקום, סטטוס, עורך ויזואלי. **מייצא:** `GroundVehiclePanel` (default).
 
 ### `src/components/ground/VehiclePermitsWindow.tsx`
-**תפקיד:** **חלון ניהול הרכבים ואישורי הכניסה** בעמדת ניהול שדה תעופה (`ground_mgmt`), נפתח מתת-הפריט "ניהול רכבים" שמתחת ל"כניסת רכבים" בתפריט תצוגה. רשימת נהגים מימין (חיפוש לפי שם / ת"ז / רישוי, תג סטטוס בכל שורה) ופרטי הנהג משמאל: ת"ז, תפקיד הסעה, אישור לאזורים (צ'יפים), תאריכי אישור ופקיעה, **סטטוס אישור שנגזר מהתאריכים וניתן לדריסה ידנית** (והמסך אומר *למה* הוא כזה), מאשר, הערה ותאריך עדכון אחרון. תחתיו רכבי הנהג (סוג, קבוע/לא קבוע, רישוי) וטבלת נסיעות מפוצלת ל**עתידיות** ו**היסטוריה** לפי `scheduled_at` מול השעון. חלון **עריכה** (מסגרת כתומה), נגרר בעט ובאצבע ובר-עגינה לקונטיינר. **מייצא:** `VehiclePermitsWindow` (default), `VehiclePermitsWindowProps`.
+**תפקיד:** **חלון ניהול הנהגים ואישורי הכניסה** בעמדת ניהול שדה תעופה (`ground_mgmt`), נפתח מתת-הפריט "ניהול נהגים" שמתחת ל"כניסת רכבים" בתפריט תצוגה. רשימת נהגים מימין (חיפוש לפי שם / ת"ז / רישוי, תג סטטוס בכל שורה) ופרטי הנהג משמאל: ת"ז, תפקיד הסעה, אישור לאזורים (צ'יפים), תאריכי אישור ופקיעה, **סטטוס אישור שנגזר מהתאריכים וניתן לדריסה ידנית** (והמסך אומר *למה* הוא כזה), מאשר, הערה ותאריך עדכון אחרון. תחתיו רכבי הנהג (סוג, קבוע/לא קבוע, רישוי) וטבלת נסיעות מפוצלת ל**עתידיות** ו**היסטוריה** לפי `scheduled_at` מול השעון. חלון **עריכה** (מסגרת כתומה), נגרר בעט ובאצבע ובר-עגינה לקונטיינר. **מייצא:** `VehiclePermitsWindow` (default), `VehiclePermitsWindowProps`.
+
+### `src/components/ground/TripsManagementWindow.tsx`
+**תפקיד:** **חלון ניהול הנסיעות** באותה עמדה, פריט "ניהול נסיעות" מתחת ל"ניהול נהגים" בתפריט תצוגה. רשימת נסיעות מימין (טאב **קרובות** / **היסטוריה**, חיפוש, אייקון וסטטוס בכל שורה) ופרטי הנסיעה משמאל בארבעה מקטעים: **רכב ונהג** (נהג מהמרשם או מזדמן, טלפון, רכב מרשימת רכבי הנהג או בהזנה ידנית, סוג רכב, סוג נסיעה, **אייקון מוצע לפי סוג הרכב וניתן לשינוי**, ותג אישור הכניסה של הנהג), **מועד ומסלול** (תאריך ושעת יציאה משוערים, סטטוס, מוצא ויעד, תחנות ביניים שמוסיפים כמה שרוצים), **נתיב נסיעה** (הרצת `/api/route-plan` בשלוש רמות הרשאה, מיון מהקצר לארוך, בחירת נתיב) ו**מבקש הנסיעה ונלווים** (טלפונים, נלווים, אישור הסתובבות בבסיס, הערה). שינוי שהנהג הציע מוצג כבאנר עם אשר/דחה. חלון **עריכה** (מסגרת כתומה), נגרר בעט ובאצבע ובר-עגינה. **מייצא:** `TripsManagementWindow` (default), `TripsManagementWindowProps`, `Trip`, `RouteOption`, `splitLocalDateTime`, `joinLocalDateTime`, `tripLabel`.
+
+### `src/components/ground/TripAlertsLayer.tsx`
+**תפקיד:** **ההתראות המתפרצות של הנסיעות** - תחילת נסיעה (10 דק' לפני), אישור הנהג מהאפליקציה, ובקשת שינוי ממנו שדורשת אישור נוסף. שכבה צפה בעמדה ולא באנר במפה: ההתראה נושאת פעולה (אשר/דחה/סמן שיצא) וצריכה להופיע גם כשחלון הנסיעות סגור. עולה **פעם אחת** - יציאה מסומנת בשרת בסגירה, ופעולות הנהג מתפרצות רק כל עוד הן טריות. **מייצא:** `TripAlertsLayer` (default), `TripAlertsLayerProps`.
+
+### `src/components/ground/TripMapVehicles.tsx`
+**תפקיד:** **הרכבים על מפת השדה** - כל נסיעה קרובה מציגה את רכבה ליד נקודת המוצא שלה, 10 דק' לפני היציאה, עם דקות לצאת ו**הבהוב כשהיא מאחרת**. יושב בשכבת ה-transform של המפה ולכן זז איתה. סוקר את `scope=upcoming` בלבד. **מייצא:** `TripMapVehicles` (default), `TripMapVehiclesProps`.
 
 ### `src/components/ground/JoiningPointPanel.tsx`
 **תפקיד:** **טבלת נקודת ההצטרפות** - התצוגה שמבדילה אותה מנקודת ההעברה. הפריסה לקוחה מהסדק: עמודת הגבהים בצד ההתחלה והפ"ממים לצדה, מהגבוה למטה. השורה העליונה היא מה שמועבר מנקודת המעבר המקושרת ועוד לא שובץ. **שלוש דרכים לשבץ לבלוק**, כי כל אחת מהירה במצב אחר: "קבל" -> טופס גובה מטווח הנקודה · גרירת הכרטיס מהשורה העליונה לבלוק (קבלה + גובה בתנועה אחת) · גרירת פ"מ שכבר שלי מרשימת הפ"ממים שבצד. קונפליקט מסומן **גם ב-⚠ ולא בצבע בלבד**, והסרת פ"מ מהנקודה מחייבת אישור. `+` פורס את מטוסי הפ"מ עם דת"ק, בורר מסלול (רק מסלולים **פעילים לנחיתות**), "שים בהקפה" וסטטוסי ירוקים / אישור לנחות / נחיתה. **מייצא:** `JoiningPointPanel` (default), `JoiningPointView`, `LandingRunway`.

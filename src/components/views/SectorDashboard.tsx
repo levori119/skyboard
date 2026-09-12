@@ -121,6 +121,8 @@ import { AdminDashboard, TransferFormModal } from '../dashboard/AdminDashboard';
 import { DraggableNeighborPanel, DraggableMapMarker } from '../transfers/DraggablePanels';
 import GroundVehiclePanel from '../ground/GroundVehiclePanel';
 import VehiclePermitsWindow from '../ground/VehiclePermitsWindow';
+import TripsManagementWindow from '../ground/TripsManagementWindow';
+import TripAlertsLayer from '../ground/TripAlertsLayer';
 import GroundView from './GroundView';
 import WindowContainer, { DockPositionPicker } from '../shared/WindowContainer';
 import { setDockDefaultPosition, setDockPreset } from '../../utils/windowDock';
@@ -1332,6 +1334,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [showVehiclePermits, setShowVehiclePermits] = useState(false);
   // נהג לפתוח מיד, כשמגיעים לחלון מבקשת כניסה קונקרטית
   const [permitsFocusDriverId, setPermitsFocusDriverId] = useState<number | null>(null);
+  // ניהול נסיעות - תכנון הנסיעה עצמה, להבדיל ממרשם הנהגים שמעליו
+  const [showTripsWindow, setShowTripsWindow] = useState(false);
+  // נסיעה לפתוח מיד, כשמגיעים לחלון מהתראה מתפרצת
+  const [tripsFocusId, setTripsFocusId] = useState<number | null>(null);
   const [showAppCameraWall, setShowAppCameraWall] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   // עדכון חברי העמדה + תחקיר (תפריט המשתמש). התחקיר מצלם את העמדה **לפני**
@@ -11723,6 +11729,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             <span style={{ flex: 1 }}>{tr('permits.menuItem')}</span>
                             {showVehiclePermits && <span style={{ fontSize: '10px', background: '#b45309', color: '#fde68a', padding: '1px 6px', borderRadius: '8px' }}>{tr('ctrl.open')}</span>}
                           </button>
+                          {/* ניהול נסיעות - תכנון ה**נסיעה** עצמה (מי, במה, מתי,
+                              לאן, באיזה נתיב), להבדיל ממרשם הנהגים שמעליו. */}
+                          <button
+                            onClick={() => { setTripsFocusId(null); setShowTripsWindow(v => !v); setShowViewMenu(false); }}
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', textAlign: 'start', padding: '7px 20px', background: 'none', border: 'none', color: showTripsWindow ? '#fcd34d' : menuText, cursor: 'pointer', fontSize: '12px', direction: dir }}
+                            onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
+                            onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.background = 'none')}
+                          >
+                            <span>🚙</span>
+                            <span style={{ flex: 1 }}>{tr('trips.menuItem')}</span>
+                            {showTripsWindow && <span style={{ fontSize: '10px', background: '#b45309', color: '#fde68a', padding: '1px 6px', borderRadius: '8px' }}>{tr('ctrl.open')}</span>}
+                          </button>
                         </div>
                       )}
                     </div>
@@ -11890,13 +11908,34 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             />
           )}
 
-          {/* ניהול רכבים ואישורי כניסה - מרשם המורשים (עמדת ניהול שדה תעופה) */}
+          {/* ניהול נהגים ואישורי כניסה - מרשם המורשים (עמדת ניהול שדה תעופה) */}
           {showVehiclePermits && isGroundMgmtMode && (
             <VehiclePermitsWindow
               airfieldId={myPresetConfig?.airfield_id ?? null}
               themeMode={themeMode}
               focusDriverId={permitsFocusDriverId}
               onClose={() => setShowVehiclePermits(false)}
+            />
+          )}
+
+          {/* ניהול נסיעות - תכנון הנסיעה עצמה (עמדת ניהול שדה תעופה) */}
+          {showTripsWindow && isGroundMgmtMode && (
+            <TripsManagementWindow
+              airfieldId={myPresetConfig?.airfield_id ?? null}
+              themeMode={themeMode}
+              focusTripId={tripsFocusId}
+              onClose={() => setShowTripsWindow(false)}
+            />
+          )}
+
+          {/* התראות מתפרצות של הנסיעות - תחילת נסיעה, אישור הנהג ובקשת שינוי
+              ממנו. אינן תלויות בחלון: הן מופיעות גם כשהוא סגור, אחרת התראה
+              נבלעת בדיוק כשהפקח אינו מסתכל על הנסיעות. */}
+          {isGroundMgmtMode && (
+            <TripAlertsLayer
+              airfieldId={myPresetConfig?.airfield_id ?? null}
+              themeMode={themeMode}
+              onOpenTrip={id => { setTripsFocusId(id); setShowTripsWindow(true); }}
             />
           )}
 

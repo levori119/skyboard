@@ -107,6 +107,13 @@
   .turn-step:last-child{border-bottom:none}
   .turn-step.crossing{background:#431407;border-radius:6px;margin:3px 0;border:1px solid #ef4444}
   .turn-step-num{font-size:11px;color:#475569;min-width:18px;margin-top:1px}
+  /* הנסיעות שלי - כפתור בפינה, כדי שלא יתנגש ב-FAB הניווט שיושב במרכז */
+  .trips-fab{position:fixed;bottom:20px;right:14px;z-index:4900;background:linear-gradient(135deg,#0284c7,#0369a1);color:#fff;border:none;border-radius:26px;padding:12px 18px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 4px 18px rgba(2,132,199,.5);white-space:nowrap}
+  .trips-fab .badge{display:inline-block;min-width:18px;padding:0 5px;margin-right:6px;border-radius:9px;background:#f59e0b;color:#0f172a;font-size:12px}
+  .trip-card{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:10px 12px;margin-bottom:8px}
+  .trip-card.awaiting{border-color:#f59e0b}
+  .trip-chip{display:inline-block;padding:1px 8px;border-radius:9px;font-size:11px;font-weight:700}
+  .trip-btn{flex:1;padding:9px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer}
   .nav-btn-fab{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:4900;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;border:none;border-radius:28px;padding:13px 28px;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(124,58,237,.5);white-space:nowrap;display:none}
 </style>
 </head>
@@ -318,6 +325,25 @@
 
 <!-- FAB button to open nav sheet -->
 <button id="navFab" class="nav-btn-fab" onclick="openNavSheet()">🧭 ניווט שדה</button>
+
+<!-- MY TRIPS - הנסיעות שהמגדל תכנן לנהג הזה -->
+<button id="tripsFab" class="trips-fab" onclick="openTripsSheet()">🚙 הנסיעות שלי<span id="tripsFabBadge" class="badge" style="display:none">0</span></button>
+
+<div id="tripsSheet" class="nav-sheet">
+  <div class="nav-sheet-handle"></div>
+  <div class="nav-sheet-hdr">
+    <span style="font-size:15px;font-weight:700;color:#38bdf8">🚙 הנסיעות שלי</span>
+    <button onclick="closeTripsSheet()" style="background:none;border:none;color:#64748b;font-size:18px;cursor:pointer;padding:4px 8px">✕</button>
+  </div>
+  <div class="nav-sheet-body">
+    <div style="font-size:11px;color:#64748b;margin-bottom:5px">מספר הטלפון שלך, כפי שנרשם בנסיעה:</div>
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      <input id="tripsPhone" type="tel" inputmode="tel" placeholder="05X-XXXXXXX" style="flex:1;padding:9px 10px;background:#1e293b;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:14px;direction:ltr;text-align:right;outline:none"/>
+      <button onclick="loadMyTrips()" style="padding:9px 16px;background:#0284c7;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">רענן</button>
+    </div>
+    <div id="tripsList"></div>
+  </div>
+</div>
 
 <!-- CROSSING ALERT OVERLAY -->
 <div id="crossingAlertOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:10000;align-items:center;justify-content:center;padding:20px;direction:rtl;flex-direction:column">
@@ -1341,6 +1367,200 @@ function resetApp() {
   document.getElementById('baseInfoPanel').classList.remove('visible');
   showScreen('formScreen');
 }
+
+// ── הנסיעות שלי ──────────────────────────────────────────────────────────────
+//
+// הנסיעות שהמגדל תכנן לנהג הזה. הנהג **מאשר** נסיעה, ו**מבקש לשנות** זמן
+// יציאה / תחנות / הערה - ושתי הפעולות מקפיצות התראה מתפרצת במגדל.
+//
+// ⚠️ בקשת שינוי **אינה משנה את הנסיעה**: היא נשמרת בצד וממתינה לאישור נוסף של
+// המגדל. אחרת הנהג היה משנה מתחת לידיו נסיעה שהוא כבר אישר, והמגדל היה מגלה
+// זאת רק כשהרכב לא מגיע.
+//
+// זהות: אסימון הנהג הוא קוד גישה משותף ולא זהות אישית, ולכן הנסיעות נשלפות
+// לפי **מספר הטלפון** שנרשם בנסיעה. הוא נשמר מקומית כדי שלא יוקלד בכל פתיחה.
+
+const TRIPS_PHONE_KEY = 'skyking-driver-phone';
+let myTrips = [];
+let tripsPollInterval = null;
+let tripChangeOpenId = null;
+
+const TRIP_STATUS_HE = {
+  approved: { label: 'יש אישור', color: '#22c55e' },
+  not_approved: { label: 'אין אישור', color: '#ef4444' },
+  pending: { label: 'ממתין', color: '#f59e0b' },
+  ended: { label: 'הסתיים', color: '#94a3b8' },
+};
+
+function tripStatusOf(t) { return TRIP_STATUS_HE[t.status] || TRIP_STATUS_HE.pending; }
+
+function openTripsSheet() {
+  document.getElementById('tripsPhone').value = localStorage.getItem(TRIPS_PHONE_KEY) || '';
+  document.getElementById('tripsSheet').classList.add('open');
+  loadMyTrips();
+  // סקר קל כל 20 שניות - כדי שאישור שהמגדל נתן יופיע בלי לרענן ידנית
+  if (!tripsPollInterval) tripsPollInterval = setInterval(loadMyTrips, 20000);
+}
+
+function closeTripsSheet() {
+  document.getElementById('tripsSheet').classList.remove('open');
+  if (tripsPollInterval) { clearInterval(tripsPollInterval); tripsPollInterval = null; }
+}
+
+async function loadMyTrips() {
+  const phone = (document.getElementById('tripsPhone').value || '').trim();
+  const list = document.getElementById('tripsList');
+  if (!phone) {
+    myTrips = [];
+    list.innerHTML = '<div style="color:#64748b;font-size:13px;text-align:center;padding:18px">הזן מספר טלפון כדי לראות את הנסיעות שלך</div>';
+    updateTripsBadge();
+    return;
+  }
+  localStorage.setItem(TRIPS_PHONE_KEY, phone);
+  try {
+    const res = await fetch(`${BASE}/api/driver-trips?phone=${encodeURIComponent(phone)}`);
+    myTrips = res.ok ? await res.json() : [];
+  } catch (e) { myTrips = []; }
+  renderMyTrips();
+  updateTripsBadge();
+}
+
+/** נסיעה שממתינה לאישור הנהג - זה מה שהתג על הכפתור סופר. */
+function tripAwaitsDriver(t) { return !t.driver_ack_at && t.status !== 'ended'; }
+
+function updateTripsBadge() {
+  const n = myTrips.filter(tripAwaitsDriver).length;
+  const badge = document.getElementById('tripsFabBadge');
+  badge.textContent = String(n);
+  badge.style.display = n > 0 ? 'inline-block' : 'none';
+}
+
+function tripWhenText(t) {
+  if (!t.scheduled_at) return 'לא נקבע מועד';
+  const d = new Date(t.scheduled_at);
+  return d.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function tripEndpoint(name, text) { return name || text || '-'; }
+
+/** `datetime-local` דורש שעון מקומי; toISOString היה מזיז את השעה באזור הזמן. */
+function toLocalInputValue(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const p2 = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`;
+}
+
+function esc(v) {
+  return String(v == null ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function renderMyTrips() {
+  const list = document.getElementById('tripsList');
+  if (!myTrips.length) {
+    list.innerHTML = '<div style="color:#64748b;font-size:13px;text-align:center;padding:18px">אין נסיעות פתוחות למספר הזה</div>';
+    return;
+  }
+  list.innerHTML = myTrips.map(t => {
+    const st = tripStatusOf(t);
+    const stopNames = Array.isArray(t.stop_names) ? t.stop_names.filter(Boolean) : [];
+    const awaiting = tripAwaitsDriver(t);
+    const isChanging = tripChangeOpenId === t.id;
+    return `
+      <div class="trip-card${awaiting ? ' awaiting' : ''}">
+        <div style="display:flex;align-items:center;gap:7px">
+          <span style="font-size:18px">${esc(t.icon || '🚗')}</span>
+          <span style="flex:1;font-size:14px;font-weight:700;color:#f1f5f9">${esc(t.vehicle_name || t.vehicle_type_name || 'נסיעה')}</span>
+          <span class="trip-chip" style="color:${st.color};border:1px solid ${st.color}66;background:${st.color}1f">${esc(st.label)}</span>
+        </div>
+        <div style="font-size:12px;color:#94a3b8;margin-top:4px">
+          ${esc(tripEndpoint(t.from_point_name, t.from_text))} ← ${esc(tripEndpoint(t.to_point_name, t.to_text))}
+        </div>
+        ${stopNames.length ? `<div style="font-size:11px;color:#64748b;margin-top:2px">תחנות: ${esc(stopNames.join(' · '))}</div>` : ''}
+        <div style="font-size:12px;color:#cbd5e1;margin-top:3px">🕒 ${esc(tripWhenText(t))}</div>
+        ${t.note ? `<div style="font-size:11px;color:#64748b;margin-top:2px">📝 ${esc(t.note)}</div>` : ''}
+        ${t.pending_change_at ? '<div style="font-size:11px;color:#fbbf24;margin-top:4px">✋ בקשת השינוי שלך ממתינה לאישור המגדל</div>' : ''}
+        ${t.driver_ack_at ? '<div style="font-size:11px;color:#4ade80;margin-top:4px">✓ אישרת את הנסיעה</div>' : ''}
+        <div style="display:flex;gap:6px;margin-top:8px">
+          ${t.driver_ack_at ? '' : `<button class="trip-btn" style="background:#22c55e;color:#062e14" onclick="ackTrip(${t.id})">✓ מאשר נסיעה</button>`}
+          <button class="trip-btn" style="background:#334155;color:#e2e8f0" onclick="toggleTripChange(${t.id})">${isChanging ? 'בטל' : '✏️ בקש שינוי'}</button>
+        </div>
+        ${isChanging ? `
+          <div style="margin-top:8px;background:#0f172a;border-radius:8px;padding:9px">
+            <div style="font-size:11px;color:#64748b;margin-bottom:3px">זמן יציאה מבוקש</div>
+            <input id="chgWhen${t.id}" type="datetime-local" value="${esc(toLocalInputValue(t.scheduled_at))}"
+                   style="width:100%;padding:8px;background:#1e293b;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:13px;outline:none"/>
+            <div style="font-size:11px;color:#64748b;margin:7px 0 3px">תחנות ביניים, תחנה בכל שורה</div>
+            <textarea id="chgStops${t.id}" rows="3"
+                      style="width:100%;padding:8px;background:#1e293b;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:13px;direction:rtl;outline:none;box-sizing:border-box">${esc(stopNames.join('\n'))}</textarea>
+            <div style="font-size:11px;color:#64748b;margin:7px 0 3px">הערה למגדל</div>
+            <textarea id="chgNote${t.id}" rows="2"
+                      style="width:100%;padding:8px;background:#1e293b;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:13px;direction:rtl;outline:none;box-sizing:border-box">${esc(t.note || '')}</textarea>
+            <button class="trip-btn" style="background:#f59e0b;color:#0f172a;width:100%;margin-top:8px"
+                    onclick="submitTripChange(${t.id})">שלח בקשת שינוי לאישור המגדל</button>
+          </div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+function toggleTripChange(id) {
+  tripChangeOpenId = tripChangeOpenId === id ? null : id;
+  renderMyTrips();
+}
+
+async function ackTrip(id) {
+  try {
+    const res = await fetch(`${BASE}/api/driver-trips/${id}/ack`, { method: 'POST' });
+    if (!res.ok) throw new Error('ack failed');
+  } catch (e) {
+    alert('שליחת האישור נכשלה. נסה שוב.');
+    return;
+  }
+  await loadMyTrips();
+}
+
+async function submitTripChange(id) {
+  const whenEl = document.getElementById('chgWhen' + id);
+  const stopsEl = document.getElementById('chgStops' + id);
+  const noteEl = document.getElementById('chgNote' + id);
+  // הנהג מציין תחנות בשמותיהן שלו; הן נשמרות כטקסט חופשי והמגדל הוא שקושר
+  // אותן לנקודות השדה - הוא זה שמכיר את שמותיהן הרשמיים.
+  const stops = (stopsEl.value || '').split('\n').map(x => x.trim()).filter(Boolean)
+    .map(text => ({ point_id: null, text: text }));
+  const body = {
+    scheduled_at: whenEl.value ? new Date(whenEl.value).toISOString() : null,
+    stops: stops,
+    note: noteEl.value || '',
+  };
+  try {
+    const res = await fetch(`${BASE}/api/driver-trips/${id}/change`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error('change failed');
+  } catch (e) {
+    alert('שליחת הבקשה נכשלה. נסה שוב.');
+    return;
+  }
+  tripChangeOpenId = null;
+  await loadMyTrips();
+  alert('הבקשה נשלחה. הנסיעה תשתנה רק אחרי אישור המגדל.');
+}
+
+// טעינה ראשונית ברקע: התג על הכפתור צריך להיות נכון עוד לפני שהנהג פותח
+// את הגיליון, אחרת נסיעה שממתינה לאישורו אינה נראית כלל.
+if (localStorage.getItem(TRIPS_PHONE_KEY)) {
+  const bootTrips = () => {
+    const el = document.getElementById('tripsPhone');
+    if (!el) return;
+    el.value = localStorage.getItem(TRIPS_PHONE_KEY) || '';
+    loadMyTrips();
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootTrips);
+  else bootTrips();
+}
+
 </script>
 </body>
 </html>

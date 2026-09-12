@@ -72,6 +72,11 @@ export const FOREIGN_KEYS = [
   ['entry_permit_trips', 'from_point_id', 'airfield_points', 'id', 'SET NULL'],
   ['entry_permit_trips', 'to_point_id', 'airfield_points', 'id', 'SET NULL'],
   ['entry_permit_trips', 'vehicle_request_id', 'vehicle_requests', 'id', 'SET NULL'],
+  // ניהול נסיעות - הנסיעה שייכת לשדה גם כשנהגה אינו במרשם
+  ['entry_permit_trips', 'airfield_id', 'airfields', 'id', 'CASCADE'],
+  ['entry_permit_trips', 'vehicle_type_id', 'airfield_permit_params', 'id', 'SET NULL'],
+  ['entry_permit_trips', 'trip_type_id', 'airfield_permit_params', 'id', 'SET NULL'],
+  ['entry_permit_trips', 'roam_permit_id', 'airfield_permit_params', 'id', 'SET NULL'],
   ['learned_digits', 'crew_member_id', 'crew_members', 'id', 'CASCADE'],
   ['map_transfer_points', 'map_id', 'maps', 'id', 'CASCADE'],
   ['map_transfer_points', 'preset_id', 'workstation_presets', 'id', 'CASCADE'],

@@ -21,7 +21,7 @@ i18n.use(initReactI18next).init({
   },
   ns: ['translation', 'admin', 'blocks', 'classic', 'crew', 'ctrl', 'dashboard', 'dataWindows',
        'ground', 'help', 'links', 'map', 'misc', 'pattern', 'pattern3d', 'permits', 'query', 'seizure', 'shared', 'strips', 'suggest',
-       'transfers', 'vertical'],
+       'transfers', 'trips', 'vertical'],
   defaultNS: 'translation',
   lng: initialLang,
   fallbackLng: 'he',

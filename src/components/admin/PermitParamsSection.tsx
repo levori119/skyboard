@@ -1,10 +1,10 @@
-// פרמטרים של ניהול רכבים ואישורי כניסה - סעיף בטאב "שדות תעופה" בניהול.
+// פרמטרים של ניהול נהגים ונסיעות - סעיף בטאב "שדות תעופה" בניהול.
 //
-// שלוש רשימות קצרות שמזינות את חלון "ניהול רכבים" בעמדה:
-//   אזורי אישור כניסה · תפקידי הסעה · סוגי רכב
+// חמש רשימות קצרות שמזינות את חלונות "ניהול נהגים" ו"ניהול נסיעות" בעמדה:
+//   אזורי אישור כניסה · תפקידי הסעה · סוגי רכב · סוגי נסיעה · סוגי אישור הסתובבות
 //
-// הן חיות בטבלה אחת עם `kind` (אותו דפוס כמו units) ולכן גם במסך אחד: שלוש
-// טבלאות זהות היו שלושה עורכים שמתפצלים בהתנהגות.
+// הן חיות בטבלה אחת עם `kind` (אותו דפוס כמו units) ולכן גם במסך אחד: חמש
+// טבלאות זהות היו חמישה עורכים שמתפצלים בהתנהגות.
 //
 // **אזור אישור יכול להצביע על פוליגון במפת השדה** - אז ההרשאה מדברת על שטח
 // אמיתי ולא רק על שם, ואפשר בהמשך לצבוע את המפה לפי מי מורשה בה.
@@ -12,7 +12,7 @@
 import React, { useEffect, useState } from 'react';
 import { tr } from '../../i18n/tr';
 
-type ParamKind = 'zone' | 'transport_role' | 'vehicle_type';
+type ParamKind = 'zone' | 'transport_role' | 'vehicle_type' | 'trip_type' | 'roam_permit';
 
 export interface PermitParamRow {
   id: number;
@@ -27,11 +27,13 @@ export interface PermitParamRow {
 
 interface PolygonOption { id: number; name: string }
 
-/** הסדר כאן = סדר ההצגה במסך: קודם ההרשאה, אחריה מי נוסע, ולבסוף במה. */
+/** הסדר כאן = סדר ההצגה במסך: קודם ההרשאה, אחריה מי נוסע, במה, ולבסוף לשם מה. */
 const KINDS: { kind: ParamKind; labelKey: string; accent: string }[] = [
   { kind: 'zone', labelKey: 'permits.paramZones', accent: '#38bdf8' },
   { kind: 'transport_role', labelKey: 'permits.paramTransportRoles', accent: '#a78bfa' },
   { kind: 'vehicle_type', labelKey: 'permits.paramVehicleTypes', accent: '#fbbf24' },
+  { kind: 'trip_type', labelKey: 'permits.paramTripTypes', accent: '#34d399' },
+  { kind: 'roam_permit', labelKey: 'permits.paramRoamPermits', accent: '#f472b6' },
 ];
 
 const EMPTY_FORM = { name: '', polygon_id: '', color: '#3b82f6', active: true };

@@ -1,14 +1,14 @@
 {
-  "_group": "ניהול רכבים ואישורי כניסה",
+  "_group": "ניהול נהגים ואישורי כניסה",
   "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
   "keys": {
     "title": {
-      "he": "ניהול רכבים",
-      "en": "Vehicle management"
+      "he": "ניהול נהגים",
+      "en": "Driver management"
     },
     "menuItem": {
-      "he": "ניהול רכבים",
-      "en": "Vehicle management"
+      "he": "ניהול נהגים",
+      "en": "Driver management"
     },
     "noAirfield": {
       "he": "לא הוגדר שדה תעופה לעמדה זו",
@@ -303,12 +303,12 @@
       "en": "No expiry date"
     },
     "reqOpenPermits": {
-      "he": "פתח בניהול רכבים",
-      "en": "Open in vehicle management"
+      "he": "פתח בניהול נהגים",
+      "en": "Open in driver management"
     },
     "adminSection": {
-      "he": "🚛 ניהול רכבים - פרמטרים",
-      "en": "🚛 Vehicle management - parameters"
+      "he": "🪪 ניהול נהגים - פרמטרים",
+      "en": "🪪 Driver management - parameters"
     },
     "paramZones": {
       "he": "אזורי אישור כניסה",
@@ -353,6 +353,14 @@
     "confirmDeleteParam": {
       "he": "למחוק את הערך? הוא יוסר מכל נהג שאושר לו",
       "en": "Delete this value? It will be removed from every driver permitted for it"
+    },
+    "paramTripTypes": {
+      "he": "סוגי נסיעה",
+      "en": "Trip types"
+    },
+    "paramRoamPermits": {
+      "he": "סוגי אישור הסתובבות בבסיס",
+      "en": "On-base movement permit types"
     }
   }
 }

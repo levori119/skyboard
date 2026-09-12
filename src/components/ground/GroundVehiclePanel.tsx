@@ -249,6 +249,12 @@ export function GroundVehiclePanel({ lightMode, onClose, onOpenPermits }: { ligh
         to_text: req.to_point_id ? '' : (req.destination || ''),
         scheduled_at: new Date().toISOString(), purpose: req.supply_type || '',
         vehicle_request_id: reqId,
+        // הנסיעה נולדת **מאושרת**, ועם שם הרכב והנהג שנרשמו בבקשה - אחרת היא
+        // נוחתת ב"ניהול נסיעות" כשורה ריקה בסטטוס ממתין, ומי שמסתכל שם אינו
+        // יודע שהיא כבר אושרה בשער
+        status: 'approved',
+        driver_name: req.driver_name || '',
+        vehicle_name: [req.vehicle_type, req.plate_number].filter(Boolean).join(' · '),
       }) }).catch(() => {});
   }, [requests]);
 

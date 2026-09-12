@@ -2957,7 +2957,7 @@ REFACTOR_LOG #045.
 מאומת ב-[`server/routes/airDefense.test.js`](server/routes/airDefense.test.js)
 (21 בדיקות מול Postgres אמיתי - PGlite בזיכרון).
 
-## ניהול רכבים ואישורי כניסה - `airfield_permit_params` ו-`entry_permit_*`
+## ניהול נהגים, אישורי כניסה וניהול נסיעות - `airfield_permit_params` ו-`entry_permit_*`
 
 **מי מורשה להיכנס לשדה ובאיזה רכב** - מרשם קבוע, להבדיל מ-`vehicle_requests`
 ("כניסת רכבים") שהוא **התור החי** של מי שדופק בשער עכשיו. השניים מחוברים דרך
@@ -2974,16 +2974,19 @@ REFACTOR_LOG #045.
 | `entry_permit_vehicles` | CONFIG | הרכבים שתחת הנהג |
 | `entry_permit_trips` | **OPERATIONAL** | מידע שדה חי - נסיעת תרגול לא מזהמת ייצור |
 
-### `airfield_permit_params` - שלוש רשימות הפרמטרים
+### `airfield_permit_params` - חמש רשימות הפרמטרים
 
-טבלה אחת עם `kind`, אותו דפוס כמו `units`: שלוש רשימות קצרות שנערכות באותו מסך
-לא מצדיקות שלוש טבלאות זהות שיתפצלו בהתנהגות.
+טבלה אחת עם `kind`, אותו דפוס כמו `units`: חמש רשימות קצרות שנערכות באותו מסך
+לא מצדיקות חמש טבלאות זהות שיתפצלו בהתנהגות.
+
+`trip_type` (סוג נסיעה) ו-`roam_permit` (סוג אישור הסתובבות בבסיס) הצטרפו עם
+"ניהול נסיעות".
 
 | עמודה | טיפוס | הערות |
 |---|---|---|
 | `id` | SERIAL PK | |
 | `airfield_id` | INT → `airfields` | CASCADE. הפרמטרים שייכים לשדה |
-| `kind` | VARCHAR(20) | `zone` \| `transport_role` \| `vehicle_type` |
+| `kind` | VARCHAR(20) | `zone` / `transport_role` / `vehicle_type` / `trip_type` / `roam_permit` |
 | `name` | VARCHAR(200) | |
 | `polygon_id` | INT → `airfield_polygons` | SET NULL. **`kind='zone'` בלבד** - אזור אישור שמצביע על שטח אמיתי במפת השדה, ולא רק על שם |
 | `color` | VARCHAR(20) | |
@@ -3040,18 +3043,49 @@ REFACTOR_LOG #045.
 | `plate_number` | VARCHAR(30) | **נכפה לריק כש-`plate_fixed=false`** בשרת - רכב לא קבוע שנושא רישוי הוא "קבוע למחצה" |
 | `notes` / `sort_order` | | |
 
-### `entry_permit_trips` - נסיעות
+### `entry_permit_trips` - נסיעות ("ניהול נסיעות")
+
+**ישות נסיעה אחת**, ולא שתיים: אותה שורה מוצגת גם כטבלת הנסיעות שבתוך חלון
+הנהג וגם בחלון "ניהול נסיעות" של השדה. שתי טבלאות היו מתפצלות בשקט - נסיעה
+שנרשמה מאישור בקשת כניסה הייתה מופיעה באחת ולא בשנייה.
 
 | עמודה | טיפוס | הערות |
 |---|---|---|
-| `driver_id` | INT → `entry_permit_drivers` | CASCADE |
-| `vehicle_id` | INT → `entry_permit_vehicles` | SET NULL |
+| `airfield_id` | INT → `airfields` | CASCADE. **נדרש** כדי לשלוף את נסיעות השדה בלי לעבור דרך הנהג - נסיעה בלי נהג לא הייתה נמצאת אחרת |
+| `driver_id` | INT → `entry_permit_drivers` | CASCADE, **NULL-able**: נסיעה יכולה להירשם לנהג מזדמן שאינו במרשם |
+| `driver_name` / `driver_phone` | VARCHAR | שם וטלפון הנהג כשאינו במרשם, או כפי שנרשמו לנסיעה |
+| `requester_name` / `requester_phone` | VARCHAR | מבקש הנסיעה |
+| `vehicle_id` | INT → `entry_permit_vehicles` | SET NULL. הרכב מרשימת רכבי הנהג |
+| `vehicle_name` | VARCHAR(120) | שם הרכב - **נבחר מרשימה או מוקלד ידנית**, ולכן טקסט ולא רק מזהה |
+| `vehicle_type_id` | INT → `airfield_permit_params` | SET NULL. גובר על סוג הרכב שבמרשם |
+| `trip_type_id` | INT → `airfield_permit_params` | SET NULL. `kind='trip_type'` |
+| `icon` | VARCHAR(16) | **ריק = האייקון המוצע לפי סוג הרכב** (`src/utils/trips.ts`); ערך = דריסה ידנית. שמירת המוצע כערך הייתה מקפיאה אותו כששם הסוג משתנה |
 | `from_point_id` / `to_point_id` | INT → `airfield_points` | SET NULL. "מאיפה / לאן" מנקודות השדה |
 | `from_text` / `to_text` | VARCHAR(200) | טקסט חופשי כשהיעד מחוץ לרשימת הנקודות |
-| `scheduled_at` | TIMESTAMPTZ | **החלוקה להיסטוריה/עתידי נגזרת ממנו מול השעון** ולא משדה סטטוס שצריך לזכור לעדכן |
+| `stops` | JSONB | תחנות ביניים: `[{point_id, text}]`. מספרן אינו ידוע מראש, ולכן מערך ולא עמודות |
+| `scheduled_at` | TIMESTAMPTZ | **תאריך ושעת יציאה משוערים בעמודה אחת.** הטופס מפצל אותה לשני שדות; שתי עמודות היו מאפשרות תאריך בלי שעה, ואז "מתי יוצאים" הוא חצי תשובה |
 | `ended_at` | TIMESTAMPTZ | |
-| `purpose` | TEXT | |
+| `status` | VARCHAR(20) | `approved` / `not_approved` / `pending` / `ended`. **הכרעה של המגדל ולא נגזרת** - "יש אישור" נאמר בידי אדם. ערך לא מוכר נשמר כ-`pending` |
+| `purpose` / `note` | TEXT | מטרת הנסיעה, והערה |
+| `escorts` | JSONB | נלווים לנהג: `[{name, national_id}]` |
+| `roam_permit_id` | INT → `airfield_permit_params` | SET NULL. `kind='roam_permit'` - אישור הנהג והנלווים להסתובב בבסיס |
+| `suggested_route_ids` | JSONB | הנתיב המוצע כפי שחושב (הקצר ביותר) |
+| `route_options` | JSONB | האפשרויות כפי שהוצעו - בלעדיהן נתיב שנבחר לפני שינוי במפה נראה כאילו מעולם לא הוצע |
+| `selected_route_ids` / `selected_route_label` | JSONB / VARCHAR(300) | הנתיב הנבחר - **מה שתקף** |
+| `driver_ack_at` | TIMESTAMPTZ | הנהג אישר את הנסיעה באפליקציה. **אינו משנה סטטוס** - הסטטוס הוא הכרעת המגדל |
+| `pending_change` / `pending_change_at` | JSONB / TIMESTAMPTZ | שינוי שהנהג הציע (זמן יציאה / תחנות / הערה) ו**ממתין לאישור נוסף של המגדל**. נשמר בצד ולא נכתב על השורה: המגדל צריך לראות מה יהיה לפני שהוא מחליט, והנסיעה לא יכולה להשתנות מתחת לידיו אם ידחה |
+| `departure_alerted_at` | TIMESTAMPTZ | מתי הוקפצה התראת היציאה. `COALESCE` שומר על הסימון הראשון - בלעדיו ההתראה עולה בכל poll והפקח לומד להתעלם ממנה |
 | `vehicle_request_id` | INT → `vehicle_requests` | SET NULL. נסיעה שנרשמה אוטומטית מאישור בקשת כניסה |
+
+**הנגזרות אינן בשרת:** האייקון המוצע, חלון ההצגה על המפה (10 דקות לפני),
+"האם להתריע" ו"מה הנהג שינה" חיים ב-[`src/utils/trips.ts`](src/utils/trips.ts)
+בלבד - אותו שיקול של `permitStatus.ts`. גבולות חלון ההתראה נשלחים מהלקוח
+ל-`GET /api/trips?scope=upcoming` (`within_minutes`, `stale_hours`), כדי
+שהמספרים לא יישבו גם בשרת.
+
+`entry_permit_trips` נמצאת ב-**רשימת החסימה של הביטול** (`UNDO_DENYLIST`):
+ביטול שקט של סטטוס או נתיב מחזיר לתנועה רכב שהמגדל עצר, או מוחק אישור נהג
+שכבר ניתן.
 
 ### הקישור לבקשות הכניסה החיות
 

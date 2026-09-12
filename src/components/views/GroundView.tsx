@@ -1,4 +1,5 @@
 import { tr } from '../../i18n/tr';
+import TripMapVehicles from '../ground/TripMapVehicles';
 import i18n from '../../i18n';
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { API_URL } from '../../config';
@@ -3770,6 +3771,10 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             );
           })}
 
+          {/* ניהול נסיעות - הרכב של כל נסיעה קרובה, ליד נקודת המוצא שלה
+              10 דקות לפני היציאה המשוערת. רכיב עצמאי שסוקר בעצמו, כדי
+              שהנסיעות לא יוסיפו state למסך המפה. ראה TripMapVehicles. */}
+          <TripMapVehicles airfieldId={airfield?.id ?? null} points={points} ptPos={ptPos} />
           {/* Airfield elements overlay */}
           {mapLayers.elements && airfieldElements && airfieldElements.filter(el => el.x_pct != null && el.y_pct != null && !hiddenElements.has(el.id) && !(externalHiddenElements?.has(el.id)) && (!el.hidden_on_map || (mapDisplaySettings.showRoutes && elemNavData[el.id])) && (el.category !== 'camera' || mapLayers.cameras)).map(el => {
             const elColor = el.type_color || '#f59e0b';

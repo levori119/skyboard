@@ -2093,6 +2093,56 @@ async function applySchemaOnce() {
   )`);
   await sq(`CREATE INDEX IF NOT EXISTS idx_entry_permit_trips_driver ON entry_permit_trips(driver_id, scheduled_at DESC)`);
 
+  // ── ניהול נסיעות ───────────────────────────────────────────────────────────
+  // "ניהול נסיעות" הוא אותה ישות נסיעה, **מורחבת** - ולא טבלה שנייה. שתי
+  // רשימות "נסיעות" (אחת פר-נהג בחלון הנהג, אחת פר-שדה בחלון הנסיעות) היו
+  // מתפצלות בשקט: נסיעה שנרשמה מאישור בקשת כניסה הייתה מופיעה באחת ולא בשנייה.
+  //
+  // `driver_id` הופך ל-NULL-able: נסיעה יכולה להירשם לנהג מזדמן שאינו במרשם,
+  // ואז שמו וטלפונו יושבים בשורה עצמה. `airfield_id` נדרש כדי לשלוף את נסיעות
+  // ה**שדה** בלי לעבור דרך הנהג - נסיעה בלי נהג לא הייתה נמצאת אחרת.
+  await sq(`ALTER TABLE entry_permit_trips ALTER COLUMN driver_id DROP NOT NULL`);
+  await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE`);
+  await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS driver_name VARCHAR(120) NOT NULL DEFAULT ''`);
+  await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS driver_phone VARCHAR(40) NOT NULL DEFAULT ''`);
+  await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS requester_name VARCHAR(120) NOT NULL DEFAULT ''`);
+  await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS requester_phone VARCHAR(40) NOT NULL DEFAULT ''`);
+  // שם הרכב נבחר מרכבי הנהג שבמרשם או מוקלד ידנית - ולכן טקסט, ולא רק מזהה
+  await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS vehicle_name VARCHAR(120) NOT NULL DEFAULT ''`);
+  await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS vehicle_type_id INTEGER REFERENCES airfield_permit_params(id) ON DELETE SET NULL`);
+  await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS trip_type_id INTEGER REFERENCES airfield_permit_params(id) ON DELETE SET NULL`);
+  // `icon` ריק = האייקון **המוצע** לפי סוג הרכב (src/utils/trips.ts). ערך = דריסה
+  // ידנית של הפקח. שמירת המוצע כערך הייתה מקפיאה אותו כששם סוג הרכב משתנה.
+  await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS icon VARCHAR(16) NOT NULL DEFAULT ''`);
+  // תחנות ביניים: [{point_id, text}] - מספר לא ידוע מראש, ולכן מערך ולא עמודות
+  await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS stops JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'pending'`);
+  await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS note TEXT`);
+  // נלווים לנהג: [{name, national_id}] - מי עוד ברכב
+  await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS escorts JSONB DEFAULT '[]'`);
+  // אישור הנהג והנלווים להסתובב בבסיס - סוג האישור מנוהל כפרמטר שדה
+  await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS roam_permit_id INTEGER REFERENCES airfield_permit_params(id) ON DELETE SET NULL`);
+  // הנתיב: המוצע נשמר כפי שחושב, האפשרויות כפי שהוצעו, והנבחר הוא מה שתקף.
+  // בלי שמירת המוצע, נתיב שנבחר לפני שינוי במפה היה נראה כאילו מעולם לא הוצע.
+  await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS suggested_route_ids JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS route_options JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS selected_route_ids JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS selected_route_label VARCHAR(300) NOT NULL DEFAULT ''`);
+  // ── הנהג מהאפליקציה ────────────────────────────────────────────────────────
+  // `driver_ack_at` = הנהג אישר; `pending_change` = הנהג שינה זמן/תחנות והשינוי
+  // ממתין לאישור **נוסף** של המגדל. השינוי נשמר בצד ולא נכתב על השורה, כדי
+  // שהמגדל יראה מה יהיה לפני שהוא מחליט - ושלא ישתנה מתחת לידיו אם ידחה.
+  await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS driver_ack_at TIMESTAMPTZ`);
+  await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS pending_change JSONB`);
+  await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS pending_change_at TIMESTAMPTZ`);
+  // מתי כבר הוקפצה ההתראה - כדי שההתראה המתפרצת תעלה פעם אחת ולא בכל poll
+  await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS departure_alerted_at TIMESTAMPTZ`);
+  await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_entry_permit_trips_airfield ON entry_permit_trips(airfield_id, scheduled_at DESC)`);
+  // נסיעות ותיקות נרשמו לפני שהייתה עמודת שדה - השדה נגזר מהנהג שלהן
+  await sq(`UPDATE entry_permit_trips t SET airfield_id = d.airfield_id
+              FROM entry_permit_drivers d WHERE d.id = t.driver_id AND t.airfield_id IS NULL`);
+
   // הקישור בין בקשת כניסה חיה לאישור הקבוע - כך שהפקח רואה בפאנל "כניסת רכבים"
   // אם מי שדופק בשער בכלל מורשה, לפני שהוא מאשר לו מסלול.
   await sq(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS permit_driver_id INTEGER REFERENCES entry_permit_drivers(id) ON DELETE SET NULL`);

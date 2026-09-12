@@ -1,4 +1,4 @@
-// **ניהול רכבים ואישורי כניסה** - מול Postgres אמיתי (PGlite בזיכרון).
+// **ניהול נהגים, אישורי כניסה וניהול נסיעות** - מול Postgres אמיתי (PGlite בזיכרון).
 //
 // למה מול DB אמיתי ולא mock של pool: הטענות כאן הן על מה ש**יושב ב-DB** -
 // שת"ז כפולה בשדה נדחית אבל שתי רשומות בלי ת"ז מותרות (אינדקס חלקי), שכתיבת
@@ -91,9 +91,12 @@ beforeAll(async () => {
     sort_order INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW())`);
 
+  // זהה ל-init.js אחרי הרחבת "ניהול נסיעות": driver_id nullable (נהג מזדמן
+  // שאינו במרשם), ו-airfield_id כדי לשלוף את נסיעות השדה בלי לעבור דרך הנהג.
   await pool.query(`CREATE TABLE public.entry_permit_trips (
     id SERIAL PRIMARY KEY,
-    driver_id INTEGER NOT NULL REFERENCES entry_permit_drivers(id) ON DELETE CASCADE,
+    airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
+    driver_id INTEGER REFERENCES entry_permit_drivers(id) ON DELETE CASCADE,
     vehicle_id INTEGER REFERENCES entry_permit_vehicles(id) ON DELETE SET NULL,
     from_point_id INTEGER REFERENCES airfield_points(id) ON DELETE SET NULL,
     to_point_id INTEGER REFERENCES airfield_points(id) ON DELETE SET NULL,
@@ -101,6 +104,28 @@ beforeAll(async () => {
     to_text VARCHAR(200) NOT NULL DEFAULT '',
     scheduled_at TIMESTAMPTZ, ended_at TIMESTAMPTZ, purpose TEXT,
     vehicle_request_id INTEGER REFERENCES vehicle_requests(id) ON DELETE SET NULL,
+    driver_name VARCHAR(120) NOT NULL DEFAULT '',
+    driver_phone VARCHAR(40) NOT NULL DEFAULT '',
+    requester_name VARCHAR(120) NOT NULL DEFAULT '',
+    requester_phone VARCHAR(40) NOT NULL DEFAULT '',
+    vehicle_name VARCHAR(120) NOT NULL DEFAULT '',
+    vehicle_type_id INTEGER REFERENCES airfield_permit_params(id) ON DELETE SET NULL,
+    trip_type_id INTEGER REFERENCES airfield_permit_params(id) ON DELETE SET NULL,
+    icon VARCHAR(16) NOT NULL DEFAULT '',
+    stops JSONB DEFAULT '[]',
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    note TEXT,
+    escorts JSONB DEFAULT '[]',
+    roam_permit_id INTEGER REFERENCES airfield_permit_params(id) ON DELETE SET NULL,
+    suggested_route_ids JSONB DEFAULT '[]',
+    route_options JSONB DEFAULT '[]',
+    selected_route_ids JSONB DEFAULT '[]',
+    selected_route_label VARCHAR(300) NOT NULL DEFAULT '',
+    driver_ack_at TIMESTAMPTZ,
+    pending_change JSONB,
+    pending_change_at TIMESTAMPTZ,
+    departure_alerted_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
     created_at TIMESTAMPTZ DEFAULT NOW())`);
 
   const app = express();
@@ -132,7 +157,9 @@ beforeEach(async () => {
     (100, 1, 'zone', 'מנשא צפוני', 10),
     (101, 1, 'zone', 'אזור דלק', NULL),
     (102, 1, 'transport_role', 'הסעת צוותי אוויר', NULL),
-    (103, 1, 'vehicle_type', 'מיניבוס', NULL)`);
+    (103, 1, 'vehicle_type', 'מיניבוס', NULL),
+    (104, 1, 'trip_type', 'הסעת אח"מ', NULL),
+    (105, 1, 'roam_permit', 'ליווי צמוד', NULL)`);
 });
 
 describe('פרמטרים של השדה', () => {
@@ -371,5 +398,249 @@ describe('מחיקת פרמטר', () => {
     await del('/api/permit-params/102');
     const full = await (await get(`/api/entry-permits/${d.id}`)).json();
     expect(full.transport_role_id).toBeNull();
+  });
+});
+
+// ── ניהול נסיעות ─────────────────────────────────────────────────────────────
+//
+// הטענות כאן הן על מה שיושב ב-DB ועל ה-SQL עצמו: שנסיעה בלי נהג נשמרת ונמצאת,
+// ששמות התחנות נפתרים בסדר הנכון גם כשנקודה נמחקה, שחלון ה-upcoming מסנן לפי
+// הפרמטרים שהלקוח שלח, ושבקשת שינוי של הנהג **אינה** נוגעת בשורה עד שהמגדל
+// מכריע בה. mock היה מאשר את כולן בלי לבדוק דבר.
+
+const mkTripDriver = async (over = {}) =>
+  (await (await post('/api/entry-permits', driver(over))).json()).id;
+
+/** נסיעה בעוד N דקות (שלילי = כבר יצאה). */
+const tripAt = mins => new Date(Date.now() + mins * 60_000).toISOString();
+
+describe('ניהול נסיעות - רשימת השדה', () => {
+  it('נסיעה נרשמת לשדה גם בלי נהג מהמרשם', async () => {
+    const created = await (await post('/api/trips', {
+      airfield_id: AF, driver_name: 'אורח', driver_phone: '050-1111111',
+      vehicle_name: 'טנדר לבן', scheduled_at: tripAt(60),
+    })).json();
+    expect(created.driver_id).toBeNull();
+    expect(created.airfield_id).toBe(AF);
+    const rows = await (await get(`/api/trips?airfield_id=${AF}`)).json();
+    expect(rows.map(r => r.vehicle_name)).toEqual(['טנדר לבן']);
+  });
+
+  it('בלי airfield_id היצירה נדחית ב-400', async () => {
+    expect((await post('/api/trips', { vehicle_name: 'x' })).status).toBe(400);
+  });
+
+  it('בלי airfield_id בשאילתה מוחזרת רשימה ריקה ולא נסיעות של שדה אחר', async () => {
+    await post('/api/trips', { airfield_id: AF, vehicle_name: 'א' });
+    expect(await (await get('/api/trips')).json()).toEqual([]);
+    expect(await (await get('/api/trips?airfield_id=2')).json()).toEqual([]);
+  });
+
+  // נסיעה בלי שדה לא הייתה נמצאת בחלון "ניהול נסיעות" - היא נשלפת לפי השדה
+  it('נסיעה שנרשמה תחת נהג יורשת את השדה שלו', async () => {
+    const id = await mkTripDriver();
+    await post(`/api/entry-permits/${id}/trips`, { to_text: 'מסוף' });
+    const rows = await (await get(`/api/trips?airfield_id=${AF}`)).json();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].driver_id).toBe(id);
+    expect(rows[0].permit_driver_name).toBe('דני כהן');
+  });
+});
+
+describe('ניהול נסיעות - תחנות ביניים', () => {
+  it('שמות התחנות נפתרים לפי סדרן, ונקודה וטקסט חופשי מעורבים', async () => {
+    const t = await (await post('/api/trips', {
+      airfield_id: AF,
+      stops: [{ point_id: 20, text: '' }, { point_id: null, text: 'שער דרומי' }, { point_id: 21, text: '' }],
+    })).json();
+    expect(t.stop_names).toEqual(['שער ראשי', 'שער דרומי', 'מסוף מטען']);
+  });
+
+  it('בלי תחנות מוחזר מערך ריק ולא null', async () => {
+    const t = await (await post('/api/trips', { airfield_id: AF })).json();
+    expect(t.stop_names).toEqual([]);
+  });
+
+  // נקודה שנמחקה מהשדה - השורה לא נעלמת, והתחנה מוחזרת כטקסט שנרשם לה
+  it('תחנה שנקודתה נמחקה נופלת לטקסט שנרשם', async () => {
+    const t = await (await post('/api/trips', {
+      airfield_id: AF, stops: [{ point_id: 21, text: 'מסוף מטען' }],
+    })).json();
+    await pool.query('DELETE FROM airfield_points WHERE id=21');
+    const again = await (await get(`/api/trips?airfield_id=${AF}`)).json();
+    expect(again.find(x => x.id === t.id).stop_names).toEqual(['מסוף מטען']);
+  });
+});
+
+describe('ניהול נסיעות - חלון ההתראה', () => {
+  it('מחזיר רק נסיעות בתוך החלון שהלקוח ביקש', async () => {
+    await post('/api/trips', { airfield_id: AF, vehicle_name: 'בתוך', scheduled_at: tripAt(4) });
+    await post('/api/trips', { airfield_id: AF, vehicle_name: 'רחוק', scheduled_at: tripAt(45) });
+    const rows = await (await get(`/api/trips?airfield_id=${AF}&scope=upcoming&within_minutes=10&stale_hours=12`)).json();
+    expect(rows.map(r => r.vehicle_name)).toEqual(['בתוך']);
+  });
+
+  // נסיעה שאיחרה היא בדיוק זו שהפקח צריך לראות
+  it('נסיעה שזמנה עבר נשארת בחלון עד ההתיישנות', async () => {
+    await post('/api/trips', { airfield_id: AF, vehicle_name: 'איחרה', scheduled_at: tripAt(-90) });
+    await post('/api/trips', { airfield_id: AF, vehicle_name: 'נשכחה', scheduled_at: tripAt(-60 * 20) });
+    const rows = await (await get(`/api/trips?airfield_id=${AF}&scope=upcoming&within_minutes=10&stale_hours=12`)).json();
+    expect(rows.map(r => r.vehicle_name)).toEqual(['איחרה']);
+  });
+
+  it('נסיעה שהסתיימה יורדת מהחלון', async () => {
+    await post('/api/trips', { airfield_id: AF, vehicle_name: 'הסתיימה', scheduled_at: tripAt(3), status: 'ended' });
+    const rows = await (await get(`/api/trips?airfield_id=${AF}&scope=upcoming&within_minutes=10&stale_hours=12`)).json();
+    expect(rows).toEqual([]);
+  });
+
+  // בלי הסימון ההתראה עולה בכל poll, והפקח לומד להתעלם ממנה
+  it('סימון ההתראה נשמר, והסימון הראשון אינו נדרס', async () => {
+    const t = await (await post('/api/trips', { airfield_id: AF, scheduled_at: tripAt(2) })).json();
+    const first = await (await post(`/api/entry-permit-trips/${t.id}/alerted`)).json();
+    expect(first.departure_alerted_at).toBeTruthy();
+    const second = await (await post(`/api/entry-permit-trips/${t.id}/alerted`)).json();
+    expect(second.departure_alerted_at).toBe(first.departure_alerted_at);
+  });
+
+  it('סימון נסיעה שאינה קיימת מחזיר 404', async () => {
+    expect((await post('/api/entry-permit-trips/9999/alerted')).status).toBe(404);
+  });
+});
+
+describe('ניהול נסיעות - סטטוס וסוגים', () => {
+  it('סטטוס לא מוכר נשמר כ"ממתין" ולא מזהם עמודה תפעולית', async () => {
+    const t = await (await post('/api/trips', { airfield_id: AF, status: 'DROP TABLE' })).json();
+    expect(t.status).toBe('pending');
+    const upd = await (await put(`/api/entry-permit-trips/${t.id}`, { status: 'approved' })).json();
+    expect(upd.status).toBe('approved');
+  });
+
+  it('סוג נסיעה וסוג אישור הסתובבות מצורפים בשמם', async () => {
+    const t = await (await post('/api/trips', {
+      airfield_id: AF, trip_type_id: 104, roam_permit_id: 105,
+    })).json();
+    expect(t.trip_type_name).toBe('הסעת אח"מ');
+    expect(t.roam_permit_name).toBe('ליווי צמוד');
+  });
+
+  // סוג הרכב של הנסיעה גובר, ובהיעדרו נופלים לסוג של הרכב שבמרשם
+  it('סוג הרכב נגזר מהנסיעה, ובהיעדרו מהרכב שבמרשם', async () => {
+    const id = await mkTripDriver();
+    const v = await (await post(`/api/entry-permits/${id}/vehicles`, {
+      vehicle_type_id: 103, plate_fixed: true, plate_number: '12-345-67',
+    })).json();
+    const fromVehicle = await (await post(`/api/entry-permits/${id}/trips`, { vehicle_id: v.id })).json();
+    expect(fromVehicle.vehicle_type_name).toBe('מיניבוס');
+    const explicit = await (await put(`/api/entry-permit-trips/${fromVehicle.id}`, { vehicle_type_id: 104 })).json();
+    expect(explicit.vehicle_type_name).toBe('הסעת אח"מ');
+  });
+
+  it('סוג נסיעה שנמחק משאיר את הנסיעה, בלי סוג', async () => {
+    const t = await (await post('/api/trips', { airfield_id: AF, trip_type_id: 104 })).json();
+    await del('/api/permit-params/104');
+    const rows = await (await get(`/api/trips?airfield_id=${AF}`)).json();
+    expect(rows.find(x => x.id === t.id).trip_type_id).toBeNull();
+  });
+
+  it('נלווים ואפשרויות נתיב נשמרים כמערכים, וזבל נשמר כמערך ריק', async () => {
+    const t = await (await post('/api/trips', {
+      airfield_id: AF,
+      escorts: [{ name: 'דנה', national_id: '9' }],
+      selected_route_ids: [3, 7],
+      route_options: 'לא מערך',
+    })).json();
+    expect(t.escorts).toEqual([{ name: 'דנה', national_id: '9' }]);
+    expect(t.selected_route_ids).toEqual([3, 7]);
+    expect(t.route_options).toEqual([]);
+  });
+});
+
+describe('ניהול נסיעות - אפליקציית הנהג', () => {
+  const mkPhoneTrip = (over = {}) => post('/api/trips', {
+    airfield_id: AF, driver_phone: '050-2222222', vehicle_name: 'מיניבוס',
+    scheduled_at: tripAt(120), note: 'מקורי', ...over,
+  }).then(r => r.json());
+
+  // אסימון הנהג אינו זהות אישית, ולכן בלי מזהה מפורש אין רשימה
+  it('בלי טלפון או ת"ז הבקשה נדחית ב-400', async () => {
+    expect((await get('/api/driver-trips')).status).toBe(400);
+  });
+
+  it('מחזיר את נסיעות הטלפון בלבד', async () => {
+    await mkPhoneTrip();
+    await mkPhoneTrip({ driver_phone: '050-3333333', vehicle_name: 'אחר' });
+    const rows = await (await get('/api/driver-trips?phone=050-2222222')).json();
+    expect(rows.map(r => r.vehicle_name)).toEqual(['מיניבוס']);
+  });
+
+  it('מחזיר גם לפי ת"ז של נהג מהמרשם', async () => {
+    const id = await mkTripDriver();
+    await post(`/api/entry-permits/${id}/trips`, { vehicle_name: 'רכב המרשם' });
+    const rows = await (await get('/api/driver-trips?national_id=012345678')).json();
+    expect(rows.map(r => r.vehicle_name)).toEqual(['רכב המרשם']);
+  });
+
+  it('נסיעה שהסתיימה אינה מוחזרת לנהג', async () => {
+    await mkPhoneTrip({ status: 'ended' });
+    expect(await (await get('/api/driver-trips?phone=050-2222222')).json()).toEqual([]);
+  });
+
+  it('אישור הנהג נרשם ואינו משנה את הסטטוס - הסטטוס הוא הכרעת המגדל', async () => {
+    const t = await mkPhoneTrip();
+    const acked = await (await post(`/api/driver-trips/${t.id}/ack`)).json();
+    expect(acked.driver_ack_at).toBeTruthy();
+    expect(acked.status).toBe('pending');
+  });
+
+  // הנסיעה לא יכולה להשתנות מתחת לידי המגדל אם הוא עומד לדחות
+  it('בקשת שינוי נשמרת בצד ואינה נוגעת בשורה', async () => {
+    const t = await mkPhoneTrip();
+    const after = await (await post(`/api/driver-trips/${t.id}/change`, {
+      scheduled_at: tripAt(200), note: 'מאחר בשעה',
+    })).json();
+    expect(after.note).toBe('מקורי');
+    expect(after.scheduled_at).toBe(t.scheduled_at);
+    expect(after.pending_change.note).toBe('מאחר בשעה');
+    expect(after.pending_change_at).toBeTruthy();
+  });
+
+  it('בקשה ריקה נדחית ב-400', async () => {
+    const t = await mkPhoneTrip();
+    expect((await post(`/api/driver-trips/${t.id}/change`, {})).status).toBe(400);
+  });
+
+  // הנהג אינו מאשר לעצמו נסיעה דרך שדה שלא נועד לו
+  it('שדות שאינם ברשימת ההיתר אינם נכנסים לבקשה', async () => {
+    const t = await mkPhoneTrip();
+    const after = await (await post(`/api/driver-trips/${t.id}/change`, {
+      note: 'בסדר', status: 'approved', driver_phone: '050-9999999',
+    })).json();
+    expect(Object.keys(after.pending_change)).toEqual(['note']);
+  });
+
+  it('אישור המגדל מחיל את השינוי ומנקה את ההמתנה', async () => {
+    const t = await mkPhoneTrip();
+    const when = tripAt(200);
+    await post(`/api/driver-trips/${t.id}/change`, { scheduled_at: when, note: 'מאחר' });
+    const after = await (await post(`/api/entry-permit-trips/${t.id}/change/approve`)).json();
+    expect(after.note).toBe('מאחר');
+    expect(new Date(after.scheduled_at).toISOString()).toBe(when);
+    expect(after.pending_change).toBeNull();
+    expect(after.pending_change_at).toBeNull();
+  });
+
+  it('דחיית המגדל זורקת את השינוי ומשאירה את הנסיעה כפי שהייתה', async () => {
+    const t = await mkPhoneTrip();
+    await post(`/api/driver-trips/${t.id}/change`, { note: 'מאחר' });
+    const after = await (await post(`/api/entry-permit-trips/${t.id}/change/reject`)).json();
+    expect(after.note).toBe('מקורי');
+    expect(after.pending_change).toBeNull();
+  });
+
+  // הכרעה בנסיעה שנמחקה בינתיים אינה יוצרת שורה חדשה
+  it('הכרעה בנסיעה שאינה קיימת מחזירה 404', async () => {
+    expect((await post('/api/entry-permit-trips/9999/change/approve')).status).toBe(404);
+    expect((await post('/api/driver-trips/9999/ack')).status).toBe(404);
   });
 });

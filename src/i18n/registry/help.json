@@ -1115,12 +1115,20 @@
       "en": "Location"
     },
     "viewMenu_vehiclePermitsTitle": {
-      "he": "ניהול רכבים",
-      "en": "Vehicle management"
+      "he": "ניהול נהגים",
+      "en": "Driver management"
     },
     "viewMenu_vehiclePermitsBody": {
       "he": "מרשם המורשים להיכנס לשדה: נהג (עם ת.ז.), הרכבים שתחתיו, האזורים שאושרו לו, תוקף האישור ומי אישר. הסטטוס נגזר אוטומטית מהתאריכים וניתן לדריסה ידנית. לכל נהג טבלת נסיעות - היסטוריה ומתוכננות. להבדיל מ\"כניסת רכבים\" שהוא התור החי של מי שדופק בשער עכשיו.",
       "en": "The registry of who may enter the airfield: driver (with ID), their vehicles, permitted zones, permit validity and approver. The status is derived automatically from the dates and can be overridden manually. Each driver has a trip table - history and planned. Unlike \"Vehicle entry\", which is the live queue of who is at the gate now."
+    },
+    "viewMenu_tripsManagementTitle": {
+      "he": "ניהול נסיעות",
+      "en": "Trip management"
+    },
+    "viewMenu_tripsManagementBody": {
+      "he": "תכנון וניהול הנסיעה עצמה: רכב (מרכבי הנהג או בהזנה ידנית), נהג וטלפון, סוג רכב וסוג נסיעה, אייקון מוצע לפי סוג הרכב וניתן לשינוי, תאריך ושעת יציאה משוערים, מוצא, יעד ותחנות ביניים, סטטוס (יש אישור / אין אישור / ממתין / הסתיים), נתיב מוצע לפי מודל חישוב מסלולי הנסיעה עם בחירה מבין החלופות, מבקש הנסיעה, נלווים ואישור הסתובבות בבסיס. כל נסיעה מציגה את הרכב ליד נקודת המוצא 10 דקות לפני היציאה, עם התראה מתפרצת. הנהג מאשר ומעדכן מהאפליקציה שלו, וכל עדכון דורש אישור נוסף של המגדל.",
+      "en": "Planning and managing the trip itself: vehicle (from the driver's vehicles or entered manually), driver and phone, vehicle type and trip type, an icon suggested by vehicle type that can be changed, estimated departure date and time, origin, destination and intermediate stops, status (approved / not approved / pending / ended), a suggested route from the trip-route computation model with a choice between alternatives, the requester, escorts and an on-base movement permit. Each trip shows the vehicle beside its origin point 10 minutes before departure, with a pop-up alert. The driver approves and updates from their app, and every update needs a further approval from the tower."
     }
   }
 }

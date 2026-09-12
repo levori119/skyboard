@@ -221,8 +221,11 @@ router.put('/api/vehicle-requests/:id', async (req, res) => {
     if (vehicle_type !== undefined)      { fields.push(`vehicle_type=$${idx++}`);      vals.push(vehicle_type); }
     if (plate_number !== undefined)      { fields.push(`plate_number=$${idx++}`);      vals.push(plate_number); }
     if (via_route_ids !== undefined)     { fields.push(`via_route_ids=$${idx++}`);     vals.push(JSON.stringify(via_route_ids || [])); }
-    if (show_on_map !== undefined)       { fields.push(`show_on_map=${idx++}`);       vals.push(!!show_on_map); }
-    if (permit_driver_id !== undefined)  { fields.push(`permit_driver_id=${idx++}`);  vals.push(permit_driver_id || null); }
+    // ⚠️ `$` שחסר כאן שבר את **אישור בקשת הכניסה** כולה: `show_on_map=11` הגיע
+    // ל-Postgres כמספר מול עמודה בוליאנית (500), ו-`permit_driver_id=12` היה
+    // כותב את מספר הפרמטר כמזהה נהג. הפאנל שולח את שניהם בכל אישור.
+    if (show_on_map !== undefined)       { fields.push(`show_on_map=$${idx++}`);      vals.push(!!show_on_map); }
+    if (permit_driver_id !== undefined)  { fields.push(`permit_driver_id=$${idx++}`); vals.push(permit_driver_id || null); }
     vals.push(req.params.id);
     const r = await pool.query(
       `UPDATE vehicle_requests SET ${fields.join(',')} WHERE id=$${idx} RETURNING *`,
