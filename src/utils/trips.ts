@@ -142,6 +142,63 @@ export function suggestedVehicleIcon(vehicleTypeName?: string | null): string {
 export const tripIcon = (trip: { icon?: string | null; vehicle_type_name?: string | null }): string =>
   String(trip.icon ?? '').trim() || suggestedVehicleIcon(trip.vehicle_type_name);
 
+// ── נתיב הנסיעה ──────────────────────────────────────────────────────────────
+//
+// המודל מריץ את אותו חישוב בכמה רמות הרשאה, ולעתים קרובות **כולן מחזירות את
+// אותו נתיב פיזי** - בשדה שבו אין דרך חלופית. שלוש שורות זהות ברשימה אינן
+// בחירה אלא רעש, ובמצב שבו כולן מסומנות אי אפשר בכלל לדעת מה אושר לנהג.
+
+export interface RouteOptionLike {
+  /** רמת ההרשאה ששימשה לחישוב */
+  key: string;
+  /** מזהי המסלולים שהנתיב עובר בהם */
+  route_ids: number[];
+  label: string;
+  dist_m: number;
+  crossings: number;
+}
+
+/**
+ * זהות הנתיב: המסלולים שהוא עובר בהם, ואחריהם התיאור.
+ *
+ * המסלולים לבדם אינם מספיקים - נתיב שכולו על צמתים וירטואליים מחזיר רשימה
+ * ריקה, ואז **כל** האפשרויות נראות זהות ומסומנות יחד. זה בדיוק מה שנראה
+ * בשטח: שלושה נתיבים, שלושה סימני ✓.
+ */
+export const routeSignature = (o: Pick<RouteOptionLike, 'route_ids' | 'label'>): string =>
+  `${(o.route_ids || []).join(',')}|${o.label || ''}`;
+
+/** האם אפשרות זו היא שנבחרה בפועל. בחירה ריקה = אף אחת, ולא "הכול". */
+export const isRouteChosen = (o: Pick<RouteOptionLike, 'route_ids' | 'label'>, chosenSig: string): boolean =>
+  chosenSig !== '' && routeSignature(o) === chosenSig;
+
+/**
+ * מאחד אפשרויות שמובילות לאותו נתיב פיזי, וממיין מהקצר לארוך.
+ *
+ * המאוחדת נושאת את **רמת ההרשאה הנמוכה ביותר** שמגיעה לנתיב (הראשונה שנמצאה,
+ * ולכן סדר הקלט הוא חלק מהנכונות), ואת רשימת הרמות ב-`keys` - כדי שהמסך יוכל
+ * לומר שאין הבדל ביניהן ולא להשאיר את הפקח תוהה למה יש רק שורה אחת.
+ */
+export function dedupeRouteOptions<T extends RouteOptionLike>(options: T[]): (T & { keys: string[] })[] {
+  const bySig = new Map<string, T & { keys: string[] }>();
+  for (const o of options || []) {
+    const sig = routeSignature(o);
+    const seen = bySig.get(sig);
+    if (seen) seen.keys.push(o.key);
+    else bySig.set(sig, { ...o, keys: [o.key] });
+  }
+  return [...bySig.values()].sort((a, b) => a.dist_m - b.dist_m);
+}
+
+/**
+ * האם מותר לסמן את הנסיעה כ"יש אישור".
+ *
+ * חושבו נתיבים ולא נבחר אחד = **אין מה לאשר לנהג**. הפקח רואה אישור, הנהג
+ * אינו מקבל נתיב, ואיש אינו יודע על איזו דרך הוסכם.
+ */
+export const canApproveTrip = (status: TripStatus, hasOptions: boolean, chosenSig: string): boolean =>
+  status !== 'approved' || !hasOptions || chosenSig !== '';
+
 // ── תחנות ביניים ─────────────────────────────────────────────────────────────
 
 export interface TripStop {

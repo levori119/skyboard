@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   DEPARTURE_ALERT_MINUTES, DRIVER_ACTION_ALERT_MINUTES, STALE_TRIP_HOURS, TRIP_STATUSES, TRIP_VEHICLE_ICONS,
-  asTripStatus, hasPendingDriverChange, isDepartureAlertDue, isDriverActionFresh, isVehicleOnMap,
+  asTripStatus, canApproveTrip, dedupeRouteOptions, hasPendingDriverChange, isDepartureAlertDue,
+  isDriverActionFresh, isRouteChosen, isVehicleOnMap, routeSignature,
   minutesUntilDeparture, normalizeEscorts, normalizeStops, pendingChangeFields,
   stopLabel, suggestedVehicleIcon, tripIcon, tripStatusKey,
 } from './trips';
@@ -130,6 +131,62 @@ describe('אייקון הרכב', () => {
   it('בלי דריסה - האייקון נגזר מסוג הרכב', () => {
     expect(tripIcon({ icon: '', vehicle_type_name: 'אמבולנס' })).toBe('🚑');
     expect(tripIcon({ icon: null, vehicle_type_name: 'משטרה צבאית' })).toBe('🚓');
+  });
+});
+
+describe('נתיב הנסיעה - בחירה מפורשת', () => {
+  const opt = (over = {}) =>
+    ({ key: 'vehicle', route_ids: [3, 7], label: 'כיבוי -> תחילת 15', dist_m: 2923, crossings: 1, ...over });
+
+  it('הזהות מורכבת מהמסלולים ומהתיאור', () => {
+    expect(routeSignature(opt())).toBe('3,7|כיבוי -> תחילת 15');
+  });
+
+  // זה מה שנראה בשטח: שלושה נתיבים, שלושה סימני ✓, ואי אפשר לדעת מה אושר
+  it('נתיב בלי מסלולים אינו מתלכד עם נתיב אחר בלי מסלולים', () => {
+    const a = opt({ route_ids: [], label: 'דרך א' });
+    const b = opt({ route_ids: [], label: 'דרך ב' });
+    expect(routeSignature(a)).not.toBe(routeSignature(b));
+  });
+
+  it('בחירה ריקה = אף אפשרות אינה מסומנת', () => {
+    expect(isRouteChosen(opt(), '')).toBe(false);
+    expect(isRouteChosen(opt(), routeSignature(opt()))).toBe(true);
+    expect(isRouteChosen(opt(), routeSignature(opt({ route_ids: [9] })))).toBe(false);
+  });
+
+  it('שלוש רמות הרשאה שמחזירות אותו נתיב מתאחדות לשורה אחת', () => {
+    const merged = dedupeRouteOptions([
+      opt({ key: 'vehicle' }), opt({ key: 'taxiways' }), opt({ key: 'runways' }),
+    ]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].keys).toEqual(['vehicle', 'taxiways', 'runways']);
+    // הרמה הנמוכה ביותר שמגיעה לנתיב היא זו שנשמרת
+    expect(merged[0].key).toBe('vehicle');
+  });
+
+  it('נתיבים שונים נשארים נפרדים, וממוינים מהקצר לארוך', () => {
+    const merged = dedupeRouteOptions([
+      opt({ key: 'runways', route_ids: [1], label: 'ארוך', dist_m: 4000 }),
+      opt({ key: 'vehicle', route_ids: [2], label: 'קצר', dist_m: 1000 }),
+    ]);
+    expect(merged.map(m => m.label)).toEqual(['קצר', 'ארוך']);
+  });
+
+  it('רשימה ריקה אינה מפילה', () => {
+    expect(dedupeRouteOptions([])).toEqual([]);
+  });
+
+  // אישור בלי נתיב נבחר = הפקח רואה אישור, הנהג אינו מקבל דרך
+  it('אי אפשר לאשר נסיעה כשחושבו נתיבים ולא נבחר אחד', () => {
+    expect(canApproveTrip('approved', true, '')).toBe(false);
+    expect(canApproveTrip('approved', true, '3,7|x')).toBe(true);
+  });
+
+  it('סטטוס שאינו "יש אישור", או נסיעה שלא חושב לה נתיב, אינם נחסמים', () => {
+    expect(canApproveTrip('pending', true, '')).toBe(true);
+    expect(canApproveTrip('ended', true, '')).toBe(true);
+    expect(canApproveTrip('approved', false, '')).toBe(true);
   });
 });
 

@@ -2,122 +2,473 @@
   "_group": "ניהול נסיעות",
   "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
   "keys": {
-    "title": { "he": "ניהול נסיעות", "en": "Trip management" },
-    "menuItem": { "he": "ניהול נסיעות", "en": "Trip management" },
-    "noAirfield": { "he": "לא הוגדר שדה תעופה לעמדה זו", "en": "No airfield is set for this workstation" },
-
-    "search": { "he": "חיפוש רכב, נהג, מוצא או יעד", "en": "Search vehicle, driver, origin or destination" },
-    "newTrip": { "he": "נסיעה חדשה", "en": "New trip" },
-    "noTrips": { "he": "אין נסיעות רשומות בשדה זה", "en": "No trips registered at this airfield" },
-    "noMatches": { "he": "אין תוצאות לחיפוש", "en": "No search results" },
-    "selectTrip": { "he": "בחר נסיעה מהרשימה, או הוסף חדשה", "en": "Select a trip from the list, or add a new one" },
-    "tripCount": { "he": "{{count}} נסיעות", "en": "{{count}} trips" },
-    "tabUpcoming": { "he": "קרובות", "en": "Upcoming" },
-    "tabHistory": { "he": "היסטוריה", "en": "History" },
-    "unnamedTrip": { "he": "נסיעה ללא רכב", "en": "Trip with no vehicle" },
-
-    "sectionVehicle": { "he": "רכב ונהג", "en": "Vehicle and driver" },
-    "sectionWhen": { "he": "מועד ומסלול", "en": "Time and route" },
-    "sectionRoute": { "he": "נתיב נסיעה", "en": "Trip route" },
-    "sectionPeople": { "he": "מבקש הנסיעה ונלווים", "en": "Requester and escorts" },
-
-    "vehicleName": { "he": "שם רכב", "en": "Vehicle name" },
-    "vehiclePick": { "he": "בחר מרשימת רכבי הנהג", "en": "Pick from the driver's vehicles" },
-    "vehicleManual": { "he": "הזנה ידנית", "en": "Manual entry" },
-    "vehicleType": { "he": "סוג רכב", "en": "Vehicle type" },
-    "noVehicleType": { "he": "ללא סוג", "en": "No type" },
-    "vehicleTypesEmpty": { "he": "לא הוגדרו סוגי רכב בניהול שדה תעופה", "en": "No vehicle types defined in airfield management" },
-    "tripType": { "he": "סוג נסיעה", "en": "Trip type" },
-    "noTripType": { "he": "ללא סוג", "en": "No type" },
-    "tripTypesEmpty": { "he": "לא הוגדרו סוגי נסיעה בניהול שדה תעופה", "en": "No trip types defined in airfield management" },
-
-    "icon": { "he": "אייקון הרכב", "en": "Vehicle icon" },
-    "iconSuggested": { "he": "מוצע לפי סוג הרכב", "en": "Suggested by vehicle type" },
-    "iconOverridden": { "he": "נבחר ידנית", "en": "Chosen manually" },
-    "iconUseSuggested": { "he": "חזור למוצע", "en": "Back to suggested" },
-
-    "driver": { "he": "שם נהג", "en": "Driver name" },
-    "driverPick": { "he": "נהג מהמרשם", "en": "Driver from the registry" },
-    "driverManual": { "he": "נהג שאינו במרשם", "en": "Driver not in the registry" },
-    "driverPhone": { "he": "טלפון הנהג", "en": "Driver phone" },
-    "driverPermit": { "he": "אישור כניסה", "en": "Entry permit" },
-
-    "dateLabel": { "he": "תאריך נסיעה משוער", "en": "Estimated trip date" },
-    "timeLabel": { "he": "זמן יציאה משוער", "en": "Estimated departure time" },
-    "noSchedule": { "he": "לא נקבע מועד", "en": "No time set" },
-    "from": { "he": "מוצא", "en": "Origin" },
-    "to": { "he": "יעד", "en": "Destination" },
-    "pointOther": { "he": "אחר (טקסט חופשי)", "en": "Other (free text)" },
-    "pointsEmpty": { "he": "לא הוגדרו נקודות בשדה", "en": "No points defined at this airfield" },
-
-    "stops": { "he": "תחנות ביניים", "en": "Intermediate stops" },
-    "addStop": { "he": "הוסף תחנה", "en": "Add stop" },
-    "removeStop": { "he": "הסר תחנה", "en": "Remove stop" },
-    "noStops": { "he": "אין תחנות ביניים", "en": "No intermediate stops" },
-
-    "status": { "he": "סטטוס נסיעה", "en": "Trip status" },
-    "statusApproved": { "he": "יש אישור", "en": "Approved" },
-    "statusNotApproved": { "he": "אין אישור", "en": "Not approved" },
-    "statusPending": { "he": "ממתין", "en": "Pending" },
-    "statusEnded": { "he": "הסתיים", "en": "Ended" },
-
-    "routeSuggested": { "he": "נתיב מוצע", "en": "Suggested route" },
-    "routeCompute": { "he": "חשב נתיב", "en": "Compute route" },
-    "routeComputing": { "he": "מחשב...", "en": "Computing..." },
-    "routeOptions": { "he": "בחירת נתיב", "en": "Route options" },
-    "routeSelected": { "he": "נתיב נבחר", "en": "Selected route" },
-    "routeNone": { "he": "טרם חושב נתיב", "en": "No route computed yet" },
-    "routeNoneSelected": { "he": "לא נבחר נתיב", "en": "No route selected" },
-    "routeNeedsEndpoints": { "he": "יש לבחור מוצא ויעד מנקודות השדה", "en": "Pick an origin and destination from the airfield points" },
-    "routeError": { "he": "חישוב הנתיב נכשל", "en": "Route computation failed" },
-    "routeDistance": { "he": "{{meters}} מ'", "en": "{{meters}} m" },
-    "routeShortest": { "he": "הקצר ביותר", "en": "Shortest" },
-    "routePermVehicle": { "he": "נתיבי רכב בלבד", "en": "Vehicle routes only" },
-    "routePermTaxiways": { "he": "כולל מסלולי הסעה", "en": "Including taxiways" },
-    "routePermRunways": { "he": "כולל מסלולי טיסה", "en": "Including runways" },
-    "routeCrossings": { "he": "{{count}} חציות", "en": "{{count}} crossings" },
-    "routePick": { "he": "בחר", "en": "Select" },
-
-    "note": { "he": "הערה", "en": "Note" },
-    "requester": { "he": "מבקש הנסיעה", "en": "Trip requester" },
-    "requesterPhone": { "he": "טלפון מבקש הנסיעה", "en": "Requester phone" },
-    "escorts": { "he": "נלווים לנהג", "en": "Driver escorts" },
-    "addEscort": { "he": "הוסף נלווה", "en": "Add escort" },
-    "escortName": { "he": "שם", "en": "Name" },
-    "escortId": { "he": "ת.ז.", "en": "ID" },
-    "noEscorts": { "he": "אין נלווים", "en": "No escorts" },
-    "roamPermit": { "he": "אישור הסתובבות בבסיס", "en": "On-base movement permit" },
-    "noRoamPermit": { "he": "ללא אישור", "en": "No permit" },
-    "roamPermitsEmpty": { "he": "לא הוגדרו סוגי אישור בניהול שדה תעופה", "en": "No permit types defined in airfield management" },
-
-    "save": { "he": "שמור", "en": "Save" },
-    "add": { "he": "הוסף", "en": "Add" },
-    "cancel": { "he": "בטל", "en": "Cancel" },
-    "delete": { "he": "מחק", "en": "Delete" },
-    "confirmDeleteTrip": { "he": "למחוק את הנסיעה?", "en": "Delete this trip?" },
-    "errSave": { "he": "השמירה נכשלה", "en": "Save failed" },
-
-    "alertDeparture": { "he": "יציאה בעוד {{minutes}} דק'", "en": "Departure in {{minutes}} min" },
-    "alertDepartureNow": { "he": "זמן היציאה הגיע", "en": "Departure time has arrived" },
-    "alertDepartureLate": { "he": "איחור של {{minutes}} דק'", "en": "{{minutes}} min late" },
-    "alertDepartureTitle": { "he": "תחילת נסיעה", "en": "Trip starting" },
-    "alertDriverAckTitle": { "he": "הנהג אישר את הנסיעה", "en": "Driver approved the trip" },
-    "alertDriverChangeTitle": { "he": "הנהג ביקש לשנות - נדרש אישור", "en": "Driver requested a change - approval needed" },
-    "alertOpen": { "he": "פתח בניהול נסיעות", "en": "Open in trip management" },
-    "alertDismiss": { "he": "סגור", "en": "Dismiss" },
-    "alertApproveChange": { "he": "אשר שינוי", "en": "Approve change" },
-    "alertRejectChange": { "he": "דחה שינוי", "en": "Reject change" },
-    "alertStartTrip": { "he": "סמן שהנסיעה יצאה", "en": "Mark trip as departed" },
-
-    "pendingChange": { "he": "שינוי מהנהג ממתין לאישור", "en": "Driver change awaiting approval" },
-    "pendingChangeFields": { "he": "שונו: {{fields}}", "en": "Changed: {{fields}}" },
-    "fieldScheduledAt": { "he": "זמן יציאה", "en": "Departure time" },
-    "fieldStops": { "he": "תחנות ביניים", "en": "Intermediate stops" },
-    "fieldNote": { "he": "הערה", "en": "Note" },
-    "driverAcked": { "he": "הנהג אישר ב-{{time}}", "en": "Driver approved at {{time}}" },
-    "driverNotAcked": { "he": "הנהג טרם אישר", "en": "Driver has not approved yet" },
-
-    "mapMarkerTitle": { "he": "{{vehicle}} · יציאה מ{{from}}", "en": "{{vehicle}} · departing {{from}}" },
-    "fromRequest": { "he": "נרשמה מבקשת כניסה", "en": "Recorded from an entry request" }
+    "title": {
+      "he": "ניהול נסיעות",
+      "en": "Trip management"
+    },
+    "menuItem": {
+      "he": "ניהול נסיעות",
+      "en": "Trip management"
+    },
+    "noAirfield": {
+      "he": "לא הוגדר שדה תעופה לעמדה זו",
+      "en": "No airfield is set for this workstation"
+    },
+    "search": {
+      "he": "חיפוש רכב, נהג, מוצא או יעד",
+      "en": "Search vehicle, driver, origin or destination"
+    },
+    "newTrip": {
+      "he": "נסיעה חדשה",
+      "en": "New trip"
+    },
+    "noTrips": {
+      "he": "אין נסיעות רשומות בשדה זה",
+      "en": "No trips registered at this airfield"
+    },
+    "noMatches": {
+      "he": "אין תוצאות לחיפוש",
+      "en": "No search results"
+    },
+    "selectTrip": {
+      "he": "בחר נסיעה מהרשימה, או הוסף חדשה",
+      "en": "Select a trip from the list, or add a new one"
+    },
+    "tripCount": {
+      "he": "{{count}} נסיעות",
+      "en": "{{count}} trips"
+    },
+    "tabUpcoming": {
+      "he": "קרובות",
+      "en": "Upcoming"
+    },
+    "tabHistory": {
+      "he": "היסטוריה",
+      "en": "History"
+    },
+    "unnamedTrip": {
+      "he": "נסיעה ללא רכב",
+      "en": "Trip with no vehicle"
+    },
+    "sectionVehicle": {
+      "he": "רכב ונהג",
+      "en": "Vehicle and driver"
+    },
+    "sectionWhen": {
+      "he": "מועד ומסלול",
+      "en": "Time and route"
+    },
+    "sectionRoute": {
+      "he": "נתיב נסיעה",
+      "en": "Trip route"
+    },
+    "sectionPeople": {
+      "he": "מבקש הנסיעה ונלווים",
+      "en": "Requester and escorts"
+    },
+    "vehicleName": {
+      "he": "שם רכב",
+      "en": "Vehicle name"
+    },
+    "vehiclePick": {
+      "he": "בחר מרשימת רכבי הנהג",
+      "en": "Pick from the driver's vehicles"
+    },
+    "vehicleManual": {
+      "he": "הזנה ידנית",
+      "en": "Manual entry"
+    },
+    "vehicleType": {
+      "he": "סוג רכב",
+      "en": "Vehicle type"
+    },
+    "noVehicleType": {
+      "he": "ללא סוג",
+      "en": "No type"
+    },
+    "vehicleTypesEmpty": {
+      "he": "לא הוגדרו סוגי רכב בניהול שדה תעופה",
+      "en": "No vehicle types defined in airfield management"
+    },
+    "tripType": {
+      "he": "סוג נסיעה",
+      "en": "Trip type"
+    },
+    "noTripType": {
+      "he": "ללא סוג",
+      "en": "No type"
+    },
+    "tripTypesEmpty": {
+      "he": "לא הוגדרו סוגי נסיעה בניהול שדה תעופה",
+      "en": "No trip types defined in airfield management"
+    },
+    "icon": {
+      "he": "אייקון הרכב",
+      "en": "Vehicle icon"
+    },
+    "iconSuggested": {
+      "he": "מוצע לפי סוג הרכב",
+      "en": "Suggested by vehicle type"
+    },
+    "iconOverridden": {
+      "he": "נבחר ידנית",
+      "en": "Chosen manually"
+    },
+    "iconUseSuggested": {
+      "he": "חזור למוצע",
+      "en": "Back to suggested"
+    },
+    "driver": {
+      "he": "שם נהג",
+      "en": "Driver name"
+    },
+    "driverPick": {
+      "he": "נהג מהמרשם",
+      "en": "Driver from the registry"
+    },
+    "driverManual": {
+      "he": "נהג שאינו במרשם",
+      "en": "Driver not in the registry"
+    },
+    "driverPhone": {
+      "he": "טלפון הנהג",
+      "en": "Driver phone"
+    },
+    "driverPermit": {
+      "he": "אישור כניסה",
+      "en": "Entry permit"
+    },
+    "dateLabel": {
+      "he": "תאריך נסיעה משוער",
+      "en": "Estimated trip date"
+    },
+    "timeLabel": {
+      "he": "זמן יציאה משוער",
+      "en": "Estimated departure time"
+    },
+    "noSchedule": {
+      "he": "לא נקבע מועד",
+      "en": "No time set"
+    },
+    "from": {
+      "he": "מוצא",
+      "en": "Origin"
+    },
+    "to": {
+      "he": "יעד",
+      "en": "Destination"
+    },
+    "pointOther": {
+      "he": "אחר (טקסט חופשי)",
+      "en": "Other (free text)"
+    },
+    "pointsEmpty": {
+      "he": "לא הוגדרו נקודות בשדה",
+      "en": "No points defined at this airfield"
+    },
+    "stops": {
+      "he": "תחנות ביניים",
+      "en": "Intermediate stops"
+    },
+    "addStop": {
+      "he": "הוסף תחנה",
+      "en": "Add stop"
+    },
+    "removeStop": {
+      "he": "הסר תחנה",
+      "en": "Remove stop"
+    },
+    "noStops": {
+      "he": "אין תחנות ביניים",
+      "en": "No intermediate stops"
+    },
+    "status": {
+      "he": "סטטוס נסיעה",
+      "en": "Trip status"
+    },
+    "statusApproved": {
+      "he": "יש אישור",
+      "en": "Approved"
+    },
+    "statusNotApproved": {
+      "he": "אין אישור",
+      "en": "Not approved"
+    },
+    "statusPending": {
+      "he": "ממתין",
+      "en": "Pending"
+    },
+    "statusEnded": {
+      "he": "הסתיים",
+      "en": "Ended"
+    },
+    "routeSuggested": {
+      "he": "נתיב מוצע",
+      "en": "Suggested route"
+    },
+    "routeCompute": {
+      "he": "חשב נתיב",
+      "en": "Compute route"
+    },
+    "routeComputing": {
+      "he": "מחשב...",
+      "en": "Computing..."
+    },
+    "routeOptions": {
+      "he": "בחירת נתיב",
+      "en": "Route options"
+    },
+    "routeSelected": {
+      "he": "נתיב נבחר",
+      "en": "Selected route"
+    },
+    "routeNone": {
+      "he": "טרם חושב נתיב",
+      "en": "No route computed yet"
+    },
+    "routeNoneSelected": {
+      "he": "לא נבחר נתיב",
+      "en": "No route selected"
+    },
+    "routeNeedsEndpoints": {
+      "he": "יש לבחור מוצא ויעד מנקודות השדה",
+      "en": "Pick an origin and destination from the airfield points"
+    },
+    "routeError": {
+      "he": "חישוב הנתיב נכשל",
+      "en": "Route computation failed"
+    },
+    "routeDistance": {
+      "he": "{{meters}} מ'",
+      "en": "{{meters}} m"
+    },
+    "routeShortest": {
+      "he": "הקצר ביותר",
+      "en": "Shortest"
+    },
+    "routePermVehicle": {
+      "he": "נתיבי רכב בלבד",
+      "en": "Vehicle routes only"
+    },
+    "routePermTaxiways": {
+      "he": "כולל מסלולי הסעה",
+      "en": "Including taxiways"
+    },
+    "routePermRunways": {
+      "he": "כולל מסלולי טיסה",
+      "en": "Including runways"
+    },
+    "routeCrossings": {
+      "he": "{{count}} חציות",
+      "en": "{{count}} crossings"
+    },
+    "routePick": {
+      "he": "בחר",
+      "en": "Select"
+    },
+    "note": {
+      "he": "הערה",
+      "en": "Note"
+    },
+    "requester": {
+      "he": "מבקש הנסיעה",
+      "en": "Trip requester"
+    },
+    "requesterPhone": {
+      "he": "טלפון מבקש הנסיעה",
+      "en": "Requester phone"
+    },
+    "escorts": {
+      "he": "נלווים לנהג",
+      "en": "Driver escorts"
+    },
+    "addEscort": {
+      "he": "הוסף נלווה",
+      "en": "Add escort"
+    },
+    "escortName": {
+      "he": "שם",
+      "en": "Name"
+    },
+    "escortId": {
+      "he": "ת.ז.",
+      "en": "ID"
+    },
+    "noEscorts": {
+      "he": "אין נלווים",
+      "en": "No escorts"
+    },
+    "roamPermit": {
+      "he": "אישור הסתובבות בבסיס",
+      "en": "On-base movement permit"
+    },
+    "noRoamPermit": {
+      "he": "ללא אישור",
+      "en": "No permit"
+    },
+    "roamPermitsEmpty": {
+      "he": "לא הוגדרו סוגי אישור בניהול שדה תעופה",
+      "en": "No permit types defined in airfield management"
+    },
+    "save": {
+      "he": "שמור",
+      "en": "Save"
+    },
+    "add": {
+      "he": "הוסף",
+      "en": "Add"
+    },
+    "cancel": {
+      "he": "בטל",
+      "en": "Cancel"
+    },
+    "delete": {
+      "he": "מחק",
+      "en": "Delete"
+    },
+    "confirmDeleteTrip": {
+      "he": "למחוק את הנסיעה?",
+      "en": "Delete this trip?"
+    },
+    "errSave": {
+      "he": "השמירה נכשלה",
+      "en": "Save failed"
+    },
+    "alertDeparture": {
+      "he": "יציאה בעוד {{minutes}} דק'",
+      "en": "Departure in {{minutes}} min"
+    },
+    "alertDepartureNow": {
+      "he": "זמן היציאה הגיע",
+      "en": "Departure time has arrived"
+    },
+    "alertDepartureLate": {
+      "he": "איחור של {{minutes}} דק'",
+      "en": "{{minutes}} min late"
+    },
+    "alertDepartureTitle": {
+      "he": "תחילת נסיעה",
+      "en": "Trip starting"
+    },
+    "alertDriverAckTitle": {
+      "he": "הנהג אישר את הנסיעה",
+      "en": "Driver approved the trip"
+    },
+    "alertDriverChangeTitle": {
+      "he": "הנהג ביקש לשנות - נדרש אישור",
+      "en": "Driver requested a change - approval needed"
+    },
+    "alertOpen": {
+      "he": "פתח בניהול נסיעות",
+      "en": "Open in trip management"
+    },
+    "alertDismiss": {
+      "he": "סגור",
+      "en": "Dismiss"
+    },
+    "alertApproveChange": {
+      "he": "אשר שינוי",
+      "en": "Approve change"
+    },
+    "alertRejectChange": {
+      "he": "דחה שינוי",
+      "en": "Reject change"
+    },
+    "alertStartTrip": {
+      "he": "סמן שהנסיעה יצאה",
+      "en": "Mark trip as departed"
+    },
+    "pendingChange": {
+      "he": "שינוי מהנהג ממתין לאישור",
+      "en": "Driver change awaiting approval"
+    },
+    "pendingChangeFields": {
+      "he": "שונו: {{fields}}",
+      "en": "Changed: {{fields}}"
+    },
+    "fieldScheduledAt": {
+      "he": "זמן יציאה",
+      "en": "Departure time"
+    },
+    "fieldStops": {
+      "he": "תחנות ביניים",
+      "en": "Intermediate stops"
+    },
+    "fieldNote": {
+      "he": "הערה",
+      "en": "Note"
+    },
+    "driverAcked": {
+      "he": "הנהג אישר ב-{{time}}",
+      "en": "Driver approved at {{time}}"
+    },
+    "driverNotAcked": {
+      "he": "הנהג טרם אישר",
+      "en": "Driver has not approved yet"
+    },
+    "mapMarkerTitle": {
+      "he": "{{vehicle}} · יציאה מ{{from}}",
+      "en": "{{vehicle}} · departing {{from}}"
+    },
+    "fromRequest": {
+      "he": "נרשמה מבקשת כניסה",
+      "en": "Recorded from an entry request"
+    },
+    "editTrip": {
+      "he": "עדכון נסיעה",
+      "en": "Update trip"
+    },
+    "backToList": {
+      "he": "לרשימה",
+      "en": "Back to list"
+    },
+    "edit": {
+      "he": "עדכן",
+      "en": "Edit"
+    },
+    "colVehicle": {
+      "he": "רכב",
+      "en": "Vehicle"
+    },
+    "colDriver": {
+      "he": "נהג",
+      "en": "Driver"
+    },
+    "colFromTo": {
+      "he": "מוצא ויעד",
+      "en": "Origin and destination"
+    },
+    "colStops": {
+      "he": "תחנות ביניים",
+      "en": "Stops"
+    },
+    "colWhen": {
+      "he": "יציאה משוערת",
+      "en": "Est. departure"
+    },
+    "colRoute": {
+      "he": "נתיב מאושר",
+      "en": "Approved route"
+    },
+    "colStatus": {
+      "he": "סטטוס",
+      "en": "Status"
+    },
+    "routeMustPick": {
+      "he": "בחר את הנתיב שמאושר לנהג",
+      "en": "Pick the route approved for the driver"
+    },
+    "routeSameForAll": {
+      "he": "זהה גם ב: {{levels}}",
+      "en": "Same for: {{levels}}"
+    },
+    "errNeedRoute": {
+      "he": "אי אפשר לסמן \"יש אישור\" בלי לבחור נתיב מאושר לנהג",
+      "en": "Cannot mark as approved without picking a route for the driver"
+    },
+    "driverAckedShort": {
+      "he": "הנהג אישר",
+      "en": "Driver approved"
+    }
   }
 }
