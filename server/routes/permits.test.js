@@ -7,8 +7,13 @@
 // ה-SQL, ו-mock היה מאשר אותן בלי לבדוק כלום.
 //
 // ה-DDL כאן זהה לזה שב-server/db/init.js.
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import express from 'express';
+
+// הבדיקות כאן מרימות **Postgres אמיתי** (PGlite) ומריצות מולו שאילתות
+// וחישוב גרף. חמש השניות של ברירת המחדל מספיקות בבידוד ולא בריצה המלאה
+// המקבילה, ושם הן הפילו את הקובץ באקראי - כלומר הפכו חוסר-מזל לכשל.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 120_000 });
 
 let pool, server, base, router;
 

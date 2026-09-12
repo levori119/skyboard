@@ -191,6 +191,22 @@ export function dedupeRouteOptions<T extends RouteOptionLike>(options: T[]): (T 
 }
 
 /**
+ * חתימת הקלט של חישוב הנתיב: **מוצא, תחנות הביניים ויעד**, בסדר הנסיעה.
+ *
+ * כל שינוי בה מחייב חישוב מחדש - נתיב שחושב למוצא אחר או בלי תחנה שנוספה
+ * אינו הנסיעה שהפקח מאשר. תחנה בטקסט חופשי אינה נכנסת: אין לה נ"צ, ולכן
+ * אינה משנה את החישוב.
+ */
+export function routeInputSignature(d: {
+  from_point_id?: string | number | null;
+  to_point_id?: string | number | null;
+  stops?: { point_id: number | null }[];
+}): string {
+  const via = (d.stops || []).map(s => s.point_id).filter(Boolean).join(',');
+  return `${d.from_point_id || ''}>${via}>${d.to_point_id || ''}`;
+}
+
+/**
  * האם מותר לסמן את הנסיעה כ"יש אישור".
  *
  * חושבו נתיבים ולא נבחר אחד = **אין מה לאשר לנהג**. הפקח רואה אישור, הנהג

@@ -235,6 +235,7 @@
 
 ### `server/routes/driver.js` — 20 routes
 **תפקיד:** מערכת נהג/רכב — בקשות רכב, GPS, הודעות, מסלולי בסיס, חישוב נתיב (A*), אפליקציית נהג (`/driver`).
+**`/api/route-plan` עובר בתחנות ביניים:** `via_point_ids` (אופציונלי) הופך את החישוב ל**שרשרת רגליים** מוצא -> תחנות -> יעד. הגרף נבנה פעם אחת, A* פותר כל רגל, ושרשראות הצמתים משורשרות לנתיב אחד - ולכן כל העיבוד שאחריו (הוראות, חציות, אלמנטים לתפעול, אורך כולל) עובד בלי שינוי. הצמתים הווירטואליים **דו-כיווניים**, אחרת הרגל שאחרי תחנה לא מתחילה. בלי `via_point_ids` ההתנהגות זהה לקודם (נבדק ב-`routePlan.test.js`), כי "כניסת רכבים" ואפליקציית הנהג אינן שולחות אותו.
 **Endpoints עיקריים:** `/api/vehicle-requests`, `/api/vehicle-gps`, `/api/route-plan`, `/api/base-routes`.
 
 ### `server/routes/permits.js` — 24 routes
@@ -657,7 +658,7 @@ DB מנוהל היה נופל יחד עם העמדה.
 
 ### `src/utils/trips.ts`
 **תפקיד:** **הנגזרות של הנסיעה**, במקום אחד - אותו שיקול של `permitStatus.ts`: השרת שומר ערכים וחותמות זמן, והחישוב חי כאן בלבד. הסטטוס עצמו **אינו** נגזרת אלא הכרעה של המגדל; מה שנגזר הוא חלון ההתראה (מתי הרכב עולה למפה, מתי קופצת ההתראה ומתי היא כבר לא טרייה), האייקון המוצע לפי סוג הרכב, וקריאה סובלנית של תחנות/נלווים/שינוי-מהנהג מ-JSONB.
-**מייצא:** `TRIP_STATUSES`, `TRIP_STATUS_COLOR`, `tripStatusKey`, `asTripStatus`, `DEPARTURE_ALERT_MINUTES`, `STALE_TRIP_HOURS`, `DRIVER_ACTION_ALERT_MINUTES`, `minutesUntilDeparture`, `isVehicleOnMap`, `isDepartureAlertDue`, `isDriverActionFresh`, `TRIP_VEHICLE_ICONS`, `suggestedVehicleIcon`, `tripIcon`, `normalizeStops`, `stopLabel`, `normalizeEscorts`, `DRIVER_EDITABLE_FIELDS`, `hasPendingDriverChange`, `pendingChangeFields`, `routeSignature`, `isRouteChosen`, `dedupeRouteOptions`, `canApproveTrip`, `duplicateSchedule`, `clampCopies`, `MAX_TRIP_COPIES`, `TRIP_FIELDS_NOT_COPIED`.
+**מייצא:** `TRIP_STATUSES`, `TRIP_STATUS_COLOR`, `tripStatusKey`, `asTripStatus`, `DEPARTURE_ALERT_MINUTES`, `STALE_TRIP_HOURS`, `DRIVER_ACTION_ALERT_MINUTES`, `minutesUntilDeparture`, `isVehicleOnMap`, `isDepartureAlertDue`, `isDriverActionFresh`, `TRIP_VEHICLE_ICONS`, `suggestedVehicleIcon`, `tripIcon`, `normalizeStops`, `stopLabel`, `normalizeEscorts`, `DRIVER_EDITABLE_FIELDS`, `hasPendingDriverChange`, `pendingChangeFields`, `routeSignature`, `isRouteChosen`, `dedupeRouteOptions`, `canApproveTrip`, `duplicateSchedule`, `clampCopies`, `MAX_TRIP_COPIES`, `TRIP_FIELDS_NOT_COPIED`, `routeInputSignature`.
 
 ### `src/hooks/useAirfieldTrips.ts`
 **תפקיד:** סקר יחיד לנסיעות השדה, דרך `usePollingRegistry`. שלושה צרכנים (חלון הנסיעות, ההתראות, הרכבים על המפה) חולקים אותו במקום שלושה `setInterval`. `scope='upcoming'` שולח לשרת את גבולות חלון ההתראה מ-`trips.ts`, כדי שהמספרים לא יישבו גם שם.
@@ -1005,6 +1006,8 @@ DB מנוהל היה נופל יחד עם העמדה.
 ### `src/components/ground/TripsManagementWindow.tsx`
 **תפקיד:** **חלון ניהול הנסיעות** באותה עמדה, פריט "ניהול נסיעות" מתחת ל"ניהול נהגים" בתפריט תצוגה. **שני מצבים, לא שני חצאי מסך:** ברירת המחדל היא **רשימת הנסיעות על כל רוחב החלון** - טבלה עם רכב, נהג, מוצא ויעד, תחנות, מועד, **הנתיב שאושר** (ובאדום כשלא אושר) וסטטוס; הטופס המלא נפתח רק ב**נסיעה חדשה או בעדכון** (כפתור "עדכן", לחיצה כפולה על שורה, או הגעה מהתראה מתפרצת), וחוזרים ממנו בכפתור "לרשימה" או ב-Esc. רשימה שדחוסה לעמודה צרה לצד טופס פתוח נותנת את הגרוע משני העולמות: לא רואים את השדה, וגם הטופס צר. הטופס בארבעה מקטעים: **רכב ונהג** (נהג מהמרשם או מזדמן, טלפון, רכב מרשימת רכבי הנהג או בהזנה ידנית, סוג רכב, סוג נסיעה, **אייקון מוצע לפי סוג הרכב וניתן לשינוי**, ותג אישור הכניסה של הנהג), **מועד ומסלול** (תאריך ושעת יציאה משוערים, סטטוס, מוצא ויעד, תחנות ביניים שמוסיפים כמה שרוצים), **נתיב נסיעה** ו**מבקש הנסיעה ונלווים** (טלפונים, נלווים, אישור הסתובבות בבסיס, הערה). שינוי שהנהג הציע מוצג כבאנר עם אשר/דחה. **שכפול**: ⧉ בשורה לנסיעה בודדת, ותיבות סימון + "שכפל נבחרות" לקבוצה; הדיאלוג שואל תאריך יעד, מספר עותקים ומרווח ביניהם. חלון **עריכה** (מסגרת כתומה), נגרר בעט ובאצבע ובר-עגינה. **מייצא:** `TripsManagementWindow` (default), `TripsManagementWindowProps`, `Trip`, `RouteOption`, `splitLocalDateTime`, `joinLocalDateTime`, `savedRouteSig`, `tripLabel`.
 
+> **הנתיב מחושב מחדש אוטומטית** בכל שינוי במוצא, ביעד או בתחנות (`routeInputSignature` + השהיה קצרה). החתימה נקבעת בפתיחת הטופס מהנסיעה עצמה, ולכן טעינת נסיעה קיימת אינה מחשבת מחדש ואינה דורסת את הנתיב שנבחר לה; קלט חלקי מנקה את האפשרויות, כי נתיב שאינו תואם את מה שעל המסך גרוע מאין נתיב.
+>
 > **בחירת הנתיב היא הכרעה של הפקח.** החישוב **מציע ואינו בוחר**: אחרי "חשב נתיב" אף שורה אינה מסומנת, השורות מתנהגות כקבוצת רדיו (אחת בכל רגע), ו**אי אפשר לסמן "יש אישור" בלי לבחור נתיב** (`canApproveTrip`). אפשרויות שמובילות לאותו נתיב פיזי **מתאחדות לשורה אחת** שאומרת אילו רמות הרשאה זהות בה - קודם לכן שלוש רמות שהחזירו את אותו נתיב הוצגו כשלוש שורות זהות וכולן סומנו ב-✓ בו-זמנית, ולא היה אפשר לדעת מה אושר לנהג.
 
 ### `src/components/ground/TripAlertsLayer.tsx`

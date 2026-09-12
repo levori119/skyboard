@@ -3,7 +3,7 @@ import {
   DEPARTURE_ALERT_MINUTES, DRIVER_ACTION_ALERT_MINUTES, STALE_TRIP_HOURS, TRIP_STATUSES, TRIP_VEHICLE_ICONS,
   MAX_TRIP_COPIES, TRIP_FIELDS_NOT_COPIED, clampCopies, duplicateSchedule,
   asTripStatus, canApproveTrip, dedupeRouteOptions, hasPendingDriverChange, isDepartureAlertDue,
-  isDriverActionFresh, isRouteChosen, isVehicleOnMap, routeSignature,
+  isDriverActionFresh, isRouteChosen, isVehicleOnMap, routeInputSignature, routeSignature,
   minutesUntilDeparture, normalizeEscorts, normalizeStops, pendingChangeFields,
   stopLabel, suggestedVehicleIcon, tripIcon, tripStatusKey,
 } from './trips';
@@ -194,6 +194,43 @@ describe('נתיב הנסיעה - בחירה מפורשת', () => {
     expect(canApproveTrip('pending', true, '')).toBe(true);
     expect(canApproveTrip('ended', true, '')).toBe(true);
     expect(canApproveTrip('approved', false, '')).toBe(true);
+  });
+});
+
+describe('חתימת הקלט של חישוב הנתיב', () => {
+  // נתיב שחושב בלי תחנה שנוספה אינו הנסיעה שהפקח מאשר
+  it('תחנת ביניים היא חלק מהחתימה', () => {
+    const a = routeInputSignature({ from_point_id: '20', to_point_id: '21', stops: [] });
+    const b = routeInputSignature({ from_point_id: '20', to_point_id: '21', stops: [{ point_id: 7 }] });
+    expect(a).not.toBe(b);
+  });
+
+  it('סדר התחנות משנה', () => {
+    const a = routeInputSignature({ from_point_id: '20', to_point_id: '21', stops: [{ point_id: 7 }, { point_id: 9 }] });
+    const b = routeInputSignature({ from_point_id: '20', to_point_id: '21', stops: [{ point_id: 9 }, { point_id: 7 }] });
+    expect(a).not.toBe(b);
+  });
+
+  // אין לה נ"צ, ולכן אינה משנה את החישוב
+  it('תחנה בטקסט חופשי אינה נכנסת לחתימה', () => {
+    const a = routeInputSignature({ from_point_id: '20', to_point_id: '21', stops: [{ point_id: null }] });
+    const b = routeInputSignature({ from_point_id: '20', to_point_id: '21', stops: [] });
+    expect(a).toBe(b);
+  });
+
+  it('שינוי מוצא או יעד משנה את החתימה', () => {
+    const base = { from_point_id: '20', to_point_id: '21', stops: [] };
+    expect(routeInputSignature({ ...base, from_point_id: '22' })).not.toBe(routeInputSignature(base));
+    expect(routeInputSignature({ ...base, to_point_id: '22' })).not.toBe(routeInputSignature(base));
+  });
+
+  it('מספר ומחרוזת של אותו מזהה נותנים אותה חתימה', () => {
+    expect(routeInputSignature({ from_point_id: 20, to_point_id: 21 }))
+      .toBe(routeInputSignature({ from_point_id: '20', to_point_id: '21' }));
+  });
+
+  it('טופס ריק נותן חתימה יציבה ולא זורק', () => {
+    expect(routeInputSignature({})).toBe('>>');
   });
 });
 

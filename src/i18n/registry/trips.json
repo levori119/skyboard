@@ -223,8 +223,8 @@
       "en": "Selected route"
     },
     "routeNone": {
-      "he": "טרם חושב נתיב",
-      "en": "No route computed yet"
+      "he": "הנתיב מחושב אוטומטית לאחר בחירת מוצא ויעד",
+      "en": "The route is computed automatically once origin and destination are set"
     },
     "routeNoneSelected": {
       "he": "לא נבחר נתיב",
@@ -521,6 +521,18 @@
     "duplicateBusy": {
       "he": "משכפל...",
       "en": "Duplicating..."
+    },
+    "routeAutoHint": {
+      "he": "מחושב מחדש בכל שינוי במוצא, ביעד או בתחנות",
+      "en": "Recomputed on any change to origin, destination or stops"
+    },
+    "routeRecompute": {
+      "he": "חשב מחדש",
+      "en": "Recompute"
+    },
+    "routeViaStops": {
+      "he": "דרך {{count}} תחנות",
+      "en": "Via {{count}} stops"
     }
   }
 }

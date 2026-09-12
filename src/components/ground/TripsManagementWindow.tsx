@@ -34,6 +34,7 @@ import { PERMIT_STATUS_COLOR, effectivePermitStatus, permitStatusKey } from '../
 import {
   TRIP_STATUSES, TRIP_STATUS_COLOR, TRIP_VEHICLE_ICONS,
   MAX_TRIP_COPIES,
+  routeInputSignature,
   asTripStatus, canApproveTrip, clampCopies, dedupeRouteOptions, duplicateSchedule,
   hasPendingDriverChange,
   isRouteChosen, normalizeEscorts, normalizeStops, pendingChangeFields,
@@ -373,16 +374,20 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
   // שאיש יידע), וכשנפתחה שוב **אותה** נסיעה - `setSelectedId` באותו ערך אינו
   // משנה state, ה-effect אינו רץ, והטופס מציג את מה שנשאר בו מקודם.
   const openNew = (base?: Trip) => {
+    const d = base ? draftOf(base) : EMPTY_DRAFT;
     setCreating(true);
     setSelectedId(null);
-    setDraft(base ? draftOf(base) : EMPTY_DRAFT);
+    setDraft(d);
+    lastRouteSig.current = routeInputSignature(d);
     setError(''); setRouteError('');
     setMode('form');
   };
   const openEdit = (t: Trip) => {
+    const d = draftOf(t);
     setCreating(false);
     setSelectedId(t.id);
-    setDraft(draftOf(t));
+    setDraft(d);
+    lastRouteSig.current = routeInputSignature(d);
     setError(''); setRouteError('');
     setMode('form');
   };
@@ -393,6 +398,8 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
 
   // התראה מתפרצת מובילה ישר לעריכת הנסיעה שהיא מדברת עליה - אך רק **אחרי**
   // שהרשימה נטענה, אחרת הטופס נפתח ריק. הסימון מונע פתיחה מחדש בכל ריענון.
+  /** חתימת הקלט שהנתיב הנוכחי חושב עבורה. נקבעת בפתיחת הטופס. */
+  const lastRouteSig = useRef('');
   const focusHandled = useRef<number | null>(null);
   useEffect(() => {
     if (!focusTripId || focusHandled.current === focusTripId) return;
@@ -441,9 +448,11 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
    * ⚠️ **אינו בוחר נתיב.** הנתיב שהנהג נוסע בו הוא הכרעה של הפקח, ובחירה
    * אוטומטית הייתה נראית על המסך בדיוק כמו בחירה שלו - בלי שאיש הכריע.
    */
-  const computeRoutes = async () => {
+  const computeRoutes = async (silent = false) => {
     if (!airfieldId || !draft.from_point_id || !draft.to_point_id) {
-      setRouteError(tr('trips.routeNeedsEndpoints')); return;
+      // בחישוב אוטומטי אין שגיאה: הפקח באמצע מילוי הטופס, ולא ביקש דבר
+      if (!silent) setRouteError(tr('trips.routeNeedsEndpoints'));
+      return;
     }
     setRouteLoading(true); setRouteError('');
     try {
@@ -455,6 +464,9 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
               airfield_id: airfieldId,
               from_point_id: Number(draft.from_point_id),
               to_point_id: Number(draft.to_point_id),
+              // הנתיב חייב לעבור **בתחנות**: תחנה שאינה עליו היא תחנה שהנהג
+              // לא יעצור בה. תחנה בטקסט חופשי אין לה נ"צ ולכן אינה נשלחת.
+              via_point_ids: draft.stops.map(st => st.point_id).filter(Boolean),
               permissions: v.permissions,
             }),
           });
@@ -489,6 +501,29 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
     } catch { setRouteError(tr('trips.routeError')); }
     setRouteLoading(false);
   };
+
+  /**
+   * כל שינוי במוצא, ביעד או בתחנות מחשב את הנתיב **מחדש, אוטומטית**.
+   *
+   * נתיב שחושב לקלט אחר אינו הנסיעה שהפקח מאשר, והסתמכות על לחיצה ידנית
+   * פירושה שמי ששכח ללחוץ מאשר לנהג דרך שאינה שלו. `lastRouteSig` נקבע
+   * בפתיחת הטופס מהנסיעה עצמה, ולכן טעינת נסיעה קיימת אינה מחשבת מחדש
+   * ואינה דורסת את הנתיב שנבחר לה.
+   */
+  const routeSig = routeInputSignature(draft);
+  useEffect(() => {
+    if (mode !== 'form') return;
+    if (routeSig === lastRouteSig.current) return;
+    lastRouteSig.current = routeSig;
+    if (!draft.from_point_id || !draft.to_point_id) {
+      // קלט חלקי: עדיף בלי נתיב על נתיב שאינו תואם את מה שעל המסך
+      setDraft(d => ({ ...d, route_options: [], selected_route_sig: '', selected_route_ids: [], selected_route_label: '' }));
+      return;
+    }
+    // השהיה קצרה: בחירה בשני בוררים רצופים לא תשלח שני חישובים
+    const t = setTimeout(() => void computeRoutes(true), 350);
+    return () => clearTimeout(t);
+  }, [routeSig, mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const chooseRoute = (o: RouteOption) => setDraft(d => ({
     ...d,
@@ -1035,7 +1070,15 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
             onClick={() => void computeRoutes()}
             disabled={routeLoading}
             style={{ ...btn('#0284c7'), height: 22, padding: '0 10px', fontSize: 10, opacity: routeLoading ? 0.6 : 1 }}
-          >{routeLoading ? tr('trips.routeComputing') : tr('trips.routeCompute')}</button>
+          >{routeLoading ? tr('trips.routeComputing') : tr('trips.routeRecompute')}</button>
+        </div>
+        <div style={{ fontSize: 9, color: C.muted, marginBottom: 4 }}>
+          {tr('trips.routeAutoHint')}
+          {draft.stops.some(st => st.point_id) && (
+            <span style={{ marginInlineStart: 6, color: '#38bdf8' }}>
+              {tr('trips.routeViaStops', { count: draft.stops.filter(st => st.point_id).length })}
+            </span>
+          )}
         </div>
         {routeError && <div style={{ fontSize: 10, color: '#f87171', marginBottom: 4 }}>{routeError}</div>}
         {routeChoices.length === 0 ? (

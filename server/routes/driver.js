@@ -371,7 +371,7 @@ function astarPath(graph, nodes, startId, endId) {
 // POST /api/route-plan
 router.post('/api/route-plan', async (req, res) => {
   try {
-    const { airfield_id, from_point_id, to_point_id, permission = 'vehicle', permissions } = req.body;
+    const { airfield_id, from_point_id, to_point_id, permission = 'vehicle', permissions, via_point_ids } = req.body;
     if (!airfield_id) return res.status(400).json({ error: 'airfield_id required' });
 
     const mapRow = (await pool.query(
@@ -448,41 +448,84 @@ router.post('/api/route-plan', async (req, res) => {
       }
     }
 
-    const fromGeo = fromPt && mapRow ? pctToGeo(fromPt.x_pct, fromPt.y_pct, mapRow) : null;
-    const toGeo   = toPt   && mapRow ? pctToGeo(toPt.x_pct,   toPt.y_pct,   mapRow) : null;
+    // ── רגלי הנסיעה: מוצא -> תחנות ביניים -> יעד ─────────────────────────────
+    //
+    // הנתיב חייב לעבור **בתחנות**, ולא רק לחבר מוצא ליעד: תחנה שאינה על הנתיב
+    // שחושב היא תחנה שהנהג לא יעצור בה, והפקח מאשר נתיב שאינו הנסיעה.
+    //
+    // A* פותר זוג נקודות אחד, ולכן כל רגל נפתרת בנפרד ושרשראות הצמתים
+    // **משורשרות לנתיב אחד** - וכל העיבוד שאחריו (הוראות, חציות, אלמנטים
+    // לתפעול, אורך כולל) עובד עליו בלי שינוי. הגרף נבנה פעם אחת לכל הרגליים.
+    const viaIds = Array.isArray(via_point_ids)
+      ? via_point_ids.map(Number).filter(n => Number.isFinite(n) && n > 0) : [];
+    const viaRows = viaIds.length
+      ? (await pool.query('SELECT * FROM airfield_points WHERE id = ANY($1::int[])', [viaIds])).rows
+      : [];
+    // סדר התחנות הוא **סדר הנסיעה** שהפקח קבע, ולא הסדר שה-DB החזיר
+    const orderedVia = viaIds.map(id => viaRows.find(p => p.id === id)).filter(Boolean);
+
+    const geoOf = pt => (pt && mapRow ? pctToGeo(pt.x_pct, pt.y_pct, mapRow) : null);
+    const fromGeo = geoOf(fromPt);
+    const toGeo   = geoOf(toPt);
 
     if (!fromGeo || !toGeo || !nodeIds.length) {
       return res.json({ waypoints: [], crossings: [], elements: [], error: 'לא נמצאו נקודות GPS לתכנון מסלול' });
     }
 
-    nodes['_start'] = { lat: fromGeo.lat, lon: fromGeo.lon, routeType: 'virtual' };
-    nodes['_end']   = { lat: toGeo.lat,   lon: toGeo.lon,   routeType: 'virtual' };
-    graph['_start'] = [];
+    // תחנה בלי נ"צ אינה מוסיפה רגל: עדיף נתיב שמדלג עליה על נתיב שלא חושב כלל
+    const stopLegs = orderedVia
+      .map(p => ({ name: p.name, geo: geoOf(p) }))
+      .filter(x => x.geo);
 
-    const distFromStart = nodeIds.map(id => ({ id, d: haversineM(fromGeo.lat, fromGeo.lon, nodes[id].lat, nodes[id].lon) }));
-    const distFromEnd   = nodeIds.map(id => ({ id, d: haversineM(toGeo.lat,   toGeo.lon,   nodes[id].lat, nodes[id].lon) }));
-    distFromStart.sort((a, b) => a.d - b.d);
-    distFromEnd.sort((a, b) => a.d - b.d);
+    const chain = [
+      { key: '_p0', geo: fromGeo, name: fromPt?.name || 'מוצא' },
+      ...stopLegs.map((s, i) => ({ key: `_p${i + 1}`, geo: s.geo, name: s.name, isStop: true })),
+      { key: `_p${stopLegs.length + 1}`, geo: toGeo, name: toPt?.name || 'יעד' },
+    ];
 
-    const startConnect = new Set(distFromStart.filter(e => e.d <= START_RADIUS).map(e => e.id));
-    distFromStart.slice(0, TOP_K_CONNECT).forEach(e => startConnect.add(e.id));
-    const endConnect   = new Set(distFromEnd.filter(e => e.d <= START_RADIUS).map(e => e.id));
-    distFromEnd.slice(0, TOP_K_CONNECT).forEach(e => endConnect.add(e.id));
-
-    for (const id of nodeIds) {
-      graph[id] = graph[id] || [];
-      if (startConnect.has(id)) graph['_start'].push({ to: id, cost: distFromStart.find(e => e.id === id)?.d ?? 0 });
-      if (endConnect.has(id))   graph[id].push({ to: '_end', cost: distFromEnd.find(e => e.id === id)?.d ?? 0 });
+    // צומת וירטואלי לכל נקודה בשרשרת. **דו-כיווני**, בשונה מהמודל הקודם שבו
+    // למוצא היו רק קשתות יוצאות וליעד רק נכנסות: לתחנת ביניים צריך גם להיכנס
+    // וגם לצאת, אחרת הרגל שאחריה לא מתחילה בכלל.
+    for (const wp of chain) {
+      nodes[wp.key] = {
+        lat: wp.geo.lat, lon: wp.geo.lon, routeType: 'virtual',
+        isStop: !!wp.isStop, stopName: wp.name,
+      };
+      graph[wp.key] = graph[wp.key] || [];
+      const dists = nodeIds
+        .map(id => ({ id, d: haversineM(wp.geo.lat, wp.geo.lon, nodes[id].lat, nodes[id].lon) }))
+        .sort((a, b) => a.d - b.d);
+      const connect = new Set(dists.filter(e => e.d <= START_RADIUS).map(e => e.id));
+      dists.slice(0, TOP_K_CONNECT).forEach(e => connect.add(e.id));
+      for (const e of dists) {
+        if (!connect.has(e.id)) continue;
+        graph[wp.key].push({ to: e.id, cost: e.d });
+        graph[e.id] = graph[e.id] || [];
+        graph[e.id].push({ to: wp.key, cost: e.d });
+      }
     }
 
-    const pathIds = astarPath(graph, nodes, '_start', '_end');
-    if (!pathIds) {
-      return res.json({ waypoints: [], crossings: [], elements: [], error: 'לא נמצא מסלול — אין חיבור בין הנקודות' });
+    const pathIds = [];
+    for (let i = 0; i < chain.length - 1; i++) {
+      const leg = astarPath(graph, nodes, chain[i].key, chain[i + 1].key);
+      if (!leg) {
+        return res.json({
+          waypoints: [], crossings: [], elements: [],
+          error: `לא נמצא מסלול - אין חיבור בין ${chain[i].name} ל${chain[i + 1].name}`,
+        });
+      }
+      // הצומת המשותף לשתי רגליים נרשם פעם אחת
+      pathIds.push(...(i === 0 ? leg : leg.slice(1)));
     }
 
     const waypoints = pathIds.map(id => {
       const n = nodes[id];
-      return { lat: n.lat, lon: n.lon, routeType: n.routeType || 'virtual', routeName: n.routeName || '', nodeId: id };
+      return {
+        lat: n.lat, lon: n.lon, routeType: n.routeType || 'virtual',
+        routeName: n.routeName || '', nodeId: id,
+        // סימון התחנה עובר הלאה, כדי שההוראה תאמר לנהג לעצור בה
+        isStop: !!n.isStop, stopName: n.stopName || '',
+      };
     });
 
     const crossingNodeIds = new Set();
@@ -577,6 +620,9 @@ router.post('/api/route-plan', async (req, res) => {
                                            `↩️ פנה שמאלה${rn ? ` על ${rn}` : ''}`;
         }
       }
+      // תחנת ביניים גוברת על הוראת הפנייה: מה שהנהג צריך לדעת בנקודה הזו
+      // הוא שהוא עוצר, ולא לאן הכביש ממשיך
+      if (wp.isStop) instruction = `🛑 עצור בתחנה ${wp.stopName}`;
       if (wp.isCrossing) {
         const cType = wp.crossingDetails?.crossingType || wp.routeType;
         const cName = wp.crossingDetails?.crossingName || wp.routeName || '';
