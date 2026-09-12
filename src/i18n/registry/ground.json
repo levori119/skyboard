@@ -442,6 +442,10 @@
       "he": "סגור את פאנל השכבות",
       "en": "Close the layers panel"
     },
+    "layersOpen": {
+      "he": "החזר את פאנל השכבות",
+      "en": "Restore the layers panel"
+    },
     "layersDragHint": {
       "he": "גרירת הכותרת מזיזה את הפאנל · לחיצה כפולה מחזירה לפינה",
       "en": "Drag the header to move the panel · double click returns it to the corner"

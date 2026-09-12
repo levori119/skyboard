@@ -62,7 +62,7 @@ const RUNWAY_PANEL_RESERVE = 120;
 /** כמה מפאנל השכבות חייב להישאר בתוך שטח המפה בגרירה - שלא ייגרר אל מחוץ להישג יד. */
 const LAYERS_KEEP_VISIBLE = 70;
 
-export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onUpdateStripAircraftFault, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, canAddVehicle = false, onDeleteElement, hideStrips, hideElementPanel, hidePatternControls = false, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], linkedRouteNotams = [], runwayAidStatuses = [], airfieldPatterns = [], activeRunwayIdents = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, onCloseLayersPanel, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark',
+export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onUpdateStripAircraftFault, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, canAddVehicle = false, onDeleteElement, hideStrips, hideElementPanel, hidePatternControls = false, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], linkedRouteNotams = [], runwayAidStatuses = [], airfieldPatterns = [], activeRunwayIdents = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, onCloseLayersPanel, onOpenLayersPanel, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark',
   joiningPoints = [], joiningPointStrips = [], joiningPointAircraft = [], landingRunways = [],
   onAssignJoiningStrip, onRemoveJoiningAircraft, onAcceptToJoiningPoint, onRemoveJoiningStrip, onCoordinateJoiningStrip, onSplitJoiningStrip,
   onUpdateJoiningAircraft, onSetFlightStatus, onSetGreens, onMoveJoiningPoint, onResetJoiningPoint,
@@ -197,6 +197,13 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
    * התפריט משאיר שם "✓ מוצג" מול מסך ריק.
    */
   onCloseLayersPanel?: () => void;
+  /**
+   * החזרת פאנל השכבות אחרי שנסגר - הכפתור 🗂 שצף בפינה לצד כפתור הציור.
+   * בלעדיו הדרך היחידה חזרה היא תפריט "תצוגה", והפקח שסגר את הפאנל רואה על
+   * המפה רק את "ציור" ומסיק שהכלים אבדו (מתגי השכבות, הזום והתלת מימד נמצאים
+   * **רק** שם). פקד שסוגר חייב פקד שמחזיר, באותו מקום.
+   */
+  onOpenLayersPanel?: () => void;
   // נקודות העברה שנגררו למפת השדה (חץ). x/y הם שבר 0..1 מגבולות תמונת המפה,
   // כדי שהחץ יישאר צמוד למקומו בזום/פאן/שינוי גודל מסך.
   transferPins?: { sectorId: number; x: number; y: number; label: string; subLabel?: string }[];
@@ -3029,10 +3036,22 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             );
           })()}
 
-          {/* ── ציור על המפה ── כשפאנל השכבות סגור (מתפריט "תצוגה") הכפתור עדיין
-              חייב להיות נגיש, ולכן הוא צף בפינה. */}
+          {/* ── פאנל השכבות סגור ── שני הכפתורים שחייבים להישאר על המפה:
+              **🗂 שכבות** שמחזיר את הפאנל, ו**ציור** שממשיך לעבוד בלעדיו.
+              בלי כפתור ההחזרה נשאר על המפה רק "ציור", והמסקנה המתבקשת של הפקח
+              היא שהכלים אבדו - כי מתגי השכבות, פקדי הזום והתלת מימד יושבים
+              **רק** בתוך הפאנל, והדרך היחידה חזרה הייתה פריט עמוק בתפריט
+              "תצוגה". */}
           {!showLayersPanel && (
-            <div style={{ position: 'absolute', top: panelsTop, left: '8px', zIndex: 31 }} data-nopan>
+            <div style={{ position: 'absolute', top: panelsTop, left: '8px', zIndex: 31, display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '4px' }} data-nopan>
+              {onOpenLayersPanel && (
+                <button type="button" data-testid="ground-layers-open"
+                  onPointerDown={e => e.stopPropagation()}
+                  onClick={onOpenLayersPanel} title={tr('ground.layersOpen')}
+                  style={{ background: lightMode ? '#ffffffee' : '#0f172aee', color: lightMode ? '#475569' : '#94a3b8', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, whiteSpace: 'nowrap', padding: '5px 8px', boxShadow: '0 4px 16px #0006' }}>
+                  {tr('ground.layers')}
+                </button>
+              )}
               <MapDrawToggle active={draw.active} themeMode={themeMode} labeled
                 onToggle={() => draw.setActive(v => !v)} />
             </div>
