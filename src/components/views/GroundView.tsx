@@ -34,6 +34,7 @@ import { displayStateOptions, nextServiceability, serviceabilityStyle } from '..
 import { activePatterns, boundsAspect } from '../../utils/trafficPattern';
 import { stepWidthScale, type RunwayPaletteMode } from '../../utils/runwayShape';
 import { closedRunwayEnds, isRunwayClosed } from '../../utils/runwayEnds';
+import AnchoredPopup from '../shared/AnchoredPopup';
 import { SCHEMATIC_ASPECT, SCHEMATIC_ASPECT_CSS, containBounds } from '../../utils/schematicCanvas';
 import { startPointerDrag, DRAG_HANDLE_STYLE, readRootScale } from '../../utils/pointerDrag';
 import { MapDrawToolbar, MapDrawToggle, MapDrawSurface, useMapDrawing } from '../map/MapDrawLayer';
@@ -5076,12 +5077,10 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
       {/* Polygon status picker */}
       {polygonStatusPicker && (() => {
         const { polygon, x, y, currentStatus } = polygonStatusPicker;
-        const px = Math.min(x + 8, window.innerWidth - 230);
-        const py = Math.min(y + 8, window.innerHeight - 320);
         return (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 99999 }} onClick={() => setPolygonStatusPicker(null)}>
-            <div style={{ position: 'absolute', left: px, top: py, background: '#1e293b', borderRadius: '12px', padding: '14px', border: '1px solid #334155', boxShadow: '0 8px 32px rgba(0,0,0,0.75)', direction: 'rtl', minWidth: '190px' }}
-              onClick={e => e.stopPropagation()}>
+          <AnchoredPopup x={x + 8} y={y + 8} w={230} h={320} onClose={() => setPolygonStatusPicker(null)}
+            cardStyle={{ background: '#1e293b', borderRadius: '12px', padding: '14px', border: '1px solid #334155', boxShadow: '0 8px 32px rgba(0,0,0,0.75)', direction: 'rtl', minWidth: '190px' }}>
+            <>
               <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '10px', fontWeight: 'bold' }}>
                 🔷 {polygon.name}
               </div>
@@ -5154,8 +5153,8 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                   {tr('ground.saveNote')}
                 </button>
               )}
-            </div>
-          </div>
+            </>
+          </AnchoredPopup>
         );
       })()}
 
@@ -5163,8 +5162,6 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
         const el = elemStatusPicker.el;
         const rawAllowed = el.type_allowed_statuses;
         const allowedStatuses: string[] = Array.isArray(rawAllowed) ? rawAllowed : (typeof rawAllowed === 'string' ? (() => { try { return JSON.parse(rawAllowed); } catch { return []; } })() : []);
-        const px = Math.min(elemStatusPicker.x + 8, window.innerWidth - 210);
-        const py = Math.min(elemStatusPicker.y + 8, window.innerHeight - 380);
         const isSvg = typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:');
         const curDState = el.display_state || 'normal';
         const dStateOpts = getElemDisplayStateOpts(el.type_icon || '');
@@ -5174,9 +5171,9 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
         const isShamish   = el.status === 'שמיש';
         const isLaShamish = el.status === 'לא שמיש';
         return (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 99999 }} onClick={() => setElemStatusPicker(null)}>
-            <div style={{ position: 'absolute', left: px, top: py, background: '#1e293b', borderRadius: '12px', padding: '14px', border: '1px solid #334155', boxShadow: '0 8px 32px rgba(0,0,0,0.75)', direction: 'rtl', minWidth: '190px', maxHeight: '90vh', overflowY: 'auto' }}
-              onClick={e => e.stopPropagation()}>
+          <AnchoredPopup x={elemStatusPicker.x + 8} y={elemStatusPicker.y + 8} w={210} h={380} onClose={() => setElemStatusPicker(null)}
+            cardStyle={{ background: '#1e293b', borderRadius: '12px', padding: '14px', border: '1px solid #334155', boxShadow: '0 8px 32px rgba(0,0,0,0.75)', direction: 'rtl', minWidth: '190px' }}>
+            <>
               <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 {isSvg ? <span style={{ display: 'inline-flex' }}>{renderGroundSvgIcon(el.type_icon, 18)}</span> : <span>{el.type_icon || (el.category === 'camera' ? '📷' : '🔧')}</span>}
                 <span>{el.name}</span>
@@ -5219,8 +5216,8 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                   </button>
                 </div>
               </div>
-            </div>
-          </div>
+            </>
+          </AnchoredPopup>
         );
       })()}
 

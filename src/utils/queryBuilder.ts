@@ -7,6 +7,7 @@ import {
 } from '../types/aimPoints';
 import type { StripControl } from '../types/stripControls';
 import { controlFieldKey, controlKeyFromField, resolveControlValue } from './stripControls';
+import { anchorMenuPos } from './menuPos';
 
 // Re-export types for convenience
 export type { QOperator, QCompare, QLeaf, QGroup, QNode };
@@ -15,13 +16,14 @@ export type { QOperator, QCompare, QLeaf, QGroup, QNode };
 
 export const qGenId = () => Math.random().toString(36).slice(2, 10);
 
+/**
+ * מיקום תפריט שנפתח על נקודת לחיצה / על אלמנט. עטיפה דקה מעל `anchorMenuPos`,
+ * שמתרגמת את הקואורדינטה מפיקסלים אמיתיים ליחידות `left/top` תחת `--s` -
+ * בלעדיה התפריט נפתח לא צמוד ובורח מהמסך בכל עמדה שאינה 15.6".
+ */
 export function clampMenuPos(x: number, y: number, menuW: number, menuH: number) {
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  return {
-    left: Math.max(4, Math.min(x, vw - menuW - 4)),
-    top: Math.max(4, Math.min(y, vh - menuH - 4)),
-  };
+  const { left, top } = anchorMenuPos(x, y, menuW, menuH);  // רק left/top - התוצאה נפרסת לתוך style
+  return { left, top };
 }
 
 export const emptyQGroup = (): QGroup => ({ id: qGenId(), type: 'group', operator: 'all', children: [] });

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallba
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
+import AnchoredPopup from '../shared/AnchoredPopup';
 import { tr } from '../../i18n/tr';
 import { API_URL } from '../../config';
 import { APP_VERSION, APP_VERSION_DATE } from '../../version';
@@ -1513,7 +1514,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [sdElemCollapsed, setSdElemCollapsed] = useState<Set<string>>(new Set());
   const [sdHiddenElements, setSdHiddenElements] = useState<Set<number>>(new Set());
   // האלמנט שתפריט הסטטוס התפעולי שלו פתוח בפאנל (אחד בכל רגע)
-  const [sdElemDsMenu, setSdElemDsMenu] = useState<number | null>(null);
+  const [sdElemDsMenu, setSdElemDsMenu] = useState<{ id: number; x: number; y: number } | null>(null);
   // טבלת האלמנטים - חוצה את כל שדות בסיס האב, ולכן רשימה משלה ולא airfieldElements
   const [showElementsTable, setShowElementsTable] = useState(false);
   const [baseElements, setBaseElements] = useState<any[]>([]);
@@ -17112,7 +17113,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 : [];
                               const curDs = el.display_state || 'normal';
                               const curDsOpt = dsOpts.find(o => o.key === curDs);
-                              const dsMenuOpen = sdElemDsMenu === el.id;
+                              const dsMenuOpen = sdElemDsMenu?.id === el.id;
                               return (
                                 <div key={el.id} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 5px', borderRadius: '4px', background: lightMode ? '#ffffff' : '#0a1628', border: `1px solid ${lightMode ? '#e2e8f0' : '#1a2d4a'}`, opacity: isHidden ? 0.4 : 1, transition: 'opacity 0.15s' }}>
                                   {/* כשירות - בדיוק שני הערכים שהפופאפ שעל המפה מציע */}
@@ -17129,7 +17130,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                       בר-שינוי נשאר תצוגה בלבד - פקד שנדלק בלי שקורה דבר גרוע מפקד שאינו קיים. */}
                                   <button
                                     onPointerDown={e => e.stopPropagation()}
-                                    onClick={e => { e.stopPropagation(); if (dsOpts.length) setSdElemDsMenu(dsMenuOpen ? null : el.id); }}
+                                    onClick={e => { e.stopPropagation(); if (dsOpts.length) setSdElemDsMenu(dsMenuOpen ? null : { id: el.id, x: e.clientX, y: e.clientY }); }}
                                     disabled={dsOpts.length === 0}
                                     title={dsOpts.length ? `${tr('shared.displayMode')}: ${curDsOpt?.label || curDs}` : el.name}
                                     style={{ width: '18px', height: '18px', borderRadius: isSvg ? '3px' : '50%', background: isSvg ? 'transparent' : (el.type_color || '#f59e0b'), border: `2px solid ${st.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', flexShrink: 0, padding: 0, cursor: dsOpts.length ? 'pointer' : 'default' }}>
@@ -17137,10 +17138,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                       {isSvg ? (() => { const parts = el.type_icon.slice(4).split('|'); const svgStr = parts[0]; const color = parts[1] || '#ffffff'; return <svg viewBox="0 0 24 24" width="12" height="12" style={{ fill: 'none', stroke: color, strokeWidth: 2 }} dangerouslySetInnerHTML={{ __html: sanitizeSvgBody(svgStr) }} />; })() : (el.type_icon || (el.category === 'camera' ? '📷' : '🔧'))}
                                     </span>
                                   </button>
-                                  {dsMenuOpen && (
-                                    <>
-                                      <div onClick={() => setSdElemDsMenu(null)} style={{ position: 'fixed', inset: 0, zIndex: 60 }} />
-                                      <div data-testid={`elem-ds-menu-${el.id}`} style={{ position: 'absolute', top: '100%', insetInlineEnd: '4px', marginTop: '2px', zIndex: 61, background: lightMode ? '#ffffff' : '#1e293b', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '6px', padding: '4px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', minWidth: '92px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                  {/* התפריט נפתח דרך AnchoredPopup: עמודת האלמנטים, כרטיס הקטגוריה והגולל
+                                      כולם overflow:hidden, ולכן תפריט שנפתח בתוך השורה נחתך ופשוט לא נראה.
+                                      הפורטל גם בורח מה-contain:paint של #map-area, שמזיז פופאפ fixed. */}
+                                  {dsMenuOpen && sdElemDsMenu && (
+                                    <AnchoredPopup x={sdElemDsMenu.x + 8} y={sdElemDsMenu.y + 8} w={110} h={40 + dsOpts.length * 24}
+                                      onClose={() => setSdElemDsMenu(null)} zIndex={9600}
+                                      cardStyle={{ background: lightMode ? '#ffffff' : '#1e293b', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '6px', padding: '4px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', minWidth: '92px' }}>
+                                      <div data-testid={`elem-ds-menu-${el.id}`} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                         {dsOpts.map(opt => (
                                           <button key={opt.key + opt.label}
                                             onPointerDown={e => e.stopPropagation()}
@@ -17152,7 +17157,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                           </button>
                                         ))}
                                       </div>
-                                    </>
+                                    </AnchoredPopup>
                                   )}
                                   {/* מוצג על מפה: V / ללא V - אותו סימון שבפאנל של GroundView */}
                                   <button
