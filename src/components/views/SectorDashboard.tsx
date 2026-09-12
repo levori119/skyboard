@@ -22,6 +22,7 @@ import LearnDigitsOverlay from '../shared/LearnDigitsOverlay';
 import type { CrewMember, WorkstationSession, QGroup, TempZoneSeizure } from '../../types';
 import { evaluateQuery, emptyQGroup, hasConditions, clampMenuPos } from '../../utils/queryBuilder';
 import { catalogByKey, readControlValue } from '../../utils/stripControls';
+import { displayStateOptions, nextServiceability, serviceabilityStyle } from '../../utils/elementStatus';
 import { loadStripFieldCatalog, useStripFieldCatalog } from '../../utils/stripFieldCatalog';
 import { stripInCombined, resolveTransferFromPreset, type CombinedPosition } from '../../utils/unifiedStrips';
 import { getFormationDisplayName, getTransferLabel, getTransferSq, normalizeAlt, parseAltToFeet, computeBlockDeviation, parseAltRange, altRangeGap, mergeStripsWithPending } from '../../utils/strips';
@@ -124,6 +125,7 @@ import GroundView from './GroundView';
 import WindowContainer, { DockPositionPicker } from '../shared/WindowContainer';
 import { setDockDefaultPosition, setDockPreset } from '../../utils/windowDock';
 import { useDockableWindow } from '../../hooks/useDockableWindow';
+import ElementsTableWindow from '../ground/ElementsTableWindow';
 import DataWindowLayer from '../dataWindows/DataWindowLayer';
 import MissionDeskBody, { useMissionDeskName } from '../missiondesk/MissionDeskBody';
 import type { MissionDeskService, MDPresetMapConfig, MDPresetMapSettings } from '../../types/missionDesk';
@@ -1504,6 +1506,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [sdCatHighlight, setSdCatHighlight] = useState<Set<string>>(new Set());
   const [sdElemCollapsed, setSdElemCollapsed] = useState<Set<string>>(new Set());
   const [sdHiddenElements, setSdHiddenElements] = useState<Set<number>>(new Set());
+  // האלמנט שתפריט הסטטוס התפעולי שלו פתוח בפאנל (אחד בכל רגע)
+  const [sdElemDsMenu, setSdElemDsMenu] = useState<number | null>(null);
+  // טבלת האלמנטים - חוצה את כל שדות בסיס האב, ולכן רשימה משלה ולא airfieldElements
+  const [showElementsTable, setShowElementsTable] = useState(false);
+  const [baseElements, setBaseElements] = useState<any[]>([]);
   const [aidGroup, setAidGroup] = useState<any | null>(null);
   const [aidExpandedIds, setAidExpandedIds] = useState<Set<string>>(new Set());
   // Whether the table is being drag-hovered from sidebar
@@ -7538,6 +7545,47 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     } catch (e) { console.error(e); }
   };
 
+  // ── טבלת האלמנטים: טעינה ועדכון חוצי-שדות ────────────────────────────────
+  // נטענת רק כשהחלון פתוח (היא מושכת את כל הבסיס), ומתרעננת בפולינג כדי
+  // שהפקח יראה שינוי שנעשה בעמדה אחרת.
+  useEffect(() => {
+    const baseId = myPresetConfig?.parent_base_id;
+    if (!showElementsTable || !baseId) return;
+    const load = () => fetch(`${API_URL}/airfield-elements/by-base/${baseId}`)
+      .then(r => (r.ok ? r.json() : [])).then(setBaseElements).catch(() => {});
+    load();
+    pollingRegistry.register('sd-base-elements', load, 10000, { immediate: false });
+    return () => pollingRegistry.unregister('sd-base-elements');
+  }, [showElementsTable, myPresetConfig?.parent_base_id]);
+
+  /**
+   * עדכון אלמנט מהטבלה - גם של שדה **אחר**.
+   *
+   * `handleUpdateElementStatus` מחפש את האלמנט ב-`airfieldElements`, שהם רק
+   * אלמנטי השדה של העמדה, ולכן היה יוצא בשקט על אלמנט של שדה שכן. כאן המקור
+   * הוא שורת הטבלה. `x_pct`/`y_pct` נשלחים תמיד: ה-PUT כותב אותם ללא תנאי,
+   * ובלעדיהם האלמנט היה מאבד את מיקומו על המפה.
+   */
+  const updateBaseElement = async (elementId: number, fields: { status?: string; display_state?: string }) => {
+    const el = baseElements.find(e => e.id === elementId);
+    if (!el) return;
+    setBaseElements(prev => prev.map(e => (e.id === elementId ? { ...e, ...fields } : e)));
+    setAirfieldElements(prev => prev.map(e => (e.id === elementId ? { ...e, ...fields } : e)));
+    try {
+      await fetch(`${API_URL}/airfield-elements/${elementId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          element_type_id: el.element_type_id, name: el.name,
+          status: fields.status ?? el.status, note: el.note,
+          category: el.category || '', x_pct: el.x_pct, y_pct: el.y_pct,
+          display_state: fields.display_state ?? el.display_state,
+          blink_rate: el.blink_rate, rotation: el.rotation ?? 0,
+          hidden_on_map: el.hidden_on_map,
+        }),
+      });
+    } catch (e) { console.error(e); }
+  };
+
   const handleUpdateElementStatus = async (elementId: number, status: string) => {
     setAirfieldElements(prev => prev.map(el => el.id === elementId ? { ...el, status } : el));
     try {
@@ -11620,6 +11668,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     >
                       <span>{tr('ctrl.cameraBoard')}</span>
                       <span style={{ fontSize: '10px', color: menuMuted }}>{airfieldElements.filter((e: any) => e.camera_url).length} {tr('shared.cameras')}</span>
+                    </div>
+                  )}
+                  {/* טבלת האלמנטים - בכל עמדות המגדל של הבסיס */}
+                  {isGroundMode && (
+                    <div
+                      data-testid="view-menu-elements-table"
+                      onClick={() => { setShowElementsTable(v => !v); setShowViewMenu(false); }}
+                      style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: showElementsTable ? '#93c5fd' : '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #1e3a5f' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
+                      onMouseLeave={e => (e.currentTarget.style.background = '')}
+                    >
+                      <span>{tr('ground.elementsTable')}</span>
+                      <span style={{ fontSize: '10px', color: showElementsTable ? '#60a5fa' : '#94a3b8' }}>{showElementsTable ? '\u2713' : ''}</span>
                     </div>
                   )}
                   {/* חלון שכבות — הצג/הסתר (עמדת שדה) */}
@@ -16934,11 +16995,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
         </div>
 
+        {showElementsTable && (
+          <ElementsTableWindow
+            rows={baseElements}
+            themeMode={themeMode}
+            onClose={() => setShowElementsTable(false)}
+            onUpdateStatus={(id, status) => updateBaseElement(id, { status })}
+            onUpdateDisplayState={(id, display_state) => updateBaseElement(id, { display_state })}
+          />
+        )}
         {/* Elements Panel — ground_mgmt dedicated column */}
         {isGroundMgmtMode && airfieldElements && airfieldElements.length > 0 && (() => {
-          const ESTATUS_COLORS: Record<string, string> = { 'תקין': '#22c55e', 'שמיש': '#22c55e', 'לא תקין': '#ef4444', 'תקול': '#ef4444', 'חלקי': '#f97316' };
-          const ESTATUS_BG: Record<string, string> = { 'תקין': '#14532d', 'שמיש': '#14532d', 'לא תקין': '#7f1d1d', 'תקול': '#7f1d1d', 'חלקי': '#431407' };
-          const ESTATUS_CYCLE = ['תקין', 'שמיש', 'חלקי', 'לא תקין', 'תקול'];
+          // הכשירות והסטטוס התפעולי מגיעים מ-utils/elementStatus - אותו מקור שממנו
+          // עובד הפופאפ שעל המפה. לפאנל הזו הייתה רשימה משלו, והיא הכניסה אלמנטים
+          // לערכים ('חלקי', 'תקול') שאי אפשר היה לצאת מהם מהמפה.
           const catMap: Record<string, any[]> = {};
           for (const el of airfieldElements) {
             const cat = el.category?.trim() || 'כללי';
@@ -16992,37 +17062,66 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         {/* Elements in category */}
                         {!isCatCollapsed && (
                           <div style={{ background: lightMode ? '#f8fafc' : '#070f1c', padding: '4px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                            {els.map((el: any, idx: number) => {
-                              const sc = ESTATUS_COLORS[el.status] || '#94a3b8';
-                              const sbg = ESTATUS_BG[el.status] || (lightMode ? '#e2e8f0' : '#334155');
-                              const nextStatus = ESTATUS_CYCLE[(ESTATUS_CYCLE.indexOf(el.status) + 1) % ESTATUS_CYCLE.length] || 'תקין';
+                            {els.map((el: any) => {
+                              const st = serviceabilityStyle(el.status);
+                              const nextStatus = nextServiceability(el.status);
                               const isSvg = typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:');
                               const isHidden = sdHiddenElements.has(el.id);
+                              // הסטטוסים התפעוליים הם אלה שהוגדרו ל**סוג** האלמנט, כמו בפופאפ
+                              const dsOpts = el.type_can_change_status
+                                ? displayStateOptions(el.type_allowed_statuses, getElemDisplayStateOpts(el.type_icon || ''))
+                                : [];
+                              const curDs = el.display_state || 'normal';
+                              const curDsOpt = dsOpts.find(o => o.key === curDs);
+                              const dsMenuOpen = sdElemDsMenu === el.id;
                               return (
-                                <div key={el.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 5px', borderRadius: '4px', background: lightMode ? '#ffffff' : '#0a1628', border: `1px solid ${lightMode ? '#e2e8f0' : '#1a2d4a'}`, opacity: isHidden ? 0.4 : 1, transition: 'opacity 0.15s' }}>
-                                  {/* Status badge — click to cycle */}
+                                <div key={el.id} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 5px', borderRadius: '4px', background: lightMode ? '#ffffff' : '#0a1628', border: `1px solid ${lightMode ? '#e2e8f0' : '#1a2d4a'}`, opacity: isHidden ? 0.4 : 1, transition: 'opacity 0.15s' }}>
+                                  {/* כשירות - בדיוק שני הערכים שהפופאפ שעל המפה מציע */}
                                   <button onClick={() => handleUpdateElementStatus && handleUpdateElementStatus(el.id, nextStatus)}
-                                    title={`לחץ → ${nextStatus}`}
-                                    style={{ padding: '1px 5px', borderRadius: '3px', border: 'none', cursor: 'pointer', fontSize: '8px', fontWeight: 'bold', background: sbg, color: sc, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                                    title={`${tr('ground.serviceability')}: ${el.status || '-'} \u2190 ${nextStatus}`}
+                                    style={{ padding: '1px 5px', borderRadius: '3px', border: st.isLegacy ? `1px dashed ${st.color}` : 'none', cursor: 'pointer', fontSize: '8px', fontWeight: 'bold', background: st.bg, color: st.color, flexShrink: 0, whiteSpace: 'nowrap' }}>
                                     {el.status || '?'}
                                   </button>
                                   {/* Name */}
                                   <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.name}</div>
                                   </div>
-                                  {/* Icon with rotation */}
-                                  <div style={{ width: '18px', height: '18px', borderRadius: isSvg ? '3px' : '50%', background: isSvg ? 'transparent' : (el.type_color || '#f59e0b'), border: `2px solid ${sc}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', flexShrink: 0 }}>
+                                  {/* האייקון פותח את הסטטוסים התפעוליים שהוגדרו לסוג. סוג שאינו
+                                      בר-שינוי נשאר תצוגה בלבד - פקד שנדלק בלי שקורה דבר גרוע מפקד שאינו קיים. */}
+                                  <button
+                                    onPointerDown={e => e.stopPropagation()}
+                                    onClick={e => { e.stopPropagation(); if (dsOpts.length) setSdElemDsMenu(dsMenuOpen ? null : el.id); }}
+                                    disabled={dsOpts.length === 0}
+                                    title={dsOpts.length ? `${tr('shared.displayMode')}: ${curDsOpt?.label || curDs}` : el.name}
+                                    style={{ width: '18px', height: '18px', borderRadius: isSvg ? '3px' : '50%', background: isSvg ? 'transparent' : (el.type_color || '#f59e0b'), border: `2px solid ${st.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', flexShrink: 0, padding: 0, cursor: dsOpts.length ? 'pointer' : 'default' }}>
                                     <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined }}>
                                       {isSvg ? (() => { const parts = el.type_icon.slice(4).split('|'); const svgStr = parts[0]; const color = parts[1] || '#ffffff'; return <svg viewBox="0 0 24 24" width="12" height="12" style={{ fill: 'none', stroke: color, strokeWidth: 2 }} dangerouslySetInnerHTML={{ __html: sanitizeSvgBody(svgStr) }} />; })() : (el.type_icon || (el.category === 'camera' ? '📷' : '🔧'))}
                                     </span>
-                                  </div>
-                                  {/* Visibility toggle */}
+                                  </button>
+                                  {dsMenuOpen && (
+                                    <>
+                                      <div onClick={() => setSdElemDsMenu(null)} style={{ position: 'fixed', inset: 0, zIndex: 60 }} />
+                                      <div data-testid={`elem-ds-menu-${el.id}`} style={{ position: 'absolute', top: '100%', insetInlineEnd: '4px', marginTop: '2px', zIndex: 61, background: lightMode ? '#ffffff' : '#1e293b', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '6px', padding: '4px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', minWidth: '92px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                        {dsOpts.map(opt => (
+                                          <button key={opt.key + opt.label}
+                                            onPointerDown={e => e.stopPropagation()}
+                                            onClick={e => { e.stopPropagation(); handleUpdateElementDisplayState(el.id, opt.key); setSdElemDsMenu(null); }}
+                                            style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 6px', background: curDs === opt.key ? opt.color + '33' : 'transparent', border: `1px solid ${curDs === opt.key ? opt.color : 'transparent'}`, borderRadius: '4px', color: curDs === opt.key ? opt.color : (lightMode ? '#334155' : '#94a3b8'), cursor: 'pointer', fontSize: '10px', whiteSpace: 'nowrap' }}>
+                                            <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: opt.color, flexShrink: 0 }} />
+                                            {opt.label}
+                                            {curDs === opt.key && <span style={{ marginInlineStart: 'auto', fontSize: '9px' }}>{'\u2713'}</span>}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </>
+                                  )}
+                                  {/* מוצג על מפה: V / ללא V - אותו סימון שבפאנל של GroundView */}
                                   <button
                                     onPointerDown={e => e.stopPropagation()}
                                     onClick={e => { e.stopPropagation(); setSdHiddenElements(prev => { const n = new Set(prev); n.has(el.id) ? n.delete(el.id) : n.add(el.id); return n; }); }}
-                                    title={isHidden ? 'הצג על מפה' : 'הסתר מהמפה'}
-                                    style={{ width: '20px', height: '20px', borderRadius: '4px', border: `1px solid ${isHidden ? '#334155' : '#1e3a5f'}`, background: 'transparent', color: isHidden ? '#475569' : '#475569', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', flexShrink: 0, padding: 0 }}>
-                                    –
+                                    title={isHidden ? tr('ground.showOnMap') : tr('ground.hideOnMap')}
+                                    style={{ width: '20px', height: '20px', borderRadius: '4px', border: `1px solid ${isHidden ? '#334155' : '#166534'}`, background: 'transparent', color: isHidden ? '#475569' : '#22c55e', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold', flexShrink: 0, padding: 0 }}>
+                                    {isHidden ? '\u2013' : '\u2713'}
                                   </button>
                                 </div>
                               );

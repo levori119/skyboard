@@ -563,7 +563,9 @@ router.get('/api/airfield-elements/by-base/:baseId', async (req, res) => {
     const driverOnly = req.query.driver_only === 'true';
     const result = await pool.query(
       `SELECT ae.id, ae.name, ae.status, ae.note, ae.category, ae.hidden_on_map, ae.show_in_driver,
+              ae.display_state, ae.blink_rate, ae.element_type_id, ae.rotation, ae.x_pct, ae.y_pct,
               aet.name as type_name, aet.icon as type_icon, aet.color as type_color,
+              aet.can_change_status as type_can_change_status, aet.allowed_statuses as type_allowed_statuses,
               af.name as airfield_name, af.id as airfield_id
        FROM airfield_elements ae
        JOIN airfields af ON af.id = ae.airfield_id

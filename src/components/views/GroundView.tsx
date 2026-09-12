@@ -29,6 +29,7 @@ import {
 import { DEFAULT_CAMERA, shouldRenderPattern3D, shouldShowPatternLabels, type Camera3D } from '../../utils/pattern3d';
 import { altToDisplay, collectGreensAlerts, greensPoint, type GreensAlertRow } from '../../utils/joiningPoints';
 import { bidiAuto } from '../../utils/bidi';
+import { displayStateOptions, nextServiceability, serviceabilityStyle } from '../../utils/elementStatus';
 import { activePatterns, boundsAspect } from '../../utils/trafficPattern';
 import { stepWidthScale, type RunwayPaletteMode } from '../../utils/runwayShape';
 import { closedRunwayEnds, isRunwayClosed } from '../../utils/runwayEnds';
@@ -2107,7 +2108,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           const elCats = Array.from(new Set(airfieldElements.map((el: any) => el.category || 'כללי').filter(Boolean))).sort();
           const elByCat: Record<string, any[]> = {};
           airfieldElements.forEach((el: any) => { const c = el.category || 'כללי'; if (!elByCat[c]) elByCat[c] = []; elByCat[c].push(el); });
-          const ESTATUS_COLORS: Record<string, string> = { 'תקין': '#22c55e', 'שמיש': '#22c55e', 'לא תקין': '#ef4444', 'תקול': '#ef4444', 'חלקי': '#f97316' };
+          // הכשירות מגיעה מ-utils/elementStatus - אותו מקור שממנו עובד הפופאפ שעל המפה
           return (
             <div style={{ flexShrink: 0, maxHeight: elemPanelOpen ? '42%' : 'auto', display: 'flex', flexDirection: 'column', borderTop: '2px solid #452eb2', borderRadius: '1px', overflow: 'hidden' }}>
               {/* Panel toggle header */}
@@ -2141,7 +2142,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                         </div>
                         {/* Elements in category */}
                         {!isCatCollapsed && catEls.map((el: any) => {
-                          const sc = ESTATUS_COLORS[el.status] || '#94a3b8';
+                          const sc = serviceabilityStyle(el.status).color;
                           return (
                             <div key={el.id} style={{ display: 'flex', flexDirection: 'column', borderBottom: `1px solid ${lightMode ? '#f1f5f9' : '#1e293b'}`, background: elemEditModal?.el?.id === el.id ? (lightMode ? '#eff6ff' : '#0c1a2e') : 'transparent' }}>
                               {/* Main row */}
@@ -2155,10 +2156,10 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                                 </button>
                                 <span style={{ width: '16px', height: '16px', borderRadius: '50%', background: el.type_color || '#f59e0b', border: `2px solid ${sc}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', flexShrink: 0 }}>{el.category === 'camera' ? '📷' : (el.type_icon || '🔧')}</span>
                                 <span style={{ flex: 1, fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.name}</span>
-                                {/* Status badge — clickable to cycle תקין/לא תקין */}
+                                {/* כשירות - אותם ערכים שהפופאפ שעל המפה מציע, והוא הקובע */}
                                 {onUpdateElement ? (
                                   <button onClick={async () => {
-                                    const nextStatus = el.status === 'תקין' ? 'לא תקין' : 'תקין';
+                                    const nextStatus = nextServiceability(el.status);
                                     await onUpdateElement(el.id, { name: el.name, category: el.category, status: nextStatus, note: el.note, display_state: el.display_state, blink_rate: el.blink_rate, open_icon_key: el.open_icon_key, close_icon_key: el.close_icon_key, rotation: el.rotation, camera_url: el.camera_url });
                                   }} title={tr('ground.clickToChangeStatus')}
                                     style={{ fontSize: '9px', fontWeight: 'bold', color: sc, background: sc + '22', padding: '1px 5px', borderRadius: '3px', border: `1px solid ${sc}44`, cursor: 'pointer', flexShrink: 0 }}>
@@ -5162,22 +5163,9 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
         const isSvg = typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:');
         const curDState = el.display_state || 'normal';
         const dStateOpts = getElemDisplayStateOpts(el.type_icon || '');
-        // Map allowed_statuses labels to display_state keys + colors
-        const allowedToDs: Record<string, { key: string; color: string }> = {
-          'פתוח': { key: 'open',   color: '#22c55e' },
-          'סגור': { key: 'close',  color: '#ef4444' },
-          'מנצנץ': { key: 'blink', color: '#f59e0b' },
-          'כבוי':  { key: 'off',   color: '#64748b' },
-          'עצור':  { key: 'stop',  color: '#ef4444' },
-          'עבור':  { key: 'go',    color: '#22c55e' },
-          'דולק':  { key: 'open',  color: '#22c55e' },
-          'עומד':  { key: 'normal',color: '#a855f7' },
-          'נוסע':  { key: 'normal',color: '#3b82f6' },
-          'רגיל':  { key: 'normal',color: '#94a3b8' },
-        };
-        const filteredDsOpts = allowedStatuses.length > 0
-          ? allowedStatuses.map(s => { const d = allowedToDs[s]; return d ? { key: d.key, label: s, color: d.color } : null; }).filter(Boolean) as { key:string; label:string; color:string }[]
-          : dStateOpts;
+        // מיפוי התווית לסטטוס שנשמר יושב ב-utils/elementStatus, כדי שהתפריט
+        // שבפאנל הצדדי יכתוב בדיוק את מה שהפופאפ כותב לאותה תווית
+        const filteredDsOpts = displayStateOptions(allowedStatuses, dStateOpts);
         const isShamish   = el.status === 'שמיש';
         const isLaShamish = el.status === 'לא שמיש';
         return (

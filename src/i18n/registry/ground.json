@@ -2,6 +2,26 @@
   "_group": "עמדת מגדל (TWR)",
   "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
   "keys": {
+    "elementsTable": {
+      "he": "טבלת אלמנטים",
+      "en": "Elements table"
+    },
+    "operationalStatus": {
+      "he": "סטטוס תפעולי",
+      "en": "Operational status"
+    },
+    "airfieldCol": {
+      "he": "שדה",
+      "en": "Airfield"
+    },
+    "elementsShown": {
+      "he": "{{shown}} מתוך {{total}}",
+      "en": "{{shown}} of {{total}}"
+    },
+    "noElementsMatch": {
+      "he": "אין אלמנטים התואמים לסינון",
+      "en": "No elements match the filter"
+    },
     "0NoLimit": {
       "he": "0 = ללא הגבלה",
       "en": "0 = no limit"
