@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   DEPARTURE_ALERT_MINUTES, DRIVER_ACTION_ALERT_MINUTES, STALE_TRIP_HOURS, TRIP_STATUSES, TRIP_VEHICLE_ICONS,
+  MAX_TRIP_COPIES, TRIP_FIELDS_NOT_COPIED, clampCopies, duplicateSchedule,
   asTripStatus, canApproveTrip, dedupeRouteOptions, hasPendingDriverChange, isDepartureAlertDue,
   isDriverActionFresh, isRouteChosen, isVehicleOnMap, routeSignature,
   minutesUntilDeparture, normalizeEscorts, normalizeStops, pendingChangeFields,
@@ -10,6 +11,12 @@ import {
 const NOW = new Date('2026-09-12T10:00:00Z').getTime();
 /** זמן יציאה N דקות מעכשיו (שלילי = כבר עבר). */
 const inMin = (m: number) => new Date(NOW + m * 60_000).toISOString();
+/** ISO -> "YYYY-MM-DD HH:MM" בשעון המקומי - כפי שהמפעיל רואה בטופס. */
+const splitLocal = (iso: string | null) => {
+  if (!iso) return '';
+  const d = new Date(iso); const p2 = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+};
 
 describe('סטטוס נסיעה', () => {
   it('ארבעת הסטטוסים, בסדר התפריט', () => {
@@ -187,6 +194,59 @@ describe('נתיב הנסיעה - בחירה מפורשת', () => {
     expect(canApproveTrip('pending', true, '')).toBe(true);
     expect(canApproveTrip('ended', true, '')).toBe(true);
     expect(canApproveTrip('approved', false, '')).toBe(true);
+  });
+});
+
+describe('שכפול נסיעה', () => {
+  const at = (local: string) => new Date(local).toISOString();
+
+  it('מעביר ליום אחר ושומר את שעת היציאה', () => {
+    const out = duplicateSchedule(at('2026-09-12T11:50'), '2026-09-13');
+    expect(splitLocal(out)).toBe('2026-09-13 11:50');
+  });
+
+  // הזזה של 1440 דקות הייתה מזיזה את השעה בשעה במעבר שעון קיץ
+  it('שומר את השעה גם במעבר שעון', () => {
+    // מוצ"ש של מעבר השעון בישראל ב-2026 (25.10) - היום שאחריו ארוך בשעה
+    const out = duplicateSchedule(at('2026-10-24T08:00'), '2026-10-25');
+    expect(splitLocal(out)).toBe('2026-10-25 08:00');
+  });
+
+  it('בלי תאריך יעד הנסיעה נשארת במועדה', () => {
+    const iso = at('2026-09-12T11:50');
+    expect(duplicateSchedule(iso, '')).toBe(iso);
+  });
+
+  it('מרווח בין עותקים נספר מהעותק הראשון', () => {
+    expect(splitLocal(duplicateSchedule(at('2026-09-12T08:00'), '2026-09-12', 0, 30))).toBe('2026-09-12 08:00');
+    expect(splitLocal(duplicateSchedule(at('2026-09-12T08:00'), '2026-09-12', 1, 30))).toBe('2026-09-12 08:30');
+    expect(splitLocal(duplicateSchedule(at('2026-09-12T08:00'), '2026-09-12', 3, 30))).toBe('2026-09-12 09:30');
+  });
+
+  // עותק אינו המקום להמציא מועד לנסיעה שאין לה
+  it('נסיעה בלי מועד נשארת בלי מועד', () => {
+    expect(duplicateSchedule(null, '2026-09-13')).toBeNull();
+    expect(duplicateSchedule('לא תאריך', '2026-09-13')).toBeNull();
+  });
+
+  it('מספר העותקים נחסם לטווח שפוי', () => {
+    expect(clampCopies(1)).toBe(1);
+    expect(clampCopies(0)).toBe(1);
+    expect(clampCopies(-5)).toBe(1);
+    expect(clampCopies(MAX_TRIP_COPIES + 10)).toBe(MAX_TRIP_COPIES);
+    expect(clampCopies('שלוש')).toBe(1);
+    expect(clampCopies(3.7)).toBe(3);
+  });
+
+  // שכפול נסיעה מאושרת שהיה גורר את האישור מוציא לשטח רכב שאיש לא אישר
+  it('הסטטוס אינו מועתק - עותק אינו מאושר', () => {
+    expect(TRIP_FIELDS_NOT_COPIED).toContain('status');
+  });
+
+  it('מצב חי של המקור אינו מועתק', () => {
+    for (const f of ['driver_ack_at', 'pending_change', 'departure_alerted_at', 'vehicle_request_id', 'ended_at']) {
+      expect(TRIP_FIELDS_NOT_COPIED).toContain(f);
+    }
   });
 });
 

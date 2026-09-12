@@ -25,7 +25,7 @@ import { tr } from '../../i18n/tr';
 import i18n from '../../i18n';
 import { API_URL } from '../../config';
 import { windowFrame } from '../../utils/windowFrame';
-import { windowPalette, type ThemeMode } from '../../utils/windowPalette';
+import { windowPalette, type ThemeMode, type WindowPalette } from '../../utils/windowPalette';
 import { CTRL_H, WINDOW_SIZE, formStyles } from '../../utils/windowForm';
 import useDragPosition from '../../hooks/useDragPosition';
 import { useDockableWindow } from '../../hooks/useDockableWindow';
@@ -33,7 +33,9 @@ import { customConfirm } from '../shared/ConfirmModal';
 import { PERMIT_STATUS_COLOR, effectivePermitStatus, permitStatusKey } from '../../utils/permitStatus';
 import {
   TRIP_STATUSES, TRIP_STATUS_COLOR, TRIP_VEHICLE_ICONS,
-  asTripStatus, canApproveTrip, dedupeRouteOptions, hasPendingDriverChange,
+  MAX_TRIP_COPIES,
+  asTripStatus, canApproveTrip, clampCopies, dedupeRouteOptions, duplicateSchedule,
+  hasPendingDriverChange,
   isRouteChosen, normalizeEscorts, normalizeStops, pendingChangeFields,
   routeSignature, suggestedVehicleIcon, tripStatusKey,
   type TripEscort, type TripStatus, type TripStop,
@@ -197,6 +199,108 @@ const ROUTE_VARIANTS: { key: RouteOption['key']; permissions: string[]; labelKey
 const variantLabel = (key: string) =>
   tr(ROUTE_VARIANTS.find(v => v.key === key)?.labelKey ?? 'trips.routePermVehicle');
 
+/**
+ * דיאלוג השכפול - לנסיעה אחת ולקבוצה כאחת.
+ *
+ * שלוש שאלות בלבד: לאיזה יום, כמה עותקים, ובאיזה מרווח ביניהם. הכל נגזר
+ * מ-`duplicateSchedule`, שמעביר את הנסיעה ליום היעד ו**שומר את שעת היציאה**
+ * שלה - כך ששכפול קבוצתי של יום שלם שומר על המרווחים בין הנסיעות.
+ *
+ * ⚠️ הדיאלוג אומר במפורש שהעותק **אינו מאושר**. שכפול נסיעה מאושרת שהיה גורר
+ * את האישור מוציא לשטח רכב שאיש לא אישר, ומי שלוחץ "שכפל" אינו מצפה לכך.
+ */
+const DuplicateDialog: React.FC<{
+  sources: Trip[];
+  C: WindowPalette;
+  dir: React.CSSProperties['direction'];
+  themeMode: ThemeMode;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: (targetDate: string, copies: number, intervalMinutes: number) => void;
+}> = ({ sources, C, dir, themeMode, busy, onCancel, onConfirm }) => {
+  const { inputStyle, dateStyle, labelStyle, btn } = formStyles(C, themeMode);
+  // ברירת המחדל היא **יום היעד של הנסיעה המוקדמת ביותר**, ולא "מחר" של היום
+  // הנוכחי: שכפול של נסיעות מחרתיים ליום שאחריהן הוא המקרה השכיח.
+  const earliest = sources
+    .map(t => t.scheduled_at).filter(Boolean)
+    .sort()[0] as string | undefined;
+  const base = earliest ? new Date(earliest) : new Date();
+  const next = new Date(base.getFullYear(), base.getMonth(), base.getDate() + 1);
+  const p2 = (n: number) => String(n).padStart(2, '0');
+  const [targetDate, setTargetDate] = useState(
+    `${next.getFullYear()}-${p2(next.getMonth() + 1)}-${p2(next.getDate())}`,
+  );
+  const [copies, setCopies] = useState('1');
+  const [interval, setIntervalMin] = useState('60');
+  const n = clampCopies(copies);
+  const total = sources.length * n;
+
+  return (
+    <div
+      onClick={onCancel}
+      style={{
+        position: 'absolute', inset: 0, zIndex: 20, background: 'rgba(0,0,0,0.55)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', direction: dir,
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: C.panel, color: C.text, border: `2px solid #a855f7`, borderRadius: 10,
+          padding: 14, width: 'min(420px, 90%)', boxShadow: '0 12px 40px rgba(0,0,0,0.6)',
+        }}
+      >
+        <div style={{ fontSize: 13, fontWeight: 'bold', marginBottom: 3 }}>
+          ⧉ {sources.length === 1 ? tr('trips.duplicate') : tr('trips.duplicateSelected')}
+        </div>
+        <div style={{ fontSize: 10, color: C.muted, marginBottom: 10 }}>
+          {tr('trips.duplicateSources', { count: sources.length })}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr 1fr', gap: 7 }}>
+          <div>
+            <label style={labelStyle}>{tr('trips.duplicateTargetDate')}</label>
+            <input type="date" value={targetDate} onChange={e => setTargetDate(e.target.value)} style={dateStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>{tr('trips.duplicateCopies')}</label>
+            <input
+              type="number" min={1} max={MAX_TRIP_COPIES} value={copies}
+              onChange={e => setCopies(e.target.value)} style={inputStyle}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>{tr('trips.duplicateInterval')}</label>
+            {/* המרווח רלוונטי רק כשיש יותר מעותק אחד - שדה פעיל שאינו משפיע
+                על דבר הוא בדיוק הפקד שגורם למפעיל לחפש תקלה במקום הלא נכון */}
+            <input
+              type="number" min={0} step={5} value={interval} disabled={n < 2}
+              onChange={e => setIntervalMin(e.target.value)}
+              style={{ ...inputStyle, opacity: n < 2 ? 0.5 : 1 }}
+            />
+          </div>
+        </div>
+
+        <div style={{ fontSize: 10, color: C.muted, marginTop: 8 }}>
+          {tr('trips.duplicateTotal', { count: total })}
+        </div>
+        <div style={{ fontSize: 10, color: '#fbbf24', marginTop: 3 }}>
+          ⚠ {tr('trips.duplicateNotApproved')}
+        </div>
+
+        <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+          <button
+            onClick={() => onConfirm(targetDate, n, Number(interval) || 0)}
+            disabled={busy}
+            style={{ ...btn('#a855f7'), opacity: busy ? 0.6 : 1, cursor: busy ? 'wait' : 'pointer' }}
+          >{busy ? tr('trips.duplicateBusy') : tr('trips.duplicateConfirm')}</button>
+          <button onClick={onCancel} style={btn(C.border, C.text)}>{tr('trips.cancel')}</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export interface TripsManagementWindowProps {
   /** השדה שהעמדה מוצמדת אליו. בלעדיו אין למי לשייך נסיעות */
   airfieldId: number | null;
@@ -231,6 +335,11 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState('');
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  /** הנסיעות המסומנות לשכפול קבוצתי */
+  const [picked, setPicked] = useState<Set<number>>(new Set());
+  /** הנסיעות שדיאלוג השכפול פתוח עליהן. ריק = הדיאלוג סגור */
+  const [dupFor, setDupFor] = useState<Trip[]>([]);
+  const [dupBusy, setDupBusy] = useState(false);
 
   const vehicleTypes = useMemo(() => params.filter(p => p.kind === 'vehicle_type' && p.active), [params]);
   const tripTypes = useMemo(() => params.filter(p => p.kind === 'trip_type' && p.active), [params]);
@@ -257,20 +366,41 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
   useEffect(() => { void loadTrips(); }, [loadTrips]);
 
   // ── מעבר בין רשימה לטופס ───────────────────────────────────────────────────
-  const openNew = () => { setCreating(true); setSelectedId(null); setMode('form'); };
-  const openEdit = (id: number) => { setCreating(false); setSelectedId(id); setMode('form'); };
-  const backToList = () => { setMode('list'); setCreating(false); setError(''); setRouteError(''); };
-
-  // התראה מתפרצת מובילה ישר לעריכת הנסיעה שהיא מדברת עליה
-  useEffect(() => { if (focusTripId) openEdit(focusTripId); }, [focusTripId]);
-
-  // הטיוטה נגזרת מהנסיעה הנבחרת ואינה מוחזקת במקביל - כדי שרענון הרשימה לא
-  // ידרוס שדה שהפקח באמצע הקלדתו רק בגלל שהתשובה מהשרת חזרה.
-  useEffect(() => {
-    if (creating) { setDraft(EMPTY_DRAFT); setError(''); setRouteError(''); return; }
-    setDraft(selected ? draftOf(selected) : EMPTY_DRAFT);
+  //
+  // ⚠️ הטיוטה נגזרת **כאן, מהנסיעה עצמה** - ולא ב-useEffect שתלוי במזהה.
+  // הגזירה דרך effect נפלה בשקט לטופס ריק בשני מקרים: כשהרשימה עדיין לא
+  // נטענה (`trips.find` מחזיר undefined, והטיוטה נופלת ל-EMPTY_DRAFT בלי
+  // שאיש יידע), וכשנפתחה שוב **אותה** נסיעה - `setSelectedId` באותו ערך אינו
+  // משנה state, ה-effect אינו רץ, והטופס מציג את מה שנשאר בו מקודם.
+  const openNew = (base?: Trip) => {
+    setCreating(true);
+    setSelectedId(null);
+    setDraft(base ? draftOf(base) : EMPTY_DRAFT);
     setError(''); setRouteError('');
-  }, [selectedId, creating]); // eslint-disable-line react-hooks/exhaustive-deps
+    setMode('form');
+  };
+  const openEdit = (t: Trip) => {
+    setCreating(false);
+    setSelectedId(t.id);
+    setDraft(draftOf(t));
+    setError(''); setRouteError('');
+    setMode('form');
+  };
+  const backToList = () => {
+    setMode('list'); setCreating(false); setSelectedId(null);
+    setDraft(EMPTY_DRAFT); setError(''); setRouteError('');
+  };
+
+  // התראה מתפרצת מובילה ישר לעריכת הנסיעה שהיא מדברת עליה - אך רק **אחרי**
+  // שהרשימה נטענה, אחרת הטופס נפתח ריק. הסימון מונע פתיחה מחדש בכל ריענון.
+  const focusHandled = useRef<number | null>(null);
+  useEffect(() => {
+    if (!focusTripId || focusHandled.current === focusTripId) return;
+    const t = trips.find(x => x.id === focusTripId);
+    if (!t) return;
+    focusHandled.current = focusTripId;
+    openEdit(t);
+  }, [focusTripId, trips]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Esc: מהטופס חוזרים לרשימה, ומהרשימה סוגרים את החלון. סגירה מהטופס הייתה
   // מאבדת עריכה שלמה בהקשה אחת.
@@ -429,6 +559,33 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
     if (t && mode === 'form' && selectedId === tripId) setDraft(draftOf(t));
   };
 
+  // ── שכפול ──────────────────────────────────────────────────────────────────
+  /**
+   * שכפול נסיעה אחת או קבוצה. הלקוח מחשב לכל עותק את מועדו **בשעון המקומי**
+   * (`duplicateSchedule`) ושולח אותו מפורשות - חישוב "אותה שעה, יום אחר"
+   * בשרת, מול TIMESTAMPTZ, היה זז בשעה במעבר שעון קיץ.
+   */
+  const runDuplicate = async (sources: Trip[], targetDate: string, copies: number, intervalMinutes: number) => {
+    const n = clampCopies(copies);
+    const items = sources.flatMap(t => Array.from({ length: n }, (_, k) => ({
+      id: t.id,
+      scheduled_at: duplicateSchedule(t.scheduled_at, targetDate, k, intervalMinutes),
+    })));
+    if (!items.length) return;
+    setDupBusy(true);
+    try {
+      await fetch(`${API_URL}/trips/duplicate`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ airfield_id: airfieldId, items }),
+      });
+      await loadTrips();
+      // הסימון נמחק אחרי שכפול: להשאירו היה מזמין שכפול כפול בלחיצה נוספת
+      setPicked(new Set());
+      setDupFor([]);
+    } catch { /* הרשת נופלת - הדיאלוג נשאר פתוח והפקח מנסה שוב */ }
+    setDupBusy(false);
+  };
+
   // ── סינון הרשימה ───────────────────────────────────────────────────────────
   const now = Date.now();
   const filtered = useMemo(() => {
@@ -444,6 +601,10 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
         t.from_point_name, t.from_text, t.to_point_name, t.to_text, t.trip_type_name,
       ].some(v => String(v ?? '').toLowerCase().includes(q)));
   }, [trips, search, tab, now]);
+
+  /** הנסיעות המסומנות בפועל. סימון של שורה שנעלמה מהסינון אינו נחשב. */
+  const pickedTrips = useMemo(() => filtered.filter(t => picked.has(t.id)), [filtered, picked]);
+  const allFilteredPicked = filtered.length > 0 && pickedTrips.length === filtered.length;
 
   const dock = useDockableWindow('tripsManagement', tr('trips.title'), {
     setFloatingPos: (x, y) => drag.moveTo(x, y),
@@ -490,7 +651,14 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
         <button onClick={() => setTab('upcoming')} style={tabBtn('upcoming')}>{tr('trips.tabUpcoming')}</button>
         <button onClick={() => setTab('history')} style={tabBtn('history')}>{tr('trips.tabHistory')}</button>
         <span style={{ flex: 1 }} />
-        <button onClick={openNew} style={btn('#0284c7')}>✚ {tr('trips.newTrip')}</button>
+        {pickedTrips.length > 0 && (
+          <>
+            <span style={{ fontSize: 10, color: C.muted }}>{tr('trips.pickedCount', { count: pickedTrips.length })}</span>
+            <button onClick={() => setDupFor(pickedTrips)} style={btn('#a855f7')}>⧉ {tr('trips.duplicateSelected')}</button>
+            <button onClick={() => setPicked(new Set())} style={btn(C.border, C.text)}>{tr('trips.clearSelection')}</button>
+          </>
+        )}
+        <button onClick={() => openNew()} style={btn('#0284c7')}>✚ {tr('trips.newTrip')}</button>
       </div>
 
       <div style={{ overflow: 'auto', flex: 1, minHeight: 0 }}>
@@ -502,6 +670,18 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
+                <th style={{ ...th, width: 28, textAlign: 'center' }}>
+                  {/* סימון הכל - על **השורות המסוננות** ולא על כל הנסיעות:
+                      סימון שכולל שורות שאינן על המסך הוא בדיוק הדרך לשכפל
+                      בטעות יום שלם */}
+                  <input
+                    type="checkbox"
+                    checked={allFilteredPicked}
+                    onChange={() => setPicked(allFilteredPicked ? new Set() : new Set(filtered.map(t => t.id)))}
+                    title={tr('trips.selectAll')}
+                    style={{ cursor: 'pointer' }}
+                  />
+                </th>
                 <th style={{ ...th, width: 34 }} />
                 <th style={th}>{tr('trips.colVehicle')}</th>
                 <th style={th}>{tr('trips.colDriver')}</th>
@@ -510,7 +690,7 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
                 <th style={th}>{tr('trips.colWhen')}</th>
                 <th style={th}>{tr('trips.colRoute')}</th>
                 <th style={th}>{tr('trips.colStatus')}</th>
-                <th style={{ ...th, width: 78 }} />
+                <th style={{ ...th, width: 118 }} />
               </tr>
             </thead>
             <tbody>
@@ -522,9 +702,21 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
                 return (
                   <tr
                     key={t.id}
-                    onDoubleClick={() => openEdit(t.id)}
+                    onDoubleClick={() => openEdit(t)}
                     style={{ background: i % 2 ? C.rowAlt : 'transparent' }}
                   >
+                    <td style={{ ...td, textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={picked.has(t.id)}
+                        onChange={() => setPicked(prev => {
+                          const next = new Set(prev);
+                          if (next.has(t.id)) next.delete(t.id); else next.add(t.id);
+                          return next;
+                        })}
+                        style={{ cursor: 'pointer' }}
+                      />
+                    </td>
                     <td style={{ ...td, fontSize: 16, textAlign: 'center' }}>
                       {t.icon || suggestedVehicleIcon(t.vehicle_type_name)}
                     </td>
@@ -564,9 +756,14 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
                       </div>
                     </td>
                     <td style={{ ...td, textAlign: 'end', whiteSpace: 'nowrap' }}>
-                      <button onClick={() => openEdit(t.id)} style={{ ...btn('#334155', '#e2e8f0'), height: 22, padding: '0 10px' }}>
+                      <button onClick={() => openEdit(t)} style={{ ...btn('#334155', '#e2e8f0'), height: 22, padding: '0 10px' }}>
                         {tr('trips.edit')}
                       </button>
+                      <button
+                        onClick={() => setDupFor([t])}
+                        title={tr('trips.duplicate')}
+                        style={{ ...btn('#334155', '#e2e8f0'), height: 22, padding: '0 8px', marginInlineStart: 4 }}
+                      >⧉</button>
                     </td>
                   </tr>
                 );
@@ -589,6 +786,9 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
         <span style={{ flex: 1 }} />
         <button onClick={() => void save()} disabled={saving} style={{ ...btn('#22c55e'), opacity: saving ? 0.6 : 1, cursor: saving ? 'wait' : 'pointer' }}>{tr('trips.save')}</button>
         {!creating && <button onClick={() => void removeTrip()} style={btn('#ef4444')}>{tr('trips.delete')}</button>}
+        {!creating && selected && (
+          <button onClick={() => setDupFor([selected])} style={btn('#a855f7')}>⧉ {tr('trips.duplicate')}</button>
+        )}
       </div>
 
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 10 }}>
@@ -1004,6 +1204,20 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
           style={{ background: 'none', border: 'none', color: C.text, fontSize: 15, cursor: 'pointer', lineHeight: 1, padding: '0 6px' }}
         >✕</button>
       </div>
+
+      {/* שכבת השכפול - בתוך החלון ולא כפורטל, כדי שתיסגר איתו ולא תישאר
+          תלויה על המסך כשהוא נעגן או נסגר */}
+      {dupFor.length > 0 && (
+        <DuplicateDialog
+          sources={dupFor}
+          C={C}
+          dir={dir}
+          themeMode={themeMode}
+          busy={dupBusy}
+          onCancel={() => setDupFor([])}
+          onConfirm={(date, copies, gap) => void runDuplicate(dupFor, date, copies, gap)}
+        />
+      )}
 
       {!airfieldId
         ? <div style={{ padding: 20, fontSize: 12, color: C.muted, textAlign: 'center' }}>{tr('trips.noAirfield')}</div>

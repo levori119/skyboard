@@ -469,6 +469,58 @@
     "driverAckedShort": {
       "he": "הנהג אישר",
       "en": "Driver approved"
+    },
+    "duplicate": {
+      "he": "שכפל",
+      "en": "Duplicate"
+    },
+    "duplicateSelected": {
+      "he": "שכפל נבחרות",
+      "en": "Duplicate selected"
+    },
+    "pickedCount": {
+      "he": "{{count}} מסומנות",
+      "en": "{{count}} selected"
+    },
+    "clearSelection": {
+      "he": "נקה סימון",
+      "en": "Clear selection"
+    },
+    "selectAll": {
+      "he": "סמן את כל השורות המוצגות",
+      "en": "Select all shown rows"
+    },
+    "duplicateSources": {
+      "he": "שכפול {{count}} נסיעות",
+      "en": "Duplicating {{count}} trips"
+    },
+    "duplicateTargetDate": {
+      "he": "תאריך היעד",
+      "en": "Target date"
+    },
+    "duplicateCopies": {
+      "he": "מספר עותקים",
+      "en": "Copies"
+    },
+    "duplicateInterval": {
+      "he": "מרווח (דקות)",
+      "en": "Gap (minutes)"
+    },
+    "duplicateTotal": {
+      "he": "ייווצרו {{count}} נסיעות, בשעת היציאה של המקור",
+      "en": "{{count}} trips will be created, keeping each departure time"
+    },
+    "duplicateNotApproved": {
+      "he": "העותק נוצר ללא אישור ובלי אישור הנהג - יש לאשר אותו בנפרד",
+      "en": "Copies are created unapproved and without the driver approval - approve each separately"
+    },
+    "duplicateConfirm": {
+      "he": "שכפל",
+      "en": "Duplicate"
+    },
+    "duplicateBusy": {
+      "he": "משכפל...",
+      "en": "Duplicating..."
     }
   }
 }

@@ -415,6 +415,75 @@ router.post('/api/trips', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+/**
+ * העמודות שעוברות לעותק - **רשימה מפורשת ולא `SELECT *`**.
+ *
+ * עמודה חדשה שתתווסף לנסיעה לא תזלוג לעותק בשקט: היא פשוט לא תועתק, וזו
+ * התקלה הזולה מבין השתיים. מה שאינו כאן מתועד ב-TRIP_FIELDS_NOT_COPIED
+ * (src/utils/trips.ts) - מצב חי שנוצר על הנסיעה המקורית בלבד.
+ */
+const TRIP_COPY_COLUMNS = [
+  'airfield_id', 'driver_id', 'driver_name', 'driver_phone',
+  'requester_name', 'requester_phone',
+  'vehicle_id', 'vehicle_name', 'vehicle_type_id', 'trip_type_id', 'icon',
+  'from_point_id', 'to_point_id', 'from_text', 'to_text', 'stops',
+  'note', 'purpose', 'escorts', 'roam_permit_id',
+  'suggested_route_ids', 'route_options', 'selected_route_ids', 'selected_route_label',
+];
+
+/**
+ * שכפול נסיעות - בודדת או קבוצתית.
+ *
+ * הלקוח שולח לכל עותק את `scheduled_at` **המחושב**, ולא תאריך יעד: חישוב
+ * "אותה שעה, יום אחר" חייב להיעשות בשעון המקומי של העמדה (src/utils/trips.ts
+ * §duplicateSchedule), ואילו כאן, מול TIMESTAMPTZ ובאזור הזמן של השרת, הוא
+ * היה זז בשעה במעבר שעון קיץ.
+ *
+ * ⚠️ **העותק אינו מאושר** (`status='pending'`), וללא מצב חי של המקור: אישור
+ * הנהג, שינוי ממתין, סימון התראה וקישור לבקשת הכניסה. שכפול של נסיעה מאושרת
+ * שהיה גורר את האישור היה מוציא לשטח רכב שאיש לא אישר - בדיוק בפעולה שנועדה
+ * לחסוך הקלדה.
+ *
+ * הכל בטרנזקציה אחת: שכפול קבוצתי שנפל באמצע היה משאיר חצי יום נסיעות.
+ */
+router.post('/api/trips/duplicate', async (req, res) => {
+  const b = req.body || {};
+  const items = Array.isArray(b.items) ? b.items : [];
+  // ⚠️ האימות **לפני** pool.connect: `return` מוקדם בתוך ה-try היה יוצא בלי
+  // להשתחרר, והמאגר המקומי - שהוא חיבור יחיד - היה ננעל לכל בקשה שאחריו.
+  if (!items.length) return res.status(400).json({ error: 'missing_items' });
+  // תקרה - בקשה לאלף עותקים היא טעות הקלדה, וגילויה אחרי היצירה יקר ממניעתה
+  if (items.length > 200) return res.status(400).json({ error: 'too_many_items' });
+
+  const client = await pool.connect();
+  try {
+    const cols = TRIP_COPY_COLUMNS.join(', ');
+    const created = [];
+    await client.query('BEGIN');
+    for (const it of items) {
+      const srcId = num(it?.id);
+      if (!srcId) continue;
+      const r = await client.query(
+        `INSERT INTO entry_permit_trips (${cols}, scheduled_at, status)
+         SELECT ${cols}, $2, 'pending' FROM entry_permit_trips WHERE id = $1
+         RETURNING id`,
+        [srcId, it?.scheduled_at || null]
+      );
+      if (r.rows.length) created.push(r.rows[0].id);
+    }
+    await client.query('COMMIT');
+    // הקריאה דרך ה-pool רק **אחרי** השחרור: המאגר המקומי מחזיק חיבור יחיד
+    client.release();
+    const full = [];
+    for (const id of created) full.push(await oneTrip(id));
+    return res.status(201).json(full);
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    client.release();
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 /** נסיעה תחת נהג מהמרשם. השדה נגזר מהנהג - נסיעה בלי שדה לא נמצאת בחלון. */
 router.post('/api/entry-permits/:id/trips', async (req, res) => {
   try {

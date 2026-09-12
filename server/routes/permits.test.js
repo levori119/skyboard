@@ -644,3 +644,112 @@ describe('ניהול נסיעות - אפליקציית הנהג', () => {
     expect((await post('/api/driver-trips/9999/ack')).status).toBe(404);
   });
 });
+
+describe('ניהול נסיעות - שכפול', () => {
+  // כל מקור צריך ת"ז משלו - אחרת ה-POST השני נדחה ב-409 והנסיעה כלל לא נוצרת
+  let tzSeq = 0;
+  const mkSource = async (over = {}) => {
+    const id = await mkTripDriver({ national_id: `01234567${tzSeq++}` });
+    return await (await post(`/api/entry-permits/${id}/trips`, {
+      vehicle_name: 'מיניבוס', vehicle_type_id: 103, trip_type_id: 104, icon: '🚐',
+      from_point_id: 20, to_point_id: 21,
+      stops: [{ point_id: 20, text: '' }, { point_id: null, text: 'שער דרומי' }],
+      scheduled_at: tripAt(60), note: 'הערה', requester_name: 'יוסי',
+      requester_phone: '08-1111111', driver_phone: '050-2222222',
+      escorts: [{ name: 'דנה', national_id: '9' }], roam_permit_id: 105,
+      selected_route_ids: [3, 7], selected_route_label: 'כיבוי -> תחילת 15',
+      status: 'approved', ...over,
+    })).json();
+  };
+
+  it('העותק נושא את כל פרטי הנסיעה', async () => {
+    const src = await mkSource();
+    const when = tripAt(60 * 24);
+    const [copy] = await (await post('/api/trips/duplicate', { items: [{ id: src.id, scheduled_at: when }] })).json();
+    expect(copy.id).not.toBe(src.id);
+    expect(copy.vehicle_name).toBe('מיניבוס');
+    expect(copy.trip_type_name).toBe('הסעת אח"מ');
+    expect(copy.icon).toBe('🚐');
+    expect(copy.driver_id).toBe(src.driver_id);
+    expect(copy.airfield_id).toBe(AF);
+    expect(copy.stop_names).toEqual(['שער ראשי', 'שער דרומי']);
+    expect(copy.escorts).toEqual([{ name: 'דנה', national_id: '9' }]);
+    expect(copy.roam_permit_name).toBe('ליווי צמוד');
+    expect(copy.selected_route_label).toBe('כיבוי -> תחילת 15');
+    expect(new Date(copy.scheduled_at).toISOString()).toBe(when);
+  });
+
+  // שכפול של נסיעה מאושרת שהיה גורר את האישור מוציא לשטח רכב שאיש לא אישר
+  it('העותק אינו מאושר, גם כשהמקור מאושר', async () => {
+    const src = await mkSource({ status: 'approved' });
+    expect(src.status).toBe('approved');
+    const [copy] = await (await post('/api/trips/duplicate', { items: [{ id: src.id, scheduled_at: tripAt(120) }] })).json();
+    expect(copy.status).toBe('pending');
+  });
+
+  it('מצב חי של המקור אינו עובר לעותק', async () => {
+    const src = await mkSource();
+    await post(`/api/driver-trips/${src.id}/ack`);
+    await post(`/api/driver-trips/${src.id}/change`, { note: 'מאחר' });
+    await post(`/api/entry-permit-trips/${src.id}/alerted`);
+    const [copy] = await (await post('/api/trips/duplicate', { items: [{ id: src.id, scheduled_at: tripAt(120) }] })).json();
+    expect(copy.driver_ack_at).toBeNull();
+    expect(copy.pending_change).toBeNull();
+    expect(copy.departure_alerted_at).toBeNull();
+    expect(copy.vehicle_request_id).toBeNull();
+  });
+
+  it('המקור אינו משתנה', async () => {
+    const src = await mkSource();
+    await post('/api/trips/duplicate', { items: [{ id: src.id, scheduled_at: tripAt(120) }] });
+    const again = await (await get(`/api/trips?airfield_id=${AF}`)).json();
+    const orig = again.find(t => t.id === src.id);
+    expect(orig.status).toBe('approved');
+    expect(new Date(orig.scheduled_at).toISOString()).toBe(new Date(src.scheduled_at).toISOString());
+  });
+
+  it('שכפול קבוצתי יוצר עותק לכל נסיעה שנבחרה', async () => {
+    const a = await mkSource({ vehicle_name: 'רכב א' });
+    const b = await mkSource({ vehicle_name: 'רכב ב' });
+    const copies = await (await post('/api/trips/duplicate', {
+      items: [{ id: a.id, scheduled_at: tripAt(200) }, { id: b.id, scheduled_at: tripAt(260) }],
+    })).json();
+    expect(copies).toHaveLength(2);
+    expect(copies.map(c => c.vehicle_name).sort()).toEqual(['רכב א', 'רכב ב']);
+    const all = await (await get(`/api/trips?airfield_id=${AF}`)).json();
+    expect(all).toHaveLength(4);
+  });
+
+  it('כמה עותקים של אותה נסיעה, בזמנים שונים', async () => {
+    const src = await mkSource();
+    const copies = await (await post('/api/trips/duplicate', {
+      items: [
+        { id: src.id, scheduled_at: tripAt(100) },
+        { id: src.id, scheduled_at: tripAt(130) },
+        { id: src.id, scheduled_at: tripAt(160) },
+      ],
+    })).json();
+    expect(copies).toHaveLength(3);
+    expect(new Set(copies.map(c => c.id)).size).toBe(3);
+  });
+
+  it('נסיעה בלי מועד משוכפלת בלי מועד', async () => {
+    const src = await mkSource({ scheduled_at: null });
+    const [copy] = await (await post('/api/trips/duplicate', { items: [{ id: src.id, scheduled_at: null }] })).json();
+    expect(copy.scheduled_at).toBeNull();
+  });
+
+  it('בלי פריטים הבקשה נדחית ב-400', async () => {
+    expect((await post('/api/trips/duplicate', { items: [] })).status).toBe(400);
+    expect((await post('/api/trips/duplicate', {})).status).toBe(400);
+  });
+
+  // שכפול קבוצתי שנפל באמצע היה משאיר חצי יום נסיעות
+  it('מזהה שאינו קיים אינו יוצר עותק ואינו מפיל את השאר', async () => {
+    const src = await mkSource();
+    const copies = await (await post('/api/trips/duplicate', {
+      items: [{ id: 9999, scheduled_at: tripAt(100) }, { id: src.id, scheduled_at: tripAt(100) }],
+    })).json();
+    expect(copies).toHaveLength(1);
+  });
+});

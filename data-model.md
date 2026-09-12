@@ -3087,6 +3087,14 @@ REFACTOR_LOG #045.
 ביטול שקט של סטטוס או נתיב מחזיר לתנועה רכב שהמגדל עצר, או מוחק אישור נהג
 שכבר ניתן.
 
+**שכפול** (`POST /api/trips/duplicate`) מעתיק רשימת עמודות **מפורשת**
+(`TRIP_COPY_COLUMNS`) ולא `SELECT *`: עמודה חדשה לא תזלוג לעותק בשקט.
+מה שאינו מועתק - `status` (העותק **אינו מאושר**), `driver_ack_at`,
+`pending_change`, `departure_alerted_at`, `vehicle_request_id` ו-`ended_at`.
+מועד העותק מחושב ב**לקוח** (`duplicateSchedule`) ונשלח מפורשות, כי "אותה
+שעה, יום אחר" חייב להיחשב בשעון המקומי של העמדה - חישוב בשרת מול TIMESTAMPTZ
+היה זז בשעה במעבר שעון קיץ.
+
 ### הקישור לבקשות הכניסה החיות
 
 `vehicle_requests.permit_driver_id` (חדש, SET NULL) מקבע את הנהג שהותאם.

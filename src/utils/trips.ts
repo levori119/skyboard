@@ -199,6 +199,66 @@ export function dedupeRouteOptions<T extends RouteOptionLike>(options: T[]): (T 
 export const canApproveTrip = (status: TripStatus, hasOptions: boolean, chosenSig: string): boolean =>
   status !== 'approved' || !hasOptions || chosenSig !== '';
 
+// ── שכפול נסיעה ──────────────────────────────────────────────────────────────
+//
+// אותה נסיעה חוזרת על עצמה - אותו רכב, אותו נהג, אותו מסלול, יום אחר. שכפול
+// חוסך הקלדה מחדש של טופס שלם, ו**שכפול קבוצתי** מעביר יום שלם של נסיעות
+// קדימה בפעולה אחת.
+
+/**
+ * כמה עותקים מותר ליצור בפעולה אחת. הגבול אינו טכני אלא תפעולי: מי שמבקש
+ * מאה עותקים כנראה טעה בהקלדה, וגילוי הטעות אחרי היצירה יקר ממניעתה.
+ */
+export const MAX_TRIP_COPIES = 20;
+
+export const clampCopies = (n: unknown): number => {
+  const v = Math.floor(Number(n));
+  return Number.isFinite(v) ? Math.min(MAX_TRIP_COPIES, Math.max(1, v)) : 1;
+};
+
+/**
+ * מועד היציאה של עותק.
+ *
+ * `targetDate` (YYYY-MM-DD) מעביר את הנסיעה ליום אחר **ושומר את שעת היציאה
+ * שלה**. זה הדבר הנכון תפעולית ("כל נסיעות היום, מחר") וגם היחיד שנכון מול
+ * שעון קיץ: הזזה של 1440 דקות חוצה מעבר שעון ומזיזה את השעה בשעה, בעוד בנייה
+ * מחדש של התאריך המקומי עם אותה שעה נשארת נכונה.
+ *
+ * `intervalMinutes` הוא המרווח בין עותק לעותק, לנסיעה שחוזרת כמה פעמים באותו
+ * יום. נסיעה בלי מועד נשארת בלי מועד - עותק אינו המקום להמציא לה אחד.
+ */
+export function duplicateSchedule(
+  origIso: string | null | undefined,
+  targetDate: string,
+  copyIndex = 0,
+  intervalMinutes = 0,
+): string | null {
+  if (!origIso) return null;
+  const d = new Date(origIso);
+  if (!Number.isFinite(d.getTime())) return null;
+  let base = d;
+  if (targetDate) {
+    const p2 = (n: number) => String(n).padStart(2, '0');
+    const moved = new Date(`${targetDate}T${p2(d.getHours())}:${p2(d.getMinutes())}`);
+    if (!Number.isFinite(moved.getTime())) return null;
+    base = moved;
+  }
+  const shifted = new Date(base.getTime() + copyIndex * intervalMinutes * MS_PER_MIN);
+  return Number.isFinite(shifted.getTime()) ? shifted.toISOString() : null;
+}
+
+/**
+ * שדות שאינם עוברים לעותק: מצב חי שנוצר על ה**נסיעה המקורית** בלבד.
+ *
+ * ⚠️ `status` ביניהם בכוונה - **עותק אינו מאושר**. שכפול נסיעה מאושרת שהיה
+ * גורר את האישור היה מוציא לשטח רכב שאיש לא אישר, בדיוק בפעולה שנועדה לחסוך
+ * הקלדה. הפקח מאשר את העותק במפורש, כמו כל נסיעה חדשה.
+ */
+export const TRIP_FIELDS_NOT_COPIED = [
+  'status', 'driver_ack_at', 'pending_change', 'pending_change_at',
+  'departure_alerted_at', 'vehicle_request_id', 'ended_at',
+] as const;
+
 // ── תחנות ביניים ─────────────────────────────────────────────────────────────
 
 export interface TripStop {
