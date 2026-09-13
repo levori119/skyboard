@@ -253,6 +253,8 @@ export function authMiddleware(req, res, next) {
     personalId: claims.personalId ?? null,
     // ת"ז של נהג באפליקציית DRIVER - רק לאסימון נהג. ממנה נגזרות הנסיעות שלו.
     nationalId: role === ROLE.DRIVER ? (claims.nationalId ?? null) : null,
+    // הבסיסים שהנהג מורשה אליהם בהרשאת SKY-KING DRIVER במיראז'
+    baseIds: role === ROLE.DRIVER && Array.isArray(claims.baseIds) ? claims.baseIds : [],
     name: claims.name ?? null,
     role,
     isAdmin: role === ROLE.ADMIN,

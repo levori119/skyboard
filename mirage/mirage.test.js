@@ -225,6 +225,27 @@ describe("מיראז' — הרשאת עמדות", () => {
     ]);
   });
 
+  // הבסיסים שנהג מורשה אליהם ב-SKY-KING DRIVER נבחרים מהרשימה של SKY-KING,
+  // כדי שהמזהה שיגיע לאסימון יהיה המזהה הטכני של הבסיס ולא שם שהוקלד
+  it('workstation-options מחזיר גם את רשימת הבסיסים לבחירת הרשאת נהג', async () => {
+    const body = await (await getJson('/api/workstation-options')).json();
+    expect(body.bases).toEqual([{ id: 7, name: 'תל נוף' }]);
+  });
+
+  it('הרשאת SKY-KING DRIVER מחזירה ב-authorize את הבסיסים המורשים, רק כ-{id, name}', async () => {
+    await put('/api/users/5229214', {
+      apps: {
+        'SKY-KING': { roles: ['user'], workstations: [], positions: [] },
+        'SKY-KING DRIVER': { roles: ['user'], bases: [{ id: 7, name: 'תל נוף', junk: 1 }, { name: 'בלי מזהה' }] },
+      },
+    });
+    const body = await (await authorize('5229214', TEST_PW, 'SKY-KING DRIVER')).json();
+    expect(body.authorized).toBe(true);
+    expect(body.bases).toEqual([{ id: 7, name: 'תל נוף' }]);
+    // לאפליקציה בלי בסיסים - רשימה ריקה, בלי לשבור את הכניסה לעמדה
+    expect((await (await authorize('5229214')).json()).bases).toEqual([]);
+  });
+
   it('תפקידים מקצועיים (positions) הם ציר נפרד מ-roles ומוחזרים ב-authorize', async () => {
     await post('/api/users', {
       personalNumber: '4444444', firstName: 'שיר', lastName: 'לוי', password: TEST_PW,

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import pool from '../db/pool.js';
 import { captureChange } from '../gapi/hooks.js';
 import { resolveNotams } from '../utils/runwayState.js';
+import { driverScopeOf } from '../auth/driverIdentity.js';
 const router = new Router();
 
 // --- Aviation Bases API ---
@@ -13,7 +14,11 @@ const BASE_COLS = `id, name, code, coord_n, coord_e, sids, stars, created_at, pr
 
 router.get('/api/aviation-bases', async (req, res) => {
   try {
-    const result = await pool.query(`SELECT ${BASE_COLS} FROM aviation_bases ORDER BY name`);
+    // אפליקציית DRIVER: הנהג בוחר רק מבין הבסיסים שהוא מורשה אליהם במיראז'
+    const scope = driverScopeOf(req.user);
+    const result = scope.isDriver
+      ? await pool.query(`SELECT ${BASE_COLS} FROM aviation_bases WHERE id = ANY($1::int[]) ORDER BY name`, [scope.baseIds])
+      : await pool.query(`SELECT ${BASE_COLS} FROM aviation_bases ORDER BY name`);
     res.json(result.rows);
   } catch (err) { res.status(500).json({ error: 'Failed to fetch aviation bases' }); }
 });

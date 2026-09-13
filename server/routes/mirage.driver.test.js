@@ -13,7 +13,9 @@ let skyServer, mirageServer, base;
 let lastAuthorize = null;
 /** ת"ז -> תשובת המיראז' */
 const MIRAGE_USERS = {
-  '012345678': { authorized: true, app: 'DRIVER', roles: ['user'], user: { fullName: 'דני כהן' } },
+  '012345678': { authorized: true, app: 'SKY-KING DRIVER', roles: ['user'], bases: [{ id: 7, name: 'תל נוף' }], user: { fullName: 'דני כהן' } },
+  // מורשה לאפליקציה אבל לא שויך לאף בסיס
+  '033333334': { authorized: true, app: 'SKY-KING DRIVER', roles: ['user'], bases: [], user: { fullName: 'בלי בסיס' } },
   '087654321': { authorized: false, reason: 'app_not_permitted' },
   '011111118': { authorized: false, reason: 'bad_credentials' },
   '022222226': { authorized: false, reason: 'rate_limited' },
@@ -67,13 +69,23 @@ describe('כניסת נהג ל-DRIVER דרך המיראז\'', () => {
     const claims = verifyToken(body.token);
     expect(claims.role).toBe('driver');
     expect(claims.nationalId).toBe('012345678');
-    expect(body.driver).toEqual({ name: 'דני כהן', nationalId: '012345678' });
+    expect(claims.baseIds).toEqual([7]);
+    expect(body.driver).toEqual({ name: 'דני כהן', nationalId: '012345678', bases: [{ id: 7, name: 'תל נוף' }] });
   });
 
   // ההרשאה נבדקת מול אפליקציית DRIVER, לא מול SKY-KING - בקר אינו נהג מעצם היותו בקר
-  it('שואל את המיראז\' על אפליקציית DRIVER, עם הת"ז כשם המשתמש', async () => {
+  it('שואל את המיראז\' על אפליקציית SKY-KING DRIVER, עם הת"ז כשם המשתמש', async () => {
     await login({ nationalId: '012345678', password: 'Secret#2026' });
-    expect(lastAuthorize).toEqual({ app: 'DRIVER', personalNumber: '012345678', password: 'Secret#2026' });
+    expect(lastAuthorize).toEqual({ app: 'SKY-KING DRIVER', personalNumber: '012345678', password: 'Secret#2026' });
+  });
+
+  // נהג בלי בסיס אינו רואה דבר - עדיף לומר לו את זה בכניסה מאשר להציג אפליקציה ריקה
+  it('נהג מורשה שלא שויך לאף בסיס נדחה ב-403 no_base_permitted, בלי אסימון', async () => {
+    const res = await login({ nationalId: '033333334', password: 'Secret#2026' });
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toBe('no_base_permitted');
+    expect(body.token).toBeUndefined();
   });
 
   it('ת"ז שהוקלדה עם רווחים ומקפים נשלחת כספרות בלבד', async () => {

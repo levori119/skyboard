@@ -24,11 +24,31 @@ export const nationalIdSql = (col) =>
   `LPAD(NULLIF(REGEXP_REPLACE(COALESCE(${col}, ''), '[^0-9]', '', 'g'), ''), 9, '0')`;
 
 /**
- * האם הבקשה מגיעה מאפליקציית הנהג, ומה הת"ז שלו.
- * `nationalId` ריק אצל נהג = אסימון בלי זהות (למשל אסימון ישן מקוד הגישה
- * המשותף שבוטל) - הוא אינו רואה דבר.
+ * האם הבקשה מגיעה מאפליקציית הנהג, מה הת"ז שלו ובאילו בסיסים הוא מורשה.
+ *
+ * הבסיסים נבחרים לנהג בהרשאת SKY-KING DRIVER במיראז' ונחתמים באסימון.
+ * `nationalId` ריק אצל נהג = נהג **בלי זהות שמיש**: אסימון בלי ת"ז (קוד הגישה
+ * המשותף שבוטל), או בלי אף בסיס מורשה (אסימון מלפני הרשאת הבסיסים). הוא אינו
+ * רואה דבר, והאפליקציה מחזירה אותו למסך הכניסה.
  */
 export function driverScopeOf(user) {
   const isDriver = user?.role === 'driver';
-  return { isDriver, nationalId: isDriver ? normalizeNationalId(user?.nationalId) : '' };
+  if (!isDriver) return { isDriver, nationalId: '', baseIds: [] };
+  const baseIds = (Array.isArray(user?.baseIds) ? user.baseIds : [])
+    .map(Number).filter(n => Number.isInteger(n) && n > 0);
+  const nationalId = baseIds.length ? normalizeNationalId(user?.nationalId) : '';
+  return { isDriver, nationalId, baseIds };
+}
+
+/** עמדה - כל בסיס. נהג - רק בסיס שהוא מורשה אליו. */
+export const driverMayUseBase = (scope, baseId) =>
+  !scope.isDriver || (baseId != null && baseId !== '' && scope.baseIds.includes(Number(baseId)));
+
+/**
+ * middleware לנתיבי `/by-base/:baseId` (מפת הבסיס באפליקציית הנהג): נהג מקבל
+ * 403 על בסיס שאינו מורשה אליו. עמדה עוברת תמיד.
+ */
+export function driverBaseGuard(req, res, next) {
+  if (driverMayUseBase(driverScopeOf(req.user), req.params.baseId)) return next();
+  return res.status(403).json({ error: 'base_not_permitted', message: 'אינך מורשה לבסיס זה' });
 }

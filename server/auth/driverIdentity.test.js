@@ -1,6 +1,6 @@
 // זהות הנהג באפליקציית DRIVER - ת"ז מתוך האסימון, ולא מקלט הלקוח.
 import { describe, it, expect } from 'vitest';
-import { normalizeNationalId, driverScopeOf, nationalIdSql } from './driverIdentity.js';
+import { normalizeNationalId, driverScopeOf, driverMayUseBase, nationalIdSql } from './driverIdentity.js';
 
 describe('normalizeNationalId', () => {
   it('ת"ז מלאה נשארת כמו שהיא', () => {
@@ -27,17 +27,36 @@ describe('normalizeNationalId', () => {
 
 describe('driverScopeOf', () => {
   it('משתמש עמדה אינו מוגבל לנהג', () => {
-    expect(driverScopeOf({ role: 'user', nationalId: null })).toEqual({ isDriver: false, nationalId: '' });
-    expect(driverScopeOf(undefined)).toEqual({ isDriver: false, nationalId: '' });
+    expect(driverScopeOf({ role: 'user', nationalId: null })).toEqual({ isDriver: false, nationalId: '', baseIds: [] });
+    expect(driverScopeOf(undefined)).toEqual({ isDriver: false, nationalId: '', baseIds: [] });
   });
 
-  it('נהג מקבל את הת"ז שבאסימון, מנורמלת', () => {
-    expect(driverScopeOf({ role: 'driver', nationalId: '12345678' })).toEqual({ isDriver: true, nationalId: '012345678' });
+  it('נהג מקבל את הת"ז ואת הבסיסים שבאסימון', () => {
+    expect(driverScopeOf({ role: 'driver', nationalId: '12345678', baseIds: [7, '9'] }))
+      .toEqual({ isDriver: true, nationalId: '012345678', baseIds: [7, 9] });
   });
 
   // אסימון נהג ישן מקוד הגישה המשותף - נהג בלי זהות, ולכן בלי שום נסיעה
   it('נהג בלי ת"ז באסימון = נהג בלי זהות', () => {
-    expect(driverScopeOf({ role: 'driver' })).toEqual({ isDriver: true, nationalId: '' });
+    expect(driverScopeOf({ role: 'driver', baseIds: [7] }).nationalId).toBe('');
+  });
+
+  // אסימון מלפני הרשאת הבסיסים, או נהג שלא שויך לבסיס: אין לו מה לראות
+  it('נהג בלי בסיס מורשה = נהג בלי זהות', () => {
+    expect(driverScopeOf({ role: 'driver', nationalId: '012345678' }).nationalId).toBe('');
+    expect(driverScopeOf({ role: 'driver', nationalId: '012345678', baseIds: ['x'] }).nationalId).toBe('');
+  });
+});
+
+describe('driverMayUseBase', () => {
+  const driver = driverScopeOf({ role: 'driver', nationalId: '012345678', baseIds: [7] });
+  it('עמדה - כל בסיס', () => {
+    expect(driverMayUseBase(driverScopeOf({ role: 'user' }), 99)).toBe(true);
+  });
+  it('נהג - רק בסיס מורשה', () => {
+    expect(driverMayUseBase(driver, '7')).toBe(true);
+    expect(driverMayUseBase(driver, 8)).toBe(false);
+    expect(driverMayUseBase(driver, null)).toBe(false);
   });
 });
 

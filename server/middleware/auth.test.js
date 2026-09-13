@@ -184,7 +184,7 @@ describe('אסימון נהג - מוגבל לנתיבי הנהג בלבד', () =
   // הת"ז היא הזהות שממנה נגזרות "הנסיעות שלי" - היא חייבת להגיע ל-handler
   // מהאסימון החתום, ולא מכותרת או מפרמטר שהלקוח שולח
   it('הת"ז שבאסימון הנהג מגיעה ל-req.user', async () => {
-    const token = signToken({ role: 'driver', nationalId: '012345678', name: 'דני כהן' });
+    const token = signToken({ role: 'driver', nationalId: '012345678', name: 'דני כהן', baseIds: [7] });
     const body = await (await call('GET', '/api/driver-trips', token)).json();
     expect(body.user.role).toBe(ROLE.DRIVER);
     expect(body.user.nationalId).toBe('012345678');

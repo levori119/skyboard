@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
+import { driverBaseGuard } from '../auth/driverIdentity.js';
 import { sanitizeSvgBody } from '../../shared/sanitizeHtml.js';
 import { syncRunwayRoute } from '../utils/runwayRoute.js';
 import {
@@ -454,7 +455,7 @@ router.put('/api/airfields/:id/vector', async (req, res) => {
   }
 });
 
-router.get('/api/airfields/by-base/:baseId', async (req, res) => {
+router.get('/api/airfields/by-base/:baseId', driverBaseGuard, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT af.id, af.name, af.map_id, m.image_data IS NOT NULL as has_map
@@ -467,7 +468,7 @@ router.get('/api/airfields/by-base/:baseId', async (req, res) => {
 });
 
 // --- Airfield Points ---
-router.get('/api/airfield-points/by-base/:baseId', async (req, res) => {
+router.get('/api/airfield-points/by-base/:baseId', driverBaseGuard, async (req, res) => {
   try {
     const driverOnly = req.query.driver_only === 'true';
     const result = await pool.query(
@@ -558,7 +559,7 @@ router.get('/api/airfield-elements', async (req, res) => {
     res.json((await pool.query(q, params)).rows);
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
-router.get('/api/airfield-elements/by-base/:baseId', async (req, res) => {
+router.get('/api/airfield-elements/by-base/:baseId', driverBaseGuard, async (req, res) => {
   try {
     const driverOnly = req.query.driver_only === 'true';
     const result = await pool.query(

@@ -22,8 +22,10 @@ const call = (method, path, who, body) => fetch(`${base}${path}`, {
   body: body === undefined ? undefined : JSON.stringify(body),
 });
 
+/** כל נהג בבדיקות מורשה לבסיס 70 בלבד (ראה ה-middleware למטה) */
+const MY_BASE = 70;
 const newRequest = (who, over = {}) => call('POST', '/api/vehicle-requests', who, {
-  driver_name: 'דני', base_name: 'בסיס', supply_type: 'דלק', destination: 'מנשא', ...over,
+  driver_name: 'דני', base_name: 'בסיס', supply_type: 'דלק', destination: 'מנשא', base_id: MY_BASE, ...over,
 }).then(r => r.json());
 
 beforeAll(async () => {
@@ -66,7 +68,7 @@ beforeAll(async () => {
     const who = r.get('X-Test-User');
     r.user = who === 'station'
       ? { role: 'user', nationalId: null }
-      : { role: 'driver', nationalId: who || null };
+      : { role: 'driver', nationalId: who || null, baseIds: [MY_BASE] };
     next();
   });
   app.use(router);
@@ -85,6 +87,31 @@ describe('בקשות כניסת רכב - לפי זהות הנהג', () => {
   it('הבקשה נחתמת בת"ז של הנהג ששלח אותה, ולא בת"ז שבגוף הבקשה', async () => {
     const r = await newRequest(MY_TZ, { requester_national_id: OTHER_TZ });
     expect(r.requester_national_id).toBe(MY_TZ);
+  });
+
+  // ההרשאה במיראז' היא לבסיס: נהג אינו מבקש כניסה לבסיס שאינו מורשה אליו
+  it('נהג אינו שולח בקשת כניסה לבסיס שאינו מורשה אליו, או בלי בסיס', async () => {
+    const res = await call('POST', '/api/vehicle-requests', MY_TZ, {
+      driver_name: 'דני', base_name: 'אחר', supply_type: 'דלק', destination: 'מנשא', base_id: 80,
+    });
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toBe('base_not_permitted');
+    expect((await call('POST', '/api/vehicle-requests', MY_TZ, {
+      driver_name: 'דני', base_name: 'אחר', supply_type: 'דלק', destination: 'מנשא',
+    })).status).toBe(403);
+    // עמדה - כל בסיס
+    expect((await call('POST', '/api/vehicle-requests', 'station', {
+      driver_name: 'דני', base_name: 'אחר', supply_type: 'דלק', destination: 'מנשא', base_id: 80,
+    })).status).toBe(200);
+  });
+
+  // בקשה ישנה שלו בבסיס שההרשאה אליו הוסרה אינה מוצגת עוד
+  it('נהג אינו רואה את בקשתו בבסיס שאינו מורשה אליו עוד', async () => {
+    await newRequest(MY_TZ, { driver_name: 'בבסיס מורשה' });
+    await pool.query(`INSERT INTO vehicle_requests (driver_name, base_name, supply_type, destination, base_id, requester_national_id)
+                      VALUES ('בבסיס אחר', 'x', 'x', 'x', 80, $1)`, [MY_TZ]);
+    const rows = await (await call('GET', '/api/vehicle-requests', MY_TZ)).json();
+    expect(rows.map(r => r.driver_name)).toEqual(['בבסיס מורשה']);
   });
 
   it('נהג רואה רק את הבקשות שלו', async () => {

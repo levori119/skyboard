@@ -20,8 +20,8 @@ const localLimiter = createLoginLimiter();
 const MIRAGE_URL = process.env.MIRAGE_URL || 'http://127.0.0.1:7300';
 const MIRAGE_APP_NAME = process.env.MIRAGE_APP_NAME || 'SKY-KING';
 // אפליקציית הנהג היא אפליקציה נפרדת במיראז': הרשאה ל-SKY-KING אינה הופכת
-// בקר לנהג, והרשאה ל-DRIVER אינה פותחת עמדה.
-const MIRAGE_DRIVER_APP_NAME = process.env.MIRAGE_DRIVER_APP_NAME || 'DRIVER';
+// בקר לנהג, והרשאה ל-SKY-KING DRIVER אינה פותחת עמדה.
+const MIRAGE_DRIVER_APP_NAME = process.env.MIRAGE_DRIVER_APP_NAME || 'SKY-KING DRIVER';
 // 10ש' ולא 4: המיראז' שואל Neon, וההתעוררות הקרה שלו לוקחת ~6ש' —
 // timeout קצר גרם ל-"mirage_unavailable" מזויף בכניסה הראשונה
 const MIRAGE_TIMEOUT_MS = 10000;
@@ -377,12 +377,19 @@ router.post('/api/auth/driver', async (req, res) => {
   if (sendMirageDenial(res, mirage)) return;
 
   const name = mirage.body.user?.fullName || null;
+  // הבסיסים נבחרו לנהג בהרשאת SKY-KING DRIVER, מתוך רשימת הבסיסים של SKY-KING -
+  // ולכן המזהה הוא המזהה הטכני של aviation_bases. נהג בלי בסיס אינו רואה דבר,
+  // ועדיף לומר לו את זה כאן מאשר להכניס אותו לאפליקציה ריקה.
+  const bases = (Array.isArray(mirage.body.bases) ? mirage.body.bases : [])
+    .map(b => ({ id: Number(b?.id), name: String(b?.name ?? '') }))
+    .filter(b => Number.isInteger(b.id) && b.id > 0);
+  if (!bases.length) return res.status(403).json({ error: 'no_base_permitted' });
   // תוקף קצר יותר מעמדה: מכשיר נייד של נהג אובד בקלות רבה יותר מעמדת בקרה.
   const ttl = 8 * 60 * 60 * 1000;
   res.json({
-    token: signToken({ role: 'driver', nationalId, name }, ttl),
+    token: signToken({ role: 'driver', nationalId, name, baseIds: bases.map(b => b.id) }, ttl),
     expiresInMs: ttl,
-    driver: { name, nationalId },
+    driver: { name, nationalId, bases },
   });
 });
 

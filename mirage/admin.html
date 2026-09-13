@@ -31,8 +31,12 @@
   button.del { background: #b91c1c; padding: 4px 10px; font-size: 12px; }
   button.edit { background: #2563eb; padding: 4px 10px; font-size: 12px; margin-inline-end: 6px; }
   button.ghost { background: #475569; }
-  #wsBox, #posBox { grid-column: 1 / -1; background: #0f172a; border: 1px solid #475569; border-radius: 8px; padding: 10px 12px; }
-  #wsBox .title, #posBox .title { font-size: 12px; color: #94a3b8; margin-block-end: 8px; }
+  #basesList { display: flex; flex-wrap: wrap; gap: 4px 0; }
+  #basesList label { flex-direction: row; align-items: center; gap: 6px; font-size: 13px; color: #e2e8f0; cursor: pointer; display: inline-flex; margin-inline-end: 14px; }
+  #basesList input { width: 15px; height: 15px; cursor: pointer; }
+  .bases { color: #7dd3fc; font-size: 12px; display: block; margin-block-start: 3px; }
+  #wsBox, #posBox, #basesBox { grid-column: 1 / -1; background: #0f172a; border: 1px solid #475569; border-radius: 8px; padding: 10px 12px; }
+  #wsBox .title, #posBox .title, #basesBox .title { font-size: 12px; color: #94a3b8; margin-block-end: 8px; }
   #posList { display: flex; flex-wrap: wrap; gap: 4px 0; }
   #posList label { flex-direction: row; align-items: center; gap: 6px; font-size: 13px; color: #e2e8f0; cursor: pointer; display: inline-flex; margin-inline-end: 14px; }
   #posList input { width: 15px; height: 15px; cursor: pointer; }
@@ -94,13 +98,16 @@
     <label>מספר אישי / ת"ז <input name="personalNumber" required pattern="[0-9]+" placeholder="1234567 / 012345678"></label>
     <label>שם פרטי <input name="firstName" required></label>
     <label>שם משפחה <input name="lastName"></label>
-    <label>אפליקציה <input name="app" value="SKY-KING" list="appNames"></label>
-    <datalist id="appNames">
-      <option value="SKY-KING">עמדות בקרה ומגדל</option>
-      <option value="DRIVER">אפליקציית הנהג - שם המשתמש הוא ת"ז</option>
-    </datalist>
+    <!-- כל אפליקציה היא הרשאה נפרדת לאותו משתמש. בעריכה, החלפת האפליקציה טוענת
+         את ההרשאה הקיימת שלו באפליקציה הזו (או טופס ריק אם אין לו) -->
+    <label>אפליקציה
+      <select name="app" id="appSel">
+        <option value="SKY-KING">SKY-KING - עמדות בקרה ומגדל</option>
+        <option value="SKY-KING DRIVER">SKY-KING DRIVER - אפליקציית הנהג</option>
+      </select>
+    </label>
     <label>סיסמה <input name="password" type="password" autocomplete="new-password" placeholder="לפי התקן"></label>
-    <label>תפקיד
+    <label class="skyOnly">תפקיד
       <select name="role">
         <option value="admin">מנהל (admin)</option>
         <option value="team_lead">ראש צוות (team_lead)</option>
@@ -109,14 +116,20 @@
     </label>
     <!-- כח אדם היא הרשאה **נוספת** ולא חלופית: אפשר מנהל + כ"א, ראש צוות + כ"א
          או משתמש רגיל + כ"א. לכן תיבת סימון ולא עוד אפשרות בבורר התפקיד. -->
-    <label class="addon">הרשאה נוספת
+    <label class="addon skyOnly">הרשאה נוספת
       <span><input type="checkbox" id="manpowerCb"> 👥 כח אדם (manpower)</span>
     </label>
-    <div id="posBox">
+    <div id="posBox" class="skyOnly">
       <div class="title">🎖️ תפקידים מקצועיים (ריק = מופיע בכל התפריטים)</div>
       <div id="posList"></div>
     </div>
-    <div id="wsBox">
+    <!-- הרשאת נהג: שם המשתמש הוא ת"ז, וחובה לבחור לפחות בסיס אחד. הנהג יראה
+         באפליקציה רק את הבסיסים האלה, ורק נסיעות בשדות שלהם -->
+    <div id="basesBox" class="driverOnly" style="display:none">
+      <div class="title">🏛 בסיסים מורשים לנהג (חובה לבחור לפחות אחד). שם המשתמש של הנהג הוא ת"ז</div>
+      <div id="basesList"></div>
+    </div>
+    <div id="wsBox" class="skyOnly">
       <div class="title">🖥️ עמדות מורשות (ריק = כל העמדות)</div>
       <div id="wsList"></div>
       <input id="wsManual" placeholder="הזנה ידנית: שמות עמדות מופרדים בפסיק (השוואת טקסט)">
@@ -133,6 +146,7 @@
     הסיסמאות נשמרות מוצפנות (scrypt + salt) — לא ניתן לשחזר, רק להחליף. אחרי 5 ניסיונות כושלים — חסימה לדקה.<br>
     בדיקת הרשאה מאפליקציה: <code>POST /api/authorize</code> עם <code>{ "app": "SKY-KING", "personalNumber": "34234", "password": "..." }</code><br>
     התשובה: <code>{ "authorized": true, "roles": ["admin","manpower"], "workstations": [...], "positions": [...], ... }</code> — עמדה עם <code>id</code> מושווית לפי ID טכני, עמדה ידנית לפי טקסט השם.<br>
+    🚙 <b>SKY-KING DRIVER</b> (אפליקציית הנהג) היא הרשאה <b>נפרדת</b> מ-SKY-KING: שם המשתמש של הנהג הוא <b>ת"ז</b>, וחובה לבחור לו לפחות בסיס אחד. באפליקציה הוא יראה רק את הבסיסים האלה, ורק את הנסיעות שנרשמו לת"ז שלו בשדות שלהם. לאותו משתמש אפשר לתת גם SKY-KING וגם SKY-KING DRIVER - בוחרים אפליקציה בטופס ושומרים כל אחת בנפרד.<br>
     👥 <b>כח אדם</b> (<code>manpower</code>) היא הרשאה **נוספת** ולא חלופית — היא מצטרפת לתפקיד הבסיסי (מנהל / ראש צוות / משתמש רגיל) ופותחת את מסך "כ"א ותחקירים" ב-LOGIN. אינה מקנה הרשאת ניהול בפני עצמה.<br>
     🎖️ <b>תפקידים מקצועיים</b> (<code>positions</code>) הם ציר נפרד מההרשאה: הם קובעים מאיזה תפריט בטופס "חברי העמדה" ב-SKY-KING האדם ייבחר. בעמדת <b>יב"א</b> — בקר/משגיח בקר/אחורי מתפריט הבקרים; בעמדת <b>מגדל</b> — פקח/משגיח פקח/אחורי מתפריט הפקחים; מש"ק ומשגיחו מתפריט המש"קים; מפעיל ומשגיחו מתפריט המפעילים. ריק = מופיע בכל התפריטים. הסינון לפי עמדה מורשית חל תמיד.
   </p>
@@ -232,16 +246,46 @@ const esc = (s) => String(s ?? '')
 
 let USERS = [];
 let WS_OPTIONS = [];       // [{id, name}] מהאפליקציה (SKY-KING)
+let BASE_OPTIONS = [];     // [{id, name}] בסיסי SKY-KING - לבחירת הרשאת נהג
 let editingPn = null;      // מצב עריכה: המספר האישי הנערך
+
+// אפליקציית הנהג: שם המשתמש הוא ת"ז, וההרשאה היא לבסיסים ולא לעמדות ותפקידים
+const DRIVER_APP = 'SKY-KING DRIVER';
 
 // רשומת אפליקציה — תומך גם בפורמט הישן (מערך roles) וגם במורחב ({roles, workstations})
 const entryOf = (raw) => Array.isArray(raw)
-  ? { roles: raw, workstations: [], positions: [] }
+  ? { roles: raw, workstations: [], positions: [], bases: [] }
   : {
       roles: (raw && raw.roles) || [],
       workstations: (raw && raw.workstations) || [],
       positions: (raw && raw.positions) || [],
+      bases: (raw && raw.bases) || [],
     };
+
+/** מציג את שדות האפליקציה שנבחרה: עמדות ותפקידים ל-SKY-KING, בסיסים לנהג */
+function applyAppMode(appName) {
+  const isDriver = appName === DRIVER_APP;
+  document.querySelectorAll('.skyOnly').forEach(el => { el.style.display = isDriver ? 'none' : ''; });
+  document.querySelectorAll('.driverOnly').forEach(el => { el.style.display = isDriver ? '' : 'none'; });
+}
+
+function renderBases() {
+  const list = document.getElementById('basesList');
+  list.innerHTML = BASE_OPTIONS.length
+    ? [...BASE_OPTIONS].sort((a, b) => String(a.name).localeCompare(String(b.name), 'he'))
+      .map(b => `<label><input type="checkbox" data-baseid="${b.id}" data-basename="${esc(b.name)}"> ${esc(b.name)}</label>`).join('')
+    : '<span id="wsEmpty">⚠ רשימת הבסיסים לא נטענה מ-SKY-KING - אי אפשר לשייך נהג לבסיס עד שתיטען</span>';
+}
+
+const selectedBases = () => [...document.querySelectorAll('#basesList input:checked')]
+  .map(c => ({ id: Number(c.dataset.baseid), name: c.dataset.basename }));
+
+document.getElementById('appSel').onchange = (e) => {
+  // בעריכה: טוענים את ההרשאה הקיימת של המשתמש באפליקציה שנבחרה
+  const user = editingPn && USERS.find(u => u.personalNumber === editingPn);
+  if (user) fillForm(user, e.target.value);
+  else applyAppMode(e.target.value);
+};
 
 // תיבות התפקידים המקצועיים — סטטיות (אין תלות ב-SKY-KING, בניגוד לרשימת העמדות)
 document.getElementById('posList').innerHTML = POSITIONS
@@ -253,6 +297,8 @@ async function loadWsOptions() {
   const res = await fetch('/api/workstation-options');
   const body = await res.json();
   WS_OPTIONS = body.workstations;
+  BASE_OPTIONS = Array.isArray(body.bases) ? body.bases : [];
+  renderBases();
   const list = document.getElementById('wsList');
   if (!body.available) {
     // הבחנה בין שתי תקלות שונות לגמרי: שרת שלא רץ, לעומת אסימון שירות שנדחה.
@@ -319,6 +365,9 @@ function fillForm(user, appName) {
     else manual.push(w.name);
   }
   document.getElementById('wsManual').value = manual.join(', ');
+  const baseIds = entry.bases.map(b => Number(b.id));
+  document.querySelectorAll('#basesList input').forEach(c => { c.checked = baseIds.includes(Number(c.dataset.baseid)); });
+  applyAppMode(appName);
   f.password.value = '';
   f.password.placeholder = 'השאר ריק כדי לא לשנות';
   editingPn = user.personalNumber;
@@ -334,7 +383,9 @@ function resetForm() {
   f.password.placeholder = 'לפי התקן';
   document.querySelectorAll('#wsList input').forEach(c => { c.checked = false; });
   document.querySelectorAll('#posList input').forEach(c => { c.checked = false; });
+  document.querySelectorAll('#basesList input').forEach(c => { c.checked = false; });
   document.getElementById('manpowerCb').checked = false;
+  applyAppMode('SKY-KING');
   editingPn = null;
   document.getElementById('submitBtn').textContent = '➕ הוספת משתמש';
   document.getElementById('cancelBtn').style.display = 'none';
@@ -348,6 +399,10 @@ async function refresh() {
       <td>${esc(u.fullName)}${u.hasPassword ? '' : ' <span style="color:#f59e0b; font-size:11px;" title="המשתמש לא יוכל להתחבר עד שתוגדר לו סיסמה">⚠ אין סיסמה</span>'}</td>
       <td>${Object.entries(u.apps).map(([app, raw]) => {
         const e = entryOf(raw);
+        if (app === DRIVER_APP) {
+          return `<span class="appname">${esc(app)}:</span>` +
+            `<span class="bases">🏛 ${e.bases.length ? esc(e.bases.map(b => b.name).join(', ')) : '⚠ לא שויך לבסיס - לא יוכל להיכנס'}</span>`;
+        }
         return `<span class="appname">${esc(app)}:</span>` +
           e.roles.map(r => `<span class="role role-${esc(r)}">${esc(ROLE_LABELS[r] || r)}</span>`).join('') +
           e.positions.map(p => `<span class="pos">${esc(POSITION_LABELS[p] || p)}</span>`).join('') +
@@ -378,10 +433,21 @@ document.getElementById('userForm').onsubmit = async (e) => {
   e.preventDefault();
   const f = new FormData(e.target);
   const appName = f.get('app') || 'SKY-KING';
-  // כח אדם מצטרפת לתפקיד הבסיסי ולא מחליפה אותו
-  const roles = [f.get('role')];
-  if (document.getElementById('manpowerCb').checked) roles.push('manpower');
-  const entry = { roles, workstations: selectedWorkstations(), positions: selectedPositions() };
+  let entry;
+  if (appName === DRIVER_APP) {
+    // נהג בלי בסיס אינו יכול להיכנס - עוצרים כאן ולא משאירים הרשאה ריקה
+    const bases = selectedBases();
+    if (!bases.length) { msg('יש לבחור לפחות בסיס אחד לנהג', true); return; }
+    if (!/^\d{5,9}$/.test(String(f.get('personalNumber') || '').trim())) {
+      msg('לנהג - שם המשתמש הוא ת"ז (עד 9 ספרות)', true); return;
+    }
+    entry = { roles: ['user'], bases };
+  } else {
+    // כח אדם מצטרפת לתפקיד הבסיסי ולא מחליפה אותו
+    const roles = [f.get('role')];
+    if (document.getElementById('manpowerCb').checked) roles.push('manpower');
+    entry = { roles, workstations: selectedWorkstations(), positions: selectedPositions() };
+  }
   const password = f.get('password') || '';
   if (editingPn) {
     const user = USERS.find(u => u.personalNumber === editingPn);

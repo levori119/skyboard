@@ -29,9 +29,9 @@ const del = (p) => req('DELETE', p);
 
 // בקשה מאפליקציית DRIVER: הת"ז מגיעה מהאסימון (req.user), לא מהלקוח. כאן
 // middleware הבדיקה מציב את req.user כפי ש-middleware/auth.js היה מציב.
-const asDriver = nid => ({ 'X-Test-Driver': nid });
-const dget = (p, nid) => req('GET', p, undefined, asDriver(nid));
-const dpost = (p, nid, b) => req('POST', p, b, asDriver(nid));
+const asDriver = (nid, bases) => ({ 'X-Test-Driver': nid, ...(bases !== undefined ? { 'X-Test-Bases': bases } : {}) });
+const dget = (p, nid, bases) => req('GET', p, undefined, asDriver(nid, bases));
+const dpost = (p, nid, b, bases) => req('POST', p, b, asDriver(nid, bases));
 
 const AF = 1;
 const driver = (over = {}) => ({
@@ -50,7 +50,7 @@ beforeAll(async () => {
   const { listen } = await import('../listen.js');
 
   await pool.query(`CREATE TABLE public.airfields (
-    id SERIAL PRIMARY KEY, name VARCHAR(200) NOT NULL)`);
+    id SERIAL PRIMARY KEY, name VARCHAR(200) NOT NULL, base_id INTEGER)`);
   await pool.query(`CREATE TABLE public.airfield_polygons (
     id SERIAL PRIMARY KEY, airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
     name VARCHAR(200) NOT NULL DEFAULT '')`);
@@ -144,7 +144,9 @@ beforeAll(async () => {
   app.use(express.json({ limit: '10mb' }));
   app.use((r, _res, next) => {
     const nid = r.get('X-Test-Driver');
-    if (nid !== undefined) r.user = { role: 'driver', nationalId: nid };
+    // הנהג מורשה כברירת מחדל לבסיס 70, שבו יושב שדה א (AF)
+    const bases = (r.get('X-Test-Bases') ?? '70').split(',').filter(Boolean).map(Number);
+    if (nid !== undefined) r.user = { role: 'driver', nationalId: nid, baseIds: bases };
     next();
   });
   app.use(router);
@@ -167,7 +169,7 @@ beforeEach(async () => {
   await pool.query('DELETE FROM airfield_polygons');
   await pool.query('DELETE FROM vehicle_requests');
   await pool.query('DELETE FROM airfields');
-  await pool.query(`INSERT INTO airfields (id, name) VALUES (1, 'שדה א'), (2, 'שדה ב')`);
+  await pool.query(`INSERT INTO airfields (id, name, base_id) VALUES (1, 'שדה א', 70), (2, 'שדה ב', 80)`);
   await pool.query(`INSERT INTO airfield_polygons (id, airfield_id, name) VALUES (10, 1, 'מנשא צפוני')`);
   await pool.query(`INSERT INTO airfield_points (id, airfield_id, name) VALUES (20, 1, 'שער ראשי'), (21, 1, 'מסוף מטען')`);
   await pool.query(`INSERT INTO airfield_permit_params (id, airfield_id, kind, name, polygon_id) VALUES
@@ -621,6 +623,21 @@ describe('ניהול נסיעות - אפליקציית הנהג', () => {
   it('נסיעה בלי ת"ז אינה מוחזרת לאף נהג', async () => {
     await mkManualTrip({ driver_national_id: '' });
     expect(await (await dget('/api/driver-trips', '000000000')).json()).toEqual([]);
+  });
+
+  // ההרשאה במיראז' היא לבסיס: נסיעה שלו בשדה של בסיס אחר אינה מגיעה אליו
+  it('נסיעה בשדה של בסיס שהנהג אינו מורשה אליו אינה מוחזרת ואינה ניתנת לאישור', async () => {
+    await mkManualTrip({ vehicle_name: 'בסיס 70' });
+    const other = await mkManualTrip({ airfield_id: 2, vehicle_name: 'בסיס 80' });
+    const rows = await (await dget('/api/driver-trips', MY_TZ)).json();
+    expect(rows.map(r => r.vehicle_name)).toEqual(['בסיס 70']);
+    expect((await dpost(`/api/driver-trips/${other.id}/ack`, MY_TZ)).status).toBe(404);
+    // מורשה לשני הבסיסים - רואה את שתיהן
+    expect(await (await dget('/api/driver-trips', MY_TZ, '70,80')).json()).toHaveLength(2);
+  });
+
+  it('נהג בלי בסיס מורשה נדחה ב-403', async () => {
+    expect((await dget('/api/driver-trips', MY_TZ, '')).status).toBe(403);
   });
 
   it('נסיעה שהסתיימה אינה מוחזרת לנהג', async () => {

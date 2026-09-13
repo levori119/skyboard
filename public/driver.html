@@ -443,6 +443,7 @@ const DRIVER_LOGIN_ERRORS = {
   rate_limited: 'יותר מדי ניסיונות. נסה שוב בעוד דקה.',
   mirage_unavailable: 'מערכת ההרשאות אינה זמינה כרגע. נסה שוב.',
   driver_offline: 'כניסת נהגים אינה זמינה בעמדה מנותקת.',
+  no_base_permitted: 'לא שויכת לאף בסיס. פנה למנהל המערכת.',
 };
 
 function showDriverGate(errText) {
@@ -759,6 +760,7 @@ function updateGpsOnMap() {
 async function loadBases() {
   try {
     const res = await fetch(`${BASE}/api/aviation-bases`);
+    // השרת מחזיר לנהג רק את הבסיסים שהוא מורשה אליהם בהרשאת SKY-KING DRIVER
     const bases = await res.json();
     const sel = document.getElementById('baseSel');
     sel.innerHTML = '<option value="">-- בחר בסיס --</option>';
@@ -768,6 +770,11 @@ async function loadBases() {
       opt.textContent = b.name + (b.code ? ` (${b.code})` : '');
       sel.appendChild(opt);
     });
+    // בסיס מורשה יחיד - אין מה לבחור, חוסכים לנהג צעד
+    if (bases.length === 1 && !sel.value) {
+      sel.value = String(bases[0].id);
+      onBaseChange();
+    }
   } catch(e) {
     const sel = document.getElementById('baseSel');
     sel.innerHTML = '<option value="">שגיאה בטעינת בסיסים</option>';

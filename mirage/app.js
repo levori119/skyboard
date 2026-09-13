@@ -40,9 +40,12 @@ export function createMirageApp({ dataFile, skykingUrl, databaseUrl } = {}) {
   // workstations: [{ id, name }] (מהאפליקציה) או [{ name }] (הזנה ידנית — השוואת טקסט).
   // positions: תפקידים מקצועיים (KNOWN_POSITIONS). ריק = לא הוגדר, ולא "אף תפקיד" —
   // ראה ההערה ב-mirage-crew בצד SKY-KING.
+  // bases: [{ id, name }] - הבסיסים שנהג מורשה אליהם באפליקציית SKY-KING DRIVER.
+  // נבחרים מרשימת הבסיסים של SKY-KING, ולכן רק רשומה עם מזהה מספרי נשמרת: שם
+  // בלי מזהה אינו ניתן לאכיפה בצד SKY-KING.
   const appEntry = (user, appName) => {
     const entry = (user.apps || {})[appName];
-    if (Array.isArray(entry)) return { roles: entry, workstations: [], positions: [] };
+    if (Array.isArray(entry)) return { roles: entry, workstations: [], positions: [], bases: [] };
     if (entry && typeof entry === 'object') {
       return {
         roles: Array.isArray(entry.roles) ? entry.roles : [],
@@ -50,9 +53,14 @@ export function createMirageApp({ dataFile, skykingUrl, databaseUrl } = {}) {
         positions: Array.isArray(entry.positions)
           ? entry.positions.filter(p => KNOWN_POSITIONS.includes(p))
           : [],
+        bases: Array.isArray(entry.bases)
+          ? entry.bases
+            .filter(b => b && Number.isInteger(Number(b.id)) && b.id !== null && b.id !== '')
+            .map(b => ({ id: Number(b.id), name: String(b.name ?? '') }))
+          : [],
       };
     }
-    return { roles: [], workstations: [], positions: [] };
+    return { roles: [], workstations: [], positions: [], bases: [] };
   };
   // לעולם לא חושפים את ה-hash החוצה; hasPassword — למסך הניהול
   const publicUser = (u) => ({
@@ -270,12 +278,12 @@ export function createMirageApp({ dataFile, skykingUrl, databaseUrl } = {}) {
       return res.json({ authorized: false, reason: 'bad_credentials' });
     }
     rateLimit.success(personalNumber);
-    const { roles, workstations, positions } = appEntry(user, appName);
+    const { roles, workstations, positions, bases } = appEntry(user, appName);
     if (roles.length === 0) {
       return res.json({ authorized: false, reason: 'app_not_permitted' });
     }
-    // workstations ריק = אין הגבלת עמדות ממיראז'
-    res.json({ authorized: true, app: appName, roles, workstations, positions, user: publicUser(user) });
+    // workstations ריק = אין הגבלת עמדות ממיראז'. bases נאכף בצד SKY-KING (נהג בלי בסיס אינו נכנס)
+    res.json({ authorized: true, app: appName, roles, workstations, positions, bases, user: publicUser(user) });
   });
 
   // ── שמות העמדות מהאפליקציה (לתפריט הבחירה המרובה במסך הניהול) ─────────────
@@ -319,6 +327,8 @@ export function createMirageApp({ dataFile, skykingUrl, databaseUrl } = {}) {
           role: p.preset_role === 'tower' || p.preset_role === 'yaba' ? p.preset_role : null,
           base: p.parent_base_id != null ? baseName(p.parent_base_id) : null,
         })),
+        // לבחירת הבסיסים בהרשאת SKY-KING DRIVER
+        bases: bases.map(b => ({ id: b.id, name: b.name })),
       });
     } catch (e) {
       // האפליקציה לא זמינה — מסך הניהול עובר להזנה ידנית.
@@ -329,7 +339,7 @@ export function createMirageApp({ dataFile, skykingUrl, databaseUrl } = {}) {
         isToken
           ? `${e.message}. בדוק ש-MIRAGE_SERVICE_TOKEN מוגדר עם אותו ערך בשני התהליכים.`
           : (e?.cause?.code || e?.name || e?.message));
-      res.json({ available: false, workstations: [], reason: isToken ? 'bad_service_token' : 'unreachable' });
+      res.json({ available: false, workstations: [], bases: [], reason: isToken ? 'bad_service_token' : 'unreachable' });
     }
   });
 

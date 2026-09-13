@@ -580,41 +580,46 @@ router.post('/api/entry-permit-trips/:id/change/:decision', async (req, res) => 
 // הנהג מתחבר ל-DRIVER במיראז' עם **ת"ז**, והת"ז חתומה באסימון (routes/mirage.js
 // §/api/auth/driver). הנסיעות נשלפות **רק** לפיה - פרמטר ת"ז או טלפון מהלקוח
 // אינו מקנה דבר. נסיעה שייכת לנהג כשהת"ז שלו במרשם (driver_id) או שנרשמה על
-// הנסיעה עצמה לנהג מזדמן (driver_national_id). אסימון בלי ת"ז - עמדה, או אסימון
-// ישן מקוד הגישה המשותף שבוטל - מקבל 403.
+// הנסיעה עצמה לנהג מזדמן (driver_national_id). ובנוסף - הנסיעה בשדה של **בסיס
+// שהנהג מורשה אליו** בהרשאת SKY-KING DRIVER במיראז'. אסימון בלי ת"ז או בלי בסיס
+// (עמדה, או אסימון ישן) מקבל 403.
 
-/** תנאי השייכות לנהג: `$n` הוא הת"ז המנורמלת מהאסימון. */
+/**
+ * תנאי השייכות לנהג: `$n` הוא הת"ז המנורמלת מהאסימון, ו-`$(n+1)` מערך הבסיסים
+ * המורשים. בסיס הנסיעה נגזר מהשדה שלה (airfields.base_id).
+ */
 const tripOwnedBy = n =>
-  `$${n} IN (${nationalIdSql('d.national_id')}, ${nationalIdSql('t.driver_national_id')})`;
+  `$${n} IN (${nationalIdSql('d.national_id')}, ${nationalIdSql('t.driver_national_id')})
+   AND EXISTS (SELECT 1 FROM airfields a WHERE a.id = t.airfield_id AND a.base_id = ANY($${n + 1}::int[]))`;
 
-/** הת"ז מהאסימון, או 403. מחזיר `null` כשהתשובה כבר נשלחה. */
-function driverNationalId(req, res) {
-  const { nationalId } = driverScopeOf(req.user);
-  if (!nationalId) {
+/** זהות הנהג מהאסימון (ת"ז + בסיסים), או 403. מחזיר `null` כשהתשובה כבר נשלחה. */
+function driverScope(req, res) {
+  const scope = driverScopeOf(req.user);
+  if (!scope.nationalId) {
     res.status(403).json({ error: 'driver_identity_required', message: 'נדרשת כניסת נהג מזוהה' });
     return null;
   }
-  return nationalId;
+  return scope;
 }
 
 /**
  * האם הנסיעה שייכת לנהג. נסיעה של נהג אחר מחזירה 404 ולא 403 - הנהג אינו
  * לומד שקיימת נסיעה במזהה הזה.
  */
-const ownsTrip = async (id, nationalId) => (await pool.query(
+const ownsTrip = async (id, scope) => (await pool.query(
   `SELECT 1 FROM entry_permit_trips t LEFT JOIN entry_permit_drivers d ON d.id = t.driver_id
-    WHERE t.id = $1 AND ${tripOwnedBy(2)}`, [id, nationalId]
+    WHERE t.id = $1 AND ${tripOwnedBy(2)}`, [id, scope.nationalId, scope.baseIds]
 )).rows.length > 0;
 
 router.get('/api/driver-trips', async (req, res) => {
   try {
-    const nationalId = driverNationalId(req, res);
-    if (!nationalId) return;
+    const scope = driverScope(req, res);
+    if (!scope) return;
     const r = await pool.query(
       `${TRIP_SELECT}
         WHERE t.status <> 'ended' AND ${tripOwnedBy(1)}
         ORDER BY t.scheduled_at NULLS LAST, t.id LIMIT 50`,
-      [nationalId]
+      [scope.nationalId, scope.baseIds]
     );
     res.json(r.rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -623,9 +628,9 @@ router.get('/api/driver-trips', async (req, res) => {
 /** אישור הנהג. אינו משנה סטטוס - הסטטוס הוא הכרעת המגדל, וזו רק הצהרת הנהג. */
 router.post('/api/driver-trips/:id/ack', async (req, res) => {
   try {
-    const nationalId = driverNationalId(req, res);
-    if (!nationalId) return;
-    if (!(await ownsTrip(req.params.id, nationalId))) return res.status(404).json({ error: 'trip_not_found' });
+    const scope = driverScope(req, res);
+    if (!scope) return;
+    if (!(await ownsTrip(req.params.id, scope))) return res.status(404).json({ error: 'trip_not_found' });
     const r = await pool.query(
       `UPDATE entry_permit_trips SET driver_ack_at = NOW(), updated_at = NOW()
         WHERE id=$1 RETURNING id`, [req.params.id]
@@ -643,13 +648,13 @@ router.post('/api/driver-trips/:id/ack', async (req, res) => {
  */
 router.post('/api/driver-trips/:id/change', async (req, res) => {
   try {
-    const nationalId = driverNationalId(req, res);
-    if (!nationalId) return;
+    const scope = driverScope(req, res);
+    if (!scope) return;
     const b = req.body || {};
     const change = {};
     for (const f of DRIVER_EDITABLE_FIELDS) if (b[f] !== undefined) change[f] = b[f];
     if (!Object.keys(change).length) return res.status(400).json({ error: 'nothing_to_change' });
-    if (!(await ownsTrip(req.params.id, nationalId))) return res.status(404).json({ error: 'trip_not_found' });
+    if (!(await ownsTrip(req.params.id, scope))) return res.status(404).json({ error: 'trip_not_found' });
     const r = await pool.query(
       `UPDATE entry_permit_trips
           SET pending_change=$1, pending_change_at=NOW(), updated_at=NOW()

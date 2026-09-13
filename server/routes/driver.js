@@ -3,7 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import pool from '../db/pool.js';
 import { DRIVER_CSP } from '../middleware/securityHeaders.js';
-import { driverScopeOf } from '../auth/driverIdentity.js';
+import { driverScopeOf, driverMayUseBase } from '../auth/driverIdentity.js';
 const router = new Router();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -205,7 +205,11 @@ router.get('/api/vehicle-requests', async (req, res) => {
              ) pz ON TRUE`;
     const vals = [], where = [];
     if (status) { vals.push(status); where.push(`vr.status = $${vals.length}`); }
-    if (scope.isDriver) { vals.push(scope.nationalId); where.push(`vr.requester_national_id = $${vals.length}`); }
+    if (scope.isDriver) {
+      vals.push(scope.nationalId); where.push(`vr.requester_national_id = $${vals.length}`);
+      // בקשה בבסיס שההרשאה אליו הוסרה אינה מוצגת עוד
+      vals.push(scope.baseIds); where.push(`vr.base_id = ANY($${vals.length}::int[])`);
+    }
     if (where.length) q += ` WHERE ${where.join(' AND ')}`;
     q += ` ORDER BY vr.created_at DESC LIMIT 100`;
     const r = await pool.query(q, vals);
@@ -225,6 +229,9 @@ router.post('/api/vehicle-requests', async (req, res) => {
     const scope = requestScope(req, res);
     if (!scope) return;
     const { driver_name, base_name, supply_type, destination, origin = '', vehicle_type = '', plate_number = '', from_point_id, to_point_id, base_id } = req.body;
+    if (!driverMayUseBase(scope, base_id)) {
+      return res.status(403).json({ error: 'base_not_permitted', message: 'אינך מורשה לבסיס זה' });
+    }
     const r = await pool.query(
       `INSERT INTO vehicle_requests(driver_name, base_name, supply_type, destination, origin, vehicle_type, plate_number, from_point_id, to_point_id, base_id, requester_national_id)
        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
