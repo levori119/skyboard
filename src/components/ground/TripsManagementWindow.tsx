@@ -20,7 +20,7 @@
 // יושב בתוך #root ולכן מקבל את `zoom: var(--s)` אוטומטית - רק יחידות ה-vh
 // מחולקות ב---s ידנית (ראה /ui-adapt §מלכודת ה-vw/vh).
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { tr } from '../../i18n/tr';
 import i18n from '../../i18n';
 import { API_URL } from '../../config';
@@ -29,6 +29,7 @@ import { windowPalette, type ThemeMode, type WindowPalette } from '../../utils/w
 import { CTRL_H, WINDOW_SIZE, formStyles } from '../../utils/windowForm';
 import useDragPosition from '../../hooks/useDragPosition';
 import { useDockableWindow } from '../../hooks/useDockableWindow';
+import useAirfieldTrips from '../../hooks/useAirfieldTrips';
 import { customConfirm } from '../shared/ConfirmModal';
 import { PERMIT_STATUS_COLOR, effectivePermitStatus, permitStatusKey } from '../../utils/permitStatus';
 import {
@@ -336,6 +337,12 @@ const DuplicateDialog: React.FC<{
   );
 };
 
+/**
+ * קצב הריענון של רשימת הנסיעות. צפוף מההתראות (15 ש') כי זה המסך שבו הפקח
+ * עובד בפועל - שורה שמשתנה מולו צריכה להשתנות בזמן שהוא מסתכל עליה.
+ */
+const TRIPS_POLL_MS = 5_000;
+
 export interface TripsManagementWindowProps {
   /** השדה שהעמדה מוצמדת אליו. בלעדיו אין למי לשייך נסיעות */
   airfieldId: number | null;
@@ -354,7 +361,16 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
   const drag = useDragPosition(winRef);
   const { inputStyle, dateStyle, areaStyle, labelStyle, sectionStyle, btn } = formStyles(C, themeMode);
 
-  const [trips, setTrips] = useState<Trip[]>([]);
+  /**
+   * הנסיעות מתעדכנות **בזמן אמת** - סקר דרך המנוע המאוחד, ולא טעינה חד-פעמית
+   * בפתיחה. אחרת נסיעה שהנהג ביקש מהאפליקציה, אישור שעמדה אחרת נתנה או שינוי
+   * סטטוס מההתראה המתפרצת לא נראים עד שסוגרים ופותחים את החלון - והפקח מחליט
+   * מול רשימה ישנה בלי לדעת שהיא ישנה.
+   *
+   * הסקר אינו נוגע בטופס פתוח: הטיוטה נגזרת פעם אחת, בנקודת הפתיחה, ולכן ריענון
+   * לא ידרוס שדה שהפקח באמצע הקלדתו.
+   */
+  const { trips, reload: loadTrips } = useAirfieldTrips<Trip>(airfieldId, 'all', TRIPS_POLL_MS);
   const [drivers, setDrivers] = useState<PermitDriverLite[]>([]);
   const [params, setParams] = useState<PermitParam[]>([]);
   const [points, setPoints] = useState<AirfieldPoint[]>([]);
@@ -389,13 +405,6 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
   const selected = useMemo(() => trips.find(t => t.id === selectedId) || null, [trips, selectedId]);
 
   // ── טעינה ──────────────────────────────────────────────────────────────────
-  const loadTrips = useCallback(async () => {
-    if (!airfieldId) { setTrips([]); return; }
-    try {
-      const r = await fetch(`${API_URL}/trips?airfield_id=${airfieldId}`);
-      if (r.ok) setTrips(await r.json());
-    } catch { /* הרשת נופלת - הרשימה נשארת כפי שהיא */ }
-  }, [airfieldId]);
 
   useEffect(() => {
     if (!airfieldId) { setParams([]); setPoints([]); setDrivers([]); return; }
@@ -404,7 +413,6 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
     fetch(`${API_URL}/entry-permits?airfield_id=${airfieldId}`).then(r => r.ok ? r.json() : []).then(setDrivers).catch(() => {});
   }, [airfieldId]);
 
-  useEffect(() => { void loadTrips(); }, [loadTrips]);
 
   // ── מעבר בין רשימה לטופס ───────────────────────────────────────────────────
   //
@@ -630,9 +638,7 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
   /** הכרעת המגדל על שינוי שהנהג הציע - מוחלת בשרת כדי שלא תתפצל לשני מימושים. */
   const resolveChange = async (tripId: number, decision: 'approve' | 'reject') => {
     await fetch(`${API_URL}/entry-permit-trips/${tripId}/change/${decision}`, { method: 'POST' }).catch(() => {});
-    const fresh: Trip[] = await fetch(`${API_URL}/trips?airfield_id=${airfieldId}`)
-      .then(r => r.ok ? r.json() : []).catch(() => []);
-    setTrips(fresh);
+    const fresh = (await loadTrips()) ?? [];
     // הטיוטה נטענת מחדש: אישור שינוי משנה שדות שהפקח רואה מולו
     const t = fresh.find(x => x.id === tripId);
     if (t && mode === 'form' && selectedId === tripId) setDraft(draftOf(t));
