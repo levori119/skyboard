@@ -39,8 +39,24 @@ import {
   hasPendingDriverChange,
   isRouteChosen, normalizeEscorts, normalizeStops, pendingChangeFields,
   routeSignature, suggestedVehicleIcon, tripStatusKey,
-  type TripEscort, type TripStatus, type TripStop,
+  TRIP_GROUP_KEYS, groupTrips, quickApproveBlocker,
+  type TripEscort, type TripGroupKey, type TripStatus, type TripStop,
 } from '../../utils/trips';
+
+/** בחירת הקיבוץ נשמרת פר-עמדה: הפקח מקבץ כל משמרת באותה צורה. */
+const GROUP_BY_KEY = 'skyking-trips-group-by';
+const readGroupBy = (): TripGroupKey => {
+  try {
+    const v = localStorage.getItem(GROUP_BY_KEY);
+    return (TRIP_GROUP_KEYS as readonly string[]).includes(v || '') ? (v as TripGroupKey) : 'status';
+  } catch { return 'status'; }
+};
+
+const GROUP_LABEL_KEY: Record<TripGroupKey, string> = {
+  status: 'trips.groupStatus', tripType: 'trips.groupTripType', vehicle: 'trips.groupVehicle',
+  driver: 'trips.groupDriver', from: 'trips.groupFrom', to: 'trips.groupTo',
+  date: 'trips.groupDate', none: 'trips.groupNone',
+};
 
 export interface PermitParam { id: number; kind: string; name: string; active: boolean }
 export interface AirfieldPoint { id: number; name: string }
@@ -337,6 +353,12 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
   const [draft, setDraft] = useState<TripDraft>(EMPTY_DRAFT);
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<'upcoming' | 'history'>('upcoming');
+  /** קיבוץ הרשימה - ברירת מחדל סטטוס, ובתוך כל קבוצה לפי זמן */
+  const [groupBy, setGroupBy] = useState<TripGroupKey>(readGroupBy);
+  /** קבוצות מקופלות, לפי ערך הקבוצה */
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  /** נסיעה שאישור/דחייה מהרשימה שלה בדרך - מונע לחיצה כפולה */
+  const [quickBusy, setQuickBusy] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [routeLoading, setRouteLoading] = useState(false);
@@ -645,6 +667,44 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
       ].some(v => String(v ?? '').toLowerCase().includes(q)));
   }, [trips, search, tab, now]);
 
+  const groups = useMemo(
+    () => groupTrips(filtered, groupBy, tab === 'history' ? 'desc' : 'asc'),
+    [filtered, groupBy, tab],
+  );
+
+  const changeGroupBy = (v: TripGroupKey) => {
+    setGroupBy(v);
+    setCollapsed(new Set());
+    try { localStorage.setItem(GROUP_BY_KEY, v); } catch { /* אחסון חסום - הבחירה נשארת לסשן */ }
+  };
+
+  const groupLabel = (value: string): string => {
+    if (value === '') return tr('trips.groupEmpty');
+    if (groupBy === 'status') return tr(tripStatusKey(asTripStatus(value)));
+    if (groupBy === 'date') {
+      const [y, m, d] = value.split('-').map(Number);
+      return new Date(y, m - 1, d).toLocaleDateString(i18n.language === 'en' ? 'en-GB' : 'he-IL',
+        { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
+    }
+    return value;
+  };
+
+  /**
+   * אישור / דחייה ישירות מהרשימה. אישור נחסם כשצריך קודם לבחור נתיב
+   * (quickApproveBlocker) - אז הכפתור פותח את הטופס במקום לאשר.
+   */
+  const setTripStatusQuick = async (t: Trip, status: TripStatus) => {
+    setQuickBusy(t.id);
+    try {
+      await fetch(`${API_URL}/entry-permit-trips/${t.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      await loadTrips();
+    } catch { /* הרשת נופלת - השורה נשארת כמו שהיא והפקח מנסה שוב */ }
+    setQuickBusy(null);
+  };
+
   /** הנסיעות המסומנות בפועל. סימון של שורה שנעלמה מהסינון אינו נחשב. */
   const pickedTrips = useMemo(() => filtered.filter(t => picked.has(t.id)), [filtered, picked]);
   const allFilteredPicked = filtered.length > 0 && pickedTrips.length === filtered.length;
@@ -693,6 +753,16 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
         />
         <button onClick={() => setTab('upcoming')} style={tabBtn('upcoming')}>{tr('trips.tabUpcoming')}</button>
         <button onClick={() => setTab('history')} style={tabBtn('history')}>{tr('trips.tabHistory')}</button>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: C.muted, marginInlineStart: 6 }}>
+          {tr('trips.groupBy')}
+          <select
+            value={groupBy}
+            onChange={e => changeGroupBy(e.target.value as TripGroupKey)}
+            style={{ ...inputStyle, width: 'auto', minWidth: 110 }}
+          >
+            {TRIP_GROUP_KEYS.map(k => <option key={k} value={k}>{tr(GROUP_LABEL_KEY[k])}</option>)}
+          </select>
+        </label>
         <span style={{ flex: 1 }} />
         {pickedTrips.length > 0 && (
           <>
@@ -733,11 +803,32 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
                 <th style={th}>{tr('trips.colWhen')}</th>
                 <th style={th}>{tr('trips.colRoute')}</th>
                 <th style={th}>{tr('trips.colStatus')}</th>
-                <th style={{ ...th, width: 118 }} />
+                <th style={{ ...th, width: 230 }} />
               </tr>
             </thead>
             <tbody>
-              {filtered.map((t, i) => {
+              {groups.map(g => (
+              <React.Fragment key={`g:${g.value}`}>
+              {/* כותרת קבוצה - לחיצה מקפלת. בלי קיבוץ אין כותרת */}
+              {groupBy !== 'none' && (
+                <tr
+                  onClick={() => setCollapsed(prev => {
+                    const next = new Set(prev);
+                    if (next.has(g.value)) next.delete(g.value); else next.add(g.value);
+                    return next;
+                  })}
+                  style={{ cursor: 'pointer', background: C.head }}
+                >
+                  <td colSpan={10} style={{ ...td, fontWeight: 'bold', fontSize: 11, padding: '6px 8px' }}>
+                    <span style={{ display: 'inline-block', width: 14, color: C.muted }}>{collapsed.has(g.value) ? '▸' : '▾'}</span>
+                    {groupBy === 'status'
+                      ? <StatusChip status={asTripStatus(g.value)} />
+                      : <span>{groupLabel(g.value)}</span>}
+                    <span style={{ color: C.muted, fontWeight: 'normal', marginInlineStart: 8 }}>({g.trips.length})</span>
+                  </td>
+                </tr>
+              )}
+              {!collapsed.has(g.value) && g.trips.map((t, i) => {
                 const st = asTripStatus(t.status);
                 const when = splitLocalDateTime(t.scheduled_at);
                 const stopNames = Array.isArray(t.stop_names) ? (t.stop_names as string[]).filter(Boolean) : [];
@@ -799,6 +890,29 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
                       </div>
                     </td>
                     <td style={{ ...td, textAlign: 'end', whiteSpace: 'nowrap' }}>
+                      {/* אישור / דחייה ישירות מהרשימה. כשצריך קודם לבחור נתיב,
+                          הכפתור אומר את זה ופותח את הטופס - לא נדלק בלי שקורה משהו */}
+                      {(() => {
+                        const blocker = quickApproveBlocker(t);
+                        const busy = quickBusy === t.id;
+                        const quick = { height: 22, padding: '0 9px', marginInlineEnd: 4, opacity: busy ? 0.6 : 1, cursor: busy ? 'wait' : 'pointer' };
+                        return (
+                          <>
+                            {blocker === null && (
+                              <button disabled={busy} onClick={() => void setTripStatusQuick(t, 'approved')}
+                                style={{ ...btn('#22c55e'), ...quick }}>✓ {tr('trips.quickApprove')}</button>
+                            )}
+                            {blocker === 'route' && (
+                              <button onClick={() => openEdit(t)} title={tr('trips.quickApproveNeedsRouteHint')}
+                                style={{ ...btn('#f59e0b', '#0f172a'), ...quick }}>🧭 {tr('trips.quickApproveNeedsRoute')}</button>
+                            )}
+                            {st === 'pending' && (
+                              <button disabled={busy} onClick={() => void setTripStatusQuick(t, 'not_approved')}
+                                style={{ ...btn('#ef4444'), ...quick }}>✕ {tr('trips.quickReject')}</button>
+                            )}
+                          </>
+                        );
+                      })()}
                       <button onClick={() => openEdit(t)} style={{ ...btn('#334155', '#e2e8f0'), height: 22, padding: '0 10px' }}>
                         {tr('trips.edit')}
                       </button>
@@ -811,6 +925,8 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
                   </tr>
                 );
               })}
+              </React.Fragment>
+              ))}
             </tbody>
           </table>
         )}

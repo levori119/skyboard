@@ -46,6 +46,62 @@
       "he": "היסטוריה",
       "en": "History"
     },
+    "groupBy": {
+      "he": "קיבוץ לפי",
+      "en": "Group by"
+    },
+    "groupStatus": {
+      "he": "סטטוס",
+      "en": "Status"
+    },
+    "groupTripType": {
+      "he": "סוג נסיעה",
+      "en": "Trip type"
+    },
+    "groupVehicle": {
+      "he": "רכב",
+      "en": "Vehicle"
+    },
+    "groupDriver": {
+      "he": "נהג",
+      "en": "Driver"
+    },
+    "groupFrom": {
+      "he": "מוצא",
+      "en": "Origin"
+    },
+    "groupTo": {
+      "he": "יעד",
+      "en": "Destination"
+    },
+    "groupDate": {
+      "he": "תאריך",
+      "en": "Date"
+    },
+    "groupNone": {
+      "he": "ללא קיבוץ",
+      "en": "No grouping"
+    },
+    "groupEmpty": {
+      "he": "ללא",
+      "en": "None"
+    },
+    "quickApprove": {
+      "he": "אשר",
+      "en": "Approve"
+    },
+    "quickReject": {
+      "he": "דחה",
+      "en": "Reject"
+    },
+    "quickApproveNeedsRoute": {
+      "he": "בחר נתיב ואשר",
+      "en": "Pick route & approve"
+    },
+    "quickApproveNeedsRouteHint": {
+      "he": "לאישור הנסיעה צריך לבחור נתיב - פותח את הטופס",
+      "en": "A route must be chosen before approval - opens the form"
+    },
     "unnamedTrip": {
       "he": "נסיעה ללא רכב",
       "en": "Trip with no vehicle"

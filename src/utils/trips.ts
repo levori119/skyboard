@@ -226,6 +226,110 @@ export function routeInputSignature(d: {
 export const canApproveTrip = (status: TripStatus, hasOptions: boolean, chosenSig: string): boolean =>
   status !== 'approved' || !hasOptions || chosenSig !== '';
 
+/**
+ * אישור **מהרשימה**, בלי לפתוח את הטופס. מחזיר null כשמותר, או את הסיבה:
+ *   'status' - הנסיעה כבר מאושרת או הסתיימה; אין מה לאשר
+ *   'route'  - נסיעה בין שתי נקודות שדה שלא נבחר לה נתיב
+ *
+ * מחמיר מ-canApproveTrip בכוונה: שם הנתיבים כבר חושבו מול עיני הפקח, וכאן
+ * הם אולי מעולם לא חושבו (בקשה מאפליקציית הנהג). אישור כזה היה שולח את הנהג
+ * לדרך שאיש לא הסכים עליה. מוצא או יעד בטקסט חופשי - אין נתיב לחשב, ומאשרים.
+ */
+export function quickApproveBlocker(t: {
+  status: string;
+  from_point_id?: number | null;
+  to_point_id?: number | null;
+  selected_route_ids?: unknown;
+  selected_route_label?: string | null;
+}): 'status' | 'route' | null {
+  const st = asTripStatus(t.status);
+  if (st === 'approved' || st === 'ended') return 'status';
+  const chosen = (Array.isArray(t.selected_route_ids) && t.selected_route_ids.length > 0) || !!t.selected_route_label;
+  if (!chosen && t.from_point_id && t.to_point_id) return 'route';
+  return null;
+}
+
+// ── קיבוץ ומיון רשימת הנסיעות ────────────────────────────────────────────────
+//
+// הפקח מקבץ לפי כל עמודה ברשימה. ברירת המחדל היא **סטטוס**, ובו הממתינות
+// קודם: אלה הנסיעות שמחכות להכרעה שלו. בתוך כל קבוצה - לפי זמן היציאה.
+
+export const TRIP_GROUP_KEYS = ['status', 'tripType', 'vehicle', 'driver', 'from', 'to', 'date', 'none'] as const;
+export type TripGroupKey = (typeof TRIP_GROUP_KEYS)[number];
+
+/** סדר קבוצות הסטטוס: מה שממתין להכרעה בראש. */
+const STATUS_GROUP_ORDER: TripStatus[] = ['pending', 'approved', 'not_approved', 'ended'];
+
+interface GroupableTrip {
+  id: number;
+  status: string;
+  scheduled_at: string | null;
+  trip_type_name?: string | null;
+  vehicle_name?: string | null;
+  vehicle_type_name?: string | null;
+  permit_driver_name?: string | null;
+  driver_name?: string | null;
+  from_point_name?: string | null;
+  from_text?: string | null;
+  to_point_name?: string | null;
+  to_text?: string | null;
+}
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+/** ערך הקבוצה של נסיעה. ריק = "ללא". תאריך הוא YYYY-MM-DD בשעון המקומי. */
+export function tripGroupValue(t: GroupableTrip, by: TripGroupKey): string {
+  switch (by) {
+    case 'status': return asTripStatus(t.status);
+    case 'tripType': return t.trip_type_name || '';
+    case 'vehicle': return t.vehicle_name || t.vehicle_type_name || '';
+    case 'driver': return t.permit_driver_name || t.driver_name || '';
+    case 'from': return t.from_point_name || t.from_text || '';
+    case 'to': return t.to_point_name || t.to_text || '';
+    case 'date': {
+      const d = t.scheduled_at ? new Date(t.scheduled_at) : null;
+      return d && Number.isFinite(d.getTime()) ? `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` : '';
+    }
+    default: return '';
+  }
+}
+
+const tripTime = (t: GroupableTrip): number | null => {
+  const v = t.scheduled_at ? new Date(t.scheduled_at).getTime() : NaN;
+  return Number.isFinite(v) ? v : null;
+};
+
+/**
+ * קיבוץ ומיון. `order`: 'asc' מהמוקדמת (נסיעות עתידיות), 'desc' מהאחרונה
+ * (היסטוריה). נסיעה בלי מועד תמיד בסוף הקבוצה.
+ */
+export function groupTrips<T extends GroupableTrip>(
+  trips: T[], by: TripGroupKey, order: 'asc' | 'desc' = 'asc',
+): { value: string; trips: T[] }[] {
+  const byTime = (a: T, b: T) => {
+    const ta = tripTime(a); const tb = tripTime(b);
+    if (ta === null && tb === null) return a.id - b.id;
+    if (ta === null) return 1;
+    if (tb === null) return -1;
+    return (order === 'asc' ? ta - tb : tb - ta) || a.id - b.id;
+  };
+  if (by === 'none') return [{ value: '', trips: [...trips].sort(byTime) }];
+
+  const groups = new Map<string, T[]>();
+  for (const t of trips) {
+    const v = tripGroupValue(t, by);
+    if (!groups.has(v)) groups.set(v, []);
+    groups.get(v)!.push(t);
+  }
+  const values = [...groups.keys()].sort((a, b) => {
+    if (by === 'status') return STATUS_GROUP_ORDER.indexOf(a as TripStatus) - STATUS_GROUP_ORDER.indexOf(b as TripStatus);
+    if (a === '' || b === '') return a === '' ? 1 : -1;
+    if (by === 'date') return order === 'asc' ? a.localeCompare(b) : b.localeCompare(a);
+    return a.localeCompare(b, 'he');
+  });
+  return values.map(value => ({ value, trips: groups.get(value)!.sort(byTime) }));
+}
+
 // ── שכפול נסיעה ──────────────────────────────────────────────────────────────
 //
 // אותה נסיעה חוזרת על עצמה - אותו רכב, אותו נהג, אותו מסלול, יום אחר. שכפול

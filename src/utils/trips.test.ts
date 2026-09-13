@@ -5,7 +5,7 @@ import {
   asTripStatus, canApproveTrip, dedupeRouteOptions, hasPendingDriverChange, isDepartureAlertDue,
   isDriverActionFresh, isNewDriverRequest, isRouteChosen, isVehicleOnMap, routeInputSignature, routeSignature,
   minutesUntilDeparture, normalizeEscorts, normalizeStops, pendingChangeFields,
-  stopLabel, suggestedVehicleIcon, tripIcon, tripStatusKey,
+  stopLabel, suggestedVehicleIcon, tripIcon, tripStatusKey, groupTrips, tripGroupValue, quickApproveBlocker,
 } from './trips';
 
 const NOW = new Date('2026-09-12T10:00:00Z').getTime();
@@ -359,5 +359,84 @@ describe('עדכון מהנהג הממתין לאישור המגדל', () => {
     expect(pendingChangeFields({ pending_change: { note: 'x', scheduled_at: 'y' } }))
       .toEqual(['scheduled_at', 'note']);
     expect(pendingChangeFields({ pending_change: null })).toEqual([]);
+  });
+});
+
+describe('קיבוץ ומיון רשימת הנסיעות', () => {
+  const trip = (id: number, over: Record<string, unknown> = {}) => ({
+    id, status: 'pending', scheduled_at: null as string | null,
+    trip_type_name: null, vehicle_name: '', vehicle_type_name: null,
+    permit_driver_name: null, driver_name: '', from_point_name: null, from_text: '',
+    to_point_name: null, to_text: '', ...over,
+  });
+  const T = (h: number) => new Date(2026, 8, 14, h, 0).toISOString();
+  const trips = [
+    trip(1, { status: 'approved', scheduled_at: T(12), trip_type_name: 'אספקה' }),
+    trip(2, { status: 'pending', scheduled_at: T(10), trip_type_name: 'הסעה' }),
+    trip(3, { status: 'approved', scheduled_at: T(8), trip_type_name: 'אספקה' }),
+    trip(4, { status: 'not_approved', scheduled_at: T(9) }),
+    trip(5, { status: 'pending', scheduled_at: null }),
+  ];
+
+  // ברירת המחדל: מה שממתין להכרעה קודם, ובכל קבוצה מהמוקדמת
+  it('לפי סטטוס: ממתין, יש אישור, אין אישור, הסתיים - ובכל קבוצה לפי זמן', () => {
+    const g = groupTrips(trips, 'status');
+    expect(g.map(x => x.value)).toEqual(['pending', 'approved', 'not_approved']);
+    expect(g[0].trips.map(t => t.id)).toEqual([2, 5]);
+    expect(g[1].trips.map(t => t.id)).toEqual([3, 1]);
+  });
+
+  it('בהיסטוריה - האחרונה ראשונה', () => {
+    expect(groupTrips(trips, 'status', 'desc')[1].trips.map(t => t.id)).toEqual([1, 3]);
+  });
+
+  it('לפי עמודה טקסטואלית: קבוצות לפי א-ב, וקבוצה ריקה בסוף', () => {
+    const g = groupTrips(trips, 'tripType');
+    expect(g.map(x => x.value)).toEqual(['אספקה', 'הסעה', '']);
+    expect(g[0].trips.map(t => t.id)).toEqual([3, 1]);
+  });
+
+  it('לפי תאריך: כרונולוגי, ובלי מועד בסוף', () => {
+    const g = groupTrips([trip(1, { scheduled_at: new Date(2026, 8, 15, 9).toISOString() }), trip(2, { scheduled_at: T(8) }), trip(3)], 'date');
+    expect(g.map(x => x.value)).toEqual(['2026-09-14', '2026-09-15', '']);
+  });
+
+  it('ללא קיבוץ: קבוצה אחת ממוינת לפי זמן', () => {
+    const g = groupTrips(trips, 'none');
+    expect(g).toHaveLength(1);
+    expect(g[0].trips.map(t => t.id)).toEqual([3, 4, 2, 1, 5]);
+  });
+
+  it('רכב, נהג, מוצא ויעד נקראים מהשם שבמרשם ואז מהטקסט', () => {
+    const t = trip(9, {
+      vehicle_type_name: 'מיניבוס', permit_driver_name: 'דני', driver_name: 'אחר',
+      from_text: 'שער', to_point_name: 'מחסן', to_text: 'x',
+    });
+    expect(tripGroupValue(t, 'vehicle')).toBe('מיניבוס');
+    expect(tripGroupValue(t, 'driver')).toBe('דני');
+    expect(tripGroupValue(t, 'from')).toBe('שער');
+    expect(tripGroupValue(t, 'to')).toBe('מחסן');
+  });
+});
+
+describe('אישור מהרשימה', () => {
+  const base = { status: 'pending', from_point_id: 20, to_point_id: 21, selected_route_ids: [] as unknown, selected_route_label: '' };
+
+  it('נסיעה עם נתיב שנבחר - מאשרים ישר מהרשימה', () => {
+    expect(quickApproveBlocker({ ...base, selected_route_ids: [3], selected_route_label: 'כביש 1' })).toBeNull();
+  });
+
+  // אישור בלי נתיב שולח את הנהג לדרך שאיש לא הסכים עליה
+  it('נסיעה בין שתי נקודות בלי נתיב שנבחר - צריך לבחור נתיב', () => {
+    expect(quickApproveBlocker(base)).toBe('route');
+  });
+
+  it('מוצא או יעד בטקסט חופשי - אין נתיב לחשב, ומאשרים', () => {
+    expect(quickApproveBlocker({ ...base, to_point_id: null })).toBeNull();
+  });
+
+  it('נסיעה שכבר מאושרת או הסתיימה - אין מה לאשר', () => {
+    expect(quickApproveBlocker({ ...base, status: 'approved' })).toBe('status');
+    expect(quickApproveBlocker({ ...base, status: 'ended' })).toBe('status');
   });
 });
