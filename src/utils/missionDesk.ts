@@ -369,13 +369,14 @@ export function mdPruneMapConfig(
 // רכיבים בדיוק, מוטמעים במשבצת במקום לצוף. אילו טבלאות - נקבע בהגדרת העמדה.
 
 /** הקטלוג, בסדר שבו הטבלאות מוצגות בבורר ובלשוניות המשבצת. */
-export const MD_VIEW_TABLES: readonly { key: MDViewTableKey; icon: string; labelKey: string }[] = [
-  { key: 'elements', icon: '🧩', labelKey: 'missiondesk.vtElements' },
-  { key: 'trips', icon: '🚙', labelKey: 'missiondesk.vtTrips' },
-  { key: 'drivers', icon: '🪪', labelKey: 'missiondesk.vtDrivers' },
-  { key: 'quantities', icon: '🔢', labelKey: 'missiondesk.vtQuantities' },
-  { key: 'messages', icon: '📡', labelKey: 'missiondesk.vtMessages' },
-  { key: 'container', icon: '🗂', labelKey: 'missiondesk.vtContainer' },
+/** `perStation` - הטבלה מוצגת לפי עמדה נבחרת. קונטיינר החלונות אינו שייך לעמדה. */
+export const MD_VIEW_TABLES: readonly { key: MDViewTableKey; icon: string; labelKey: string; perStation: boolean }[] = [
+  { key: 'elements', icon: '🧩', labelKey: 'missiondesk.vtElements', perStation: true },
+  { key: 'trips', icon: '🚙', labelKey: 'missiondesk.vtTrips', perStation: true },
+  { key: 'drivers', icon: '🪪', labelKey: 'missiondesk.vtDrivers', perStation: true },
+  { key: 'quantities', icon: '🔢', labelKey: 'missiondesk.vtQuantities', perStation: true },
+  { key: 'messages', icon: '📡', labelKey: 'missiondesk.vtMessages', perStation: true },
+  { key: 'container', icon: '🗂', labelKey: 'missiondesk.vtContainer', perStation: false },
 ];
 
 const VIEW_TABLE_KEYS = MD_VIEW_TABLES.map(t => t.key);
@@ -392,9 +393,18 @@ export function mdViewTablesSettings(cfg: MDPresetViewTablesConfig | undefined |
   const raw = (cfg || {})[String(serviceId)] as Partial<MDPresetViewTablesSettings> | undefined;
   const picked = new Set(Array.isArray(raw?.tables) ? raw!.tables.map(String) : []);
   const af = Number(raw?.airfield_id);
+  const tables = VIEW_TABLE_KEYS.filter(k => picked.has(k));
+  const rawStations = (raw?.stations && typeof raw.stations === 'object') ? raw.stations as Record<string, unknown> : {};
+  const stations: MDPresetViewTablesSettings['stations'] = {};
+  for (const t of MD_VIEW_TABLES) {
+    if (!t.perStation || !tables.includes(t.key)) continue;
+    const id = Number(rawStations[t.key]);
+    if (Number.isInteger(id) && id > 0) stations[t.key] = id;
+  }
   return {
-    tables: VIEW_TABLE_KEYS.filter(k => picked.has(k)),
+    tables,
     airfield_id: Number.isFinite(af) && af > 0 ? af : null,
+    stations,
   };
 }
 
@@ -431,7 +441,55 @@ export function mdViewTableOwners(
   return owners;
 }
 
-/** האם נבחרה במשבצת טבלה שדורשת שדה תעופה. */
+/**
+ * האם נבחרה במשבצת טבלה שדורשת את שדה התעופה של המשבצת: נסיעות או נהגים
+ * שמוצגים לפי **העמדה הזו**. לפי עמדה אחרת - השדה מגיע מאותה עמדה.
+ */
 export function mdViewTablesNeedAirfield(settings: MDPresetViewTablesSettings): boolean {
-  return settings.tables.some(k => AIRFIELD_TABLES.includes(k));
+  return settings.tables.some(k => AIRFIELD_TABLES.includes(k) && settings.stations?.[k] == null);
+}
+
+/** השדות של עמדה שהטבלאות צריכות - תת-קבוצה של שורת workstation_presets */
+export interface MDSourcePreset {
+  id: number;
+  name?: string | null;
+  airfield_id?: number | null;
+  parent_base_id?: number | null;
+  [k: string]: unknown;
+}
+
+export interface MDViewTableSource {
+  /** העמדה שלפיה הטבלה מוצגת */
+  presetId: number;
+  /** שורת העמדה, או null כשנבחרה עמדה שכבר לא קיימת */
+  preset: MDSourcePreset | null;
+  isSelf: boolean;
+  /** נבחרה עמדה שנמחקה - מציגים הסבר, לא נופלים בשקט לעמדה הזו */
+  missing: boolean;
+  airfieldId: number | null;
+  parentBaseId: number | null;
+}
+
+/** לפי איזו עמדה מוצגת טבלה במשבצת, ומה הבסיס והשדה שנגזרים ממנה. */
+export function mdViewTableSource(
+  settings: MDPresetViewTablesSettings,
+  key: MDViewTableKey,
+  current: MDSourcePreset,
+  presets: MDSourcePreset[] | undefined | null,
+): MDViewTableSource {
+  const chosen = settings.stations?.[key];
+  const isSelf = chosen == null || Number(chosen) === Number(current.id);
+  const preset = isSelf ? current : ((presets || []).find(p => Number(p.id) === Number(chosen)) || null);
+  const num = (v: unknown) => (v != null && Number(v) > 0 ? Number(v) : null);
+  const airfieldId = !preset ? null
+    : isSelf ? (settings.airfield_id ?? num(current.airfield_id))
+    : num(preset.airfield_id);
+  return {
+    presetId: isSelf ? Number(current.id) : Number(chosen),
+    preset,
+    isSelf,
+    missing: !preset,
+    airfieldId,
+    parentBaseId: preset ? num(preset.parent_base_id) : null,
+  };
 }

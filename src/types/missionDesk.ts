@@ -90,8 +90,12 @@ export const mdEmptyMapSettings = (): MDPresetMapSettings =>
 export type MDViewTableKey = 'elements' | 'trips' | 'drivers' | 'quantities' | 'messages' | 'container';
 export interface MDPresetViewTablesSettings {
   tables: MDViewTableKey[];
-  // לנסיעות ולנהגים: לעמדת דסק אין שדה תעופה משלה, ולכן הוא נבחר כאן
+  // לנסיעות ולנהגים של **העמדה הזו**: לעמדת דסק אין שדה תעופה משלה, ולכן הוא נבחר כאן.
+  // טבלה שמוצגת לפי עמדה אחרת לוקחת את השדה של אותה עמדה.
   airfield_id: number | null;
+  // לפי איזו עמדה מוצגת כל טבלה (הבסיס, השדה, חלונות הנתונים, לוח ההודעות שלה).
+  // טבלה בלי ערך - לפי העמדה הזו.
+  stations: Partial<Record<MDViewTableKey, number>>;
 }
 export type MDPresetViewTablesConfig = Record<string, MDPresetViewTablesSettings>;
 

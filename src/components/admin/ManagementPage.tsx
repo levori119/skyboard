@@ -1330,7 +1330,7 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                     airfields={adminAirfields.map((a: any) => ({ id: Number(a.id), name: a.name }))}
                     parentBaseId={presetForm.parent_base_id || null}
                     onChange={patch => setPresetForm(p => ({ ...p, ...patch } as any))}
-                    allPresets={presets.map((p: any) => ({ id: p.id, name: p.name, preset_type: p.preset_type, mission_desk_id: p.mission_desk_id }))}
+                    allPresets={presets.map((p: any) => ({ id: p.id, name: p.name, preset_type: p.preset_type, mission_desk_id: p.mission_desk_id, airfield_id: p.airfield_id ?? null, parent_base_id: p.parent_base_id ?? null, parent_base_name: p.parent_base_name ?? null }))}
                     currentPresetId={editingPreset?.id ?? null}
                     currentPresetName={presetForm.name || editingPreset?.name || ''}
                     crewName={crewMember?.name}

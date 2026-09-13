@@ -3,7 +3,7 @@
 //     ועורך פריסה BSP (פיצול אזורים, גרירת שירות לאזור) — אותה תבנית כמו חלון סטריפים.
 //   · MissionDeskPresetConfig — בעורך העמדה: בחירת דסק + הגדרת שיתוף פר-שירות.
 // קובץ נפרד מ-managers.tsx (שכבר ענק) — ראה תכנית ARCH.
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { tr } from '../../i18n/tr';
 import { API_URL } from '../../config';
 import { customConfirm } from '../shared/ConfirmModal';
@@ -708,19 +708,49 @@ function MapWindowSettings({ settings, maps, sectors, boundStrips, onChange }: {
 // משבצת "טבלאות מתצוגה" בעורך העמדה: אילו טבלאות מתפריט התצוגה נפתחות בה.
 // אותן טבלאות בדיוק כמו בתפריט - מוטמעות במשבצת במקום לצוף.
 // ─────────────────────────────────────────────────────────────────────────────
-function ViewTablesSettings({ settings, airfields, hasParentBase, onChange }: {
+type StationOption = { id: number; name: string; airfield_id?: number | null; parent_base_id?: number | null; parent_base_name?: string | null };
+
+function ViewTablesSettings({ settings, airfields, hasParentBase, stations, currentPresetId, onChange }: {
   settings: MDPresetViewTablesSettings;
   airfields: { id: number; name: string }[];
   hasParentBase: boolean;
+  /** העמדות שלפיהן אפשר להציג טבלה */
+  stations: StationOption[];
+  currentPresetId: number | null;
   onChange: (s: MDPresetViewTablesSettings) => void;
 }) {
   const toggle = (key: MDViewTableKey, on: boolean) => {
     const next = new Set(settings.tables);
     if (on) next.add(key); else next.delete(key);
-    // סדר הקטלוג נשמר - הוא סדר הלשוניות במשבצת
-    onChange({ ...settings, tables: MD_VIEW_TABLES.map(t => t.key).filter(k => next.has(k)) });
+    // סדר הקטלוג נשמר - הוא סדר הלשוניות במשבצת. עמדת מקור של טבלה שהוסרה נמחקת
+    const tables = MD_VIEW_TABLES.map(t => t.key).filter(k => next.has(k));
+    const stationsOf = { ...settings.stations };
+    if (!on) delete stationsOf[key];
+    onChange({ ...settings, tables, stations: stationsOf });
+  };
+  const setStation = (key: MDViewTableKey, id: number | null) => {
+    const next = { ...settings.stations };
+    if (id == null) delete next[key]; else next[key] = id;
+    onChange({ ...settings, stations: next });
   };
   const needAirfield = mdViewTablesNeedAirfield(settings);
+  const others = stations
+    .filter(p => Number(p.id) !== Number(currentPresetId))
+    .sort((a, b) => (a.parent_base_name || '').localeCompare(b.parent_base_name || '', 'he') || a.name.localeCompare(b.name, 'he'));
+  const bases = Array.from(new Set(others.map(p => p.parent_base_name || '')));
+  const perStation = MD_VIEW_TABLES.filter(t => t.perStation && settings.tables.includes(t.key));
+  const elementsSelf = settings.tables.includes('elements') && settings.stations.elements == null;
+
+  /** אזהרה לעמדת מקור שחסר לה מה שהטבלה צריכה */
+  const sourceWarning = (key: MDViewTableKey, st: StationOption | undefined): string | null => {
+    const id = settings.stations[key];
+    if (id == null) return null;
+    if (!st) return tr('missiondesk.viewTablesStationMissing');
+    if ((key === 'trips' || key === 'drivers') && !st.airfield_id) return tr('missiondesk.viewTablesStationNoAirfield');
+    if (key === 'elements' && !st.parent_base_id) return tr('missiondesk.viewTablesStationNoBase');
+    return null;
+  };
+
   return (
     <div>
       <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6 }}>{tr('missiondesk.viewTablesPickHint')}</div>
@@ -740,7 +770,44 @@ function ViewTablesSettings({ settings, airfields, hasParentBase, onChange }: {
       {settings.tables.length > 1 && (
         <div style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>{tr('missiondesk.viewTablesTabsHint')}</div>
       )}
-      {settings.tables.includes('elements') && !hasParentBase && (
+
+      {/* לפי איזו עמדה מוצגת כל טבלה - הבסיס, השדה, חלונות הנתונים והלוח שלה */}
+      {perStation.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <label style={S.label}>{tr('missiondesk.viewTablesByStation')}</label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {perStation.map(t => {
+              const id = settings.stations[t.key];
+              const st = id != null ? stations.find(p => Number(p.id) === Number(id)) : undefined;
+              const warn = sourceWarning(t.key, st);
+              return (
+                <div key={t.key}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ minWidth: 170, fontSize: 13, color: '#e2e8f0' }}>{t.icon} {tr(t.labelKey)}</span>
+                    <select
+                      data-testid={`md-vt-station-${t.key}`}
+                      value={id ?? ''}
+                      onChange={e => setStation(t.key, e.target.value ? Number(e.target.value) : null)}
+                      style={{ ...S.input, flex: 1, minWidth: 180 }}>
+                      <option value="">{tr('missiondesk.viewTablesThisStation')}</option>
+                      {/* עמדה שנבחרה ונמחקה נשארת גלויה בבורר, אחרת הבחירה נראית "העמדה הזו" */}
+                      {id != null && !st && <option value={id}>⚠ {tr('missiondesk.viewTablesStationMissing')}</option>}
+                      {bases.map(b => {
+                        const group = others.filter(p => (p.parent_base_name || '') === b);
+                        const opts = group.map(p => <option key={p.id} value={p.id}>{p.name}</option>);
+                        return b ? <optgroup key={b} label={b}>{opts}</optgroup> : <React.Fragment key="_">{opts}</React.Fragment>;
+                      })}
+                    </select>
+                  </div>
+                  {warn && <div style={{ fontSize: 12, color: '#fbbf24', marginTop: 4, marginInlineStart: 178 }}>⚠ {warn}</div>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {elementsSelf && !hasParentBase && (
         <div style={{ fontSize: 12, color: '#fbbf24', marginTop: 8 }}>⚠ {tr('missiondesk.viewTablesNeedBase')}</div>
       )}
       {needAirfield && (
@@ -782,7 +849,7 @@ export function MissionDeskPresetConfig({ deskId, sharing, mapConfig, viewTables
     mission_desk_map_config?: MDPresetMapConfig;
     mission_desk_view_tables?: MDPresetViewTablesConfig;
   }) => void;
-  allPresets: { id: number; name: string; preset_type?: string; mission_desk_id?: number | null }[];
+  allPresets: { id: number; name: string; preset_type?: string; mission_desk_id?: number | null; airfield_id?: number | null; parent_base_id?: number | null; parent_base_name?: string | null }[];
   currentPresetId: number | null;
   currentPresetName?: string;
   crewName?: string;
@@ -903,6 +970,8 @@ export function MissionDeskPresetConfig({ deskId, sharing, mapConfig, viewTables
                     settings={st}
                     airfields={airfields}
                     hasParentBase={!!parentBaseId}
+                    stations={allPresets}
+                    currentPresetId={currentPresetId}
                     onChange={next => patchViewTables(svc.id, next)}
                   />
                 </AdminSection>

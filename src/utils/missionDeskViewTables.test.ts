@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   MD_VIEW_TABLES, mdViewTablesServices, mdViewTablesSettings, mdPruneViewTablesConfig,
-  mdViewTableOwners, mdViewTablesNeedAirfield,
+  mdViewTableOwners, mdViewTablesNeedAirfield, mdViewTableSource,
 } from './missionDesk';
 import type { MDNode, MDLeaf, MissionDeskService, MDServiceType } from '../types/missionDesk';
 
@@ -21,6 +21,10 @@ describe('קטלוג הטבלאות', () => {
     expect(new Set(keys).size).toBe(keys.length);
   });
 
+  it('כל טבלה נבחרת לפי עמדה, חוץ מקונטיינר החלונות שאינו שייך לעמדה', () => {
+    expect(MD_VIEW_TABLES.filter(t => !t.perStation).map(t => t.key)).toEqual(['container']);
+  });
+
   it('לכל טבלה אייקון ומפתח תרגום', () => {
     for (const t of MD_VIEW_TABLES) {
       expect(t.icon).toBeTruthy();
@@ -31,13 +35,13 @@ describe('קטלוג הטבלאות', () => {
 
 describe('mdViewTablesSettings', () => {
   it('משבצת שלא הוגדרה - ריקה ובלי שדה', () => {
-    expect(mdViewTablesSettings({}, 5)).toEqual({ tables: [], airfield_id: null });
-    expect(mdViewTablesSettings(null, 5)).toEqual({ tables: [], airfield_id: null });
+    expect(mdViewTablesSettings({}, 5)).toEqual({ tables: [], airfield_id: null, stations: {} });
+    expect(mdViewTablesSettings(null, 5)).toEqual({ tables: [], airfield_id: null, stations: {} });
   });
 
   it('מסנן מפתחות לא מוכרים, מסיר כפילויות ומסדר לפי הקטלוג', () => {
     const cfg: any = { '5': { tables: ['messages', 'בלה', 'elements', 'messages'], airfield_id: 3 } };
-    expect(mdViewTablesSettings(cfg, 5)).toEqual({ tables: ['elements', 'messages'], airfield_id: 3 });
+    expect(mdViewTablesSettings(cfg, 5)).toEqual({ tables: ['elements', 'messages'], airfield_id: 3, stations: {} });
   });
 
   it('שדה לא תקין נחשב "לא נבחר"', () => {
@@ -88,13 +92,63 @@ describe('mdViewTableOwners - טבלה נפתחת במשבצת אחת בלבד',
   });
 });
 
+describe('mdViewTablesSettings - עמדת המקור לכל טבלה', () => {
+  it('שומר עמדה רק לטבלה שנבחרה ושנבחרת לפי עמדה', () => {
+    const cfg: any = { '5': { tables: ['trips', 'container'], stations: { trips: 12, container: 4, messages: 9 } } };
+    expect(mdViewTablesSettings(cfg, 5).stations).toEqual({ trips: 12 });
+  });
+
+  it('מזהה עמדה לא תקין - כאילו לא נבחרה (העמדה הזו)', () => {
+    const cfg: any = { '5': { tables: ['trips', 'elements', 'messages'], stations: { trips: 0, elements: 'x', messages: '7' } } };
+    expect(mdViewTablesSettings(cfg, 5).stations).toEqual({ messages: 7 });
+  });
+});
+
 describe('mdViewTablesNeedAirfield', () => {
-  it('נסיעות ונהגים דורשים שדה תעופה', () => {
-    expect(mdViewTablesNeedAirfield({ tables: ['trips'], airfield_id: null })).toBe(true);
-    expect(mdViewTablesNeedAirfield({ tables: ['drivers', 'messages'], airfield_id: null })).toBe(true);
+  it('נסיעות ונהגים של העמדה הזו דורשים שדה תעופה', () => {
+    expect(mdViewTablesNeedAirfield({ tables: ['trips'], airfield_id: null, stations: {} })).toBe(true);
+    expect(mdViewTablesNeedAirfield({ tables: ['drivers', 'messages'], airfield_id: null, stations: {} })).toBe(true);
+  });
+
+  it('נסיעות ונהגים לפי עמדה אחרת - השדה מגיע ממנה', () => {
+    expect(mdViewTablesNeedAirfield({ tables: ['trips', 'drivers'], airfield_id: null, stations: { trips: 3, drivers: 3 } })).toBe(false);
+    expect(mdViewTablesNeedAirfield({ tables: ['trips', 'drivers'], airfield_id: null, stations: { trips: 3 } })).toBe(true);
   });
 
   it('שאר הטבלאות לא', () => {
-    expect(mdViewTablesNeedAirfield({ tables: ['elements', 'quantities', 'messages', 'container'], airfield_id: null })).toBe(false);
+    expect(mdViewTablesNeedAirfield({ tables: ['elements', 'quantities', 'messages', 'container'], airfield_id: null, stations: {} })).toBe(false);
+  });
+});
+
+describe('mdViewTableSource - לפי איזו עמדה הטבלה מוצגת', () => {
+  const me = { id: 1, name: 'דסק', airfield_id: null, parent_base_id: 8 };
+  const tower = { id: 3, name: 'מגדל', airfield_id: 21, parent_base_id: 9 };
+  const presets = [me, tower];
+
+  it('בלי בחירה - העמדה הזו', () => {
+    const src = mdViewTableSource({ tables: ['elements'], airfield_id: null, stations: {} }, 'elements', me, presets);
+    expect(src).toMatchObject({ presetId: 1, isSelf: true, missing: false, parentBaseId: 8 });
+  });
+
+  it('עמדה אחרת - הבסיס והשדה שלה', () => {
+    const st = { tables: ['elements', 'trips'] as any, airfield_id: 5, stations: { elements: 3, trips: 3 } };
+    expect(mdViewTableSource(st, 'elements', me, presets)).toMatchObject({ presetId: 3, isSelf: false, parentBaseId: 9 });
+    // שדה המשבצת הוא גיבוי לעמדה הזו בלבד - לא גובר על השדה של המגדל
+    expect(mdViewTableSource(st, 'trips', me, presets)).toMatchObject({ presetId: 3, airfieldId: 21 });
+  });
+
+  it('נסיעות של העמדה הזו - שדה המשבצת, ואם אין - השדה של העמדה', () => {
+    expect(mdViewTableSource({ tables: ['trips'], airfield_id: 5, stations: {} }, 'trips', me, presets).airfieldId).toBe(5);
+    expect(mdViewTableSource({ tables: ['trips'], airfield_id: null, stations: {} }, 'trips', { ...me, airfield_id: 6 }, presets).airfieldId).toBe(6);
+  });
+
+  it('בחירה בעמדה עצמה נחשבת "העמדה הזו"', () => {
+    expect(mdViewTableSource({ tables: ['messages'], airfield_id: null, stations: { messages: 1 } }, 'messages', me, presets).isSelf).toBe(true);
+  });
+
+  // עמדה שנמחקה: לא נופלים בשקט לעמדה הזו - הטבלה הייתה מציגה נתונים של מישהו אחר
+  it('עמדה שנבחרה ונמחקה - missing', () => {
+    const src = mdViewTableSource({ tables: ['messages'], airfield_id: null, stations: { messages: 99 } }, 'messages', me, presets);
+    expect(src).toMatchObject({ presetId: 99, missing: true, isSelf: false, preset: null });
   });
 });
