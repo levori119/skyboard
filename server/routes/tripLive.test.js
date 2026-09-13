@@ -130,13 +130,15 @@ beforeAll(async () => {
     updated_at TIMESTAMPTZ DEFAULT NOW(), created_at TIMESTAMPTZ DEFAULT NOW())`);
   await pool.query(`CREATE TABLE public.airfield_element_types (
     id SERIAL PRIMARY KEY, name VARCHAR(100), icon VARCHAR(200),
-    can_change_status BOOLEAN DEFAULT FALSE, allowed_statuses JSONB DEFAULT '[]')`);
+    can_change_status BOOLEAN DEFAULT FALSE, allowed_statuses JSONB DEFAULT '[]',
+    open_icon VARCHAR(200), close_icon VARCHAR(200), status_icons JSONB DEFAULT '{}')`);
   await pool.query(`CREATE TABLE public.airfield_elements (
     id SERIAL PRIMARY KEY, airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
     element_type_id INTEGER REFERENCES airfield_element_types(id) ON DELETE SET NULL,
     name VARCHAR(200) NOT NULL, status VARCHAR(20) DEFAULT 'שמיש', x_pct FLOAT, y_pct FLOAT,
     category VARCHAR(100) DEFAULT '', display_state VARCHAR(20) DEFAULT 'normal',
-    rotation SMALLINT DEFAULT 0, blocking_statuses JSONB DEFAULT '[]', hidden_on_map BOOLEAN DEFAULT false)`);
+    rotation SMALLINT DEFAULT 0, blocking_statuses JSONB DEFAULT '[]', hidden_on_map BOOLEAN DEFAULT false,
+    blink_rate FLOAT DEFAULT 1.0, open_icon_key VARCHAR(200), close_icon_key VARCHAR(200))`);
   await pool.query(`CREATE TABLE public.airfield_runways (
     id SERIAL PRIMARY KEY, airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
     name VARCHAR(20), start_x_pct FLOAT, start_y_pct FLOAT, end_x_pct FLOAT, end_y_pct FLOAT)`);
@@ -226,6 +228,20 @@ describe('GET /api/driver-trips/:id/live - נתוני המפה לנהג', () => 
     expect(byId[33]).toMatchObject({ blocking: true, on_route: false });
     expect(byId[33].route_distance_m).toBeGreaterThan(1000);
     expect(byId[31].lat).toBeCloseTo(31.2498, 4);
+  });
+
+  // הסמל באפליקציית הנהג זהה למגדל (shared/elementSymbols.js) - וצריך את אותם שדות
+  it('כל שדה שהסמל של המגדל צריך מגיע לנהג', async () => {
+    await pool.query(`INSERT INTO airfield_element_types (id, name, icon, open_icon, close_icon, status_icons)
+      VALUES (91, 'מחסום', 'MAP:barrier', 'MAP:barrier-open', 'MAP:barrier', '{"שמיש":"MAP:barrier"}')`);
+    await pool.query(`UPDATE airfield_elements SET element_type_id=91, blink_rate=0.5, open_icon_key='MAP:stopbar', rotation=45 WHERE id=31`);
+    const t = await mkStarted();
+    const d = await (await dget(`/api/driver-trips/${t.id}/live`, MY_TZ)).json();
+    const el = d.elements.find(e => e.id === 31);
+    expect(el).toMatchObject({
+      type_icon: 'MAP:barrier', type_open_icon: 'MAP:barrier-open', type_close_icon: 'MAP:barrier',
+      type_status_icons: { 'שמיש': 'MAP:barrier' }, open_icon_key: 'MAP:stopbar', blink_rate: 0.5, rotation: 45,
+    });
   });
 
   it('נסיעה בלי נתיב - האלמנטים עדיין על המפה', async () => {

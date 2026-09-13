@@ -39,10 +39,18 @@ describe('הלוגיקה המשותפת נטענת', () => {
     expect(MODULE).toContain('window.TripTracking');
   });
 
-  it('האירוע שמשחרר את הדף נשלח אחרי ששני המודולים זמינים', () => {
+  it('האירוע שמשחרר את הדף נשלח אחרי שכל המודולים זמינים', () => {
     const ev = MODULE.indexOf("dispatchEvent(new Event('driverlogic'))");
     expect(ev).toBeGreaterThan(MODULE.indexOf('window.TripTracking'));
     expect(ev).toBeGreaterThan(MODULE.indexOf('window.DriverLogic'));
+    expect(ev).toBeGreaterThan(MODULE.indexOf('window.ElementSymbols'));
+  });
+
+  // הסמלים של מפת המגדל - לא עותק מקומי בדף
+  it('סמלי האלמנטים נטענים מהמודול המשותף ומוגשים מהשרת', () => {
+    expect(MODULE).toContain("from '/driver/symbols.js'");
+    const route = readFileSync(join(process.cwd(), 'server/routes/driver.js'), 'utf8');
+    expect(route).toMatch(/'\/driver\/symbols\.js'[\s\S]{0,160}'elementSymbols\.js'/);
   });
 });
 
@@ -134,6 +142,17 @@ describe('מסך הנסיעה החי', () => {
     expect(handler).toContain('gmapsAuthFailed = true');
     expect(handler).toContain("setLiveMap('airfield')");
     expect(SCRIPT).toContain('(מפתח לא תקין)');
+  });
+
+  it('שתי המפות מציירות את סמל המגדל - elementMarkerSvg, והבהוב שלא נקפא ב-Google', () => {
+    const fnAt = SCRIPT.indexOf('function liveElementSvg(');
+    expect(SCRIPT.slice(fnAt, SCRIPT.indexOf('\n}\n', fnAt))).toContain('ElementSymbols.elementMarkerSvg(');
+    const af = SCRIPT.slice(SCRIPT.indexOf('function renderAirfieldMap('), SCRIPT.indexOf('function renderAirfieldMap(') + 4000);
+    expect(af).toContain('liveElementSvg(el,');
+    const gm = SCRIPT.slice(SCRIPT.indexOf('function renderGoogleMap('), SCRIPT.indexOf('function clearGoogleObjects('));
+    expect(gm).toContain('liveElementSvg(el, px)');
+    expect(gm).toContain('optimized: false');
+    expect(SCRIPT.includes('liveElementGlyph')).toBe(false);
   });
 
   it('D5: אין הרשאת מיקום - הודעה מפורשת', () => {

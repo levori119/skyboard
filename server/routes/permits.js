@@ -1163,13 +1163,18 @@ async function routeElements(airfieldId, route, anchor, q = pool) {
   if (!anchor) return [];
   const r = await q.query(
     `SELECT ae.id, ae.name, ae.category, ae.status, ae.display_state, ae.blocking_statuses,
-            ae.x_pct, ae.y_pct, ae.rotation, aet.icon AS type_icon, aet.allowed_statuses AS type_allowed_statuses
+            ae.x_pct, ae.y_pct, ae.rotation, ae.blink_rate, ae.open_icon_key, ae.close_icon_key,
+            aet.icon AS type_icon, aet.allowed_statuses AS type_allowed_statuses,
+            aet.open_icon AS type_open_icon, aet.close_icon AS type_close_icon, aet.status_icons AS type_status_icons
        FROM airfield_elements ae LEFT JOIN airfield_element_types aet ON aet.id = ae.element_type_id
       WHERE ae.airfield_id = $1 AND ae.x_pct IS NOT NULL AND ae.y_pct IS NOT NULL`, [airfieldId]);
   return roadControlElements(r.rows, route, anchor).map(el => ({
     id: el.id, name: el.name, category: el.category, status: el.status, display_state: el.display_state,
     blocking_statuses: el.blocking_statuses, type_allowed_statuses: el.type_allowed_statuses,
-    type_icon: el.type_icon, rotation: el.rotation,
+    // כל מה שהסמל של המגדל צריך (shared/elementSymbols.js) - אותו סמל, מצב והבהוב אצל הנהג
+    type_icon: el.type_icon, type_open_icon: el.type_open_icon, type_close_icon: el.type_close_icon,
+    type_status_icons: el.type_status_icons, open_icon_key: el.open_icon_key, close_icon_key: el.close_icon_key,
+    blink_rate: el.blink_rate, rotation: el.rotation,
     x_pct: el.x_pct, y_pct: el.y_pct, lat: el.lat, lon: el.lon,
     route_distance_m: el.route_distance_m, on_route: el.on_route, blocking: isElementBlocking(el),
   }));

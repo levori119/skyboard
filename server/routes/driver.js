@@ -29,6 +29,11 @@ router.get('/driver/logic.js', (req, res) => {
   res.type('application/javascript');
   res.sendFile(path.join(__dirname, '../../shared', 'driverLogic.js'));
 });
+// סמלי האלמנטים - אותם SVG, מצבים והבהוב כמו במפת המגדל
+router.get('/driver/symbols.js', (req, res) => {
+  res.type('application/javascript');
+  res.sendFile(path.join(__dirname, '../../shared', 'elementSymbols.js'));
+});
 // מעקב נסיעה חי - אותה גאומטריה, ספים וכלל חסימה שהשרת והמגדל מריצים
 router.get('/driver/tracking.js', (req, res) => {
   res.type('application/javascript');

@@ -13,6 +13,7 @@ import {
   GROUND_STATUSES, normalizeAircraftPositions, toEmbedUrl,
   renderGroundSvgIcon, getElemDisplayStateOpts, GroundMarkerSVG,
 } from '../ground/groundShared';
+import { elementSymbolKey, elementStateColor } from '../../../shared/elementSymbols';
 import RunwayLayer from '../map/RunwayLayer';
 import TrafficPatternLayer from '../map/TrafficPatternLayer';
 import type { PatternRow } from '../map/TrafficPatternLayer';
@@ -3821,7 +3822,6 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             const opStatusColors: Record<string, string> = { 'דולק': '#22c55e', 'כבוי': '#64748b', 'מנצנץ': '#f59e0b', 'נוסע': '#3b82f6', 'עומד': '#a855f7', 'פתוח': '#22c55e', 'סגור': '#ef4444' };
             const opColor = opStatusColors[el.status] || sColor;
             const statusIconEmoji: string | null = (() => { const si = typeof el.type_status_icons === 'object' && !Array.isArray(el.type_status_icons) ? el.type_status_icons : (typeof el.type_status_icons === 'string' ? (() => { try { return JSON.parse(el.type_status_icons); } catch { return null; } })() : null); return si && el.status ? (si[el.status] || null) : null; })();
-            const statusMapIcon: string | null = statusIconEmoji?.startsWith('MAP:') ? statusIconEmoji : null;
             const statusEmojiOnly: string | null = statusIconEmoji && !statusIconEmoji.startsWith('MAP:') ? statusIconEmoji : null;
             // Display state: normal / blink / open / close
             const dState = el.display_state || 'normal';
@@ -3832,11 +3832,9 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             const isStop = dState === 'stop';
             const isGo = dState === 'go';
             const iconRotation = el.rotation || 0;
-            const baseIconKey = el.type_icon || '';
-            const isTrafficMulti = ['MAP:traffic-red','MAP:traffic-orange','MAP:traffic-green'].includes(baseIconKey);
-            const effectiveMapIconKey = isTrafficMulti
-              ? (isStop ? 'MAP:traffic-red' : isGo ? 'MAP:traffic-green' : baseIconKey)
-              : baseIconKey;
+            // איזה סמל ובאיזה צבע מסגרת - הכלל המשותף עם אפליקציית הנהג (shared/elementSymbols.js)
+            const symbolKey = elementSymbolKey(el);
+            const stateColor = elementStateColor(el);
             const blinkRate = el.blink_rate || 1.0;
             // For SVG icons: blink only the inner light elements (via .elem-blink class + --blink-rate CSS var)
             // For emoji/circle icons: blink the whole container
@@ -3883,8 +3881,8 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                       </svg>
                     </div>
                   ) : isSvgIcon ? (
-                    <div style={{ ...(isBlinking ? ({ '--blink-rate': `${blinkRate}s` } as React.CSSProperties) : {}), width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.6))', outline: canChangeStatus ? `2px solid ${isClosed ? '#ef4444' : isOff ? '#475569' : isStop ? '#ef4444' : isGo ? '#22c55e' : isOpen ? '#22c55e' : opColor}` : 'none', borderRadius: '4px', background: isCatHighlighted ? '#3b82f622' : canChangeStatus ? (isClosed ? '#ef444422' : opColor + '22') : 'transparent', transform: iconRotation ? `rotate(${iconRotation}deg)` : undefined }}>
-                      {renderGroundSvgIcon(isClosed ? (el.close_icon_key || el.type_close_icon || effectiveMapIconKey) : isOpen ? (el.open_icon_key || el.type_open_icon || effectiveMapIconKey) : (statusMapIcon || effectiveMapIconKey), 26, el.status, dState)}
+                    <div style={{ ...(isBlinking ? ({ '--blink-rate': `${blinkRate}s` } as React.CSSProperties) : {}), width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.6))', outline: canChangeStatus ? `2px solid ${stateColor}` : 'none', borderRadius: '4px', background: isCatHighlighted ? '#3b82f622' : canChangeStatus ? (isClosed ? '#ef444422' : opColor + '22') : 'transparent', transform: iconRotation ? `rotate(${iconRotation}deg)` : undefined }}>
+                      {renderGroundSvgIcon(symbolKey, 26, el.status, dState)}
                     </div>
                   ) : (
                     <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: (isClosed || isOff) ? ELEMENT_NEUTRAL_FILL : (isTakul || isLaTakin || isLaShamish) ? '#ef4444' : ELEMENT_NEUTRAL_FILL, border: isBeingEdited ? '3px solid #f59e0b' : isCatHighlighted ? '3px solid #3b82f6' : isClosed ? '3px solid #ef4444' : isOff ? '3px solid #475569' : (isLaTakin || isLaShamish) ? '3px solid #ef4444' : isTakin ? '3px solid #22c55e' : isOpen ? '3px solid #22c55e' : isShamish ? '4px solid #22c55e' : `2px solid ${canChangeStatus ? opColor : sColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', boxShadow: isBeingEdited ? '0 0 10px #f59e0b88' : isCatHighlighted ? '0 0 10px #3b82f688' : isClosed ? '0 0 8px #ef444488' : (isLaTakin || isLaShamish) ? '0 0 8px #ef444488' : isTakin ? '0 0 6px #22c55e88' : canChangeStatus ? `0 0 6px ${opColor}88` : isShamish ? '0 0 6px #22c55e88' : '0 1px 4px rgba(0,0,0,0.5)', margin: '0 auto', transition: 'box-shadow 0.2s, border 0.2s', opacity: isOff ? 0.5 : 1, transform: iconRotation ? `rotate(${iconRotation}deg)` : undefined, animation: isBlinking ? `af-elem-blink ${blinkRate}s step-end infinite` : undefined }}>

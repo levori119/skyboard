@@ -1007,6 +1007,9 @@ DB מנוהל היה נופל יחד עם העמדה.
 ### `src/components/map/MapsManager.tsx`
 **תפקיד:** ניהול מפות — העלאה (תמונה/PDF), מחיקה, embed של MapZoneEditor, ו**שיוך מפה לבסיס אב**. כשנפתח מתוך מסך הניהול (props `bases`/`assignableBases`/`allowedBases`) הרשימה מקובצת לפי בסיס אב וראש צוות רואה רק את המפות של המכלולים שלו; בלי הפרופס (מודל עצמאי) ההתנהגות נשארת רשימה שטוחה בלי סינון. **מייצא:** `MapsManager` (default). **שימוש:** admin.
 
+### `shared/elementSymbols.js`
+**תפקיד:** סמלי אלמנטי השדה (מחסום, רמזורים, STOP BAR, רכבי שדה) - **מקור אמת יחיד** לאפליקציה הראשית ולאפליקציית הנהג. אפליקציית הנהג אינה React, ולכן הסמלים כמחרוזות SVG; `renderGroundSvgIcon` מרנדר את אותו גוף. **מייצא:** `groundSvgIconBody` (גוף הסמל לפי מפתח, כשירות ומצב תפעולי - כולל `elem-blink`), `elementSymbolKey` (סגור/פתוח/סמל כשירות/רמזור עצור-עבור), `elementStateColor` (צבע המסגרת), `isElementBroken`, `elementMarkerSvg` (סמל שלם עצמאי: מסגרת, סיבוב, הבהוב מוטמע, X), `ELEMENT_BLINK_CSS`. מוגש לנהג מ-`/driver/symbols.js`. **נבדק ב:** `src/components/ground/elementSymbols.test.tsx` - זהות תו-בתו לרינדור React בכל 12 הסמלים × 11 מצבים.
+
 ### `src/components/ground/groundShared.tsx`
 **תפקיד:** קבועים + אייקונים + עזרים משותפים לתפעול קרקעי. **מייצא:** קבועי מז"א (`AIR_DEFENSE_STATUSES`, `YABA_AIR_DEFENSE_STATUSES`, `ALL_MAZAA_STATUSES`), `GROUND_STATUSES`, `GROUND_POINT_MARKERS`, `GROUND_SVG_ICON_KEYS`, `GroundMarkerSVG`, `renderGroundSvgIcon`, `getElemDisplayStateOpts`, `normalizeAircraftPositions`, `ptLineDist`, `dpSimplify`, `toEmbedUrl`.
 

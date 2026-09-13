@@ -211,8 +211,11 @@
   import * as DriverLogic from '/driver/logic.js';
   // מעקב נסיעה חי - אותה גאומטריה, ספים וכלל חסימה שהשרת והמגדל מריצים
   import * as TripTracking from '/driver/tracking.js';
+  // סמלי האלמנטים - אותם SVG, מצבים והבהוב כמו במפת המגדל (shared/elementSymbols.js)
+  import * as ElementSymbols from '/driver/symbols.js';
   window.DriverLogic = DriverLogic;
   window.TripTracking = TripTracking;
+  window.ElementSymbols = ElementSymbols;
   window.dispatchEvent(new Event('driverlogic'));
 </script>
 </head>
@@ -588,10 +591,12 @@
   #liveTripScreen .lt-tab.on{background:#312e81;border-color:#818cf8;color:#fff}
   #liveTripScreen .lt-tab:disabled{cursor:not-allowed}
   #liveTripScreen .lt-mark{position:absolute;transform:translate(-50%,-50%);pointer-events:none}
-  #liveTripScreen .lt-el{width:30px;height:30px;border-radius:50%;background:#0f172acc;border:3px solid;display:flex;align-items:center;justify-content:center;font-size:15px}
+  /* הסמל עצמו (SVG) מגיע מ-ElementSymbols.elementMarkerSvg - כמו במפת המגדל */
+  #liveTripScreen .lt-el{line-height:0;filter:drop-shadow(0 1px 3px rgba(0,0,0,.7))}
+  #liveTripScreen .lt-el.block{filter:drop-shadow(0 0 5px #ef4444) drop-shadow(0 1px 3px rgba(0,0,0,.7))}
   /* אלמנט בשדה שאינו על הנתיב: מוצג לתמונת מצב, קטן ושקוף יותר מזה שהנהג עובר בו */
-  #liveTripScreen .lt-el.off{width:22px;height:22px;border-width:2px;font-size:11px;opacity:.6}
-  #liveTripScreen .lt-el-label{position:absolute;top:32px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:10px;font-weight:700;background:#0f172acc;padding:1px 5px;border-radius:5px}
+  #liveTripScreen .lt-el.off{opacity:.6}
+  #liveTripScreen .lt-el-label{position:absolute;top:36px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:10px;font-weight:700;background:#0f172acc;padding:1px 5px;border-radius:5px}
   #liveTripScreen .lt-ep{font-size:20px;filter:drop-shadow(0 1px 3px #000)}
   #liveTripScreen .lt-veh{width:26px;height:26px;border-radius:50%;background:#0ea5e9;border:3px solid #fff;box-shadow:0 0 0 6px #0ea5e944,0 2px 8px #000;display:flex;align-items:center;justify-content:center}
   #liveTripScreen .lt-veh-arrow{color:#fff;font-size:12px;line-height:1}
@@ -2903,9 +2908,13 @@ function liveStateLabel(el) {
   return TripTracking.DISPLAY_STATE_LABEL[el.display_state] || el.status || '';
 }
 
-function liveElementGlyph(el) {
-  if (el.type_icon && !String(el.type_icon).startsWith('MAP:')) return el.type_icon;
-  return { 'מחסומים': '🚧', 'רמזורים': '🚦', 'STOP BAR': '🛑' }[el.category] || '⚠️';
+/** סוג בלי סמל מוגדר - סמל לפי הקטגוריה, כדי שלא יוצג "🔧" על רמזור */
+const CATEGORY_SYMBOL = { 'מחסומים': 'MAP:barrier', 'רמזורים': 'MAP:traffic-orange', 'STOP BAR': 'MAP:stopbar' };
+
+/** הסמל של האלמנט כפי שהוא נראה במפת המגדל - סמל, מצב, סיבוב והבהוב */
+function liveElementSvg(el, size) {
+  const withIcon = el.type_icon ? el : { ...el, type_icon: CATEGORY_SYMBOL[el.category] || '' };
+  return ElementSymbols.elementMarkerSvg(withIcon, size);
 }
 
 function renderLiveMap() {
@@ -2946,10 +2955,12 @@ function renderAirfieldMap() {
     // **תווית רק לאלמנט שסוגר ועל הנתיב** - הוא זה שהנהג צריך לפעול מולו (הכרעת
     // אורי). תוויות לכולם נערמו זו על זו ליד מחסומים סמוכים, ואף אחת לא נקראה.
     // אלמנט שאינו על הנתיב מוצג קטן ושקוף - שייראו כל הרמזורים והמחסומים בשדה.
+    // הסמל - כמו במפת המגדל: סמל הסוג במצבו (סגור/פתוח/עצור/עבור/כבוי), הבהוב,
+    // סיבוב ו-X לאלמנט לא כשיר. אלמנט שסוגר את הדרך מקבל הילה אדומה.
     const color = el.blocking ? '#ef4444' : '#22c55e';
     const onRoute = el.on_route !== false;
     put(livePct(el),
-      `<div class="lt-el${onRoute ? '' : ' off'}" style="border-color:${color}">${esc(liveElementGlyph(el))}</div>` +
+      `<div class="lt-el${onRoute ? '' : ' off'}${el.blocking ? ' block' : ''}">${liveElementSvg(el, onRoute ? 34 : 24)}</div>` +
       (el.blocking && onRoute ? `<div class="lt-el-label" style="color:${color}">${esc(el.name)} · ${esc(liveStateLabel(el))}</div>` : ''),
       el.blocking ? (onRoute ? 4 : 3) : (onRoute ? 3 : 2));
   }
@@ -3042,10 +3053,17 @@ function renderGoogleMap() {
   o.elements = (d.elements || []).filter(el => Number.isFinite(el.lat)).map(el => new G.Marker({
     map: live.gmap, position: { lat: el.lat, lng: el.lon },
     title: `${el.name} · ${liveStateLabel(el)}`,
-    label: { text: liveElementGlyph(el), fontSize: '14px' },
-    // כמו מפת השדה: אלמנט שאינו על הנתיב קטן ושקוף
+    // כמו מפת השדה: אותו סמל של המגדל, ואלמנט שאינו על הנתיב קטן ושקוף
     opacity: el.on_route === false ? 0.6 : 1,
-    icon: { path: G.SymbolPath.CIRCLE, scale: el.on_route === false ? 9 : 13, fillColor: '#0f172a', fillOpacity: 0.9, strokeColor: el.blocking ? '#ef4444' : '#22c55e', strokeWeight: el.on_route === false ? 3 : 4 },
+    icon: (() => {
+      const px = el.on_route === false ? 24 : 34;
+      return {
+        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(liveElementSvg(el, px)),
+        scaledSize: new G.Size(px, px), anchor: new G.Point(px / 2, px / 2),
+      };
+    })(),
+    // לא אופטימלי: סמן "אופטימלי" מצויר על קנבס כתמונה קפואה, וההבהוב נעלם
+    optimized: false,
   }));
 
   const endpoint = (pt, glyph) => (pt && Number.isFinite(pt.lat) && Number.isFinite(pt.lon)

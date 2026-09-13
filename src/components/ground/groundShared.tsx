@@ -1,5 +1,6 @@
 import React from 'react';
 import type { GroundStatusKey, AircraftPos } from '../../types/ground';
+import { groundSvgIconBody } from '../../../shared/elementSymbols';
 
 export const AIR_DEFENSE_STATUSES: { label: string; color: string }[] = [
   { label: 'ראייה',              color: '#22c55e' },
@@ -113,169 +114,16 @@ export const getElemDisplayStateOpts = (iconKey: string): { key: string; label: 
   ];
 };
 
+/**
+ * סמל SVG של סוג אלמנט. **הגוף מגיע מ-shared/elementSymbols.js** - אותו מקור שממנו
+ * אפליקציית הנהג מציירת את הסמלים, כך שמפת המגדל ומפת הנהג לא יכולות להיפרד.
+ * התוכן סטטי (מפתח סמל מרשימה סגורה), ולכן dangerouslySetInnerHTML בטוח כאן.
+ * זהות מלאה לרינדור הקודם - elementSymbols.test.tsx.
+ */
 export const renderGroundSvgIcon = (iconKey: string, size: number = 22, status?: string, displayState?: string): JSX.Element | null => {
-  const s = size;
-  const isBlinking = displayState === 'blink' || (!displayState && status === 'מנצנץ');
-  const isOpen = displayState === 'open' || (!displayState && status === 'פתוח');
-  const isOff = displayState === 'off';
-  switch (iconKey) {
-    case 'MAP:barrier':
-      if (isOpen) {
-        return (
-          <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
-            <rect x="1" y="5" width="2.5" height="15" rx="1" fill="#555"/>
-            <g transform="rotate(-70, 2.25, 12.5)">
-              <rect x="2.25" y="10.5" width="19" height="4" rx="1" fill="white" stroke="#888" strokeWidth="0.4"/>
-              <rect x="2.25" y="10.5" width="3.5"  height="4" fill="#22c55e"/>
-              <rect x="9"    y="10.5" width="3.5"  height="4" fill="#22c55e"/>
-              <rect x="15.7" y="10.5" width="3.5"  height="4" fill="#22c55e"/>
-            </g>
-            <rect x="20.5" y="17" width="2.5" height="4" rx="1" fill="#444"/>
-          </svg>
-        );
-      }
-      return (
-        <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
-          <rect x="2" y="10.5" width="20" height="4" rx="1" fill="white" stroke="#888" strokeWidth="0.4"/>
-          <rect x="2"  y="10.5" width="3.5" height="4" fill="#ef4444"/>
-          <rect x="9"  y="10.5" width="3.5" height="4" fill="#ef4444"/>
-          <rect x="16" y="10.5" width="3.5" height="4" fill="#ef4444"/>
-          <rect x="1"  y="7" width="2.5" height="10" rx="1" fill="#555"/>
-          <rect x="20.5" y="7" width="2.5" height="10" rx="1" fill="#555"/>
-        </svg>
-      );
-    case 'MAP:barrier-open':
-      return (
-        <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
-          <rect x="1" y="5" width="2.5" height="15" rx="1" fill="#555"/>
-          <g transform="rotate(-70, 2.25, 12.5)">
-            <rect x="2.25" y="10.5" width="19" height="4" rx="1" fill="white" stroke="#888" strokeWidth="0.4"/>
-            <rect x="2.25" y="10.5" width="3.5"  height="4" fill="#22c55e"/>
-            <rect x="9"    y="10.5" width="3.5"  height="4" fill="#22c55e"/>
-            <rect x="15.7" y="10.5" width="3.5"  height="4" fill="#22c55e"/>
-          </g>
-          <rect x="20.5" y="17" width="2.5" height="4" rx="1" fill="#444"/>
-        </svg>
-      );
-    case 'MAP:traffic-red-single':
-      return (
-        <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
-          <rect x="7" y="5" width="10" height="13" rx="3" fill="#1e293b" stroke="#555" strokeWidth="0.5"/>
-          <circle cx="12" cy="11.5" r="4" fill={isOff ? '#1e293b' : '#ef4444'} stroke={isOff ? '#555' : 'none'} strokeWidth={isOff ? '0.8' : '0'} className={isBlinking && !isOff ? 'elem-blink' : undefined}/>
-          <rect x="11" y="18" width="2" height="4" fill="#555"/>
-        </svg>
-      );
-    case 'MAP:traffic-orange-single':
-      return (
-        <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
-          <rect x="7" y="5" width="10" height="13" rx="3" fill="#1e293b" stroke="#555" strokeWidth="0.5"/>
-          <circle cx="12" cy="11.5" r="4" fill={isOff ? '#1e293b' : '#f97316'} stroke={isOff ? '#555' : 'none'} strokeWidth={isOff ? '0.8' : '0'} className={isBlinking && !isOff ? 'elem-blink' : undefined}/>
-          <rect x="11" y="18" width="2" height="4" fill="#555"/>
-        </svg>
-      );
-    case 'MAP:stopbar':
-      return (
-        <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
-          <text x="12" y="8" textAnchor="middle" fontSize="4.5" fill={isOff ? '#475569' : '#ef4444'} fontFamily="monospace" fontWeight="bold">STOP BAR</text>
-          <rect x="1" y="11" width="22" height="5" rx="1" fill="#1e293b" stroke="#555" strokeWidth="0.4"/>
-          <circle cx="3.2"  cy="13.5" r="1.6" fill={isOff ? '#334155' : '#ef4444'} className={isBlinking && !isOff ? 'elem-blink' : undefined}/>
-          <circle cx="7.4"  cy="13.5" r="1.6" fill={isOff ? '#334155' : '#ef4444'} className={isBlinking && !isOff ? 'elem-blink' : undefined}/>
-          <circle cx="11.6" cy="13.5" r="1.6" fill={isOff ? '#334155' : '#ef4444'} className={isBlinking && !isOff ? 'elem-blink' : undefined}/>
-          <circle cx="15.8" cy="13.5" r="1.6" fill={isOff ? '#334155' : '#ef4444'} className={isBlinking && !isOff ? 'elem-blink' : undefined}/>
-          <circle cx="20.0" cy="13.5" r="1.6" fill={isOff ? '#334155' : '#ef4444'} className={isBlinking && !isOff ? 'elem-blink' : undefined}/>
-        </svg>
-      );
-    case 'MAP:traffic-red':
-      return (
-        <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
-          <rect x="8" y="2" width="8" height="20" rx="3" fill="#1e293b" stroke="#555" strokeWidth="0.5"/>
-          <circle cx="12" cy="7"  r="2.5" fill={isOff ? '#1a1212' : '#ef4444'} className={isBlinking && !isOff ? 'elem-blink' : undefined}/>
-          <circle cx="12" cy="12" r="2.5" fill="#2d1515"/>
-          <circle cx="12" cy="17" r="2.5" fill="#14260e"/>
-          <rect x="11" y="22" width="2" height="2" fill="#555"/>
-        </svg>
-      );
-    case 'MAP:traffic-orange':
-      return (
-        <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
-          <rect x="8" y="2" width="8" height="20" rx="3" fill="#1e293b" stroke="#555" strokeWidth="0.5"/>
-          <circle cx="12" cy="7"  r="2.5" fill="#2d1515"/>
-          <circle cx="12" cy="12" r="2.5" fill={isOff ? '#1a1000' : '#f97316'} className={isBlinking && !isOff ? 'elem-blink' : undefined}/>
-          <circle cx="12" cy="17" r="2.5" fill="#14260e"/>
-          <rect x="11" y="22" width="2" height="2" fill="#555"/>
-        </svg>
-      );
-    case 'MAP:traffic-green':
-      return (
-        <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
-          <rect x="8" y="2" width="8" height="20" rx="3" fill="#1e293b" stroke="#555" strokeWidth="0.5"/>
-          <circle cx="12" cy="7"  r="2.5" fill="#2d1515"/>
-          <circle cx="12" cy="12" r="2.5" fill="#2d1c09"/>
-          <circle cx="12" cy="17" r="2.5" fill={isOff ? '#0a160a' : '#22c55e'} className={isBlinking && !isOff ? 'elem-blink' : undefined}/>
-          <rect x="11" y="22" width="2" height="2" fill="#555"/>
-        </svg>
-      );
-    case 'MAP:sweeper':
-      return (
-        <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
-          <rect x="2" y="9" width="14" height="8" rx="2" fill="#f59e0b"/>
-          <rect x="14" y="11" width="6" height="4" rx="1" fill="#f59e0b"/>
-          <rect x="14" y="9" width="5" height="3" rx="1" fill="#fcd34d"/>
-          <circle cx="5"  cy="19" r="2.5" fill="#333"/>
-          <circle cx="5"  cy="19" r="1"   fill="#888"/>
-          <circle cx="14" cy="19" r="2.5" fill="#333"/>
-          <circle cx="14" cy="19" r="1"   fill="#888"/>
-          <circle cx="4"  cy="14" r="3"   fill="none" stroke="#f97316" strokeWidth="1.5"/>
-          <line x1="4" y1="11" x2="4" y2="17" stroke="#f97316" strokeWidth="1"/>
-          <line x1="1" y1="14" x2="7" y2="14" stroke="#f97316" strokeWidth="1"/>
-        </svg>
-      );
-    case 'MAP:firetruck':
-      return (
-        <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
-          <rect x="1"  y="10" width="18" height="8" rx="2" fill="#ef4444"/>
-          <rect x="16" y="7"  width="6"  height="5" rx="1" fill="#ef4444"/>
-          <rect x="16.5" y="7.5" width="4.5" height="2.5" rx="0.5" fill="#93c5fd"/>
-          <line x1="3" y1="10" x2="15" y2="10" stroke="#fca5a5" strokeWidth="1"/>
-          <line x1="3" y1="8"  x2="15" y2="8"  stroke="#fca5a5" strokeWidth="1"/>
-          <line x1="3" y1="6"  x2="15" y2="6"  stroke="#fca5a5" strokeWidth="1"/>
-          <circle cx="5"  cy="20" r="2.5" fill="#333"/>
-          <circle cx="5"  cy="20" r="1"   fill="#888"/>
-          <circle cx="16" cy="20" r="2.5" fill="#333"/>
-          <circle cx="16" cy="20" r="1"   fill="#888"/>
-        </svg>
-      );
-    case 'MAP:birdcar':
-      return (
-        <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
-          <rect x="1"  y="12" width="18" height="7" rx="2" fill="#64748b"/>
-          <rect x="13" y="8"  width="6"  height="5" rx="1" fill="#64748b"/>
-          <rect x="13.5" y="8.5" width="5" height="3" rx="0.5" fill="#93c5fd"/>
-          <circle cx="5"  cy="21" r="2.5" fill="#333"/>
-          <circle cx="5"  cy="21" r="1"   fill="#888"/>
-          <circle cx="15" cy="21" r="2.5" fill="#333"/>
-          <circle cx="15" cy="21" r="1"   fill="#888"/>
-          <path d="M5,9 C5,7 7,6 9,7 C8,5 10,4 12,5 C11,3 14,3 14,5 L12,8 L9,9 Z" fill="#cbd5e1"/>
-          <circle cx="13" cy="5" r="1" fill="#1e293b"/>
-        </svg>
-      );
-    case 'MAP:opsvehicle':
-      return (
-        <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
-          <rect x="1"  y="11" width="18" height="8" rx="2" fill="#16a34a"/>
-          <rect x="13" y="7"  width="6"  height="5" rx="1" fill="#16a34a"/>
-          <rect x="13.5" y="7.5" width="5" height="3" rx="0.5" fill="#86efac"/>
-          <rect x="2"  y="12" width="5"  height="5" fill="#15803d"/>
-          <circle cx="5"  cy="21" r="2.5" fill="#333"/>
-          <circle cx="5"  cy="21" r="1"   fill="#888"/>
-          <circle cx="16" cy="21" r="2.5" fill="#333"/>
-          <circle cx="16" cy="21" r="1"   fill="#888"/>
-          <rect x="3" y="8" width="8" height="3" rx="1" fill="#4ade80" opacity="0.7"/>
-        </svg>
-      );
-    default:
-      return null;
-  }
+  const body = groundSvgIconBody(iconKey, status, displayState);
+  if (!body) return null;
+  return <svg width={size} height={size} viewBox="0 0 24 24" style={{ display: 'block' }} dangerouslySetInnerHTML={{ __html: body }} />;
 };
 
 export const normalizeAircraftPositions = (strip: any): AircraftPos[] => {
