@@ -150,6 +150,8 @@ export const CONFIG_TABLES = [
   'entry_permit_drivers',
   'entry_permit_driver_zones',
   'entry_permit_vehicles',
+  // תבניות הנסיעה שהנהג שמר - העדפה אישית שלו, לא מידע שדה חי
+  'entry_permit_trip_templates',
   'airfield_sectors',
   'airfield_status_types',
   'element_nav_routes',

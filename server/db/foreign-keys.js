@@ -70,6 +70,7 @@ export const FOREIGN_KEYS = [
   ['entry_permit_trip_gps', 'trip_id', 'entry_permit_trips', 'id', 'CASCADE'],
   ['entry_permit_trip_live', 'blocking_element_id', 'airfield_elements', 'id', 'SET NULL'],
   ['entry_permit_trip_live', 'trip_id', 'entry_permit_trips', 'id', 'CASCADE'],
+  ['entry_permit_trip_templates', 'airfield_id', 'airfields', 'id', 'CASCADE'],
   ['entry_permit_trips', 'driver_id', 'entry_permit_drivers', 'id', 'CASCADE'],
   ['entry_permit_trips', 'vehicle_id', 'entry_permit_vehicles', 'id', 'SET NULL'],
   ['entry_permit_trips', 'from_point_id', 'airfield_points', 'id', 'SET NULL'],

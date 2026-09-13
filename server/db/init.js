@@ -2188,6 +2188,19 @@ async function applySchemaOnce() {
     blocking_distance_m DOUBLE PRECISION,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`);
+  // תבניות נסיעה של הנהג - פרטי בקשה שחוזרת (בלי מועד, סטטוס או נתיב), שהנהג
+  // שומר באפליקציה ומייצר מהן בקשה. בעלות לפי הת"ז המנורמלת מהאסימון.
+  await sq(`CREATE TABLE IF NOT EXISTS entry_permit_trip_templates (
+    id SERIAL PRIMARY KEY,
+    driver_national_id VARCHAR(20) NOT NULL,
+    airfield_id INTEGER NOT NULL REFERENCES airfields(id) ON DELETE CASCADE,
+    name VARCHAR(120) NOT NULL,
+    data JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_entry_permit_trip_templates_driver ON entry_permit_trip_templates(driver_national_id)`);
+
   // נסיעות ותיקות נרשמו לפני שהייתה עמודת שדה - השדה נגזר מהנהג שלהן
   await sq(`UPDATE entry_permit_trips t SET airfield_id = d.airfield_id
               FROM entry_permit_drivers d WHERE d.id = t.driver_id AND t.airfield_id IS NULL`);

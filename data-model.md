@@ -3113,6 +3113,23 @@ REFACTOR_LOG #045.
 אישור הבקשה מקבע את הקישור ורושם נסיעה, כדי שההתאמה לא תתגלגל מחדש בכל טעינה
 ושינוי ברישוי לא ינתק נסיעה קיימת מבעליה.
 
+## תבניות נסיעה של הנהג - `entry_permit_trip_templates`
+
+נסיעה שחוזרת נשמרת באפליקציית הנהג כתבנית, וממנה נוצרת בקשה (`POST /api/driver-trips`
+הרגיל). **פרטי בקשה בלבד** - בלי מועד, סטטוס או נתיב.
+
+| עמודה | סוג | הערה |
+|---|---|---|
+| `id` | SERIAL PK | |
+| `driver_national_id` | VARCHAR(20) NOT NULL | ת"ז **מנורמלת** מהאסימון (`normalizeNationalId`) - הבעלות |
+| `airfield_id` | INTEGER NOT NULL FK `airfields` CASCADE | חייב להיות בבסיס שהנהג מורשה אליו **עכשיו** - אחרת התבנית לא מוצגת |
+| `name` | VARCHAR(120) NOT NULL | נחתך ל-60 (`TEMPLATE_NAME_MAX`) |
+| `data` | JSONB NOT NULL | `buildTemplate` (`shared/driverLogic.js`): `trip_type_id, vehicle_type_id, vehicle_name, from/to_point_id, from/to_text, stops, requester_name/phone, driver_phone, escorts, note, time` (HH:MM או ריק) |
+| `created_at` / `updated_at` | TIMESTAMPTZ | |
+
+סיווג: **CONFIG** (העדפה אישית של הנהג, לא מידע שדה חי). ביטול (CTRL+Z): **חסום** - אינה
+פעולת מפעיל. אינדקס: `driver_national_id`. תקרה: 50 לנהג (`DRIVER_TEMPLATE_LIMIT`, 409).
+
 ## מעקב נסיעה חי - `entry_permit_trip_gps` ו-`entry_permit_trip_live`
 
 אפיון מלא: [TRIP_LIVE_TRACKING_SPEC.md](TRIP_LIVE_TRACKING_SPEC.md). **טלמטריה ולא רשומה** -

@@ -18,7 +18,7 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
 import { normalizeNationalId, nationalIdSql, driverScopeOf, driverMayUseBase, driverBaseGuard } from '../auth/driverIdentity.js';
-import { startWindowState, START_WINDOW_MINUTES } from '../../shared/driverLogic.js';
+import { startWindowState, START_WINDOW_MINUTES, buildTemplate } from '../../shared/driverLogic.js';
 import {
   anchorFrom, pctToLatLon, metersToPolyline, metersToSegment, isElementBlocking, routeRelevantElements,
   nextDeviationStreak, isDeviating, isFixStale, ELEMENT_ALERT_M, MAX_ACCURACY_M, DISPLAY_STATE_LABEL,
@@ -732,6 +732,30 @@ const DRIVER_REQUEST_FIELDS = [
   'requester_name', 'requester_phone', 'driver_phone', 'escorts', 'note',
 ];
 
+/**
+ * כל מזהה שהנהג שלח חייב להשתייך לשדה הזה ולסוג הנכון. אחרת נקודה של שדה אחר
+ * נשמרת בשקט, והמגדל רואה נסיעה ממקום שאינו בשדה שלו. מחזיר את השדה השגוי, או null.
+ * משותף לבקשת נסיעה ולתבנית - תבנית עם נקודה זרה הייתה מייצרת בקשות שנדחות.
+ */
+async function invalidDriverReference(airfieldId, b) {
+  const stops = Array.isArray(b.stops) ? b.stops : [];
+  const pointIds = [b.from_point_id, b.to_point_id, ...stops.map(s => s?.point_id)].map(num).filter(Boolean);
+  if (pointIds.length) {
+    const { rows } = await pool.query(
+      'SELECT COUNT(DISTINCT id)::int AS n FROM airfield_points WHERE airfield_id=$1 AND id = ANY($2::int[])',
+      [airfieldId, pointIds]);
+    if (rows[0].n !== new Set(pointIds).size) return 'point';
+  }
+  for (const [field, kind] of [['trip_type_id', 'trip_type'], ['vehicle_type_id', 'vehicle_type']]) {
+    const id = num(b[field]);
+    if (!id) continue;
+    const { rows } = await pool.query(
+      'SELECT 1 FROM airfield_permit_params WHERE id=$1 AND airfield_id=$2 AND kind=$3', [id, airfieldId, kind]);
+    if (!rows.length) return field;
+  }
+  return null;
+}
+
 router.post('/api/driver-trips', async (req, res) => {
   try {
     const scope = driverScope(req, res);
@@ -739,7 +763,6 @@ router.post('/api/driver-trips', async (req, res) => {
     const raw = req.body || {};
     const b = Object.fromEntries(DRIVER_REQUEST_FIELDS.filter(f => raw[f] !== undefined).map(f => [f, raw[f]]));
     const airfieldId = num(raw.airfield_id);
-    const stops = Array.isArray(b.stops) ? b.stops : [];
     if (!airfieldId || !b.scheduled_at || !(num(b.from_point_id) || str(b.from_text)) || !(num(b.to_point_id) || str(b.to_text))) {
       return res.status(400).json({ error: 'missing_fields', required: ['airfield_id', 'scheduled_at', 'from', 'to'] });
     }
@@ -749,22 +772,8 @@ router.post('/api/driver-trips', async (req, res) => {
       return res.status(403).json({ error: 'base_not_permitted', message: 'אינך מורשה לבסיס זה' });
     }
 
-    // כל מזהה שהנהג שלח חייב להשתייך לשדה הזה ולסוג הנכון. אחרת נקודה של שדה
-    // אחר נשמרת בשקט, והמגדל רואה נסיעה ממקום שאינו בשדה שלו.
-    const pointIds = [b.from_point_id, b.to_point_id, ...stops.map(s => s?.point_id)].map(num).filter(Boolean);
-    if (pointIds.length) {
-      const { rows } = await pool.query(
-        'SELECT COUNT(DISTINCT id)::int AS n FROM airfield_points WHERE airfield_id=$1 AND id = ANY($2::int[])',
-        [airfieldId, pointIds]);
-      if (rows[0].n !== new Set(pointIds).size) return res.status(400).json({ error: 'invalid_reference', field: 'point' });
-    }
-    for (const [field, kind] of [['trip_type_id', 'trip_type'], ['vehicle_type_id', 'vehicle_type']]) {
-      const id = num(b[field]);
-      if (!id) continue;
-      const { rows } = await pool.query(
-        'SELECT 1 FROM airfield_permit_params WHERE id=$1 AND airfield_id=$2 AND kind=$3', [id, airfieldId, kind]);
-      if (!rows.length) return res.status(400).json({ error: 'invalid_reference', field });
-    }
+    const badRef = await invalidDriverReference(airfieldId, b);
+    if (badRef) return res.status(400).json({ error: 'invalid_reference', field: badRef });
 
     const cols = [], vals = [], ph = [];
     const set = (col, v) => { cols.push(col); vals.push(v); ph.push(`$${vals.length}`); };
@@ -778,6 +787,107 @@ router.post('/api/driver-trips', async (req, res) => {
        VALUES (${ph.join(',')}, NOW()) RETURNING id`, vals
     );
     res.status(201).json(await oneTrip(r.rows[0].id));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── תבניות נסיעה של הנהג ─────────────────────────────────────────────────────
+// נסיעה שחוזרת (הסעת בוקר, אספקה שבועית) נשמרת פעם אחת כתבנית, וממנה הנהג
+// מייצר בקשה בלחיצה. התבנית היא **פרטי בקשה בלבד** - בלי מועד, סטטוס או נתיב -
+// ויצירת הבקשה עוברת את אותו POST /api/driver-trips ואת אותה בדיקה.
+//
+// שייכות: הת"ז מהאסימון, והשדה חייב להיות בבסיס שהנהג מורשה אליו **עכשיו**.
+// נהג שהרשאת הבסיס שלו הוסרה לא רואה את התבניות של הבסיס הזה.
+
+export const DRIVER_TEMPLATE_LIMIT = 50;
+
+const TEMPLATE_SELECT = `
+  SELECT tp.id, tp.name, tp.airfield_id, tp.data, tp.created_at, tp.updated_at,
+         a.base_id, b.name AS base_name, a.name AS airfield_name,
+         fp.name AS from_point_name, tpt.name AS to_point_name
+    FROM entry_permit_trip_templates tp
+    JOIN airfields a ON a.id = tp.airfield_id
+    LEFT JOIN aviation_bases b ON b.id = a.base_id
+    LEFT JOIN airfield_points fp ON fp.id = NULLIF(tp.data->>'from_point_id', '')::int AND fp.airfield_id = tp.airfield_id
+    LEFT JOIN airfield_points tpt ON tpt.id = NULLIF(tp.data->>'to_point_id', '')::int AND tpt.airfield_id = tp.airfield_id`;
+
+const templateOwnedBy = n => `tp.driver_national_id = $${n} AND a.base_id = ANY($${n + 1}::int[])`;
+
+/** גוף התבנית מנוקה (buildTemplate המשותף), מאומת מול השדה והבסיס. `null` כשהתשובה נשלחה. */
+async function templateBody(req, res, scope) {
+  const raw = req.body || {};
+  const { body, errors } = buildTemplate({ ...(raw.data || {}), name: raw.name, airfield_id: raw.airfield_id });
+  if (errors.length) { res.status(400).json({ error: 'missing_fields', fields: errors }); return null; }
+  const af = (await pool.query('SELECT base_id FROM airfields WHERE id=$1', [body.airfield_id])).rows[0];
+  if (!af || !driverMayUseBase(scope, af.base_id)) {
+    res.status(403).json({ error: 'base_not_permitted', message: 'אינך מורשה לבסיס זה' });
+    return null;
+  }
+  const badRef = await invalidDriverReference(body.airfield_id, body.data);
+  if (badRef) { res.status(400).json({ error: 'invalid_reference', field: badRef }); return null; }
+  return body;
+}
+
+const oneTemplate = async (id) => (await pool.query(`${TEMPLATE_SELECT} WHERE tp.id=$1`, [id])).rows[0] || null;
+
+router.get('/api/driver-trips/templates', async (req, res) => {
+  try {
+    const scope = driverScope(req, res);
+    if (!scope) return;
+    const r = await pool.query(
+      `${TEMPLATE_SELECT} WHERE ${templateOwnedBy(1)} ORDER BY tp.name, tp.id`,
+      [scope.nationalId, scope.baseIds]);
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/api/driver-trips/templates', async (req, res) => {
+  try {
+    const scope = driverScope(req, res);
+    if (!scope) return;
+    const body = await templateBody(req, res, scope);
+    if (!body) return;
+    const { rows: [{ n }] } = await pool.query(
+      'SELECT COUNT(*)::int AS n FROM entry_permit_trip_templates WHERE driver_national_id=$1', [scope.nationalId]);
+    if (n >= DRIVER_TEMPLATE_LIMIT) return res.status(409).json({ error: 'template_limit', limit: DRIVER_TEMPLATE_LIMIT });
+    const r = await pool.query(
+      `INSERT INTO entry_permit_trip_templates (driver_national_id, airfield_id, name, data)
+       VALUES ($1, $2, $3, $4) RETURNING id`,
+      [scope.nationalId, body.airfield_id, body.name, JSON.stringify(body.data)]);
+    res.status(201).json(await oneTemplate(r.rows[0].id));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+/** תבנית של נהג אחר (או של בסיס שכבר אינו מורשה) - 404, כמו נסיעה. */
+const ownsTemplate = async (id, scope) => (await pool.query(
+  `SELECT 1 FROM entry_permit_trip_templates tp JOIN airfields a ON a.id = tp.airfield_id
+    WHERE tp.id = $1 AND ${templateOwnedBy(2)}`, [num(id), scope.nationalId, scope.baseIds]
+)).rows.length > 0;
+
+router.put('/api/driver-trips/templates/:id', async (req, res) => {
+  try {
+    const scope = driverScope(req, res);
+    if (!scope) return;
+    if (!Number.isInteger(num(req.params.id)) || !(await ownsTemplate(req.params.id, scope))) {
+      return res.status(404).json({ error: 'template_not_found' });
+    }
+    const body = await templateBody(req, res, scope);
+    if (!body) return;
+    await pool.query(
+      `UPDATE entry_permit_trip_templates SET airfield_id=$2, name=$3, data=$4, updated_at=NOW() WHERE id=$1`,
+      [num(req.params.id), body.airfield_id, body.name, JSON.stringify(body.data)]);
+    res.json(await oneTemplate(req.params.id));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/api/driver-trips/templates/:id', async (req, res) => {
+  try {
+    const scope = driverScope(req, res);
+    if (!scope) return;
+    if (!Number.isInteger(num(req.params.id)) || !(await ownsTemplate(req.params.id, scope))) {
+      return res.status(404).json({ error: 'template_not_found' });
+    }
+    await pool.query('DELETE FROM entry_permit_trip_templates WHERE id=$1', [num(req.params.id)]);
+    res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

@@ -53,7 +53,8 @@ describe('מסך הנסיעה החי', () => {
   });
 
   it('נסיעה שהופעלה ולא הסתיימה - כפתור לחזור למפה', () => {
-    expect(SCRIPT).toMatch(/driver_started_at && !t\.ended_at[\s\S]{0,200}openLiveTrip\(/);
+    expect(SCRIPT).toContain("const live = kind === 'approved' && t.driver_started_at && !t.ended_at;");
+    expect(SCRIPT).toMatch(/\$\{live \? `<button[^`]*openLiveTrip\(/);
   });
 
   it('נתוני המפה נטענים מ-/live', () => {
@@ -119,6 +120,61 @@ describe('מסך הנסיעה החי', () => {
 
   it('D5: אין הרשאת מיקום - הודעה מפורשת', () => {
     expect(SCRIPT).toMatch(/אין הרשאת מיקום/);
+  });
+});
+
+describe('תבניות נסיעה ושכפול בקשה', () => {
+  const fn = name => {
+    const i = SCRIPT.indexOf(`function ${name}(`);
+    expect(i, name).toBeGreaterThan(-1);
+    return SCRIPT.slice(i, SCRIPT.indexOf('\n}\n', i));
+  };
+
+  it('טאב תבניות בדף הבית, עם מונה', () => {
+    expect(HTML).toMatch(/id="tabTemplates"[^>]*switchTab\('templates'\)/);
+    expect(HTML).toContain('id="nTemplates"');
+  });
+
+  it('התבניות נטענות מהשרת, ונמחקות דרכו', () => {
+    expect(fn('loadTemplates')).toContain('/api/driver-trips/templates');
+    expect(fn('deleteTemplate')).toContain("method: 'DELETE'");
+    expect(fn('saveTemplate')).toContain("id ? 'PUT' : 'POST'");
+  });
+
+  // שכפול ותבנית עוברים באותה המרה משותפת - בלי עותק מקומי של שדות הבקשה
+  it('שכפול, בקשה מתבנית ועריכת תבנית - דרך requestFormFrom המשותף', () => {
+    for (const name of ['duplicateTrip', 'saveTripAsTemplate', 'requestFromTemplate', 'editTemplate']) {
+      expect(fn(name), name).toContain('DriverLogic.requestFormFrom(');
+      expect(fn(name), name).toContain('openNewRequest(');
+    }
+    expect(fn('saveTemplate')).toContain('DriverLogic.buildTemplate(');
+    expect(fn('openNewRequest')).toContain('DriverLogic.nextDeparture(');
+  });
+
+  it('כל כרטיס נסיעה - כולל נדחה והיסטוריה - מציע שכפול ושמירה כתבנית', () => {
+    const card = fn('tripCard');
+    for (const call of ['duplicateTrip(', 'saveTripAsTemplate(']) {
+      const at = card.indexOf(call);
+      expect(at, call).toBeGreaterThan(-1);
+      // השורה מתחילה בכפתור עצמו - לא בתוך תנאי ${...} כמו כפתור השינוי
+      const line = card.slice(card.lastIndexOf('\n', at), card.indexOf('\n', at));
+      expect(line.trim().startsWith('<button'), call).toBe(true);
+    }
+  });
+
+  it('במצב תבנית בקשה אינה נשלחת למגדל', () => {
+    const submit = fn('submitTripRequest');
+    const tplBranch = submit.indexOf("reqMode === 'template'");
+    const post = submit.indexOf('/api/driver-trips`');
+    expect(tplBranch).toBeGreaterThan(-1);
+    expect(tplBranch).toBeLessThan(post);
+    expect(submit.slice(tplBranch, post)).toContain('return;');
+  });
+
+  it('שורה מצומצמת: הכרטיס בנוי משורות tc-, בלי ריפוד גבוה', () => {
+    expect(HTML).toMatch(/\.trip-card\{[^}]*padding:6px 10px/);
+    expect(fn('tripCard')).toContain('class="tc-l1"');
+    expect(fn('templateCard')).toContain('class="tc-l1"');
   });
 });
 

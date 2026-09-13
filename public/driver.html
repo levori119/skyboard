@@ -158,17 +158,35 @@
   .base-card label{display:block;font-size:12px;color:#94a3b8;margin-bottom:5px}
   .base-card select{width:100%;padding:11px 12px;background:#0f172a;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:15px;-webkit-appearance:none}
   .base-gps{font-size:11px;color:#4ade80;margin-top:5px}
-  .tabs{display:flex;gap:6px;margin-bottom:12px;position:sticky;top:70px;z-index:50;background:#0f172a;padding:4px 0}
-  .tab{flex:1;padding:10px 4px;border:1.5px solid #334155;border-radius:10px;background:#1e293b;color:#94a3b8;font-size:13px;font-weight:700;cursor:pointer;line-height:1.25}
+  .tabs{display:flex;gap:5px;margin-bottom:10px;position:sticky;top:70px;z-index:50;background:#0f172a;padding:4px 0}
+  .tab{flex:1;min-width:0;padding:9px 2px;border:1.5px solid #334155;border-radius:10px;background:#1e293b;color:#94a3b8;font-size:12px;font-weight:700;cursor:pointer;line-height:1.25}
   .tab.on{background:#0c4a6e;border-color:#38bdf8;color:#f0f9ff}
   .tab .n{display:inline-block;min-width:18px;padding:0 5px;margin-inline-start:4px;border-radius:9px;background:#334155;color:#e2e8f0;font-size:11px}
   .tab.on .n{background:#38bdf8;color:#082f49}
-  .group-title{font-size:13px;font-weight:700;margin:14px 2px 7px}
+  .group-title{font-size:13px;font-weight:700;margin:10px 2px 5px}
   .empty-tab{color:#64748b;font-size:13px;text-align:center;padding:26px 10px}
   .trip-base{font-size:10px;color:#7dd3fc;border:1px solid #0c4a6e;border-radius:8px;padding:0 6px;margin-inline-start:6px}
-  .trip-card{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:11px 12px;margin-bottom:9px}
+  /* כרטיס נסיעה / תבנית בשורה מצומצמת: שורת כותרת + שורת מסלול עם פעולות-אייקון.
+     שורת כפתורים מלאה רק כשיש פעולה שהנהג צריך לעשות עכשיו (אישור, הפעלה) */
+  .trip-card{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:6px 10px;margin-bottom:5px}
   .trip-card.rejected{border-color:#7f1d1d}
   .trip-card.done{opacity:.85}
+  .tc-l1,.tc-l2{display:flex;align-items:center;gap:6px;min-width:0}
+  .tc-l2{margin-top:2px}
+  .tc-ico{flex:0 0 auto;font-size:15px;line-height:1}
+  .tc-title{flex:1;min-width:0;font-size:14px;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tc-when{flex:0 0 auto;font-size:12px;color:#cbd5e1;font-variant-numeric:tabular-nums}
+  .tc-route{flex:1;min-width:0;font-size:12px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tc-flag{font-size:11px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tc-icon{flex:0 0 auto;width:32px;height:28px;padding:0;border:1px solid #334155;border-radius:7px;background:#0f172a;color:#cbd5e1;font-size:14px;line-height:1;cursor:pointer}
+  .tc-icon.danger{color:#fca5a5}
+  .tc-go{flex:0 0 auto;height:28px;padding:0 10px;border:none;border-radius:7px;background:#0369a1;color:#f0f9ff;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+  .tc-actions{display:flex;align-items:center;gap:6px;margin-top:5px}
+  .tc-flag-in{flex:0 1 auto;min-width:0;margin-top:0}
+  .tc-actions .trip-btn{padding:7px 6px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .tpl-new{margin-bottom:8px}
+  .tpl-save-row{display:none;gap:6px;margin-top:8px}
+  .tpl-save-row input{flex:1;min-width:0;padding:10px;background:#0f172a;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:14px}
   .home-bar{position:fixed;left:0;right:0;bottom:0;z-index:4800;background:linear-gradient(transparent,#0f172a 30%);padding:18px 16px 14px}
   .home-bar .inner{max-width:480px;margin:0 auto;display:flex;flex-direction:column;gap:7px}
   .home-bar .gate-link{background:none;border:none;color:#94a3b8;font-size:13px;cursor:pointer;padding:4px;text-decoration:underline}
@@ -431,6 +449,7 @@
     <button class="tab" id="tabApproved" onclick="switchTab('approved')">✅ מאושרות<span class="n" id="nApproved">0</span></button>
     <button class="tab" id="tabPending" onclick="switchTab('pending')">⏳ ממתינות<span class="n" id="nPending">0</span></button>
     <button class="tab" id="tabHistory" onclick="switchTab('history')">🕘 היסטוריה</button>
+    <button class="tab" id="tabTemplates" onclick="switchTab('templates')">📋 תבניות<span class="n" id="nTemplates">0</span></button>
   </div>
   <div id="homeList"></div>
 </div>
@@ -446,13 +465,17 @@
 <!-- NEW REQUEST - טופס נסיעה כמו בחלון "ניהול נסיעות", בלי חלקי האישור -->
 <div id="requestScreen" class="container">
   <div class="home-top">
-    <div class="spacer"><div class="home-hello">➕ בקשת נסיעה חדשה</div></div>
-    <button class="ghost-btn" onclick="goHome()">ביטול</button>
+    <div class="spacer"><div class="home-hello" id="reqTitle">➕ בקשת נסיעה חדשה</div></div>
+    <button class="ghost-btn" onclick="cancelRequestForm()">ביטול</button>
   </div>
-  <div class="req-note">הבקשה תישלח למגדל לאישור. הנתיב והאישור נקבעים במגדל.</div>
+  <div class="req-note" id="reqIntro">הבקשה תישלח למגדל לאישור. הנתיב והאישור נקבעים במגדל.</div>
   <div class="form-errors" id="reqErrors"></div>
 
   <div class="card">
+    <div class="field" id="reqTplNameField" style="display:none">
+      <label for="reqTplName">שם התבנית *</label>
+      <input id="reqTplName" type="text" maxlength="60" placeholder="למשל: הסעת בוקר לשער"/>
+    </div>
     <div class="card-title">בסיס ורכב</div>
     <div class="field" id="reqBaseField">
       <label for="reqBase">בסיס *</label>
@@ -487,12 +510,12 @@
   <div class="card">
     <div class="card-title">מועד ומסלול</div>
     <div class="row2">
-      <div class="field">
+      <div class="field" id="reqDateField">
         <label for="reqDate">תאריך *</label>
         <input id="reqDate" type="date"/>
       </div>
       <div class="field">
-        <label for="reqTime">שעת יציאה *</label>
+        <label for="reqTime" id="reqTimeLabel">שעת יציאה *</label>
         <input id="reqTime" type="time"/>
       </div>
     </div>
@@ -537,6 +560,12 @@
   </div>
 
   <button class="btn btn-success" id="reqSubmitBtn" onclick="submitTripRequest()">📤 שלח בקשה למגדל</button>
+  <!-- שמירת הטופס כתבנית, בלי לעזוב אותו - רק במצב בקשה -->
+  <button class="add-btn" id="reqSaveTplBtn" type="button" onclick="toggleSaveTemplateRow()">📋 שמור כתבנית לפעם הבאה</button>
+  <div class="tpl-save-row" id="reqSaveTplRow">
+    <input id="reqSaveTplName" type="text" maxlength="60" placeholder="שם התבנית"/>
+    <button class="trip-btn" style="flex:0 0 auto;background:#0369a1;color:#fff" type="button" onclick="saveFormAsTemplate()">שמור</button>
+  </div>
 </div>
 
 <div id="toast"></div>
@@ -1740,6 +1769,11 @@ let baseChosenByGps = false;
 let reqOptions = null;
 let reqStops = [];
 let reqEscorts = [];
+let templates = [];
+let templatesLoaded = false;
+// הטופס משמש לבקשה ולתבנית: 'request' שולח למגדל, 'template' שומר תבנית
+let reqMode = 'request';
+let reqTemplateId = null;
 
 const TRIP_STATUS_HE = {
   approved: { label: 'יש אישור', color: '#22c55e' },
@@ -1851,12 +1885,22 @@ function renderHomeHeader() {
 
 async function loadHome() {
   if (!DRIVER_TOKEN) return;
-  try {
-    const res = await fetch(`${BASE}/api/driver-trips`);
-    if (res.ok) myTrips = await res.json();
-  } catch (e) { /* נשארים עם הרשימה האחרונה */ }
+  const trips = (async () => {
+    try {
+      const res = await fetch(`${BASE}/api/driver-trips`);
+      if (res.ok) myTrips = await res.json();
+    } catch (e) { /* נשארים עם הרשימה האחרונה */ }
+  })();
+  await Promise.all([trips, loadTemplates()]);
   if (homeTab === 'history' || historyLoaded) await loadHistory();
   renderHome();
+}
+
+async function loadTemplates() {
+  try {
+    const res = await fetch(`${BASE}/api/driver-trips/templates`);
+    if (res.ok) { templates = await res.json(); templatesLoaded = true; }
+  } catch (e) { /* נשארים עם הרשימה האחרונה */ }
 }
 
 async function loadHistory() {
@@ -1871,6 +1915,7 @@ async function switchTab(tab) {
   tripChangeOpenId = null;
   renderHome();
   if (tab === 'history' && !historyLoaded) { await loadHistory(); renderHome(); }
+  if (tab === 'templates' && !templatesLoaded) { await loadTemplates(); renderHome(); }
 }
 
 function renderHome() {
@@ -1878,7 +1923,8 @@ function renderHome() {
   const g = DriverLogic.groupDriverTrips(myTrips);
   document.getElementById('nApproved').textContent = String(g.approved.length);
   document.getElementById('nPending').textContent = String(g.pending.length + g.rejected.length);
-  for (const [id, tab] of [['tabApproved', 'approved'], ['tabPending', 'pending'], ['tabHistory', 'history']]) {
+  document.getElementById('nTemplates').textContent = String(templates.length);
+  for (const [id, tab] of [['tabApproved', 'approved'], ['tabPending', 'pending'], ['tabHistory', 'history'], ['tabTemplates', 'templates']]) {
     document.getElementById(id).classList.toggle('on', homeTab === tab);
   }
   const empty = text => `<div class="empty-tab">${text}</div>`;
@@ -1892,6 +1938,11 @@ function renderHome() {
         (g.pending.length ? g.pending.map(t => tripCard(t, 'pending')).join('') : empty('אין בקשות שממתינות לאישור')) +
         `<div class="group-title" style="color:#ef4444">🚫 נדחה (${g.rejected.length})</div>` +
         (g.rejected.length ? g.rejected.map(t => tripCard(t, 'rejected')).join('') : empty('אין בקשות שנדחו'));
+  } else if (homeTab === 'templates') {
+    list.innerHTML = '<button class="add-btn tpl-new" type="button" onclick="openTemplateEditor()">➕ תבנית חדשה</button>' +
+      (!templatesLoaded ? empty('טוען...')
+        : templates.length ? templates.map(templateCard).join('')
+        : empty('אין תבניות. נסיעה שחוזרת נשמרת כתבנית בכפתור 📋 שבכרטיס שלה, וממנה יוצרים בקשה בלחיצה.'));
   } else {
     const h = DriverLogic.sortHistory(historyTrips);
     list.innerHTML = !historyLoaded ? empty('טוען...') : (h.length ? h.map(t => tripCard(t, 'done')).join('') : empty('אין נסיעות שבוצעו'));
@@ -1920,39 +1971,63 @@ function esc(v) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-/** כרטיס נסיעה. `kind`: approved | pending | rejected | done - קובע אילו פעולות מוצגות. */
+/** מועד בקיצור לשורה מצומצמת: "ה' 14/09 07:30". */
+function tripWhenShort(t) {
+  if (!t.scheduled_at) return 'ללא מועד';
+  const d = new Date(t.scheduled_at);
+  if (isNaN(d.getTime())) return 'ללא מועד';
+  const day = d.toLocaleDateString('he-IL', { weekday: 'narrow' });
+  return `${day} ${p2(d.getDate())}/${p2(d.getMonth() + 1)} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+}
+
+/** "מוצא ← יעד · 2 תחנות · רכב · הערה" - שורה אחת שנחתכת, והמלא ב-title. */
+function routeLine(from, to, stopsCount, extras) {
+  return [`${from} ← ${to}`, stopsCount ? `${stopsCount} תחנות` : '', ...extras].filter(Boolean).join(' · ');
+}
+
+/**
+ * כרטיס נסיעה בשורה מצומצמת. `kind`: approved | pending | rejected | done - קובע
+ * אילו פעולות מוצגות. שכפול ושמירה כתבנית זמינים בכל כרטיס, כאייקונים.
+ */
 function tripCard(t, kind) {
   const st = tripStatusOf(t);
   const stopNames = Array.isArray(t.stop_names) ? t.stop_names.filter(Boolean) : [];
   const isChanging = tripChangeOpenId === t.id;
   const active = kind === 'approved' || kind === 'pending';
   const baseTag = homeBases.length > 1 && t.base_name ? `<span class="trip-base">${esc(t.base_name)}</span>` : '';
+  const title = t.trip_type_name || t.vehicle_name || t.vehicle_type_name || 'נסיעה';
+  const route = routeLine(tripEndpoint(t.from_point_name, t.from_text), tripEndpoint(t.to_point_name, t.to_text),
+    stopNames.length, [t.vehicle_name && t.trip_type_name ? '🚙 ' + t.vehicle_name : '', t.note ? '📝 ' + t.note : '']);
+  const routeFull = stopNames.length ? `${route}\nתחנות: ${stopNames.join(' · ')}` : route;
+  const flags = [
+    kind === 'approved' && t.driver_ack_at ? '<span style="color:#4ade80">✓ אישרת</span>' : '',
+    kind === 'approved' && t.driver_started_at ? `<span style="color:#c4b5fd;font-weight:700">🚦 הופעלה ${esc(timeText(t.driver_started_at))}</span>` : '',
+  ].filter(Boolean).join(' · ');
+  const live = kind === 'approved' && t.driver_started_at && !t.ended_at;
+  const canStart = kind === 'approved' && !t.driver_started_at;
+  const canAck = kind === 'approved' && !t.driver_ack_at;
   return `
     <div class="trip-card${kind === 'rejected' ? ' rejected' : ''}${kind === 'done' ? ' done' : ''}">
-      <div style="display:flex;align-items:center;gap:7px">
-        <span style="font-size:18px">${esc(t.icon || '🚗')}</span>
-        <span style="flex:1;font-size:14px;font-weight:700;color:#f1f5f9">${esc(t.trip_type_name || t.vehicle_name || t.vehicle_type_name || 'נסיעה')}${baseTag}</span>
+      <div class="tc-l1">
+        <span class="tc-ico">${esc(t.icon || '🚗')}</span>
+        <span class="tc-title">${esc(title)}${baseTag}</span>
         <span class="trip-chip" style="color:${st.color};border:1px solid ${st.color}66;background:${st.color}1f">${esc(st.label)}</span>
+        <span class="tc-when" title="${esc(tripWhenText(t))}">${esc(tripWhenShort(t))}</span>
       </div>
-      <div style="font-size:13px;color:#cbd5e1;margin-top:5px">🕒 ${esc(tripWhenText(t))}</div>
-      <div style="font-size:12px;color:#94a3b8;margin-top:3px">
-        ${esc(tripEndpoint(t.from_point_name, t.from_text))} ← ${esc(tripEndpoint(t.to_point_name, t.to_text))}
+      <div class="tc-l2">
+        <span class="tc-route" title="${esc(routeFull)}">${esc(route)}</span>
+        ${active ? `<button class="tc-icon" type="button" title="בקש שינוי" aria-label="בקש שינוי" onclick="toggleTripChange(${t.id})">${isChanging ? '✕' : '✏️'}</button>` : ''}
+        <button class="tc-icon" type="button" title="שכפל בקשה" aria-label="שכפל בקשה" onclick="duplicateTrip(${t.id})">⧉</button>
+        <button class="tc-icon" type="button" title="שמור כתבנית" aria-label="שמור כתבנית" onclick="saveTripAsTemplate(${t.id})">📋</button>
       </div>
-      ${stopNames.length ? `<div style="font-size:11px;color:#64748b;margin-top:2px">תחנות: ${esc(stopNames.join(' · '))}</div>` : ''}
-      ${t.vehicle_name && t.trip_type_name ? `<div style="font-size:11px;color:#64748b;margin-top:2px">🚙 ${esc(t.vehicle_name)}</div>` : ''}
-      ${t.note ? `<div style="font-size:11px;color:#64748b;margin-top:2px">📝 ${esc(t.note)}</div>` : ''}
-      ${active && t.pending_change_at ? `<div style="font-size:11px;color:#fbbf24;margin-top:4px">✋ ממתין לאישור המגדל בעקבות העדכון שלך: ${esc(changedFieldsText(t))}</div>` : ''}
-      ${kind === 'approved' && t.driver_ack_at ? '<div style="font-size:11px;color:#4ade80;margin-top:4px">✓ אישרת את הנסיעה</div>' : ''}
-      ${kind === 'approved' && t.driver_started_at ? `<div style="font-size:12px;color:#c4b5fd;margin-top:4px;font-weight:700">🚦 הנסיעה הופעלה ${esc(timeText(t.driver_started_at))}</div>` : ''}
-      ${kind === 'approved' && t.driver_started_at && !t.ended_at ? `
-      <button class="trip-btn" style="background:linear-gradient(135deg,#0ea5e9,#2563eb);color:#fff;width:100%;margin-top:9px;padding:12px;font-size:15px" onclick="openLiveTrip(${t.id})">🗺 פתח מפת נסיעה</button>` : ''}
-      ${active ? `
-      ${kind === 'approved' && !t.driver_started_at ? `
-      <button class="trip-btn" style="background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;width:100%;margin-top:9px;padding:12px;font-size:15px" onclick="startTrip(${t.id})">🚦 הפעל נסיעה</button>` : ''}
-      <div style="display:flex;gap:6px;margin-top:9px">
-        ${kind === 'approved' && !t.driver_ack_at ? `<button class="trip-btn" style="background:#22c55e;color:#062e14" onclick="ackTrip(${t.id})">✓ מאשר נסיעה</button>` : ''}
-        <button class="trip-btn" style="background:#334155;color:#e2e8f0" onclick="toggleTripChange(${t.id})">${isChanging ? 'בטל' : '✏️ בקש שינוי'}</button>
-      </div>` : ''}
+      ${active && t.pending_change_at ? `<div class="tc-flag" style="color:#fbbf24">✋ ממתין לאישור המגדל בעקבות העדכון שלך: ${esc(changedFieldsText(t))}</div>` : ''}
+      ${live || canStart || canAck ? `
+      <div class="tc-actions">
+        ${flags ? `<span class="tc-flag tc-flag-in">${flags}</span>` : ''}
+        ${canAck ? `<button class="trip-btn" style="background:#22c55e;color:#062e14" onclick="ackTrip(${t.id})">✓ מאשר נסיעה</button>` : ''}
+        ${canStart ? `<button class="trip-btn" style="background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff" onclick="startTrip(${t.id})">🚦 הפעל נסיעה</button>` : ''}
+        ${live ? `<button class="trip-btn" style="background:linear-gradient(135deg,#0ea5e9,#2563eb);color:#fff" onclick="openLiveTrip(${t.id})">🗺 מפת נסיעה</button>` : ''}
+      </div>` : flags ? `<div class="tc-flag">${flags}</div>` : ''}
       ${isChanging ? `
         <div style="margin-top:8px;background:#0f172a;border-radius:8px;padding:9px">
           <div style="font-size:11px;color:#64748b;margin-bottom:3px">זמן יציאה מבוקש</div>
@@ -1967,6 +2042,27 @@ function tripCard(t, kind) {
           <button class="trip-btn" style="background:#f59e0b;color:#0f172a;width:100%;margin-top:8px"
                   onclick="submitTripChange(${t.id})">שלח בקשת שינוי לאישור המגדל</button>
         </div>` : ''}
+    </div>`;
+}
+
+/** כרטיס תבנית באותה שורה מצומצמת: שם + "בקשה", ומתחת המסלול ועריכה/מחיקה. */
+function templateCard(tp) {
+  const f = DriverLogic.requestFormFrom(tp);
+  const baseTag = homeBases.length > 1 && tp.base_name ? `<span class="trip-base">${esc(tp.base_name)}</span>` : '';
+  const route = routeLine(tripEndpoint(tp.from_point_name, f.from_text), tripEndpoint(tp.to_point_name, f.to_text),
+    f.stops.length, [f.time ? '🕒 ' + f.time : '', f.vehicle_name ? '🚙 ' + f.vehicle_name : '']);
+  return `
+    <div class="trip-card">
+      <div class="tc-l1">
+        <span class="tc-ico">📋</span>
+        <span class="tc-title">${esc(tp.name)}${baseTag}</span>
+        <button class="tc-go" type="button" onclick="requestFromTemplate(${tp.id})">➕ צור בקשה</button>
+      </div>
+      <div class="tc-l2">
+        <span class="tc-route" title="${esc(route)}">${esc(route)}</span>
+        <button class="tc-icon" type="button" title="ערוך תבנית" aria-label="ערוך תבנית" onclick="editTemplate(${tp.id})">✏️</button>
+        <button class="tc-icon danger" type="button" title="מחק תבנית" aria-label="מחק תבנית" onclick="deleteTemplate(${tp.id})">🗑</button>
+      </div>
     </div>`;
 }
 
@@ -2096,28 +2192,192 @@ async function submitTripChange(id) {
 
 const p2 = n => String(n).padStart(2, '0');
 
-async function openNewRequest() {
+/**
+ * פותח את טופס הבקשה. `prefill` - ערכי טופס (DriverLogic.requestFormFrom) משכפול
+ * או מתבנית. `opts.mode` - 'request' (ברירת מחדל) או 'template'; `opts.templateId`
+ * - עריכת תבנית קיימת; `opts.name` - שם התבנית; `opts.title` - כותרת.
+ */
+async function openNewRequest(prefill, opts) {
+  const f = prefill && typeof prefill === 'object' ? prefill : null;
+  const o = opts || {};
+  reqMode = o.mode === 'template' ? 'template' : 'request';
+  reqTemplateId = o.templateId || null;
   showScreen('requestScreen');
   window.scrollTo(0, 0);
   document.getElementById('reqErrors').style.display = 'none';
   const baseSel = document.getElementById('reqBase');
   baseSel.innerHTML = homeBases.map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('');
-  if (homeBaseId != null) baseSel.value = String(homeBaseId);
+  const prefBase = f && homeBases.some(b => String(b.id) === f.base_id) ? f.base_id : null;
+  if (prefBase) baseSel.value = prefBase;
+  else if (homeBaseId != null) baseSel.value = String(homeBaseId);
   document.getElementById('reqBaseField').style.display = homeBases.length > 1 ? '' : 'none';
-  // ברירת מחדל: היום, בעוד שעה עגולה - הנהג משנה רק אם צריך
-  const soon = new Date(Date.now() + 60 * 60000);
-  soon.setMinutes(soon.getMinutes() < 30 ? 30 : 60, 0, 0);
-  document.getElementById('reqDate').value = `${soon.getFullYear()}-${p2(soon.getMonth() + 1)}-${p2(soon.getDate())}`;
-  document.getElementById('reqTime').value = `${p2(soon.getHours())}:${p2(soon.getMinutes())}`;
-  document.getElementById('reqDriverPhone').value = localStorage.getItem(DRIVER_PHONE_KEY) || '';
-  for (const id of ['reqVehicleName', 'reqRequester', 'reqRequesterPhone', 'reqNote', 'reqFromText', 'reqToText']) {
-    document.getElementById(id).value = '';
-  }
+  // ברירת מחדל: שעת המקור (היום אם עוד לא עברה, אחרת מחר), או בעוד שעה עגולה
+  const dep = DriverLogic.nextDeparture(f ? f.time : '');
+  document.getElementById('reqDate').value = dep.date;
+  document.getElementById('reqTime').value = reqMode === 'template' ? (f ? f.time : '') : dep.time;
+  document.getElementById('reqDriverPhone').value = (f && f.driver_phone) || localStorage.getItem(DRIVER_PHONE_KEY) || '';
+  const textFields = { reqVehicleName: 'vehicle_name', reqRequester: 'requester_name', reqRequesterPhone: 'requester_phone', reqNote: 'note' };
+  for (const [id, key] of Object.entries(textFields)) document.getElementById(id).value = f ? f[key] : '';
+  document.getElementById('reqFromText').value = '';
+  document.getElementById('reqToText').value = '';
   reqStops = [];
-  reqEscorts = [];
+  reqEscorts = f ? f.escorts.map(e => ({ name: e.name, national_id: e.national_id })) : [];
   renderReqStops();
   renderReqEscorts();
+  renderRequestMode(o);
   if (baseSel.value) await loadRequestOptions(baseSel.value);
+  if (f) applyRequestPrefill(f);
+}
+
+function renderRequestMode(o) {
+  const tpl = reqMode === 'template';
+  document.getElementById('reqTitle').textContent = o.title
+    || (tpl ? (reqTemplateId ? '✏️ עריכת תבנית' : '📋 תבנית נסיעה חדשה') : '➕ בקשת נסיעה חדשה');
+  document.getElementById('reqIntro').textContent = tpl
+    ? 'תבנית שומרת את פרטי הנסיעה בלי תאריך. ממנה יוצרים בקשה בלחיצה, והיא נשלחת למגדל כמו כל בקשה.'
+    : 'הבקשה תישלח למגדל לאישור. הנתיב והאישור נקבעים במגדל.';
+  document.getElementById('reqTplNameField').style.display = tpl ? '' : 'none';
+  document.getElementById('reqTplName').value = tpl ? (o.name || '') : '';
+  document.getElementById('reqDateField').style.display = tpl ? 'none' : '';
+  document.getElementById('reqTimeLabel').textContent = tpl ? 'שעה קבועה (לא חובה)' : 'שעת יציאה *';
+  document.getElementById('reqSubmitBtn').textContent = tpl ? '💾 שמור תבנית' : '📤 שלח בקשה למגדל';
+  document.getElementById('reqSaveTplBtn').style.display = tpl ? 'none' : '';
+  document.getElementById('reqSaveTplRow').style.display = 'none';
+}
+
+/** הערכים מהמקור, רק מה שעדיין קיים בשדה. נקודה שנמחקה נשארת ריקה ולא נשלחת. */
+function applyRequestPrefill(f) {
+  const has = (el, v) => !!v && [...el.options].some(op => op.value === v);
+  const af = document.getElementById('reqAirfield');
+  if (has(af, f.airfield_id) && af.value !== f.airfield_id) { af.value = f.airfield_id; fillRequestPoints(); }
+  for (const [id, v] of [['reqTripType', f.trip_type_id], ['reqVehicleType', f.vehicle_type_id]]) {
+    const el = document.getElementById(id);
+    if (has(el, v)) el.value = v;
+  }
+  for (const [id, pointId, txt] of [['reqFrom', f.from_point_id, f.from_text], ['reqTo', f.to_point_id, f.to_text]]) {
+    const el = document.getElementById(id);
+    if (has(el, pointId)) el.value = pointId;
+    else if (txt) { el.value = OTHER; document.getElementById(id + 'Text').value = txt; }
+    else el.value = '';
+    toggleOther(id);
+  }
+  const afId = Number(af.value);
+  const known = new Set((reqOptions ? reqOptions.points : []).filter(p => p.airfield_id === afId).map(p => String(p.id)));
+  reqStops = f.stops.filter(x => !x.point_id || known.has(x.point_id)).map(x => ({ point_id: x.point_id, text: x.text }));
+  renderReqStops();
+}
+
+function cancelRequestForm() {
+  goHome(reqMode === 'template' ? 'templates' : undefined);
+}
+
+// ── שכפול ותבניות ────────────────────────────────────────────────────────────
+
+const findTrip = id => myTrips.find(x => x.id === id) || historyTrips.find(x => x.id === id);
+
+function duplicateTrip(id) {
+  const t = findTrip(id);
+  if (t) openNewRequest(DriverLogic.requestFormFrom(t), { title: '⧉ שכפול בקשה' });
+}
+
+/** שם מוצע לתבנית: "מוצא ← יעד". */
+const suggestTemplateName = (from, to) => `${from} ← ${to}`.slice(0, DriverLogic.TEMPLATE_NAME_MAX);
+
+function saveTripAsTemplate(id) {
+  const t = findTrip(id);
+  if (!t) return;
+  openNewRequest(DriverLogic.requestFormFrom(t), {
+    mode: 'template',
+    name: suggestTemplateName(tripEndpoint(t.from_point_name, t.from_text), tripEndpoint(t.to_point_name, t.to_text)),
+  });
+}
+
+function openTemplateEditor() { openNewRequest(null, { mode: 'template' }); }
+
+function requestFromTemplate(id) {
+  const tp = templates.find(x => x.id === id);
+  if (tp) openNewRequest(DriverLogic.requestFormFrom(tp), { title: `➕ בקשה מתבנית: ${tp.name}` });
+}
+
+function editTemplate(id) {
+  const tp = templates.find(x => x.id === id);
+  if (tp) openNewRequest(DriverLogic.requestFormFrom(tp), { mode: 'template', templateId: id, name: tp.name });
+}
+
+async function deleteTemplate(id) {
+  const tp = templates.find(x => x.id === id);
+  if (!tp || !confirm(`למחוק את התבנית "${tp.name}"?`)) return;
+  try {
+    const res = await fetch(`${BASE}/api/driver-trips/templates/${id}`, { method: 'DELETE' });
+    if (!res.ok && res.status !== 404) throw new Error('delete failed');
+  } catch (e) {
+    alert('מחיקת התבנית נכשלה. נסה שוב.');
+    return;
+  }
+  templates = templates.filter(x => x.id !== id);
+  renderHome();
+  showToast('🗑 התבנית נמחקה');
+}
+
+function toggleSaveTemplateRow() {
+  const row = document.getElementById('reqSaveTplRow');
+  const open = row.style.display !== 'flex';
+  row.style.display = open ? 'flex' : 'none';
+  if (!open) return;
+  const nameEl = document.getElementById('reqSaveTplName');
+  if (!nameEl.value) {
+    const label = id => {
+      const el = document.getElementById(id);
+      return el.value === OTHER ? document.getElementById(id + 'Text').value.trim() : (el.value ? el.selectedOptions[0].textContent : '');
+    };
+    const from = label('reqFrom'), to = label('reqTo');
+    nameEl.value = from || to ? suggestTemplateName(from || '-', to || '-') : '';
+  }
+  nameEl.focus();
+}
+
+const TPL_ERROR_TEXT = { name: 'יש לתת שם לתבנית', airfield: 'לבסיס הזה אין שדה מוגדר' };
+
+const TPL_SERVER_ERROR_TEXT = {
+  base_not_permitted: 'אינך מורשה לבסיס הזה',
+  invalid_reference: 'אחד הפרטים אינו שייך לשדה שנבחר. בחר שוב ונסה',
+  template_limit: 'הגעת למספר התבניות המרבי. מחק תבנית שאינה בשימוש ונסה שוב',
+  template_not_found: 'התבנית כבר לא קיימת',
+};
+
+function showFormErrors(lines) {
+  const errEl = document.getElementById('reqErrors');
+  errEl.innerHTML = lines.map(x => `• ${esc(x)}`).join('<br>');
+  errEl.style.display = 'block';
+  window.scrollTo(0, 0);
+}
+
+/** שומר את הטופס כתבנית (חדשה, או `id` לעדכון). מחזיר את התבנית, או null בכשל. */
+async function saveTemplate(name, id) {
+  const { body, errors } = DriverLogic.buildTemplate({ ...readRequestForm(), name });
+  if (errors.length) { showFormErrors(errors.map(e => TPL_ERROR_TEXT[e] || e)); return null; }
+  document.getElementById('reqErrors').style.display = 'none';
+  try {
+    const res = await fetch(`${BASE}/api/driver-trips/templates${id ? '/' + id : ''}`, {
+      method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const b = await res.json().catch(() => ({}));
+    if (!res.ok) { showFormErrors([TPL_SERVER_ERROR_TEXT[b.error] || 'שמירת התבנית נכשלה. נסה שוב.']); return null; }
+    templates = [...templates.filter(x => x.id !== b.id), b].sort((a, c) => a.name.localeCompare(c.name, 'he') || a.id - c.id);
+    templatesLoaded = true;
+    return b;
+  } catch (e) {
+    showFormErrors(['אין חיבור לשרת. נסה שוב.']);
+    return null;
+  }
+}
+
+async function saveFormAsTemplate() {
+  const saved = await saveTemplate(document.getElementById('reqSaveTplName').value, null);
+  if (!saved) return;
+  document.getElementById('reqSaveTplRow').style.display = 'none';
+  document.getElementById('reqSaveTplName').value = '';
+  showToast(`📋 נשמרה תבנית "${saved.name}"`);
 }
 
 async function loadRequestOptions(baseId) {
@@ -2196,10 +2456,11 @@ const REQ_SERVER_ERROR_TEXT = {
   missing_fields: 'חסרים פרטי חובה',
 };
 
-async function submitTripRequest() {
+/** ערכי הטופס, כפי ש-buildTripRequest / buildTemplate מצפים להם. */
+function readRequestForm() {
   const val = id => document.getElementById(id).value;
   const pointOf = id => (val(id) === OTHER ? '' : val(id));
-  const { body, errors } = DriverLogic.buildTripRequest({
+  return {
     airfield_id: val('reqAirfield'),
     trip_type_id: val('reqTripType'),
     vehicle_type_id: val('reqVehicleType'),
@@ -2216,7 +2477,21 @@ async function submitTripRequest() {
     driver_phone: val('reqDriverPhone'),
     escorts: reqEscorts,
     note: val('reqNote'),
-  });
+  };
+}
+
+async function submitTripRequest() {
+  const btn = document.getElementById('reqSubmitBtn');
+  if (reqMode === 'template') {
+    btn.disabled = true;
+    const saved = await saveTemplate(document.getElementById('reqTplName').value, reqTemplateId);
+    btn.disabled = false;
+    if (!saved) return;
+    showToast(`📋 התבנית "${saved.name}" נשמרה`);
+    goHome('templates');
+    return;
+  }
+  const { body, errors } = DriverLogic.buildTripRequest(readRequestForm());
   const errEl = document.getElementById('reqErrors');
   if (errors.length) {
     errEl.innerHTML = errors.map(e => `• ${esc(REQ_ERROR_TEXT[e] || e)}`).join('<br>');
@@ -2225,7 +2500,6 @@ async function submitTripRequest() {
     return;
   }
   errEl.style.display = 'none';
-  const btn = document.getElementById('reqSubmitBtn');
   btn.disabled = true;
   btn.textContent = '⏳ שולח...';
   try {

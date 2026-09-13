@@ -128,6 +128,103 @@ export function buildTripRequest(form) {
   return { body, errors };
 }
 
+// ── תבניות נסיעה ושכפול בקשה ─────────────────────────────────────────────────
+// שכפול ותבנית הם אותה פעולה: לקחת את **פרטי הבקשה** (מאיפה, לאן, במה, עם מי)
+// מנסיעה קיימת או מתבנית שמורה, ולפתוח איתם טופס בקשה חדש. הכרעות המגדל
+// (סטטוס, נתיב, אישור) ומועד היציאה אינם חלק מהפרטים - בקשה חדשה נבחנת מחדש.
+
+export const TEMPLATE_NAME_MAX = 60;
+
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+const validTime = v => (HHMM.test(text(v)) ? text(v) : '');
+const p2 = n => String(n).padStart(2, '0');
+const idStr = v => (idOrNull(v) ? String(idOrNull(v)) : '');
+const listOf = v => {
+  if (typeof v === 'string') { try { v = JSON.parse(v); } catch (e) { v = []; } }
+  return Array.isArray(v) ? v : [];
+};
+
+/**
+ * נסיעה קיימת, או תבנית (`{ airfield_id, base_id, data }`) -> ערכי טופס הבקשה.
+ * המזהים כמחרוזות, כפי שהם יושבים ב-select. `time` - שעת היציאה המקומית של
+ * הנסיעה, או השעה הקבועה שנשמרה בתבנית (ריק אם אין).
+ */
+export function requestFormFrom(src) {
+  const s = src || {};
+  const isTemplate = s.data && typeof s.data === 'object';
+  const d = isTemplate ? s.data : s;
+  let time = '';
+  if (isTemplate) time = validTime(d.time);
+  else if (timeOf(s.scheduled_at) !== null) {
+    const dt = new Date(s.scheduled_at);
+    time = `${p2(dt.getHours())}:${p2(dt.getMinutes())}`;
+  }
+  const fromId = idStr(d.from_point_id);
+  const toId = idStr(d.to_point_id);
+  return {
+    base_id: idStr(s.base_id),
+    airfield_id: idStr(s.airfield_id),
+    trip_type_id: idStr(d.trip_type_id),
+    vehicle_type_id: idStr(d.vehicle_type_id),
+    vehicle_name: text(d.vehicle_name),
+    from_point_id: fromId,
+    from_text: fromId ? '' : text(d.from_text),
+    to_point_id: toId,
+    to_text: toId ? '' : text(d.to_text),
+    stops: listOf(d.stops)
+      .map(x => ({ point_id: idStr(x?.point_id), text: idStr(x?.point_id) ? '' : text(x?.text) }))
+      .filter(x => x.point_id || x.text),
+    escorts: listOf(d.escorts)
+      .map(e => ({ name: text(e?.name), national_id: text(e?.national_id) }))
+      .filter(e => e.name || e.national_id),
+    requester_name: text(d.requester_name),
+    requester_phone: text(d.requester_phone),
+    driver_phone: text(d.driver_phone),
+    note: text(d.note),
+    time,
+  };
+}
+
+/**
+ * מועד ברירת המחדל לבקשה חדשה. עם שעה (משוכפלת / מתבנית) - באותה שעה, היום אם
+ * עוד לא עברה ואחרת מחר. בלי שעה - בעוד שעה, מעוגל לחצי השעה הבאה.
+ */
+export function nextDeparture(time, now = new Date()) {
+  let dt;
+  const t = validTime(time);
+  if (t) {
+    const [h, m] = t.split(':').map(Number);
+    dt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
+    if (dt.getTime() <= now.getTime()) dt.setDate(dt.getDate() + 1);
+  } else {
+    dt = new Date(now.getTime() + 60 * 60000);
+    dt.setMinutes(dt.getMinutes() < 30 ? 30 : 60, 0, 0);
+  }
+  return {
+    date: `${dt.getFullYear()}-${p2(dt.getMonth() + 1)}-${p2(dt.getDate())}`,
+    time: `${p2(dt.getHours())}:${p2(dt.getMinutes())}`,
+  };
+}
+
+/**
+ * טופס -> גוף ל-POST/PUT /api/driver-trips/templates. אותו ניקוי כמו בקשה
+ * (buildTripRequest), בלי המועד ועם שעה קבועה אופציונלית. משותף לאפליקציה
+ * ולשרת, כך שמה שנשמר הוא בדיוק מה שהטופס ייצר.
+ *
+ * רק שם ושדה חובה: תבנית היא נקודת פתיחה, ומוצא/יעד נבדקים ביצירת הבקשה.
+ */
+export function buildTemplate(form) {
+  const f = form || {};
+  const { body: req } = buildTripRequest({ ...f, date: '', time: '' });
+  const { airfield_id, scheduled_at, ...data } = req;
+  data.time = validTime(f.time);
+  const body = { name: text(f.name).slice(0, TEMPLATE_NAME_MAX), airfield_id, data };
+  const errors = [];
+  if (!body.name) errors.push('name');
+  if (!body.airfield_id) errors.push('airfield');
+  return { body, errors };
+}
+
 /**
  * כמה דקות לפני ואחרי מועד היציאה מותר לנהג ללחוץ "הפעל נסיעה". משותף לאפליקציה
  * ולשרת (routes/permits.js), כדי שהכפתור והאכיפה לא יתפצלו.
