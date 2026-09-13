@@ -21,7 +21,7 @@ import { normalizeNationalId, nationalIdSql, driverScopeOf, driverMayUseBase, dr
 import { startWindowState, START_WINDOW_MINUTES } from '../../shared/driverLogic.js';
 import {
   anchorFrom, pctToLatLon, metersToPolyline, metersToSegment, isElementBlocking, routeRelevantElements,
-  nextDeviationStreak, isDeviating, isFixStale, ELEMENT_ALERT_M, MAX_ACCURACY_M,
+  nextDeviationStreak, isDeviating, isFixStale, ELEMENT_ALERT_M, MAX_ACCURACY_M, DISPLAY_STATE_LABEL,
 } from '../../shared/tripTracking.js';
 
 const router = new Router();
@@ -1166,7 +1166,10 @@ router.get('/api/trips/live', async (req, res) => {
         deviation_m: l?.deviation_m ?? null,
         deviating: isDeviating(l?.deviation_streak ?? 0),
         blocking_element: l?.blocking_element_id
-          ? { id: l.blocking_element_id, name: l.blocking_name, display_state: l.blocking_display_state, distance_m: l.blocking_distance_m }
+          // התווית בעברית מגיעה מכאן - מאותה מפה שכלל החסימה משתמש בה - ולא
+          // מעותק שלישי שלה בלקוח
+          ? { id: l.blocking_element_id, name: l.blocking_name, display_state: l.blocking_display_state,
+              state_label: DISPLAY_STATE_LABEL[l.blocking_display_state] || '', distance_m: l.blocking_distance_m }
           : null,
       };
     }));

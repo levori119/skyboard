@@ -1,5 +1,6 @@
 import { tr } from '../../i18n/tr';
 import TripMapVehicles from '../ground/TripMapVehicles';
+import TripLiveLayer from '../ground/TripLiveVehicles';
 import i18n from '../../i18n';
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { API_URL } from '../../config';
@@ -3790,6 +3791,10 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               10 דקות לפני היציאה המשוערת. רכיב עצמאי שסוקר בעצמו, כדי
               שהנסיעות לא יוסיפו state למסך המפה. ראה TripMapVehicles. */}
           <TripMapVehicles airfieldId={airfield?.id ?? null} points={points} ptPos={ptPos} />
+          {/* מעקב נסיעה חי - הרכב במיקומו בפועל מרגע שהנהג הפעיל את הנסיעה, עם הנתיב
+              שאושר. TripMapVehicles מדלג על נסיעה שהופעלה, כך שאין רכב כפול.
+              ראה TRIP_LIVE_TRACKING_SPEC.md. */}
+          <TripLiveLayer airfieldId={airfield?.id ?? null} anchor={geoAnchor} points={points} ptPos={ptPos} imgBounds={imgBounds} />
           {/* Airfield elements overlay */}
           {mapLayers.elements && airfieldElements && airfieldElements.filter(el => el.x_pct != null && el.y_pct != null && !hiddenElements.has(el.id) && !(externalHiddenElements?.has(el.id)) && (!el.hidden_on_map || (mapDisplaySettings.showRoutes && elemNavData[el.id])) && (el.category !== 'camera' || mapLayers.cameras)).map(el => {
             // צבע ה**סוג** נשאר לתווית השם בלבד. על הסמל עצמו הוא בלבל: כתום היה

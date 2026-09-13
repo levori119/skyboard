@@ -1858,5 +1858,14 @@ PUT /api/workstation-presets/:id
 ### `public/driver.html` - מסך נסיעה חי
 **תפקיד:** אחרי "הפעל נסיעה" נפתח מסך מלא: מפת השדה (ברירת מחדל, עם "עקוב" שמגדיל פי 3 סביב הרכב) או Google Maps (רק כשיש `GOOGLE_MAPS_API_KEY`; בלעדיו המתג כבוי והסיבה כתובה), הנתיב שאושר, האלמנטים שעל הדרך (אדום = סוגר, עם תווית; ירוק = פתוח), מוצא ויעד ונקודת הרכב עם כיוון. `watchPosition` בדיוק גבוה; שידור ל-`/gps` כל 5 ש' כולל **פעימה** של הקריאה האחרונה כל עוד היא טרייה; רענון `/live` כל 5 ש' (רמזור שהתחלף); התרעות מקומיות דרך `TripTracking.findHazards`+`nextAlertState` על אותו חלון התרעה עם צפצוף והקראה; נעילת מסך (`wakeLock`) כדי שה-GPS לא ייעצר בכיס. "לרשימה" ממשיך לעקוב; כרטיס נסיעה שהופעלה מציע "פתח מפת נסיעה". **נבדק ב:** `server/routes/driverPage.test.js` (כולל קימפול הסקריפט).
 
+### `src/components/ground/TripLiveVehicles.tsx`
+**תפקיד:** מעקב נסיעה חי במגדל - הרכב **במיקומו בפועל** על מפת השדה מרגע הפעלת הנסיעה, עם הנתיב שאושר (קו מקווקו בצבע המצב). גוון לפי `liveVehicleTone`: כחול נוסע · סגול ממתין למיקום · אפור אות אבד · אדום סוטה · כתום מול אלמנט סוגר - תמיד עם טקסט. מרכז **העיגול** על המיקום (לא העיגול והתווית יחד), ושכבה לפי חומרה (`TONE_Z`) כדי שרכב מתריע לא יוסתר. בלי עוגן / בלי מיקום - בנקודת המוצא עם הסבר. **מייצא:** `TripLiveLayer` (default, מושך דרך `useLiveTrips`), `TripLiveVehicles` (מציג), `TONE_Z`. **נבדק ב:** `TripLiveVehicles.test.tsx`, `e2e/trip-live-tower.spec.ts`.
+
+### `src/hooks/useLiveTrips.ts`
+**תפקיד:** `GET /api/trips/live` בסקר **אחד** לשדה, משותף לשכבת המפה ולהתרעות. `subscribeLiveTrips` רושם עם המנוי הראשון ומסיר רק עם האחרון - `pollingRegistry.register` מחליף משימה באותו מפתח, ושני צרכנים ישירים היו משאירים אחד בלי עדכון. **מייצא:** `useLiveTrips` (default), `subscribeLiveTrips`, `LIVE_TRIPS_POLL_MS`.
+
+### `src/utils/liveTrips.ts`
+**תפקיד:** הנגזרת לתצוגה של מעקב חי. `liveTripAlerts` (חסימה לפני סטייה; מפתח החסימה כולל את האלמנט), `pruneDismissedLive` (התרעה שנסגרה חוזרת כשהתנאי חלף וחזר), `liveVehicleTone` (אות אבד גובר). **מייצא:** הנ"ל + `LIVE_TONE_COLOR`, טיפוס `LiveTrip`.
+
 ### `shared/tripTracking.js`
 **תפקיד:** מעקב נסיעה חי - **מקור אמת יחיד** לשרת, לאפליקציית הנהג (`/driver/tracking.js`) ולמגדל. גאומטריה (`anchorFrom`, `pctToLatLon`/`latLonToPct`, `metersToSegment`, `metersToPolyline`), כלל "אלמנט סוגר את הדרך" (`effectiveBlockingStatuses`, `isElementBlocking`, `routeRelevantElements`), והתרעות (`findHazards`, `nextAlertState` - התרעה בכניסה לאזור, `nextDeviationStreak`/`isDeviating`, `isFixStale`). הספים (150/100/50/200 מ', 2 קריאות) הם הכרעת אורי 2026-09-13. **מייצא:** כל הנ"ל + `RUNWAY_ALERT_M`, `TAXIWAY_ALERT_M`, `ELEMENT_ALERT_M`, `DEVIATION_M`, `DEVIATION_STREAK`, `ROUTE_CORRIDOR_M`, `MAX_ACCURACY_M`, `STALE_FIX_MS`, `ALERT_COOLDOWN_MS`, `DISPLAY_STATE_LABEL`.

@@ -7,6 +7,12 @@
 //   ✅ הנהג אישר      - הנהג לחץ "מאשר" באפליקציה שלו
 //   ✋ הנהג ביקש שינוי - זמן יציאה / תחנות / הערה. הנסיעה חוזרת לממתין (גם אם אושרה)
 //                      עד שהמגדל מאשר או דוחה את העדכון
+//   🚧 מתקרב לאלמנט סוגר - רכב בנסיעה פעילה 50 מ' מאלמנט שסוגר את הנתיב שלו
+//   ↯ סטייה מהנתיב     - רכב בנסיעה פעילה יותר מ-200 מ' מהנתיב שאושר, לאורך זמן
+//
+// שתי האחרונות **מחושבות בשרת** (GET /api/trips/live) כדי ששני מגדלים יראו אותן
+// יחד, והן עומדות בראש הערימה - סכנה פיזית עכשיו, לא בקשה שממתינה. בניגוד לשאר,
+// סגירה שלהן אינה סופית: כשהתנאי חולף וחוזר, ההתרעה עולה שוב (pruneDismissedLive).
 //
 // למה שכבה נפרדת ולא באנר בתוך GroundView: ההתראה שייכת ל**עמדה** ולא למפה,
 // היא צריכה להופיע גם כשהמפה מגוללת או מוחלפת, והיא נושאת פעולה (אשר/דחה) -
@@ -22,7 +28,7 @@
 // בלי זה אותה התראה חוזרת בכל poll, והפקח לומד להתעלם ממנה - וזה בדיוק מה
 // שהתראה מתפרצת לא יכולה להרשות לעצמה.
 
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { tr } from '../../i18n/tr';
 import i18n from '../../i18n';
 import { API_URL } from '../../config';
@@ -35,13 +41,17 @@ import {
   minutesUntilDeparture, pendingChangeFields, suggestedVehicleIcon,
 } from '../../utils/trips';
 import type { Trip } from './TripsManagementWindow';
+import useLiveTrips from '../../hooks/useLiveTrips';
+import { liveTripAlerts, pruneDismissedLive, type LiveTrip } from '../../utils/liveTrips';
 
 /** כל 15 שניות: מספיק צפוף ל-10 דקות התראה, ולא מעמיס את ה-DB. */
 const POLL_MS = 15_000;
 
-type AlertKind = 'departure' | 'ack' | 'change' | 'request' | 'started';
+type AlertKind = 'departure' | 'ack' | 'change' | 'request' | 'started' | 'blocked' | 'deviation';
 
-interface TripAlert { key: string; kind: AlertKind; trip: Trip }
+interface TripAlert { key: string; kind: AlertKind; trip: Trip | LiveTrip }
+
+const LIVE_KINDS = new Set<AlertKind>(['blocked', 'deviation']);
 
 const KIND_STYLE: Record<AlertKind, { icon: string; accent: string; titleKey: string }> = {
   departure: { icon: '🚦', accent: '#f59e0b', titleKey: 'trips.alertDepartureTitle' },
@@ -49,6 +59,8 @@ const KIND_STYLE: Record<AlertKind, { icon: string; accent: string; titleKey: st
   change: { icon: '✋', accent: '#ef4444', titleKey: 'trips.alertDriverChangeTitle' },
   request: { icon: '📨', accent: '#38bdf8', titleKey: 'trips.alertDriverRequestTitle' },
   started: { icon: '🚦', accent: '#a78bfa', titleKey: 'trips.alertDriverStartedTitle' },
+  blocked: { icon: '🚧', accent: '#f97316', titleKey: 'trips.alertBlockedTitle' },
+  deviation: { icon: '↯', accent: '#ef4444', titleKey: 'trips.alertDeviationTitle' },
 };
 
 const FIELD_KEY: Record<string, string> = {
@@ -66,7 +78,16 @@ export const TripAlertsLayer: React.FC<TripAlertsLayerProps> = ({ airfieldId, th
   const C = windowPalette(themeMode);
   const dir = i18n.dir();
   const { trips, reload } = useAirfieldTrips<Trip>(airfieldId, 'all', POLL_MS);
+  const liveTrips = useLiveTrips(airfieldId);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const liveAlerts = useMemo(() => liveTripAlerts(liveTrips), [liveTrips]);
+
+  // התרעת סטייה/חסימה שנסגרה והתנאי שלה חלף - נמחקת מהסגורות, כדי שתעלה שוב
+  // כשהרכב יסטה שוב. pruneDismissedLive מחזיר את אותו Set כשאין שינוי.
+  useEffect(() => {
+    const active = new Set(liveAlerts.map(x => x.key));
+    setDismissed(d => pruneDismissedLive(d, active));
+  }, [liveAlerts]);
   const stackRef = useRef<HTMLDivElement | null>(null);
   const drag = useDragPosition(stackRef);
 
@@ -93,8 +114,9 @@ export const TripAlertsLayer: React.FC<TripAlertsLayerProps> = ({ airfieldId, th
         out.push({ key: `dep:${t.id}`, kind: 'departure', trip: t });
       }
     }
-    return out.filter(a => !dismissed.has(a.key));
-  }, [trips, dismissed, now]);
+    // סכנה פיזית עכשיו (חסימה, סטייה) בראש הערימה, לפני בקשות שממתינות
+    return [...liveAlerts, ...out].filter(a => !dismissed.has(a.key));
+  }, [trips, liveAlerts, dismissed, now]);
 
   // הגרירה והעגינה **חייבות** לשבת לפני ההחזרה המוקדמת: הוק שנקרא רק כשיש
   // התראות משנה את סדר ההוקים בין רינדורים ומפיל את React.
@@ -197,7 +219,9 @@ export const TripAlertsLayer: React.FC<TripAlertsLayerProps> = ({ airfieldId, th
       </div>
       {alerts.map(a => {
         const ks = KIND_STYLE[a.kind];
-        const t = a.trip;
+        // התרעות המעקב החי נושאות שורת נסיעה מ-/api/trips/live - אותם שדות תצוגה
+        const t = a.trip as Trip & Partial<LiveTrip>;
+        const isLive = LIVE_KINDS.has(a.kind);
         const label = t.vehicle_name || t.vehicle_type_name || t.permit_driver_name || t.driver_name || '';
         return (
           <div
@@ -219,8 +243,31 @@ export const TripAlertsLayer: React.FC<TripAlertsLayerProps> = ({ airfieldId, th
             </div>
 
             <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>
-              {`${endpoint(t.from_point_name, t.from_text)} → ${endpoint(t.to_point_name, t.to_text)} · ${timingText(t)}`}
+              {isLive
+                // התרעה חיה בלי מוצא ויעד ידועים - בלי "- → -", שהוא רעש ולא מידע
+                ? (t.from_point_name || t.from_text || t.to_point_name || t.to_text
+                  ? `${endpoint(t.from_point_name, t.from_text)} → ${endpoint(t.to_point_name, t.to_text)}` : '')
+                : `${endpoint(t.from_point_name, t.from_text)} → ${endpoint(t.to_point_name, t.to_text)} · ${timingText(t)}`}
             </div>
+
+            {a.kind === 'deviation' && (
+              <div style={{ fontSize: 11, color: ks.accent, fontWeight: 'bold', marginTop: 2 }}>
+                {tr('trips.alertDeviation', { meters: Math.round(t.deviation_m ?? 0) })}
+              </div>
+            )}
+            {a.kind === 'blocked' && t.blocking_element && (
+              <div style={{ fontSize: 11, color: ks.accent, fontWeight: 'bold', marginTop: 2 }}>
+                {tr('trips.alertBlocked', {
+                  element: t.blocking_element.name,
+                  state: t.blocking_element.state_label || '',
+                  meters: Math.round(t.blocking_element.distance_m ?? 0),
+                })}
+              </div>
+            )}
+            {/* המיקום כבר לא עדכני - הפקח צריך לדעת שזו ודאות חלקית */}
+            {isLive && t.stale && (
+              <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{tr('trips.alertLiveStale')}</div>
+            )}
 
             {a.kind === 'change' && (
               <div style={{ fontSize: 10, color: '#fbbf24', marginTop: 2 }}>

@@ -617,6 +617,58 @@
     "alertsTitle": {
       "he": "התראות נסיעה",
       "en": "Trip alerts"
+    },
+    "liveWaiting": {
+      "he": "ממתין למיקום",
+      "en": "Waiting for location"
+    },
+    "liveStale": {
+      "he": "אות אבד",
+      "en": "Signal lost"
+    },
+    "liveNoRoute": {
+      "he": "אין נתיב שמור - סטייה לא מזוהה",
+      "en": "No saved route - deviation not detected"
+    },
+    "liveNoAnchor": {
+      "he": "המפה אינה מעוגנת - אין מיקום",
+      "en": "Map not anchored - no location"
+    },
+    "liveDeviation": {
+      "he": "{{meters}} מ' מהנתיב",
+      "en": "{{meters}} m off route"
+    },
+    "liveBlocked": {
+      "he": "{{element}} {{state}} לפניו",
+      "en": "{{element}} {{state}} ahead"
+    },
+    "liveSpeed": {
+      "he": "{{speed}} קמ\"ש",
+      "en": "{{speed}} km/h"
+    },
+    "liveMarkerTitle": {
+      "he": "{{vehicle}} - נסיעה פעילה",
+      "en": "{{vehicle}} - active trip"
+    },
+    "alertDeviationTitle": {
+      "he": "סטייה מהנתיב",
+      "en": "Off route"
+    },
+    "alertDeviation": {
+      "he": "{{meters}} מ' מהנתיב שאושר",
+      "en": "{{meters}} m from the approved route"
+    },
+    "alertBlockedTitle": {
+      "he": "מתקרב לאלמנט סוגר",
+      "en": "Approaching a closed element"
+    },
+    "alertBlocked": {
+      "he": "{{element}} ({{state}}) · {{meters}} מ'",
+      "en": "{{element}} ({{state}}) · {{meters}} m"
+    },
+    "alertLiveStale": {
+      "he": "אות אבד - זהו המיקום האחרון שהתקבל",
+      "en": "Signal lost - this is the last known location"
     }
   }
 }

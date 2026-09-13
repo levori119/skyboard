@@ -42,6 +42,9 @@ export const TripMapVehicles: React.FC<TripMapVehiclesProps> = ({ airfieldId, po
   return (
     <>
       {trips.map(t => {
+        // נסיעה שהנהג כבר הפעיל מוצגת במיקומה בפועל (TripLiveVehicles). כאן היא
+        // הייתה נשארת תקועה בשער - אותו רכב פעמיים, ואחד מהם במקום הלא נכון.
+        if (t.driver_started_at && !t.ended_at) return null;
         const pt = points.find(p => p.id === t.from_point_id);
         // נסיעה שמוצאה נרשם כטקסט חופשי אין לה מקום על המפה - היא מוצגת
         // בחלון "ניהול נסיעות" בלבד, ולא נדחפת לפינה שרירותית

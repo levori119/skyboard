@@ -414,7 +414,7 @@ describe('GET /api/trips/live - המגדל', () => {
     const t = await mkStarted();
     await dpost(`/api/driver-trips/${t.id}/gps`, MY_TZ, ON_ROUTE);
     const [r] = await (await get(`/api/trips/live?airfield_id=${AF}`)).json();
-    expect(r.blocking_element).toMatchObject({ id: 31, name: 'מחסום צפוני', display_state: 'close' });
+    expect(r.blocking_element).toMatchObject({ id: 31, name: 'מחסום צפוני', display_state: 'close', state_label: 'סגור' });
   });
 
   it('בלי airfield_id - רשימה ריקה', async () => {
