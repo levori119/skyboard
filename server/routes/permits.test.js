@@ -782,6 +782,107 @@ describe('ניהול נסיעות - אפליקציית הנהג', () => {
     expect(after.pending_change_prev_status).toBeNull();
   });
 
+  // ── הבקשה **האמיתית** של אפליקציית הנהג ──────────────────────────────────
+  //
+  // האפליקציה (public/driver.html §submitTripChange) שולחת **תמיד** את שלושת
+  // השדות - זמן, תחנות והערה - מתוך טופס שממולא מראש בערכים הנוכחיים, גם
+  // כשהנהג שינה רק אחד מהם. כל הבדיקות שמעל שלחו רק את השדה שהשתנה, ולכן לא
+  // תפסו את זה. בפועל זה שבר שני דברים שדווחו מהשטח:
+  //   1. "מהות השינוי" שהמגדל רואה מנתה את שלושת השדות גם כשהשתנה רק הזמן.
+  //   2. `stops` היה תמיד בבקשה, ולכן אישור השינוי מחק את הנתיב והשאיר את
+  //      הנסיעה ממתינה - היא **לעולם** לא חזרה למאושרת באפליקציית הנהג.
+  /** בדיוק מה שהאפליקציה שולחת: הערכים הנוכחיים, עם שינוי אחד על גביהם */
+  const appPayload = (t, over = {}) => ({
+    scheduled_at: t.scheduled_at,
+    stops: (t.stop_names || []).map(text => ({ point_id: null, text })),
+    note: t.note || '',
+    ...over,
+  });
+
+  it('האפליקציה שולחת את כל השדות ושינתה רק את הזמן - נרשם רק הזמן', async () => {
+    const t = await mkApproved();
+    const when = tripAt(90);
+    const after = await (await dpost(`/api/driver-trips/${t.id}/change`, MY_TZ, appPayload(t, { scheduled_at: when }))).json();
+    expect(Object.keys(after.pending_change)).toEqual(['scheduled_at']);
+  });
+
+  it('התקלה שדווחה: אישור שינוי זמן מהאפליקציה מחזיר את הנסיעה למאושרת', async () => {
+    const t = await mkApproved();
+    await dpost(`/api/driver-trips/${t.id}/change`, MY_TZ, appPayload(t, { scheduled_at: tripAt(90) }));
+    const after = await (await post(`/api/entry-permit-trips/${t.id}/change/approve`)).json();
+    expect(after.status).toBe('approved');
+    expect(after.selected_route_label).toBe('כביש היקפי');
+  });
+
+  it('שינוי הערה בלבד מהאפליקציה - נרשמת רק ההערה, ואישור מחזיר למאושרת', async () => {
+    const t = await mkApproved();
+    const mid = await (await dpost(`/api/driver-trips/${t.id}/change`, MY_TZ, appPayload(t, { note: 'מאחר בעשר דקות' }))).json();
+    expect(Object.keys(mid.pending_change)).toEqual(['note']);
+    const after = await (await post(`/api/entry-permit-trips/${t.id}/change/approve`)).json();
+    expect(after.status).toBe('approved');
+    expect(after.note).toBe('מאחר בעשר דקות');
+  });
+
+  // "שלח" בלי לשנות דבר אינו בקשת שינוי - ואסור שיוריד נסיעה מאושרת לממתין
+  it('טופס שנשלח בלי שום שינוי נדחה, והנסיעה נשארת מאושרת', async () => {
+    const t = await mkApproved();
+    const res = await dpost(`/api/driver-trips/${t.id}/change`, MY_TZ, appPayload(t));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('nothing_to_change');
+    const { rows } = await pool.query('SELECT status, pending_change FROM entry_permit_trips WHERE id=$1', [t.id]);
+    expect(rows[0].status).toBe('approved');
+    expect(rows[0].pending_change).toBeNull();
+  });
+
+  it('תחנות שהשתנו באמת עדיין מוחקות את הנתיב - התכנון המקורי נשמר', async () => {
+    const t = await mkApproved();
+    const mid = await (await dpost(`/api/driver-trips/${t.id}/change`, MY_TZ,
+      appPayload(t, { stops: [{ point_id: null, text: 'מחסן' }] }))).json();
+    expect(Object.keys(mid.pending_change)).toEqual(['stops']);
+    const after = await (await post(`/api/entry-permit-trips/${t.id}/change/approve`)).json();
+    expect(after.status).toBe('pending');
+    expect(after.selected_route_ids).toEqual([]);
+  });
+
+  // האפליקציה מקבלת את התחנות כ**שמות** ושולחת אותן חזרה כטקסט חופשי. תחנה
+  // שמקושרת לנקודה בשדה חוזרת כשמה - וזה אינו שינוי
+  it('תחנות מקושרות לנקודות שנשלחו חזרה כשמותיהן אינן שינוי', async () => {
+    const t = await mkApproved({ stops: [{ point_id: 20, text: '' }, { point_id: null, text: 'שער דרומי' }] });
+    expect(t.stop_names).toEqual(['שער ראשי', 'שער דרומי']);
+    const after = await (await dpost(`/api/driver-trips/${t.id}/change`, MY_TZ, appPayload(t, { note: 'חדש' }))).json();
+    expect(Object.keys(after.pending_change)).toEqual(['note']);
+  });
+
+  it('הערה ריקה מול null ורווחים בקצוות אינם שינוי', async () => {
+    const t = await mkApproved({ note: '' });
+    const res = await dpost(`/api/driver-trips/${t.id}/change`, MY_TZ, appPayload(t, { note: '   ' }));
+    expect(res.status).toBe(400);
+  });
+
+  // הזמן בטופס הוא ברזולוציית דקה (datetime-local); שניות שב-DB אינן שינוי
+  it('אותה דקה עם שניות שונות אינה שינוי זמן', async () => {
+    const base = new Date(Date.now() + 120 * 60_000);
+    base.setSeconds(37, 0);
+    const t = await mkApproved({ scheduled_at: base.toISOString() });
+    const sameMinute = new Date(base); sameMinute.setSeconds(0, 0);
+    const res = await dpost(`/api/driver-trips/${t.id}/change`, MY_TZ, appPayload(t, { scheduled_at: sameMinute.toISOString() }));
+    expect(res.status).toBe(400);
+  });
+
+  // בקשות שכבר יושבות ב-DB מלפני התיקון מחזיקות את שלושת השדות. ההכרעה עצמה
+  // משווה מול הנסיעה, ולכן גם הן חוזרות למאושרות כשהתחנות לא השתנו באמת
+  it('בקשה ישנה שנשמרה עם כל השדות - אישור עדיין מחזיר למאושרת', async () => {
+    const t = await mkApproved();
+    await pool.query(
+      `UPDATE entry_permit_trips SET pending_change=$1, pending_change_at=NOW(),
+         pending_change_prev_status=status, status='pending' WHERE id=$2`,
+      [JSON.stringify(appPayload(t, { note: 'מאחר' })), t.id]);
+    const after = await (await post(`/api/entry-permit-trips/${t.id}/change/approve`)).json();
+    expect(after.status).toBe('approved');
+    expect(after.selected_route_label).toBe('כביש היקפי');
+    expect(after.note).toBe('מאחר');
+  });
+
   // ── הפעלת נסיעה: חצי שעה לפני עד חצי שעה אחרי ──
   it('נסיעה מאושרת בתוך החלון מופעלת', async () => {
     const t = await mkApproved({ scheduled_at: tripAt(20) });

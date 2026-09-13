@@ -284,6 +284,62 @@ const jsonArr = v => JSON.stringify(Array.isArray(v) ? v : []);
 /** מה שהנהג רשאי להציע לשנות מהאפליקציה. חייב להתאים ל-DRIVER_EDITABLE_FIELDS. */
 const DRIVER_EDITABLE_FIELDS = ['scheduled_at', 'stops', 'note'];
 
+/** אותה דקה. הטופס באפליקציה ברזולוציית דקה (datetime-local), וה-DB שומר שניות. */
+function sameMinute(a, b) {
+  const ta = a ? new Date(a).getTime() : NaN;
+  const tb = b ? new Date(b).getTime() : NaN;
+  if (Number.isNaN(ta) || Number.isNaN(tb)) return Number.isNaN(ta) && Number.isNaN(tb);
+  return Math.floor(ta / 60_000) === Math.floor(tb / 60_000);
+}
+
+/** הערה: null, ריק ורווחים בקצוות הם אותו דבר. */
+const sameText = (a, b) => String(a ?? '').trim() === String(b ?? '').trim();
+
+/**
+ * שמות התחנות כפי שהנהג רואה אותם - שם הנקודה כשהתחנה מקושרת לנקודה בשדה,
+ * ואחרת הטקסט שנרשם. אותה נגזרת כמו `stop_names` ב-TRIP_SELECT, כדי שתחנה
+ * שחזרה מהאפליקציה כשמה לא תיספר כשינוי רק כי אבד לה ה-point_id.
+ */
+async function stopLabels(stops, q = pool) {
+  const list = Array.isArray(stops) ? stops : [];
+  const ids = [...new Set(list.map(x => num(x?.point_id)).filter(Boolean))];
+  const names = new Map();
+  if (ids.length) {
+    const r = await q.query('SELECT id, name FROM airfield_points WHERE id = ANY($1::int[])', [ids]);
+    for (const row of r.rows) names.set(row.id, row.name);
+  }
+  return list
+    .map(x => String(names.get(num(x?.point_id)) ?? x?.text ?? '').trim())
+    .filter(Boolean);
+}
+
+/**
+ * השדות שהנהג **באמת** שינה, מול הערכים הנוכחיים של הנסיעה.
+ *
+ * אפליקציית הנהג שולחת תמיד את שלושת השדות מתוך טופס שממולא מראש בערכים
+ * הנוכחיים, גם כשהנהג שינה רק אחד. שמירה של כל מה שנשלח שברה שני דברים:
+ * "מהות השינוי" שהמגדל רואה מנתה את שלושתם, ו-`stops` שהיה תמיד בבקשה גרם
+ * לאישור למחוק את הנתיב ולהשאיר את הנסיעה ממתינה - היא לעולם לא חזרה
+ * למאושרת. ההשוואה רצה גם בהכרעה, כדי שבקשות שכבר נשמרו כך יחזרו תקינות.
+ *
+ * `trip` - שורת נסיעה מלאה מ-oneTrip (עם `stop_names`).
+ */
+async function actualDriverChanges(submitted, trip, q = pool) {
+  const out = {};
+  if (submitted.scheduled_at !== undefined && !sameMinute(submitted.scheduled_at, trip.scheduled_at)) {
+    out.scheduled_at = submitted.scheduled_at;
+  }
+  if (submitted.note !== undefined && !sameText(submitted.note, trip.note)) {
+    out.note = submitted.note;
+  }
+  if (submitted.stops !== undefined) {
+    const next = await stopLabels(submitted.stops, q);
+    const cur = (Array.isArray(trip.stop_names) ? trip.stop_names : []).map(x => String(x ?? '').trim()).filter(Boolean);
+    if (next.length !== cur.length || next.some((label, i) => label !== cur[i])) out.stops = submitted.stops;
+  }
+  return out;
+}
+
 const TRIP_SELECT = `
   SELECT t.*, fp.name AS from_point_name, tp.name AS to_point_name,
          v.plate_number, v.plate_fixed,
@@ -575,8 +631,11 @@ router.post('/api/entry-permit-trips/:id/change/:decision', async (req, res) => 
     if (decision === 'approve') {
       const allowed = {};
       for (const f of DRIVER_EDITABLE_FIELDS) if (f in pending) allowed[f] = pending[f];
-      tripSetters(allowed, set);
-      if ('stops' in allowed) {
+      // שוב מול הנסיעה עצמה: בקשות שנשמרו לפני התיקון מחזיקות את שלושת השדות,
+      // ובלי ההשוואה `stops` שלא השתנה היה מוחק את הנתיב גם בהן
+      const actual = await actualDriverChanges(allowed, await oneTrip(req.params.id, client), client);
+      tripSetters(actual, set);
+      if ('stops' in actual) {
         set('selected_route_ids', '[]');
         set('selected_route_label', '');
         set('status', 'pending');
@@ -775,6 +834,10 @@ router.post('/api/driver-trips/:id/change', async (req, res) => {
     for (const f of DRIVER_EDITABLE_FIELDS) if (b[f] !== undefined) change[f] = b[f];
     if (!Object.keys(change).length) return res.status(400).json({ error: 'nothing_to_change' });
     if (!(await ownsTrip(req.params.id, scope))) return res.status(404).json({ error: 'trip_not_found' });
+    // רק מה שהשתנה באמת. טופס שנשלח בלי שינוי אינו בקשה - ואסור שיוריד נסיעה
+    // מאושרת לממתין רק כי הנהג לחץ "שלח".
+    const actual = await actualDriverChanges(change, await oneTrip(req.params.id));
+    if (!Object.keys(actual).length) return res.status(400).json({ error: 'nothing_to_change' });
     // כל עדכון מחזיר את הנסיעה ל**ממתין** - גם אם אושרה - עד שהמגדל מכריע.
     // הסטטוס שלפני העדכון נשמר פעם אחת: עדכון שני לפני הכרעה אינו דורס אותו.
     const r = await pool.query(
@@ -783,7 +846,7 @@ router.post('/api/driver-trips/:id/change', async (req, res) => {
               pending_change_prev_status = COALESCE(pending_change_prev_status, status),
               status = 'pending'
         WHERE id=$2 RETURNING id`,
-      [JSON.stringify(change), req.params.id]
+      [JSON.stringify(actual), req.params.id]
     );
     if (!r.rows.length) return res.status(404).json({ error: 'trip_not_found' });
     res.json(await oneTrip(req.params.id));
