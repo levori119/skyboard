@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import pool from '../db/pool.js';
 import { DRIVER_CSP } from '../middleware/securityHeaders.js';
 import { driverScopeOf, driverMayUseBase } from '../auth/driverIdentity.js';
+import { metersToPolyline } from '../../shared/tripTracking.js';
 const router = new Router();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -406,7 +407,8 @@ function pctToGeo(xPct, yPct, mapRow) {
   return { lat: Number(lat1) + ty * (Number(lat2) - Number(lat1)), lon: Number(lon1) + tx * (Number(lon2) - Number(lon1)) };
 }
 
-function astarPath(graph, nodes, startId, endId) {
+/** `edgeCost(from, to, cost)` - עלות מותאמת לקשת (חלופות נתיב: קנס על מקטע). בלעדיו - המרחק. */
+function astarPath(graph, nodes, startId, endId, edgeCost = null) {
   const open = new Map([[startId, haversineM(nodes[startId].lat, nodes[startId].lon, nodes[endId].lat, nodes[endId].lon)]]);
   const cameFrom = {};
   const gScore = { [startId]: 0 };
@@ -422,7 +424,7 @@ function astarPath(graph, nodes, startId, endId) {
     open.delete(current);
     for (const { to, cost } of (graph[current] || [])) {
       if (!nodes[to]) continue;
-      const tg = (gScore[current] || 0) + cost;
+      const tg = (gScore[current] || 0) + (edgeCost ? edgeCost(current, to, cost) : cost);
       if (tg < (gScore[to] != null ? gScore[to] : Infinity)) {
         cameFrom[to] = current;
         gScore[to] = tg;
@@ -432,6 +434,15 @@ function astarPath(graph, nodes, startId, endId) {
   }
   return null;
 }
+
+/** קנס על קשת במקטע שנחסם בחיפוש חלופה - גבוה מספיק כדי שכל עקיפה סבירה תעדיף דרך אחרת */
+const ALT_PENALTY = 25;
+/** צומת של המקטע שנחסם מותר בחלופה רק במרחק הזה ממוצא, תחנה או יעד */
+const ALT_ENDPOINT_M = 100;
+/** שני נתיבים שכל נקודה של כל אחד מהם במרחק הזה מהשני - אותה דרך פיזית */
+const ALT_SAME_PATH_M = 50;
+/** כמה חלופות לכל היותר לבקשה - מעבר לזה הפקח מקבל רשימה ולא בחירה */
+const MAX_ALTERNATIVES = 3;
 
 /**
  * תכנון נתיב בגרף הכבישים/מסלולי ההסעה של השדה: מוצא -> תחנות -> יעד.
@@ -575,160 +586,233 @@ export async function planRoute(body) {
     }
   }
 
-  const pathIds = [];
-  for (let i = 0; i < chain.length - 1; i++) {
-    const leg = astarPath(graph, nodes, chain[i].key, chain[i + 1].key);
-    if (!leg) {
-      return {
-        waypoints: [], crossings: [], elements: [],
-        error: `לא נמצא מסלול - אין חיבור בין ${chain[i].name} ל${chain[i + 1].name}`,
-      };
+  /**
+   * פותר את כל רגלי השרשרת (מוצא -> תחנות -> יעד). `blocked` - צמתים שכל קשת
+   * שנוגעת בהם מקבלת קנס כבד, כדי למצוא נתיב **שעוקף** אותם (חלופה). קנס ולא
+   * מחיקה: קטע שאין דרך בלעדיו עדיין נבחר, והחלופה נפסלת (ראה avoids).
+   */
+  const solveLegs = (blocked = null) => {
+    const edgeCost = !blocked ? null
+      : (a, b, cost) => (blocked.has(a) || blocked.has(b) ? cost * ALT_PENALTY : cost);
+    const ids = [];
+    for (let i = 0; i < chain.length - 1; i++) {
+      const leg = astarPath(graph, nodes, chain[i].key, chain[i + 1].key, edgeCost);
+      if (!leg) return { error: `לא נמצא מסלול - אין חיבור בין ${chain[i].name} ל${chain[i + 1].name}` };
+      // הצומת המשותף לשתי רגליים נרשם פעם אחת
+      ids.push(...(i === 0 ? leg : leg.slice(1)));
     }
-    // הצומת המשותף לשתי רגליים נרשם פעם אחת
-    pathIds.push(...(i === 0 ? leg : leg.slice(1)));
-  }
+    return { pathIds: ids };
+  };
 
-  const waypoints = pathIds.map(id => {
-    const n = nodes[id];
-    return {
-      lat: n.lat, lon: n.lon, routeType: n.routeType || 'virtual',
-      routeName: n.routeName || '', nodeId: id,
-      // סימון התחנה עובר הלאה, כדי שההוראה תאמר לנהג לעצור בה
-      isStop: !!n.isStop, stopName: n.stopName || '',
-    };
-  });
-
-  const crossingNodeIds = new Set();
-  for (const id of pathIds) {
-    const n = nodes[id];
-    if (n.routeType === 'taxiway' || n.routeType === 'runway') crossingNodeIds.add(id);
-  }
-  const crossings = pathIds.filter(id => crossingNodeIds.has(id)).map(id => ({
-    nodeId: id, lat: nodes[id].lat, lon: nodes[id].lon,
-    routeType: nodes[id].routeType, routeName: nodes[id].routeName || ''
-  }));
+  const best = solveLegs();
+  if (best.error) return { waypoints: [], crossings: [], elements: [], error: best.error };
 
   const afRoutes = (await pool.query('SELECT *, is_runway FROM airfield_routes WHERE airfield_id=$1', [airfield_id])).rows;
-  const CROSSING_DETECT_RADIUS = 60;
-  const detectedAFCrossings = [];
-  for (const afRoute of afRoutes) {
-    const routePath = Array.isArray(afRoute.route_path) ? afRoute.route_path : (JSON.parse(afRoute.route_path || '[]'));
-    for (const pt of routePath) {
-      const ptGeo = mapRow ? pctToGeo(pt.x, pt.y, mapRow) : null;
-      if (!ptGeo) continue;
-      for (const id of pathIds) {
-        const n = nodes[id];
-        if (!n || n.routeType === 'virtual') continue;
-        const d = haversineM(n.lat, n.lon, ptGeo.lat, ptGeo.lon);
-        if (d <= CROSSING_DETECT_RADIUS) {
-          detectedAFCrossings.push({
-            lat: n.lat, lon: n.lon,
-            crossingType: afRoute.is_runway ? 'runway' : 'taxiway',
-            crossingName: afRoute.name,
-            nodeId: id
-          });
+  let controlElementsRes = null;
+  const controlElements = async () => controlElementsRes || (controlElementsRes = await pool.query(
+    `SELECT ae.id, ae.name, ae.x_pct, ae.y_pct, ae.status,
+            aet.name as type_name, aet.icon, aet.can_change_status, aet.open_icon, aet.close_icon
+     FROM airfield_elements ae
+     JOIN airfield_element_types aet ON aet.id = ae.element_type_id
+     WHERE ae.airfield_id = $1 AND aet.can_change_status = true`, [airfield_id]));
+
+  /** נתיב (שרשרת צמתים) -> הוראות, חציות, אלמנטים לתפעול, אורך ותיאור המקטעים */
+  const describePath = async (pathIds) => {
+    const waypoints = pathIds.map(id => {
+      const n = nodes[id];
+      return {
+        lat: n.lat, lon: n.lon, routeType: n.routeType || 'virtual',
+        routeName: n.routeName || '', nodeId: id,
+        // סימון התחנה עובר הלאה, כדי שההוראה תאמר לנהג לעצור בה
+        isStop: !!n.isStop, stopName: n.stopName || '',
+      };
+    });
+
+    const crossingNodeIds = new Set();
+    for (const id of pathIds) {
+      const n = nodes[id];
+      if (n.routeType === 'taxiway' || n.routeType === 'runway') crossingNodeIds.add(id);
+    }
+    const crossings = pathIds.filter(id => crossingNodeIds.has(id)).map(id => ({
+      nodeId: id, lat: nodes[id].lat, lon: nodes[id].lon,
+      routeType: nodes[id].routeType, routeName: nodes[id].routeName || ''
+    }));
+
+    const CROSSING_DETECT_RADIUS = 60;
+    const detectedAFCrossings = [];
+    for (const afRoute of afRoutes) {
+      const routePath = Array.isArray(afRoute.route_path) ? afRoute.route_path : (JSON.parse(afRoute.route_path || '[]'));
+      for (const pt of routePath) {
+        const ptGeo = mapRow ? pctToGeo(pt.x, pt.y, mapRow) : null;
+        if (!ptGeo) continue;
+        for (const id of pathIds) {
+          const n = nodes[id];
+          if (!n || n.routeType === 'virtual') continue;
+          const d = haversineM(n.lat, n.lon, ptGeo.lat, ptGeo.lon);
+          if (d <= CROSSING_DETECT_RADIUS) {
+            detectedAFCrossings.push({
+              lat: n.lat, lon: n.lon,
+              crossingType: afRoute.is_runway ? 'runway' : 'taxiway',
+              crossingName: afRoute.name,
+              nodeId: id
+            });
+            break;
+          }
+        }
+      }
+    }
+
+    const allCrossingPoints = [
+      ...crossings.map(c => ({ lat: c.lat, lon: c.lon, type: c.routeType })),
+      ...detectedAFCrossings.map(c => ({ lat: c.lat, lon: c.lon, type: c.crossingType }))
+    ];
+    const ELEMENT_RADIUS = 150;
+    const elementsToOperate = [];
+    const seenElements = new Set();
+    if (allCrossingPoints.length > 0) {
+      const elsRes = await controlElements();
+      for (const el of elsRes.rows) {
+        const elGeo = mapRow ? pctToGeo(el.x_pct, el.y_pct, mapRow) : null;
+        if (!elGeo) continue;
+        for (const cp of allCrossingPoints) {
+          const d = haversineM(cp.lat, cp.lon, elGeo.lat, elGeo.lon);
+          if (d <= ELEMENT_RADIUS && !seenElements.has(el.id)) {
+            seenElements.add(el.id);
+            elementsToOperate.push({ ...el, lat: elGeo.lat, lon: elGeo.lon, distance: Math.round(d), crossingType: cp.type });
+          }
+        }
+      }
+    }
+
+    const crossingNodeSet = new Set([...crossings.map(c => c.nodeId), ...detectedAFCrossings.map(c => c.nodeId)]);
+    const baseWaypoints = waypoints.map(wp => ({
+      ...wp,
+      xPct: nodes[wp.nodeId]?.xPct ?? null,
+      yPct: nodes[wp.nodeId]?.yPct ?? null,
+      isCrossing: crossingNodeSet.has(wp.nodeId),
+      crossingDetails: detectedAFCrossings.find(c => c.nodeId === wp.nodeId) || null
+    }));
+
+    const fromName = fromPt?.name || 'מוצא';
+    const toName   = toPt?.name   || 'יעד';
+    const finalWaypoints = baseWaypoints.map((wp, i, arr) => {
+      let instruction = '';
+      let turn = '';
+      if (i === 0) {
+        instruction = `🚦 צא מ${fromName}`;
+      } else if (i === arr.length - 1) {
+        instruction = `🏁 הגעת ל${toName}`;
+      } else {
+        const prev = arr[i - 1], next = arr[i + 1];
+        if (prev.lat && prev.lon && wp.lat && wp.lon && next.lat && next.lon) {
+          const b1 = bearingDeg(prev.lat, prev.lon, wp.lat, wp.lon);
+          const b2 = bearingDeg(wp.lat, wp.lon, next.lat, next.lon);
+          turn = turnLabel(b1, b2);
+          const rn = next.routeName || wp.routeName || '';
+          instruction = turn === 'ישר' ? `➡️ סע ישר${rn ? ` על ${rn}` : ''}` :
+                        turn === 'ימינה' ? `↪️ פנה ימינה${rn ? ` על ${rn}` : ''}` :
+                                           `↩️ פנה שמאלה${rn ? ` על ${rn}` : ''}`;
+        }
+      }
+      // תחנת ביניים גוברת על הוראת הפנייה: מה שהנהג צריך לדעת בנקודה הזו
+      // הוא שהוא עוצר, ולא לאן הכביש ממשיך
+      if (wp.isStop) instruction = `🛑 עצור בתחנה ${wp.stopName}`;
+      if (wp.isCrossing) {
+        const cType = wp.crossingDetails?.crossingType || wp.routeType;
+        const cName = wp.crossingDetails?.crossingName || wp.routeName || '';
+        instruction += ` ⚠️ (שים לב! ${cType === 'runway' ? 'מסלול טיסה' : 'מסלול הסעה'}${cName ? ` — ${cName}` : ''})`;
+      }
+      return { ...wp, instruction, turn };
+    });
+
+    const totalDistM = Math.round(pathIds.slice(1).reduce((sum, id, i) => {
+      const prev = nodes[pathIds[i]], cur = nodes[id];
+      return prev && cur ? sum + haversineM(prev.lat, prev.lon, cur.lat, cur.lon) : sum;
+    }, 0));
+
+    const segmentPath = (() => {
+      const parts = [fromName];
+      let lastSeg = null;
+      for (let i = 0; i < finalWaypoints.length; i++) {
+        const wp = finalWaypoints[i];
+        if (i === finalWaypoints.length - 1) {
+          const dir = wp.turn === 'ימינה' ? 'R' : wp.turn === 'שמאלה' ? 'L' : '→';
+          parts.push(`->(${dir})->${toName}`);
           break;
         }
-      }
-    }
-  }
-
-  const allCrossingPoints = [
-    ...crossings.map(c => ({ lat: c.lat, lon: c.lon, type: c.routeType })),
-    ...detectedAFCrossings.map(c => ({ lat: c.lat, lon: c.lon, type: c.crossingType }))
-  ];
-  const ELEMENT_RADIUS = 150;
-  const elementsToOperate = [];
-  const seenElements = new Set();
-  if (allCrossingPoints.length > 0) {
-    const elsRes = await pool.query(
-      `SELECT ae.id, ae.name, ae.x_pct, ae.y_pct, ae.status,
-              aet.name as type_name, aet.icon, aet.can_change_status, aet.open_icon, aet.close_icon
-       FROM airfield_elements ae
-       JOIN airfield_element_types aet ON aet.id = ae.element_type_id
-       WHERE ae.airfield_id = $1 AND aet.can_change_status = true`, [airfield_id]);
-    for (const el of elsRes.rows) {
-      const elGeo = mapRow ? pctToGeo(el.x_pct, el.y_pct, mapRow) : null;
-      if (!elGeo) continue;
-      for (const cp of allCrossingPoints) {
-        const d = haversineM(cp.lat, cp.lon, elGeo.lat, elGeo.lon);
-        if (d <= ELEMENT_RADIUS && !seenElements.has(el.id)) {
-          seenElements.add(el.id);
-          elementsToOperate.push({ ...el, lat: elGeo.lat, lon: elGeo.lon, distance: Math.round(d), crossingType: cp.type });
+        const seg = wp.routeName || null;
+        if (seg && seg !== lastSeg) {
+          if (lastSeg !== null) {
+            const dir = wp.turn === 'ימינה' ? 'R' : wp.turn === 'שמאלה' ? 'L' : '→';
+            parts.push(`->(${dir})->${seg}`);
+          } else {
+            parts.push(`->${seg}`);
+          }
+          lastSeg = seg;
         }
       }
+      return parts.join(' ');
+    })();
+
+    return {
+      waypoints: finalWaypoints,
+      crossings: [...crossings, ...detectedAFCrossings],
+      elementsToOperate,
+      totalDistM,
+      segmentPath,
+      routeSegments: usableRoutes.filter(r => pathIds.some(id => id.startsWith(`r${r.id}_`))).map(r => ({ id: r.id, name: r.name, type: r.route_type })),
+    };
+  };
+
+  const main = await describePath(best.pathIds);
+
+  // ── חלופות ───────────────────────────────────────────────────────────────
+  // כל מקטע בנתיב הקצר נחסם בתורו, והנתיב שעוקף אותו הוא חלופה. חלופה שעוברת
+  // באותם מקטעים (דרך אחרת אין) מסוננת. הקצרות ראשונות.
+  const alternatives = [];
+  const wanted = Math.max(0, Math.min(MAX_ALTERNATIVES, Number(body?.alternatives) || 0));
+  if (wanted > 0) {
+    const segSig = ids => [...new Set(ids.map(id => nodes[id]?.routeId).filter(v => v != null))].sort((a, b) => a - b).join(',');
+    const pathLen = ids => ids.slice(1).reduce((sum, id, i) => sum + haversineM(nodes[ids[i]].lat, nodes[ids[i]].lon, nodes[id].lat, nodes[id].lon), 0);
+    const seen = new Set([segSig(best.pathIds)]);
+    const geo = ids => ids.map(id => ({ lat: nodes[id].lat, lon: nodes[id].lon }));
+    // החסימה **גאומטרית** ולא לפי מזהה המקטע: בשדה אמיתי "מסלולים מחושבים" שמורים
+    // מונחים על אותם כבישים, וחסימת מקטע לפי מזהה שלחה את החיפוש לכפיל שלו -
+    // אותה דרך בשם אחר - בלי לנסות דרך אחרת באמת. נחסם כל צומת בגרף שנמצא ליד
+    // הקטע הזה של הנתיב, חוץ מסביבת המוצא, התחנות והיעד (שם הכבישים נפגשים ואין
+    // דרך אחרת לצאת או להגיע). צמתים סמוכים מחוברים עד 80 מ', ולכן הקנס על כל
+    // קשת שנוגעת בצומת חסום - אחרת החיפוש "מדלג" לצומת סמוך וחוזר.
+    const nearChain = id => chain.some(p => haversineM(p.geo.lat, p.geo.lon, nodes[id].lat, nodes[id].lon) <= ALT_ENDPOINT_M);
+    const blockedNear = part => new Set(nodeIds.filter(id =>
+      !nearChain(id) && (metersToPolyline(nodes[id], part)?.meters ?? Infinity) <= ALT_SAME_PATH_M));
+    const avoids = (ids, blocked) => ids.every(id => !blocked.has(id));
+    const candidates = [];
+    for (const seg of main.routeSegments) {
+      const part = geo(best.pathIds.filter(id => nodes[id]?.routeId === seg.id));
+      const blocked = blockedNear(part);
+      if (!blocked.size) continue;
+      const alt = solveLegs(blocked);
+      if (alt.error || !avoids(alt.pathIds, blocked)) continue;
+      const sig = segSig(alt.pathIds);
+      if (seen.has(sig)) continue;
+      seen.add(sig);
+      candidates.push({ ids: alt.pathIds, len: pathLen(alt.pathIds) });
+    }
+    candidates.sort((a, b) => a.len - b.len);
+    // **אותה דרך פיזית בשם אחר אינה חלופה.** בשדה אמיתי נשמרו "מסלולים מחושבים"
+    // שעוברים בדיוק על הכבישים, והחיפוש החזיר אותם כחלופות באורך זהה לנתיב הקצר.
+    // נתיב שכל נקודותיו בתוך ALT_SAME_PATH_M מנתיב שכבר נבחר (ולהפך) - זהה.
+    const within = (a, b) => a.every(p => (metersToPolyline(p, b)?.meters ?? Infinity) <= ALT_SAME_PATH_M);
+    const samePhysical = (a, b) => within(a, b) && within(b, a);
+    const accepted = [geo(best.pathIds)];
+    for (const c of candidates) {
+      if (alternatives.length >= wanted) break;
+      const g = geo(c.ids);
+      if (accepted.some(a => samePhysical(g, a))) continue;
+      accepted.push(g);
+      alternatives.push(await describePath(c.ids));
     }
   }
-
-  const crossingNodeSet = new Set([...crossings.map(c => c.nodeId), ...detectedAFCrossings.map(c => c.nodeId)]);
-  const baseWaypoints = waypoints.map(wp => ({
-    ...wp,
-    xPct: nodes[wp.nodeId]?.xPct ?? null,
-    yPct: nodes[wp.nodeId]?.yPct ?? null,
-    isCrossing: crossingNodeSet.has(wp.nodeId),
-    crossingDetails: detectedAFCrossings.find(c => c.nodeId === wp.nodeId) || null
-  }));
-
-  const fromName = fromPt?.name || 'מוצא';
-  const toName   = toPt?.name   || 'יעד';
-  const finalWaypoints = baseWaypoints.map((wp, i, arr) => {
-    let instruction = '';
-    let turn = '';
-    if (i === 0) {
-      instruction = `🚦 צא מ${fromName}`;
-    } else if (i === arr.length - 1) {
-      instruction = `🏁 הגעת ל${toName}`;
-    } else {
-      const prev = arr[i - 1], next = arr[i + 1];
-      if (prev.lat && prev.lon && wp.lat && wp.lon && next.lat && next.lon) {
-        const b1 = bearingDeg(prev.lat, prev.lon, wp.lat, wp.lon);
-        const b2 = bearingDeg(wp.lat, wp.lon, next.lat, next.lon);
-        turn = turnLabel(b1, b2);
-        const rn = next.routeName || wp.routeName || '';
-        instruction = turn === 'ישר' ? `➡️ סע ישר${rn ? ` על ${rn}` : ''}` :
-                      turn === 'ימינה' ? `↪️ פנה ימינה${rn ? ` על ${rn}` : ''}` :
-                                         `↩️ פנה שמאלה${rn ? ` על ${rn}` : ''}`;
-      }
-    }
-    // תחנת ביניים גוברת על הוראת הפנייה: מה שהנהג צריך לדעת בנקודה הזו
-    // הוא שהוא עוצר, ולא לאן הכביש ממשיך
-    if (wp.isStop) instruction = `🛑 עצור בתחנה ${wp.stopName}`;
-    if (wp.isCrossing) {
-      const cType = wp.crossingDetails?.crossingType || wp.routeType;
-      const cName = wp.crossingDetails?.crossingName || wp.routeName || '';
-      instruction += ` ⚠️ (שים לב! ${cType === 'runway' ? 'מסלול טיסה' : 'מסלול הסעה'}${cName ? ` — ${cName}` : ''})`;
-    }
-    return { ...wp, instruction, turn };
-  });
-
-  const totalDistM = Math.round(pathIds.slice(1).reduce((sum, id, i) => {
-    const prev = nodes[pathIds[i]], cur = nodes[id];
-    return prev && cur ? sum + haversineM(prev.lat, prev.lon, cur.lat, cur.lon) : sum;
-  }, 0));
-
-  const segmentPath = (() => {
-    const parts = [fromName];
-    let lastSeg = null;
-    for (let i = 0; i < finalWaypoints.length; i++) {
-      const wp = finalWaypoints[i];
-      if (i === finalWaypoints.length - 1) {
-        const dir = wp.turn === 'ימינה' ? 'R' : wp.turn === 'שמאלה' ? 'L' : '→';
-        parts.push(`->(${dir})->${toName}`);
-        break;
-      }
-      const seg = wp.routeName || null;
-      if (seg && seg !== lastSeg) {
-        if (lastSeg !== null) {
-          const dir = wp.turn === 'ימינה' ? 'R' : wp.turn === 'שמאלה' ? 'L' : '→';
-          parts.push(`->(${dir})->${seg}`);
-        } else {
-          parts.push(`->${seg}`);
-        }
-        lastSeg = seg;
-      }
-    }
-    return parts.join(' ');
-  })();
 
   const excludedRouteTypes = allRoutes
     .filter(r => !allowedTypes.includes(r.route_type))
@@ -740,15 +824,11 @@ export async function planRoute(body) {
     }, []);
 
   return {
-    waypoints: finalWaypoints,
-    crossings: [...crossings, ...detectedAFCrossings],
-    elementsToOperate,
-    totalDistM,
+    ...main,
     permissionLevel: permission,
     permissionsUsed: allowedTypes,
-    segmentPath,
     excludedRouteTypes,
-    routeSegments: usableRoutes.filter(r => pathIds.some(id => id.startsWith(`r${r.id}_`))).map(r => ({ id: r.id, name: r.name, type: r.route_type }))
+    alternatives,
   };
 }
 

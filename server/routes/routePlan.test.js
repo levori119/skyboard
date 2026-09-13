@@ -33,6 +33,7 @@ const post = (p, body) => fetch(`${base}${p}`, {
 
 const AF = 1;
 const A = 20, B = 21, S = 22;
+const C = 30, D = 31;
 
 /** נקודות לאורך קו, בצעדי 5% - צמתים סמוכים תמיד מחוברים באותו מסלול. */
 const line = (x1, y1, x2, y2) => {
@@ -88,6 +89,17 @@ beforeAll(async () => {
     `INSERT INTO base_routes (airfield_id, name, route_type, waypoints) VALUES
       (1, 'ראשי', 'vehicle', $1), (1, 'שלוחה', 'vehicle', $2)`,
     [JSON.stringify(line(10, 10, 90, 10)), JSON.stringify(line(50, 10, 50, 60))]
+  );
+
+  // שדה 2 - שתי דרכים בין C ל-D: "ישר" הקצרה, ו"עוקף" שיורד ל-y=95 וחוזר
+  //        C(10,80) ──────── ישר ──────── D(90,80)
+  //           │                              │
+  //           └────────────  עוקף  ──────────┘  (y=95)
+  await pool.query(`INSERT INTO airfields (id, name, map_id) VALUES (2, 'שדה חלופות', 1)`);
+  await pool.query(`INSERT INTO airfield_points (id, airfield_id, name, x_pct, y_pct) VALUES ($1, 2, 'C', 10, 80), ($2, 2, 'D', 90, 80)`, [C, D]);
+  await pool.query(
+    `INSERT INTO base_routes (airfield_id, name, route_type, waypoints) VALUES (2, 'ישר', 'vehicle', $1), (2, 'עוקף', 'vehicle', $2)`,
+    [JSON.stringify(line(10, 80, 90, 80)), JSON.stringify([...line(10, 80, 10, 95), ...line(10, 95, 90, 95).slice(1), ...line(90, 95, 90, 80).slice(1)])]
   );
 
   const app = express();
@@ -181,5 +193,39 @@ describe('תכנון נתיב - תחנות ביניים', () => {
     const res = await plan({ from_point_id: A, to_point_id: B, via_point_ids: [B] });
     expect(res.error).toBeUndefined();
     expect(res.waypoints.length).toBeGreaterThan(2);
+  });
+});
+
+// "צריך להציג כמה אופציות של נסיעה - מציג רק אחת": שלוש רמות ההרשאה החזירו
+// באותו שדה אותו נתיב בדיוק, וחלון ניהול הנסיעות איחד אותן לשורה אחת.
+describe('תכנון נתיב - חלופות', () => {
+  const planAt = (af, body) => post('/api/route-plan', { airfield_id: af, permissions: ['vehicle'], ...body }).then(r => r.json());
+
+  it('בלי alternatives - רשימה ריקה, והתשובה כמו קודם', async () => {
+    const res = await planAt(2, { from_point_id: C, to_point_id: D });
+    expect(res.alternatives).toEqual([]);
+    expect(segNames(res)).toEqual(['ישר']);
+  });
+
+  it('דרך נוספת בשדה - מוחזרת כחלופה ארוכה יותר, עם הוראות ומקטעים משלה', async () => {
+    const res = await planAt(2, { from_point_id: C, to_point_id: D, alternatives: 2 });
+    expect(segNames(res)).toEqual(['ישר']);
+    expect(res.alternatives).toHaveLength(1);
+    const [alt] = res.alternatives;
+    expect(segNames(alt)).toContain('עוקף');
+    expect(alt.totalDistM).toBeGreaterThan(res.totalDistM);
+    expect(alt.waypoints.length).toBeGreaterThan(2);
+    expect(alt.waypoints[0].instruction).toContain('C');
+    expect(alt.segmentPath).toContain('עוקף');
+  });
+
+  it('אין דרך אחרת - אין חלופות (לא אותו נתיב פעמיים)', async () => {
+    const res = await planAt(AF, { from_point_id: A, to_point_id: B, alternatives: 3 });
+    expect(res.alternatives).toEqual([]);
+  });
+
+  it('תקרה של 3 חלופות', async () => {
+    const res = await planAt(2, { from_point_id: C, to_point_id: D, alternatives: 99 });
+    expect(res.alternatives.length).toBeLessThanOrEqual(3);
   });
 });

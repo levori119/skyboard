@@ -299,6 +299,20 @@ describe('GET /api/driver-trips/:id/live - נתוני המפה לנהג', () => 
     expect(d.route[1].lon).toBeCloseTo(34.66, 6);
   });
 
+  // חלופות יכולות לעבור באותם מקטעים (בכיוון או בקטע אחר) - התיאור שנבחר מכריע
+  it('שתי אפשרויות באותם מקטעים - הנתיב של זו שהתיאור שלה נבחר', async () => {
+    const ALT = [{ lat: 31.26, lon: 34.64, xPct: 40, yPct: 40 }, { lat: 31.26, lon: 34.66, xPct: 60, yPct: 40 }];
+    const t = await mkStarted({
+      route_options: [
+        { key: 'vehicle', route_ids: [5], label: 'קצר', dist_m: 1, crossings: 0, waypoints: ROUTE },
+        { key: 'vehicle', route_ids: [5], label: 'חלופה', dist_m: 2, crossings: 0, waypoints: ALT },
+      ],
+      selected_route_ids: [5], selected_route_label: 'חלופה',
+    });
+    const d = await (await dget(`/api/driver-trips/${t.id}/live`, MY_TZ)).json();
+    expect(d.route[0]).toMatchObject({ lat: 31.26, lon: 34.64 });
+  });
+
   it('נסיעה של נהג אחר - 404', async () => {
     const t = await mkStarted();
     expect((await dget(`/api/driver-trips/${t.id}/live`, OTHER_TZ)).status).toBe(404);

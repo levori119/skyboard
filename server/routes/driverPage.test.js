@@ -126,6 +126,16 @@ describe('מסך הנסיעה החי', () => {
     expect(SCRIPT).toMatch(/opacity: el\.on_route === false \? 0\.6 : 1/);
   });
 
+  // מפתח לא תקין אינו מפיל את הסקריפט - Google מציג מפה אפורה וקורא ל-gm_authFailure
+  it('D4b: מפתח Google לא תקין - הסבר, מתג כבוי וחזרה למפת השדה', () => {
+    const i = SCRIPT.indexOf('window.gm_authFailure = () => {');
+    expect(i).toBeGreaterThan(-1);
+    const handler = SCRIPT.slice(i, SCRIPT.indexOf('\n};\n', i));
+    expect(handler).toContain('gmapsAuthFailed = true');
+    expect(handler).toContain("setLiveMap('airfield')");
+    expect(SCRIPT).toContain('(מפתח לא תקין)');
+  });
+
   it('D5: אין הרשאת מיקום - הודעה מפורשת', () => {
     expect(SCRIPT).toMatch(/אין הרשאת מיקום/);
   });

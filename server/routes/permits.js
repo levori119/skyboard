@@ -1030,15 +1030,24 @@ async function airfieldGeo(airfieldId, q = pool) {
   return { map_id: row.map_id ?? null, anchor: fromMap || anchorFrom(row) };
 }
 
-/** האפשרות שהמגדל בחר: route_ids שלה שווה (כקבוצה) ל-selected_route_ids. */
+/** קבוצת המקטעים של אפשרות שווה לקבוצה הנתונה */
+const sameRouteIds = (ids, set) => {
+  const list = [...new Set(parseList(ids).map(Number))];
+  return list.length === set.size && list.every(id => set.has(id));
+};
+
+/**
+ * האפשרות שהמגדל בחר: route_ids שלה שווה (כקבוצה) ל-selected_route_ids.
+ * כשכמה אפשרויות עוברות באותם מקטעים (חלופות באותו סדר כבישים, בכיוון או
+ * בקטעים אחרים) - זו שגם התיאור שלה הוא התיאור שנבחר.
+ */
 function selectedOption(trip) {
   const selected = new Set(parseList(trip.selected_route_ids).map(Number).filter(Number.isFinite));
   if (!selected.size) return { option: null, index: -1 };
   const options = parseList(trip.route_options);
-  const index = options.findIndex(o => {
-    const ids = parseList(o?.route_ids).map(Number);
-    return ids.length === selected.size && ids.every(id => selected.has(id));
-  });
+  const matches = options.map((o, i) => (sameRouteIds(o?.route_ids, selected) ? i : -1)).filter(i => i >= 0);
+  const label = str(trip.selected_route_label);
+  const index = matches.find(i => label && str(options[i]?.label) === label) ?? matches[0] ?? -1;
   return { option: index >= 0 ? options[index] : null, index };
 }
 
@@ -1108,12 +1117,17 @@ async function resolveApprovedRoute(trip, anchor) {
       to_point_id: trip.to_point_id,
       via_point_ids: parseList(trip.stops).map(st => num(st?.point_id)).filter(Boolean),
       permissions,
+      // האפשרות שנבחרה יכולה להיות חלופה ולא הקצר
+      alternatives: 3,
     });
   } catch { plan = null; }
   const approved = new Set(parseList(option.route_ids).map(Number));
-  const got = [...new Set((plan?.routeSegments || []).map(sg => Number(sg.id)))];
-  const waypoints = compactWaypoints(plan?.waypoints);
-  if (got.length !== approved.size || !got.every(id => approved.has(id)) || waypoints.length < 2) {
+  const paths = plan && !plan.error ? [plan, ...(plan.alternatives || [])] : [];
+  const segIds = p => (p?.routeSegments || []).map(sg => Number(sg.id));
+  const same = paths.filter(p => sameRouteIds(segIds(p), approved));
+  const match = same.find(p => str(option.label) && str(p.segmentPath) === str(option.label)) || same[0];
+  const waypoints = compactWaypoints(match?.waypoints);
+  if (!match || waypoints.length < 2) {
     if (replanMisses.size > 1000) replanMisses.clear();
     replanMisses.set(missKey, Date.now());
     return [];

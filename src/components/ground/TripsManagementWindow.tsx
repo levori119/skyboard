@@ -37,11 +37,11 @@ import {
   MAX_TRIP_COPIES,
   routeInputSignature,
   asTripStatus, canApproveTrip, clampCopies, dedupeRouteOptions, duplicateSchedule,
-  hasPendingDriverChange,
+  hasPendingDriverChange, isPastTrip,
   isRouteChosen, normalizeEscorts, normalizeStops, pendingChangeFields,
   routeSignature, suggestedVehicleIcon, tripStatusKey,
   TRIP_GROUP_KEYS, groupTrips, quickApproveBlocker,
-  compactRouteWaypoints,
+  routeOptionsFromPlan, ROUTE_ALTERNATIVES,
   type RouteWaypoint, type TripEscort, type TripGroupKey, type TripStatus, type TripStop,
 } from '../../utils/trips';
 
@@ -85,7 +85,7 @@ export interface RouteOption {
   label: string;
   dist_m: number;
   crossings: number;
-  /** הנתיב עצמו - מעקב הנסיעה החי מודד סטייה מולו (ראה compactRouteWaypoints) */
+  /** הנתיב עצמו - מעקב הנסיעה החי מודד סטייה מולו (ראה routeOptionsFromPlan) */
   waypoints?: RouteWaypoint[];
 }
 
@@ -516,24 +516,16 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
               // לא יעצור בה. תחנה בטקסט חופשי אין לה נ"צ ולכן אינה נשלחת.
               via_point_ids: draft.stops.map(st => st.point_id).filter(Boolean),
               permissions: v.permissions,
+              // בלי חלופות, בשדה שבו שלוש הרמות מגיעות לאותו נתיב הפקח ראה שורה אחת
+              alternatives: ROUTE_ALTERNATIVES,
             }),
           });
-          const data = await r.json();
-          if (!r.ok || data.error || !Array.isArray(data.waypoints) || !data.waypoints.length) return null;
-          const segments: { id: number; name: string }[] = Array.isArray(data.routeSegments) ? data.routeSegments : [];
-          const option: RouteOption = {
-            key: v.key,
-            route_ids: segments.map(s => Number(s.id)).filter(Number.isFinite),
-            label: String(data.segmentPath || segments.map(s => s.name).join(' → ') || ''),
-            dist_m: Number(data.totalDistM) || 0,
-            crossings: Array.isArray(data.crossings) ? data.crossings.length : 0,
-            // נשמר עם האפשרות - כך שהנתיב שהפקח אישר הוא הנתיב שהנהג נמדד מולו
-            waypoints: compactRouteWaypoints(data.waypoints),
-          };
-          return option;
-        } catch { return null; }
+          if (!r.ok) return [];
+          // הקצר והחלופות, כל אחד עם הנקודות שלו - הנתיב שהפקח אישר הוא הנתיב שהנהג נמדד מולו
+          return routeOptionsFromPlan(v.key, await r.json());
+        } catch { return []; }
       }));
-      const options = results.filter((o): o is RouteOption => o !== null);
+      const options: RouteOption[] = results.flat();
       if (!options.length) { setRouteError(tr('trips.routeError')); setRouteLoading(false); return; }
       const merged = dedupeRouteOptions(options);
       setDraft(d => {
@@ -677,8 +669,7 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
     const q = search.trim().toLowerCase();
     return trips
       .filter(t => {
-        const past = asTripStatus(t.status) === 'ended'
-          || (t.scheduled_at !== null && new Date(t.scheduled_at).getTime() < now);
+        const past = isPastTrip(t, now);
         return tab === 'history' ? past : !past;
       })
       .filter(t => !q || [

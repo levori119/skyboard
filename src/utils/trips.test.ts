@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  compactRouteWaypoints, DEPARTURE_ALERT_MINUTES, DRIVER_ACTION_ALERT_MINUTES, STALE_TRIP_HOURS, TRIP_STATUSES, TRIP_VEHICLE_ICONS,
+  compactRouteWaypoints, routeOptionsFromPlan, ROUTE_ALTERNATIVES, isPastTrip, DEPARTURE_ALERT_MINUTES, DRIVER_ACTION_ALERT_MINUTES, STALE_TRIP_HOURS, TRIP_STATUSES, TRIP_VEHICLE_ICONS,
   MAX_TRIP_COPIES, TRIP_FIELDS_NOT_COPIED, clampCopies, duplicateSchedule,
   asTripStatus, canApproveTrip, dedupeRouteOptions, hasPendingDriverChange, isDepartureAlertDue,
   isDriverActionFresh, isNewDriverRequest, isRouteChosen, isVehicleOnMap, routeInputSignature, routeSignature,
@@ -468,5 +468,61 @@ describe('compactRouteWaypoints - הנתיב לשמירה', () => {
   it('קלט שאינו רשימה - ריק', () => {
     expect(compactRouteWaypoints(null)).toEqual([]);
     expect(compactRouteWaypoints('x')).toEqual([]);
+  });
+});
+
+// "צריך להציג כמה אופציות של נסיעה - מציג רק אחת"
+describe('routeOptionsFromPlan - הנתיב הקצר והחלופות מתשובת המתכנן', () => {
+  const path = (name: string, id: number, dist: number) => ({
+    waypoints: [{ lat: 31.2, lon: 34.6, xPct: 1, yPct: 1, instruction: 'x' }, { lat: 31.3, lon: 34.7, xPct: 2, yPct: 2 }],
+    routeSegments: [{ id, name }], segmentPath: `א ->${name} ->(→)->ב`, totalDistM: dist, crossings: [{}, {}],
+  });
+
+  it('מבקשים לפחות שתי חלופות', () => {
+    expect(ROUTE_ALTERNATIVES).toBeGreaterThanOrEqual(2);
+  });
+
+  it('הנתיב הקצר ואחריו כל חלופה - כל אחת אפשרות שלמה עם נקודות משלה', () => {
+    const opts = routeOptionsFromPlan('vehicle', { ...path('ישר', 1, 800), alternatives: [path('עוקף', 2, 1400)] });
+    expect(opts).toHaveLength(2);
+    expect(opts[0]).toMatchObject({ key: 'vehicle', route_ids: [1], label: 'א ->ישר ->(→)->ב', dist_m: 800, crossings: 2 });
+    expect(opts[1]).toMatchObject({ key: 'vehicle', route_ids: [2], dist_m: 1400 });
+    expect(opts[1].waypoints).toHaveLength(2);
+    expect(opts[1].waypoints![0]).not.toHaveProperty('instruction');
+  });
+
+  it('תשובה ישנה בלי alternatives - אפשרות אחת, כמו קודם', () => {
+    expect(routeOptionsFromPlan('taxiways', path('ישר', 1, 800))).toHaveLength(1);
+  });
+
+  it('שגיאה או נתיב בלי נקודות - אין אפשרויות; חלופה ריקה מדולגת', () => {
+    expect(routeOptionsFromPlan('vehicle', { error: 'אין חיבור', waypoints: [] })).toEqual([]);
+    expect(routeOptionsFromPlan('vehicle', null)).toEqual([]);
+    expect(routeOptionsFromPlan('vehicle', { ...path('ישר', 1, 800), alternatives: [{ waypoints: [] }, null] })).toHaveLength(1);
+  });
+});
+
+// זה קרה: נסיעה אושרה עם מועד שכבר עבר, הנהג ביקש לעדכן את השעה - והנסיעה
+// נעלמה מהטאב הפעיל ללוח ההיסטוריה, בדיוק כשהיא ממתינה להכרעת המגדל.
+describe('isPastTrip - הטאב הפעיל מול ההיסטוריה', () => {
+  const NOW = new Date('2026-09-13T20:50:00Z').getTime();
+  const base = { status: 'approved', scheduled_at: '2026-09-13T21:30:00Z', pending_change: null };
+
+  it('נסיעה עתידית - פעילה; שהסתיימה - היסטוריה', () => {
+    expect(isPastTrip(base, NOW)).toBe(false);
+    expect(isPastTrip({ ...base, status: 'ended' }, NOW)).toBe(true);
+  });
+
+  it('מועד שעבר - היסטוריה', () => {
+    expect(isPastTrip({ ...base, scheduled_at: '2026-09-12T21:00:00Z' }, NOW)).toBe(true);
+  });
+
+  it('מועד שעבר אבל הנהג ביקש שינוי שממתין למגדל - נשארת בפעילות', () => {
+    const t = { status: 'pending', scheduled_at: '2026-09-12T21:00:00Z', pending_change: { scheduled_at: '2026-09-13T21:00:00Z' } };
+    expect(isPastTrip(t, NOW)).toBe(false);
+  });
+
+  it('בלי מועד - פעילה', () => {
+    expect(isPastTrip({ ...base, scheduled_at: null }, NOW)).toBe(false);
   });
 });

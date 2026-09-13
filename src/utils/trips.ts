@@ -218,6 +218,43 @@ export function compactRouteWaypoints(raw: unknown): RouteWaypoint[] {
 }
 
 /**
+ * כמה חלופות מבקשים מהמתכנן לכל רמת הרשאה, מעבר לנתיב הקצר. בשדה שבו שלוש
+ * הרמות מחזירות אותו נתיב, בלי חלופות הפקח ראה שורה אחת ולא הייתה לו בחירה.
+ */
+export const ROUTE_ALTERNATIVES = 2;
+
+type PlanPath = {
+  waypoints?: unknown; routeSegments?: unknown; segmentPath?: unknown;
+  totalDistM?: unknown; crossings?: unknown;
+} | null | undefined;
+
+/**
+ * תשובת /api/route-plan -> אפשרויות לבחירה: הנתיב הקצר, ואחריו כל חלופה
+ * (\`alternatives\`) כאפשרות שלמה עם הנקודות שלה - כך שחלופה שנבחרה היא בדיוק
+ * הנתיב שהנהג נמדד מולו. שגיאה, או נתיב בלי נקודות - אין אפשרות.
+ */
+export function routeOptionsFromPlan<K extends string>(
+  key: K,
+  data: (PlanPath & { error?: unknown; alternatives?: unknown }) | null | undefined,
+): (RouteOptionLike & { key: K })[] {
+  if (!data || data.error) return [];
+  const toOption = (p: PlanPath): (RouteOptionLike & { key: K }) | null => {
+    if (!p || !Array.isArray(p.waypoints) || !p.waypoints.length) return null;
+    const segments = (Array.isArray(p.routeSegments) ? p.routeSegments : []) as { id: unknown; name: unknown }[];
+    return {
+      key,
+      route_ids: segments.map(sg => Number(sg.id)).filter(Number.isFinite),
+      label: String(p.segmentPath || segments.map(sg => sg.name).join(' → ') || ''),
+      dist_m: Number(p.totalDistM) || 0,
+      crossings: Array.isArray(p.crossings) ? p.crossings.length : 0,
+      waypoints: compactRouteWaypoints(p.waypoints),
+    };
+  };
+  const alternatives = Array.isArray(data.alternatives) ? (data.alternatives as PlanPath[]) : [];
+  return [data, ...alternatives].map(toOption).filter((o): o is RouteOptionLike & { key: K } => o !== null);
+}
+
+/**
  * זהות הנתיב: המסלולים שהוא עובר בהם, ואחריהם התיאור.
  *
  * המסלולים לבדם אינם מספיקים - נתיב שכולו על צמתים וירטואליים מחזיר רשימה
@@ -495,6 +532,21 @@ export const hasPendingDriverChange = (trip: { pending_change?: unknown }): bool
   if (typeof c === 'string') { try { return Object.keys(JSON.parse(c) || {}).length > 0; } catch { return false; } }
   return typeof c === 'object' && Object.keys(c as object).length > 0;
 };
+
+/**
+ * האם הנסיעה שייכת להיסטוריה ולא לטאב הפעיל: הסתיימה, או שמועד היציאה עבר.
+ *
+ * **חריג: בקשת שינוי מהנהג שממתינה להכרעה נשארת פעילה.** המועד שעבר הוא לרוב
+ * בדיוק מה שהנהג מבקש לתקן, והנסיעה נעלמה מהלוח הפעיל ברגע שהמגדל צריך להכריע.
+ */
+export function isPastTrip(
+  t: { status?: string | null; scheduled_at?: string | null; pending_change?: unknown },
+  now: number = Date.now(),
+): boolean {
+  if (asTripStatus(t.status) === 'ended') return true;
+  if (hasPendingDriverChange(t)) return false;
+  return !!t.scheduled_at && new Date(t.scheduled_at).getTime() < now;
+}
 
 /** מה בדיוק הנהג ביקש לשנות - כדי שהמגדל יאשר שינוי ולא "עדכון" עמום. */
 export function pendingChangeFields(trip: { pending_change?: unknown }): DriverEditableField[] {

@@ -2848,6 +2848,7 @@ async function setLiveMap(mode) {
     if (live.gmapsKey === undefined) await checkGoogleAvailability();
     if (!live) return;
     if (!live.gmapsKey) { showToast('אין מפתח Google מוגדר בשרת - מפת Google אינה זמינה'); return; }
+    if (gmapsAuthFailed) { showToast(GMAPS_BAD_KEY_TEXT); return; }
   }
   live.mapMode = mode;
   setLiveMapTabs(mode);
@@ -2974,13 +2975,27 @@ async function checkGoogleAvailability() {
     } catch (e) { if (live) live.gmapsKey = ''; }
   }
   if (!live) return;
-  const has = !!live.gmapsKey;
+  const has = !!live.gmapsKey && !gmapsAuthFailed;
   const btn = liveEl('ltTabG');
   btn.disabled = !has;
   btn.style.opacity = has ? '1' : '0.45';
-  btn.title = has ? '' : 'אין מפתח Google מוגדר בשרת - מפת Google אינה זמינה';
-  liveEl('ltTabGHint').textContent = has ? '' : '(אין מפתח)';
+  btn.title = has ? '' : (gmapsAuthFailed ? GMAPS_BAD_KEY_TEXT : 'אין מפתח Google מוגדר בשרת - מפת Google אינה זמינה');
+  liveEl('ltTabGHint').textContent = has ? '' : (gmapsAuthFailed ? '(מפתח לא תקין)' : '(אין מפתח)');
 }
+
+// Google דוחה מפתח לא תקין **אחרי** שהסקריפט נטען: אין onerror, רק מפה אפורה עם
+// "Oops! Something went wrong" - והנהג לא יודע למה. Maps JS קורא ל-gm_authFailure
+// הגלובלי (התיעוד הרשמי), ומשם: הסבר, מתג כבוי וחזרה למפת השדה.
+const GMAPS_BAD_KEY_TEXT = 'מפתח Google בשרת אינו תקין - מפת Google אינה זמינה. חוזר למפת השדה';
+let gmapsAuthFailed = false;
+window.gm_authFailure = () => {
+  gmapsAuthFailed = true;
+  showToast(GMAPS_BAD_KEY_TEXT);
+  if (!live) return;
+  if (live.gmapObjs) clearGoogleObjects();
+  checkGoogleAvailability();
+  if (live.mapMode === 'google') setLiveMap('airfield');
+};
 
 let gmapsLoading = null;
 function loadGoogleMaps(key) {
