@@ -585,15 +585,22 @@ const BASE = '';
 // האסימון (POST /api/auth/driver) נושא את הת"ז, והשרת מסנן לפיה: הנהג מקבל
 // רק את הנסיעות שנרשמו לו ואת בקשות הכניסה שהוא שלח. קוד הגישה המשותף בוטל -
 // הוא לא זיהה אדם. האסימון מוגבל לנתיבי הנהג ואינו נותן גישה למידע העמדות.
+//
+// **כל כניסה לדף מתחילה במסך LOGIN.** האסימון נשמר **בזיכרון בלבד** - לא
+// ב-sessionStorage - ולכן פתיחה מחדש, רענון או שחזור לשונית מחייבים כניסה.
+// מכשיר נייד עובר בין נהגים, ונהג שהשאיר את הדף פתוח לא משאיר את זהותו לבא.
 const DRIVER_TOKEN_KEY = 'skyking-driver-token';
 const DRIVER_NAME_KEY = 'skyking-driver-name';
-let DRIVER_TOKEN = sessionStorage.getItem(DRIVER_TOKEN_KEY) || '';
+let DRIVER_TOKEN = '';
 
 function clearDriverSession() {
   DRIVER_TOKEN = '';
   sessionStorage.removeItem(DRIVER_TOKEN_KEY);
   sessionStorage.removeItem(DRIVER_NAME_KEY);
 }
+
+// אסימון ושם שנשמרו בגרסה קודמת של הדף - לא ממשיכים איתם
+clearDriverSession();
 
 /** יציאה: מכשיר משותף לא ישאיר לנהג הבא את הזהות או את הבקשה הפתוחה. */
 function driverLogout() {
@@ -710,12 +717,11 @@ function showDriverGate(errText) {
       }
       const b = await res.json();
       DRIVER_TOKEN = b.token;
-      sessionStorage.setItem(DRIVER_TOKEN_KEY, DRIVER_TOKEN);
+      // השם לתצוגה בלבד. נמחק בכל טעינה של הדף, יחד עם האסימון שבזיכרון
       sessionStorage.setItem(DRIVER_NAME_KEY, (b.driver && b.driver.name) || '');
-      // אחרי הטעינה מחדש - ברכה מלאת מסך, פעם אחת (initHome)
-      sessionStorage.setItem('skyking-driver-just-in', '1');
       el.remove();
-      location.reload(); // טעינה נקייה עם אסימון תקף, בלי לשחזר מצב חלקי
+      // בלי location.reload: טעינה מחדש הייתה מוחקת את האסימון שבזיכרון
+      startDriverApp(true);
     };
   }
   el.style.display = 'flex';
@@ -1156,9 +1162,16 @@ function onOriginChange() {
   destSel.disabled = false;
 }
 
-// ── Restore from localStorage ──
-window.addEventListener('load', () => {
+// ── הפעלת האפליקציה אחרי כניסה ──
+// רצה רק כשיש אסימון - כלומר מיד אחרי LOGIN מוצלח. `justLoggedIn` = ברכה מלאת מסך.
+function startDriverApp(justLoggedIn) {
   loadBases();
+  restoreGateRequest();
+  whenLogic(() => initHome(justLoggedIn));
+}
+
+// בקשת כניסה חיה לשער שנפתחה לפני הכניסה - חוזרים למסך ההמתנה שלה
+function restoreGateRequest() {
   const saved = localStorage.getItem('driverRequest');
   if (saved) {
     try {
@@ -1173,7 +1186,7 @@ window.addEventListener('load', () => {
       }
     } catch(e) { localStorage.removeItem('driverRequest'); }
   }
-});
+}
 
 function showScreen(id) {
   ['homeScreen','requestScreen','formScreen','waitingScreen','approvedScreen','rejectedScreen','arrivedScreen'].forEach(s => {
@@ -1660,7 +1673,6 @@ function resetApp() {
 // בהרשאת SKY-KING DRIVER. ההחלטות הטהורות (ברכה, בסיס קרוב, חלוקה לטאבים, בניית
 // הבקשה) יושבות ב-shared/driverLogic.js ונבדקות שם.
 
-const JUST_IN_KEY = 'skyking-driver-just-in';
 const LAST_BASE_KEY = 'skyking-driver-base';
 const DRIVER_PHONE_KEY = 'skyking-driver-phone';
 const OTHER = '__other';
@@ -1711,12 +1723,9 @@ function showGreetingSplash(name) {
   setTimeout(() => el.remove(), 2200);
 }
 
-async function initHome() {
+async function initHome(justLoggedIn) {
   const name = sessionStorage.getItem(DRIVER_NAME_KEY) || '';
-  if (sessionStorage.getItem(JUST_IN_KEY)) {
-    sessionStorage.removeItem(JUST_IN_KEY);
-    showGreetingSplash(name);
-  }
+  if (justLoggedIn) showGreetingSplash(name);
   await loadHomeBases();
   // בקשת כניסה חיה לשער שנפתחה קודם - הזרימה שלה גוברת (ראה ה-load למעלה)
   if (!hasActiveGateRequest()) goHome();
@@ -2121,12 +2130,6 @@ function openGateEntry() {
   }
 }
 
-if (DRIVER_TOKEN) {
-  whenLogic(() => {
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initHome);
-    else initHome();
-  });
-}
 
 </script>
 </body>
