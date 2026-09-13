@@ -563,8 +563,16 @@ DB מנוהל היה נופל יחד עם העמדה.
 **מייצא:** `SubTableDef`, `SubTableColumnDef`, `STRIP_SUB_TABLES`, `SUB_TABLE_BY_KEY`, `getSubTable`, `isSubTableColumn`, `defaultSubTableColumns`, `SUB_TABLE_DEFAULT_KEYS`, `subTableAccent` (צבע זיהוי מותאם-תמה). בעמדה הטבלה נפרסת כ**שורה** מתחת לפ"מ בלחיצה על + שליד הפ"מ, וכמה פ"מים יכולים להיות פרוסים בו-זמנית.
 
 ### `src/types/missionDesk.ts`
-**תפקיד:** טיפוסי דסק משימה כללי — עץ פריסה (BSP), שירותים (buttons/freetext/table/image/label/**map**/**strips**), config ו-state. שירותי `map`/`strips` הם חלון מפה וחלון הפ"ממים שלו: הדסק מקצה להם אזור, והתוכן מגיע מהעמדה (`mission_desk_map_config`).
-**מייצא:** `MDNode`, `MDSplit`, `MDLeaf`, `MDServiceType`, `MissionDesk`, `MissionDeskService`, `MDTableConfig`, `MDFreeTextConfig`, `MDButton`, `MDButtonsState`, `MDFreeTextState`, `MDTableState`, `MDTableRule`, `MDRowStyle`, `MDMapConfig`, `MDStripsConfig`, `MDPresetMapSettings`, `MDPresetMapConfig`, `mdEmptyMapSettings`.
+**תפקיד:** טיפוסי דסק משימה כללי — עץ פריסה (BSP), שירותים (buttons/freetext/table/image/label/**map**/**strips**/**view_tables**), config ו-state. שירותי `map`/`strips` הם חלון מפה וחלון הפ"ממים שלו: הדסק מקצה להם אזור, והתוכן מגיע מהעמדה (`mission_desk_map_config`). `view_tables` ("טבלאות מתצוגה") מציג טבלאות מתפריט התצוגה בתוך המשבצת; אילו - פר-עמדה ב-`mission_desk_view_tables`.
+**מייצא:** `MDNode`, `MDSplit`, `MDLeaf`, `MDServiceType`, `MissionDesk`, `MissionDeskService`, `MDTableConfig`, `MDFreeTextConfig`, `MDButton`, `MDButtonsState`, `MDFreeTextState`, `MDTableState`, `MDTableRule`, `MDRowStyle`, `MDMapConfig`, `MDStripsConfig`, `MDPresetMapSettings`, `MDPresetMapConfig`, `mdEmptyMapSettings`, `MDViewTableKey`, `MDPresetViewTablesSettings`, `MDPresetViewTablesConfig`.
+
+### `src/components/missiondesk/ViewTablesSlot.tsx`
+**תפקיד:** משבצת "טבלאות מתצוגה" בדסק משימה - לשוניות כשיש כמה טבלאות (לשונית שנפתחה נשארת מורכבת), והטבלה עצמה עטופה ב-`EmbeddedWindow`. התוכן מגיע מ-`renderMissionDeskService` ב-SectorDashboard.
+**מייצא:** `ViewTablesSlot`, `resolveActiveTab`, `ViewTableTab`.
+
+### `EmbeddedWindow` (`src/hooks/useDockableWindow.ts`)
+**תפקיד:** מציג חלון צף קיים **בתוך** משבצת במקום לצוף - `rootStyle` שממלא, בלי portal, בלי עגינה ובלי גרירה (`useDragPosition` מכבד אותו). החלון מסתיר ✕ לפי `dock.embedded`. נתמך כרגע: טבלת אלמנטים, ניהול נסיעות, ניהול נהגים, חלונות נתונים, לוח הודעות, קונטיינר החלונות.
+**מייצא:** `EmbeddedWindow`, `useIsEmbeddedWindow`, `EMBEDDED_ROOT_STYLE`.
 
 ---
 

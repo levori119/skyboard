@@ -2233,6 +2233,8 @@ async function applySchemaOnce() {
   // sector_maps_enabled, sector_map_ids[] } }. אותו דסק משרת עמדות שונות, ולכן *איזו*
   // מפה יושבת בחלון נקבע בהגדרת העמדה ולא בהגדרת הדסק.
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS mission_desk_map_config JSONB DEFAULT '{}'`);
+  // שירות "טבלאות מתצוגה": אילו טבלאות מתפריט התצוגה נפתחות בכל משבצת - { "<service_id>": { tables, airfield_id } }
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS mission_desk_view_tables JSONB DEFAULT '{}'`);
 
   // ── GAPI (GALAXY API) — אינטגרציה דו-כיוונית עם מערכת השו"ב החיצונית ─────────
   // ראה GAPI-CONTRACT.md. control-plane פר-סביבה (public בלבד; רשום ב-IGNORED_EXACT

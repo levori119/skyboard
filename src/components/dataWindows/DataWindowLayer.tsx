@@ -4,7 +4,7 @@ import { tr } from '../../i18n/tr';
 import { qMinutesFromNow, type QEvalCtx } from '../../utils/queryBuilder';
 import { QueryBuilder } from '../query/QueryBuilder';
 import { windowFrame } from '../../utils/windowFrame';
-import { DockableWindow } from '../../hooks/useDockableWindow';
+import { DockableWindow, useIsEmbeddedWindow } from '../../hooks/useDockableWindow';
 import {
   dwEvaluate, dwLoadSession, dwMergeSession, dwNextMode, dwNormalize, dwSaveSession, dwStripLabel, dwSubscribe,
   type DataWindowDef,
@@ -74,6 +74,8 @@ export const DataWindowLayer: React.FC<DataWindowLayerProps> = ({
   /** החלון שהשאילתא שלו נערכת כרגע בעמדה */
   const [editingId, setEditingId] = useState<string | null>(null);
   const dragRef = useRef<{ id: string; dx: number; dy: number } | null>(null);
+  // מוטמע במשבצת דסק משימה: המונים נערמים ברשת במקום לצוף, ואינם מוסתרים
+  const embedded = useIsEmbeddedWindow();
 
   useEffect(() => { setSession(dwLoadSession(presetId)); }, [presetId]);
   // שכבת החלונות וסרגל השחזור חולקים את אותו סשן - כל שמירה מסנכרנת את שניהם
@@ -107,10 +109,15 @@ export const DataWindowLayer: React.FC<DataWindowLayerProps> = ({
   };
 
   const C = themeColors(themeMode);
-  const visible = merged.filter(w => !w.hidden);
-  if (!visible.length) return null;
+  // במשבצת אין ✕ ואין סרגל שחזור בהישג יד, ולכן גם חלון שהוסתר בסשן מוצג
+  const visible = embedded ? merged : merged.filter(w => !w.hidden);
+  if (!visible.length) {
+    return embedded
+      ? <div style={{ padding: '14px', textAlign: 'center', color: C.dim, fontSize: '12px' }}>{tr('dataWindows.noWindowsForStation')}</div>
+      : null;
+  }
 
-  return (
+  const windowsNode = (
     <>
       {visible.map(w => {
         const res = dwEvaluate(strips, w, { ...evalCtx, now });
@@ -141,6 +148,7 @@ export const DataWindowLayer: React.FC<DataWindowLayerProps> = ({
                 // ⚠ כפתורי הכותרת אינם ידית גרירה. בלי היציאה הזו ה-pointer
                 // capture על הכותרת בולע את ה-click שלהם, והם פשוט לא נלחצים.
                 if ((e.target as HTMLElement).closest('button')) return;
+                if (dock.embedded) return;
                 dock.onHeaderPointerDown(e);
                 const s = readRootScale();
                 dragRef.current = { id: w.id, dx: e.clientX / s - w.x, dy: e.clientY / s - w.y };
@@ -159,7 +167,7 @@ export const DataWindowLayer: React.FC<DataWindowLayerProps> = ({
               style={{
                 display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px',
                 background: C.header, borderBottom: `1px solid ${C.border}`,
-                cursor: 'grab', touchAction: 'none', userSelect: 'none',
+                cursor: dock.embedded ? 'default' : 'grab', touchAction: dock.embedded ? undefined : 'none', userSelect: 'none',
               }}
             >
               <span style={{ flex: 1, color: C.text, fontWeight: 'bold', fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -176,11 +184,11 @@ export const DataWindowLayer: React.FC<DataWindowLayerProps> = ({
                 title={showStrips ? tr('dataWindows.showCountOnly') : showList ? tr('dataWindows.showStrips') : tr('dataWindows.showCallsigns')}
                 style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.dim, borderRadius: '4px', padding: '1px 6px', fontSize: '11px', cursor: 'pointer' }}
               >{showStrips ? '⊡' : '⊞'}</button>
-              <button
+              {!dock.embedded && <button
                 onClick={() => patchSession(w.id, { hidden: true })}
                 title={tr('dataWindows.hide')}
                 style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.dim, borderRadius: '4px', padding: '1px 6px', fontSize: '11px', cursor: 'pointer' }}
-              >✕</button>
+              >✕</button>}
             </div>
 
             <div style={{ height: `${showList || showStrips ? DW_BODY_HEIGHT : DW_BODY_HEIGHT_COUNT}px`, padding: '4px 8px 8px', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: showList || showStrips ? 'flex-start' : 'center', boxSizing: 'border-box', overflow: 'hidden' }}>
@@ -289,6 +297,15 @@ export const DataWindowLayer: React.FC<DataWindowLayerProps> = ({
         document.body
       )}
     </>
+  );
+
+  if (!embedded) return windowsNode;
+  // ברשת ולא flex-wrap - אותה סיבה כמו בקונטיינר החלונות: grid מחלק את הרוחב
+  // בעצמו ולא נשבר על עיגול תת-פיקסלי
+  return (
+    <div style={{ height: '100%', overflowY: 'auto', display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${DW_WIDTH}px, 1fr))`, alignContent: 'start', gap: '6px', padding: '6px', boxSizing: 'border-box' }}>
+      {windowsNode}
+    </div>
   );
 };
 

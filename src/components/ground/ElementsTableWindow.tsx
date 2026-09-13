@@ -106,13 +106,14 @@ export default function ElementsTableWindow({ rows, themeMode, onClose, onUpdate
             {tr('ground.elementsShown', { shown: shown.length, total: rows.length })}
           </span>
         </span>
-        <button
+        {/* במשבצת דסק אין סגירה - המשבצת קבועה (useDockableWindow §EmbeddedWindow) */}
+        {!dock.embedded && <button
           onPointerDown={e => e.stopPropagation()}
           onClick={onClose}
           title={tr('shared.close')}
           style={{ width: '22px', height: '22px', borderRadius: '4px', border: `1px solid ${C.inputBorder}`, background: 'transparent', color: C.muted, cursor: 'pointer', fontSize: '13px', lineHeight: 1, flexShrink: 0 }}>
           ✕
-        </button>
+        </button>}
       </div>
 
       {/* Filters */}
@@ -229,5 +230,7 @@ export default function ElementsTableWindow({ rows, themeMode, onClose, onUpdate
   );
 
   // חלון שכבר מרונדר ב-portal מחליף רק את היעד - בלי dock.render (ראה useDockableWindow)
+  // מוטמע במשבצת דסק - נשאר במקומו בעץ; portal ל-body היה מוציא אותו מהמשבצת
+  if (dock.embedded) return win;
   return createPortal(win, dock.slotEl ?? document.body);
 }

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   DOCKED_ROOT_STYLE, beginDockDrag, dockSubscribe, getDockSlotEl,
@@ -30,7 +30,43 @@ import {
  * המשבצות ב-`useLayoutEffect`), וה-hook כבר מטפל בו - הרכיב עצמו לא צריך.
  */
 
+/**
+ * חלון **מוטמע** - מוצג בתוך משבצת של דסק משימה (שירות "טבלאות מתצוגה") ולא צף.
+ *
+ * אותו רכיב חלון בדיוק, בלי גרסה מקבילה לתחזק: העוטף מודיע ל-hook, וה-hook
+ * הופך את החלון למשהו שממלא את המשבצת - `rootStyle` שממלא אותה, `render` בלי
+ * portal, בלי רישום לקונטיינר ובלי גרירה (ראה גם `useDragPosition`).
+ *
+ * ```tsx
+ * <EmbeddedWindow><TripsManagementWindow … /></EmbeddedWindow>
+ * ```
+ *
+ * החלון עצמו נדרש רק להסתיר את ✕ (`dock.embedded`): משבצת בדסק אינה נסגרת,
+ * וכפתור סגירה שלא סוגר הוא פקד שנדלק בלי שקורה משהו.
+ */
+const EmbeddedWindowContext = createContext(false);
+
+export const EmbeddedWindow: React.FC<{ children: React.ReactNode }> = ({ children }) =>
+  React.createElement(EmbeddedWindowContext.Provider, { value: true }, children);
+
+/** האם הרכיב מרונדר בתוך משבצת דסק */
+export function useIsEmbeddedWindow(): boolean {
+  return useContext(EmbeddedWindowContext);
+}
+
+/** נפרס על שורש חלון מוטמע: ממלא את המשבצת ומבטל את כל מה שנמדד מול המסך */
+export const EMBEDDED_ROOT_STYLE: React.CSSProperties = {
+  ...DOCKED_ROOT_STYLE,
+  width: '100%',
+  height: '100%',
+  minWidth: 0,
+  zoom: 1,
+  borderRadius: 0,
+};
+
 export interface Dockable {
+  /** האם החלון מוטמע במשבצת של דסק משימה - אז אין לו ✕, גרירה או עגינה */
+  embedded: boolean;
   /** האם החלון יושב כרגע בקונטיינר */
   docked: boolean;
   /** האם הקונטיינר בכלל פתוח בעמדה - להצגת כפתור "עגן" רק כשיש לאן */
@@ -66,7 +102,9 @@ export interface DockableOptions {
 
 export function useDockableWindow(id: string, title: string, opts?: DockableOptions): Dockable {
   const [, bump] = useState(0);
-  const dockable = opts?.dockable !== false;
+  const embedded = useIsEmbeddedWindow();
+  // חלון מוטמע אינו מועמד לקונטיינר: הוא כבר יושב במשבצת קבועה
+  const dockable = opts?.dockable !== false && !embedded;
   const setFloatingPos = opts?.setFloatingPos;
   const floatingPos = opts?.floatingPos;
 
@@ -101,11 +139,12 @@ export function useDockableWindow(id: string, title: string, opts?: DockableOpti
   }, [docked, id]);
 
   return {
+    embedded,
     docked,
     slotEl: docked ? getDockSlotEl(id) : null,
     dockAvailable: dockable && isDockEnabled(),
     onHeaderPointerDown,
-    rootStyle: docked ? DOCKED_ROOT_STYLE : undefined,
+    rootStyle: embedded ? EMBEDDED_ROOT_STYLE : docked ? DOCKED_ROOT_STYLE : undefined,
     render,
   };
 }

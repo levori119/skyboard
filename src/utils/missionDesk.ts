@@ -5,6 +5,7 @@ import type {
   MDTableRule, MDRowStyle, MDButton, MDSummaryKind, MDInkStroke,
   MDLabelRun, MDLabelConfig,
   MissionDeskService, MDStripsConfig, MDPresetMapConfig, MDPresetMapSettings,
+  MDViewTableKey, MDPresetViewTablesConfig, MDPresetViewTablesSettings,
 } from '../types/missionDesk';
 import { mdEmptyMapSettings } from '../types/missionDesk';
 
@@ -361,4 +362,76 @@ export function mdPruneMapConfig(
   const out: MDPresetMapConfig = {};
   for (const [k, v] of Object.entries(cfg || {})) if (live.has(k)) out[k] = v;
   return out;
+}
+
+// ── טבלאות מתצוגה בדסק משימה ────────────────────────────────────────────────
+// שירות 'view_tables' מציג בתוך משבצת את הטבלאות של תפריט "תצוגה" - אותם
+// רכיבים בדיוק, מוטמעים במשבצת במקום לצוף. אילו טבלאות - נקבע בהגדרת העמדה.
+
+/** הקטלוג, בסדר שבו הטבלאות מוצגות בבורר ובלשוניות המשבצת. */
+export const MD_VIEW_TABLES: readonly { key: MDViewTableKey; icon: string; labelKey: string }[] = [
+  { key: 'elements', icon: '🧩', labelKey: 'missiondesk.vtElements' },
+  { key: 'trips', icon: '🚙', labelKey: 'missiondesk.vtTrips' },
+  { key: 'drivers', icon: '🪪', labelKey: 'missiondesk.vtDrivers' },
+  { key: 'quantities', icon: '🔢', labelKey: 'missiondesk.vtQuantities' },
+  { key: 'messages', icon: '📡', labelKey: 'missiondesk.vtMessages' },
+  { key: 'container', icon: '🗂', labelKey: 'missiondesk.vtContainer' },
+];
+
+const VIEW_TABLE_KEYS = MD_VIEW_TABLES.map(t => t.key);
+/** טבלאות שמשויכות לשדה תעופה - ולעמדת דסק אין שדה משלה */
+const AIRFIELD_TABLES: readonly MDViewTableKey[] = ['trips', 'drivers'];
+
+/** שירותי "טבלאות מתצוגה" של הדסק, בסדר שבו הוגדרו. */
+export function mdViewTablesServices(services: MissionDeskService[] | undefined | null): MissionDeskService[] {
+  return (services || []).filter(s => s.service_type === 'view_tables').sort(bySortOrder);
+}
+
+/** הגדרת המשבצת בעמדה, מנורמלת: מפתחות מוכרים בלבד, בלי כפילויות, בסדר הקטלוג. */
+export function mdViewTablesSettings(cfg: MDPresetViewTablesConfig | undefined | null, serviceId: number): MDPresetViewTablesSettings {
+  const raw = (cfg || {})[String(serviceId)] as Partial<MDPresetViewTablesSettings> | undefined;
+  const picked = new Set(Array.isArray(raw?.tables) ? raw!.tables.map(String) : []);
+  const af = Number(raw?.airfield_id);
+  return {
+    tables: VIEW_TABLE_KEYS.filter(k => picked.has(k)),
+    airfield_id: Number.isFinite(af) && af > 0 ? af : null,
+  };
+}
+
+/** מנקה מההגדרה משבצות שכבר אינן קיימות בדסק (נמחקו/הוחלף דסק). */
+export function mdPruneViewTablesConfig(
+  cfg: MDPresetViewTablesConfig | undefined | null,
+  services: MissionDeskService[] | undefined | null,
+): MDPresetViewTablesConfig {
+  const live = new Set(mdViewTablesServices(services).map(s => String(s.id)));
+  const out: MDPresetViewTablesConfig = {};
+  for (const [k, v] of Object.entries(cfg || {})) if (live.has(k)) out[k] = v;
+  return out;
+}
+
+/**
+ * איזו משבצת מחזיקה כל טבלה. טבלה נפתחת **במשבצת אחת בלבד** - הראשונה
+ * בפריסה. לוח הודעות או קונטיינר חלונות כפולים הם שני מופעים חיים של אותו
+ * דבר (הקונטיינר אף מחזיק אזור שחרור יחיד), ולכן השני מציג הפניה ולא עותק.
+ */
+export function mdViewTableOwners(
+  layout: MDNode | null | undefined,
+  services: MissionDeskService[] | undefined | null,
+  cfg: MDPresetViewTablesConfig | undefined | null,
+): Partial<Record<MDViewTableKey, number>> {
+  if (!layout) return {};
+  const isViewTables = new Set(mdViewTablesServices(services).map(s => s.id));
+  const owners: Partial<Record<MDViewTableKey, number>> = {};
+  for (const lf of mdGetAllLeaves(layout)) {
+    if (lf.service_id == null || !isViewTables.has(lf.service_id)) continue;
+    for (const key of mdViewTablesSettings(cfg, lf.service_id).tables) {
+      if (owners[key] == null) owners[key] = lf.service_id;
+    }
+  }
+  return owners;
+}
+
+/** האם נבחרה במשבצת טבלה שדורשת שדה תעופה. */
+export function mdViewTablesNeedAirfield(settings: MDPresetViewTablesSettings): boolean {
+  return settings.tables.some(k => AIRFIELD_TABLES.includes(k));
 }

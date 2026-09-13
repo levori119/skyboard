@@ -39,8 +39,10 @@ interface Props {
 
 const POLL_MS = 5000;
 const SERVICE_ICON: Record<string, string> = {
-  buttons: '🎛', freetext: '✍️', table: '📊', image: '🖼', label: '🔤', map: '🗺', strips: '✈',
+  buttons: '🎛', freetext: '✍️', table: '📊', image: '🖼', label: '🔤', map: '🗺', strips: '✈', view_tables: '📑',
 };
+/** שירותים שהתוכן שלהם שייך לעמדה ולא לדסק - מרונדרים דרך renderHostService */
+const HOSTED_TYPES = new Set(['map', 'strips', 'view_tables']);
 // גדול ממחזור ה-poll: כתיבה מקומית לא תידרס ע"י GET שרץ לפני שה-PUT התחייב ב-DB
 // (Neon latency). עדכונים משותפים לשירותים שלא נערכים כרגע — עדיין ≤ POLL_MS.
 const LOCAL_WRITE_GRACE_MS = 8000;
@@ -186,7 +188,8 @@ export default function MissionDeskBody({
     const common = { theme, postLog };
     // חלון מפה / חלון פ"ממים: התוכן שייך לעמדה ולא לדסק. במצב הגדרה אין עמדה
     // חיה שתספק אותו, ולכן מוצג מציין מקום במקום מפה חיה.
-    const hosted = (svc.service_type === 'map' || svc.service_type === 'strips')
+    // כך גם "טבלאות מתצוגה": הטבלאות עצמן (נסיעות, הודעות...) חיות בעמדה.
+    const hosted = HOSTED_TYPES.has(svc.service_type)
       ? (renderHostService ? renderHostService(svc) : null)
       : null;
     return (
@@ -195,7 +198,7 @@ export default function MissionDeskBody({
           {SERVICE_ICON[svc.service_type] || '📊'} {svc.name || tr('missiondesk.unnamedService')}
         </div>
         <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
-          {(svc.service_type === 'map' || svc.service_type === 'strips') && (
+          {HOSTED_TYPES.has(svc.service_type) && (
             hosted || (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: theme.subtext, fontSize: 13, textAlign: 'center', padding: 12 }}>
                 {svc.service_type === 'map' ? '🗺' : '✈'} {tr('missiondesk.hostServiceNotInSetup')}

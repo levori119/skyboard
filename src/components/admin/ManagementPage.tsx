@@ -937,6 +937,7 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
           mission_desk_id: (presetForm as any).mission_desk_id ? Number((presetForm as any).mission_desk_id) : null,
           mission_desk_sharing: (presetForm as any).mission_desk_sharing || {},
           mission_desk_map_config: (presetForm as any).mission_desk_map_config || {},
+          mission_desk_view_tables: (presetForm as any).mission_desk_view_tables || {},
           sector_maps_enabled: (presetForm as any).sector_maps_enabled === true,
           sector_map_ids: (presetForm as any).sector_map_ids || [],
           map2_sector_maps_enabled: (presetForm as any).map2_sector_maps_enabled === true,
@@ -1032,6 +1033,7 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
       mission_desk_id: preset.mission_desk_id || '',
       mission_desk_sharing: (preset.mission_desk_sharing && typeof preset.mission_desk_sharing === 'object') ? preset.mission_desk_sharing : {},
       mission_desk_map_config: (preset.mission_desk_map_config && typeof preset.mission_desk_map_config === 'object') ? preset.mission_desk_map_config : {},
+      mission_desk_view_tables: (preset.mission_desk_view_tables && typeof preset.mission_desk_view_tables === 'object') ? preset.mission_desk_view_tables : {},
       sector_maps_enabled: preset.sector_maps_enabled === true,
       sector_map_ids: Array.isArray(preset.sector_map_ids) ? preset.sector_map_ids.map(Number) : [],
       map2_sector_maps_enabled: preset.map2_sector_maps_enabled === true,
@@ -1322,8 +1324,11 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                     deskId={(presetForm as any).mission_desk_id || ''}
                     sharing={(presetForm as any).mission_desk_sharing || {}}
                     mapConfig={(presetForm as any).mission_desk_map_config || {}}
+                    viewTablesConfig={(presetForm as any).mission_desk_view_tables || {}}
                     maps={maps}
                     sectors={sectors}
+                    airfields={adminAirfields.map((a: any) => ({ id: Number(a.id), name: a.name }))}
+                    parentBaseId={presetForm.parent_base_id || null}
                     onChange={patch => setPresetForm(p => ({ ...p, ...patch } as any))}
                     allPresets={presets.map((p: any) => ({ id: p.id, name: p.name, preset_type: p.preset_type, mission_desk_id: p.mission_desk_id }))}
                     currentPresetId={editingPreset?.id ?? null}

@@ -11,11 +11,13 @@ import type {
   MDNode, MDLeaf, MissionDesk, MissionDeskService,
   MDTableConfig, MDFreeTextConfig, MDImageConfig, MDLabelConfig, MDColumnType, MDSummaryKind, MDRuleOp,
   MDStripsConfig, MDPresetMapConfig, MDPresetMapSettings,
+  MDPresetViewTablesConfig, MDPresetViewTablesSettings, MDViewTableKey,
 } from '../../types/missionDesk';
 import { mdEmptyMapSettings } from '../../types/missionDesk';
 import {
   mdDefaultLeaf, mdSplit, mdRemove, mdUpdate, mdGenId,
   mdMapServices, mdMapSettings, mdMissingMapServices, mdStripsMapServiceId, mdPruneMapConfig,
+  MD_VIEW_TABLES, mdViewTablesServices, mdViewTablesSettings, mdPruneViewTablesConfig, mdViewTablesNeedAirfield,
 } from '../../utils/missionDesk';
 import { AdminSection, AdminSections, AdminSectionsToolbar } from './AdminSection';
 import MissionDeskView from '../missiondesk/MissionDeskView';
@@ -38,6 +40,7 @@ const SERVICE_META: Record<string, { icon: string; nameKey: string }> = {
   label: { icon: '🔤', nameKey: 'missiondesk.svcLabel' },
   map: { icon: '🗺', nameKey: 'missiondesk.svcMap' },
   strips: { icon: '✈', nameKey: 'missiondesk.svcStrips' },
+  view_tables: { icon: '📑', nameKey: 'missiondesk.svcViewTables' },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -343,7 +346,7 @@ export function MissionDeskAdmin() {
     await load();
   };
 
-  const addService = async (type: 'buttons' | 'freetext' | 'table' | 'image' | 'label' | 'map' | 'strips') => {
+  const addService = async (type: 'buttons' | 'freetext' | 'table' | 'image' | 'label' | 'map' | 'strips' | 'view_tables') => {
     if (!selected) return;
     const defaults =
       type === 'table' ? { columns: [{ key: 'entity', title: tr('missiondesk.entityColDefault'), type: 'text' }], allowAddRows: true, initialRows: 0 }
@@ -434,6 +437,7 @@ export function MissionDeskAdmin() {
                   <button onClick={() => addService('label')} style={S.ghost}>🔤 {tr('missiondesk.addSvcLabel')}</button>
                   <button onClick={() => addService('map')} style={S.ghost}>🗺 {tr('missiondesk.addSvcMap')}</button>
                   <button onClick={() => addService('strips')} style={S.ghost}>✈ {tr('missiondesk.addSvcStrips')}</button>
+                  <button onClick={() => addService('view_tables')} style={S.ghost}>📑 {tr('missiondesk.addSvcViewTables')}</button>
                 </span>
               </div>
               {selected.services.map(svc => (
@@ -474,6 +478,9 @@ export function MissionDeskAdmin() {
                       )}
                       {svc.service_type === 'map' && (
                         <div style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.6 }}>🗺 {tr('missiondesk.mapPickedPerStation')}</div>
+                      )}
+                      {svc.service_type === 'view_tables' && (
+                        <div style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.6 }}>📑 {tr('missiondesk.viewTablesPickedPerStation')}</div>
                       )}
                       {svc.service_type === 'strips' && (
                         <StripsConfigEditor
@@ -698,18 +705,82 @@ function MapWindowSettings({ settings, maps, sectors, boundStrips, onChange }: {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// משבצת "טבלאות מתצוגה" בעורך העמדה: אילו טבלאות מתפריט התצוגה נפתחות בה.
+// אותן טבלאות בדיוק כמו בתפריט - מוטמעות במשבצת במקום לצוף.
+// ─────────────────────────────────────────────────────────────────────────────
+function ViewTablesSettings({ settings, airfields, hasParentBase, onChange }: {
+  settings: MDPresetViewTablesSettings;
+  airfields: { id: number; name: string }[];
+  hasParentBase: boolean;
+  onChange: (s: MDPresetViewTablesSettings) => void;
+}) {
+  const toggle = (key: MDViewTableKey, on: boolean) => {
+    const next = new Set(settings.tables);
+    if (on) next.add(key); else next.delete(key);
+    // סדר הקטלוג נשמר - הוא סדר הלשוניות במשבצת
+    onChange({ ...settings, tables: MD_VIEW_TABLES.map(t => t.key).filter(k => next.has(k)) });
+  };
+  const needAirfield = mdViewTablesNeedAirfield(settings);
+  return (
+    <div>
+      <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6 }}>{tr('missiondesk.viewTablesPickHint')}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 6 }}>
+        {MD_VIEW_TABLES.map(t => {
+          const on = settings.tables.includes(t.key);
+          return (
+            <label key={t.key} data-testid={`md-vt-${t.key}`}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: on ? '#e2e8f0' : '#94a3b8', background: on ? '#0c4a6e' : '#1e293b', border: `1px solid ${on ? '#0ea5e9' : '#334155'}`, borderRadius: 8, padding: '8px 10px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={on} onChange={e => toggle(t.key, e.target.checked)} />
+              <span>{t.icon}</span>
+              <span>{tr(t.labelKey)}</span>
+            </label>
+          );
+        })}
+      </div>
+      {settings.tables.length > 1 && (
+        <div style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>{tr('missiondesk.viewTablesTabsHint')}</div>
+      )}
+      {settings.tables.includes('elements') && !hasParentBase && (
+        <div style={{ fontSize: 12, color: '#fbbf24', marginTop: 8 }}>⚠ {tr('missiondesk.viewTablesNeedBase')}</div>
+      )}
+      {needAirfield && (
+        <div style={{ marginTop: 10 }}>
+          <label style={S.label}>{tr('missiondesk.viewTablesAirfield')}</label>
+          <select
+            value={settings.airfield_id ?? ''}
+            onChange={e => onChange({ ...settings, airfield_id: e.target.value ? Number(e.target.value) : null })}
+            style={{ ...S.input, width: '100%' }}>
+            <option value="">{tr('missiondesk.viewTablesAirfieldNone')}</option>
+            {airfields.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+          {settings.airfield_id == null && (
+            <div style={{ fontSize: 12, color: '#fbbf24', marginTop: 6 }}>⚠ {tr('missiondesk.viewTablesNeedAirfield')}</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // קונפיגורציית דסק בעורך העמדה: בחירת דסק + הגדרת חלונות המפה + שיתוף פר-שירות
 // ─────────────────────────────────────────────────────────────────────────────
-export function MissionDeskPresetConfig({ deskId, sharing, mapConfig, maps, sectors, onChange, allPresets, currentPresetId, currentPresetName, crewName }: {
+export function MissionDeskPresetConfig({ deskId, sharing, mapConfig, viewTablesConfig, maps, sectors, airfields, parentBaseId, onChange, allPresets, currentPresetId, currentPresetName, crewName }: {
   deskId: number | '' | null;
   sharing: Record<string, number[]>;
   mapConfig: MDPresetMapConfig;
+  viewTablesConfig: MDPresetViewTablesConfig;
+  /** לנסיעות ולנהגים - לעמדת דסק אין שדה תעופה משלה */
+  airfields: { id: number; name: string }[];
+  /** טבלת האלמנטים נטענת לפי בסיס האב של העמדה */
+  parentBaseId: number | string | null;
   maps: { id: number; name: string; parent_map_id?: number | null }[];
   sectors: { id: number; name: string }[];
   onChange: (patch: {
     mission_desk_id?: number | null;
     mission_desk_sharing?: Record<string, number[]>;
     mission_desk_map_config?: MDPresetMapConfig;
+    mission_desk_view_tables?: MDPresetViewTablesConfig;
   }) => void;
   allPresets: { id: number; name: string; preset_type?: string; mission_desk_id?: number | null }[];
   currentPresetId: number | null;
@@ -730,6 +801,9 @@ export function MissionDeskPresetConfig({ deskId, sharing, mapConfig, maps, sect
     .filter(s => s.service_type === 'strips' && mdStripsMapServiceId(s, selected?.services) == null);
   const patchMapSettings = (serviceId: number, s: MDPresetMapSettings) =>
     onChange({ mission_desk_map_config: { ...mapConfig, [String(serviceId)]: s } });
+  const viewTablesGroups = mdViewTablesServices(selected?.services);
+  const patchViewTables = (serviceId: number, s: MDPresetViewTablesSettings) =>
+    onChange({ mission_desk_view_tables: { ...viewTablesConfig, [String(serviceId)]: s } });
   // שיתוף הגיוני רק עם עמדות דסק שבחרו את *אותו* דסק — לאחרות אין את השירותים
   const shareCandidates = allPresets.filter(p =>
     p.id !== currentPresetId &&
@@ -751,6 +825,7 @@ export function MissionDeskPresetConfig({ deskId, sharing, mapConfig, maps, sect
             mission_desk_id: nextId,
             mission_desk_sharing: sharing,
             mission_desk_map_config: mdPruneMapConfig(mapConfig, nextDesk?.services),
+            mission_desk_view_tables: mdPruneViewTablesConfig(viewTablesConfig, nextDesk?.services),
           });
         }}
         style={{ ...S.input, width: '100%' }}>
@@ -808,6 +883,27 @@ export function MissionDeskPresetConfig({ deskId, sharing, mapConfig, maps, sect
                     sectors={sectors}
                     boundStrips={bound}
                     onChange={s => patchMapSettings(svc.id, s)}
+                  />
+                </AdminSection>
+              );
+            })}
+
+            {/* משבצת "טבלאות מתצוגה" - אילו טבלאות מתפריט התצוגה נפתחות בה בעמדה הזו */}
+            {viewTablesGroups.map((svc, i) => {
+              const st = mdViewTablesSettings(viewTablesConfig, svc.id);
+              return (
+                <AdminSection
+                  key={svc.id}
+                  id={`md-vt-${svc.id}`}
+                  icon="📑"
+                  title={`${tr('missiondesk.svcViewTables')} ${i + 1} · ${svc.name || tr('missiondesk.unnamedService')}`}
+                  badge={st.tables.length ? st.tables.map(k => MD_VIEW_TABLES.find(t => t.key === k)?.icon).join(' ') : tr('missiondesk.viewTablesNone')}
+                  attention={st.tables.length === 0}>
+                  <ViewTablesSettings
+                    settings={st}
+                    airfields={airfields}
+                    hasParentBase={!!parentBaseId}
+                    onChange={next => patchViewTables(svc.id, next)}
                   />
                 </AdminSection>
               );

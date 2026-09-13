@@ -7,6 +7,7 @@ import {
   getDockDraggingId, getDockHover, registerDockZone, setDockEnabled, setDockSlotEl,
 } from '../../utils/windowDock';
 import FitScaleBox from './FitScaleBox';
+import { useIsEmbeddedWindow } from '../../hooks/useDockableWindow';
 
 // ─── קונטיינר החלונות ─────────────────────────────────────────────────────────
 //
@@ -52,8 +53,20 @@ export const WindowContainer: React.FC<WindowContainerProps> = ({ themeMode = 'd
   const [, bump] = useState(0);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const resizingRef = useRef(false);
+  // מוטמע במשבצת דסק משימה (שירות "טבלאות מתצוגה"): ממלא את המשבצת, ורוחב
+  // העמודות נמדד ממנה ולא מרוחב העמודה השמור - שאין לו כאן משמעות
+  const embedded = useIsEmbeddedWindow();
+  const [measuredWidth, setMeasuredWidth] = useState(0);
 
   useEffect(() => dockSubscribe(() => bump(n => n + 1)), []);
+
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!embedded || !el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => setMeasuredWidth(el.clientWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [embedded]);
 
   // הקונטיינר עצמו הוא ה"מתג": כל עוד הוא על המסך אפשר לעגן, וברגע שהוא נסגר
   // כל החלונות חוזרים לצוף - בלי שאף חלון יידע מה מצב המתג בתפריט התצוגה.
@@ -73,7 +86,7 @@ export const WindowContainer: React.FC<WindowContainerProps> = ({ themeMode = 'd
   const state = dockLoad();
   const order = DOCK_POSITION_ORDER[state.position];
   /** ברוחב גדול אין טעם למתוח חלון בודד על הכל - שניים זה לצד זה מראים יותר */
-  const cols = dockColumns(state.width);
+  const cols = dockColumns(embedded && measuredWidth > 0 ? measuredWidth : state.width);
   const C = themeColors(themeMode);
   const hover = getDockHover();
   const draggingId = getDockDraggingId();
@@ -144,9 +157,11 @@ export const WindowContainer: React.FC<WindowContainerProps> = ({ themeMode = 'd
         ref={rootRef}
         data-help="windowContainer"
         style={{
-          width: state.width, order, background: C.panel, display: 'flex', flexDirection: 'column',
+          ...(embedded
+            ? { width: '100%', height: '100%' }
+            : { width: state.width, order, borderInlineStart: `1px solid ${C.border}` }),
+          background: C.panel, display: 'flex', flexDirection: 'column',
           flexShrink: 0, overflow: 'hidden', position: 'relative',
-          borderInlineStart: `1px solid ${C.border}`,
           // בזמן גרירת חלון - מסגרת מודגשת, שיהיה ברור לאן הוא ייפול
           outline: draggingId && hover ? `2px solid ${C.accent}` : 'none',
           outlineOffset: '-2px',
@@ -163,7 +178,7 @@ export const WindowContainer: React.FC<WindowContainerProps> = ({ themeMode = 'd
           {shown.length > 0 && (
             <span style={{ color: C.dim, fontSize: '11px', fontVariantNumeric: 'tabular-nums' }}>{shown.length}</span>
           )}
-          {onClose && (
+          {onClose && !embedded && (
             <button
               onClick={onClose}
               title={tr('dock.close')}
@@ -235,6 +250,7 @@ export const WindowContainer: React.FC<WindowContainerProps> = ({ themeMode = 'd
 
   // הספליטר תמיד בקצה הפונה למרכז המסך: משמאל לקונטיינר כשהוא מימין למפה,
   // ומימינו כשהוא בקצה השמאלי.
+  if (embedded) return panel;
   return <>{splitterAfter ? [panel, splitter] : [splitter, panel]}</>;
 };
 

@@ -15,7 +15,7 @@ import { CRITICAL_BLINK_CLASS, SIGNAL_SEVERITIES, normSeverity, severityPaint, t
 import { usePolling } from '../../hooks/usePollingRegistry';
 import FitText from './FitText';
 import { tr } from '../../i18n/tr';
-import { useDockableWindow } from '../../hooks/useDockableWindow';
+import { useDockableWindow, useIsEmbeddedWindow } from '../../hooks/useDockableWindow';
 import { groupRecipientsByBase, groupCheckState, toggleGroupIds } from '../../utils/presetGroups';
 
 interface SignalBtn { id: number; preset_id: number; text: string; to_all: boolean; recipient_preset_ids: number[]; active: boolean; source: 'preset' | 'adhoc'; sort_order: number; severity: SignalSeverity; }
@@ -100,6 +100,8 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
   // ריענון מיידי במאונט/שינוי catalog; הפולינג החוזר (6ש') דרך המנוע המאוחד (טיימר יחיד).
   useEffect(() => { load(); }, [load]);
   usePolling(`signalboard-${presetId}`, load, 6000, { immediate: false });
+  // מוטמע במשבצת דסק משימה: תמיד מוצג, לא ממוזער ולא נגרר
+  const embedded = useIsEmbeddedWindow();
   // open from the external "תצוגה" menu
   useEffect(() => { if (openTick > 0) { setCollapsed(false); setManualOpen(true); } }, [openTick]);
 
@@ -123,7 +125,7 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
 
   // גרירת מיקום מהכותרת - Pointer Events + setPointerCapture, שתעבוד בעט ובאצבע
   const onDragDown = (e: React.PointerEvent) => {
-    if (e.button > 0) return;
+    if (embedded || e.button > 0) return;
     if ((e.target as HTMLElement).closest('button')) return; // ＋ / — הם כפתורים, לא ידית
     const el = e.currentTarget as HTMLElement;
     try { el.setPointerCapture(e.pointerId); } catch { /* ignore */ }
@@ -178,7 +180,7 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
   const moveGroup = (id: number, dir: -1 | 1) => { const cur = [...orderedSrc]; const i = cur.indexOf(id); const j = i + dir; if (j < 0 || j >= cur.length) return; [cur[i], cur[j]] = [cur[j], cur[i]]; saveOrder(cur); };
 
   const hasContent = buttons.length > 0 || incoming.length > 0;
-  const show = !collapsed && (hasContent || manualOpen);
+  const show = embedded || (!collapsed && (hasContent || manualOpen));
 
   // בר-עגינה בקונטיינר. dockable=show: לוח שאינו מוצג לא תופס משבצת ריקה
   const dock = useDockableWindow('signalBoard', tr('dock.winMessages'), {
@@ -212,8 +214,11 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
       <div style={{ overflowY: 'auto', overflowX: 'hidden', padding: px(6), paddingBottom: px(17), display: 'flex', flexDirection: 'column', gap: px(8) }}>
       {/* "הודעות שלי" header = drag handle + controls */}
       <div>
-        <div onPointerDown={e => { dock.onHeaderPointerDown(e); onDragDown(e); }} style={{ ...headerBar, cursor: 'move', touchAction: 'none', userSelect: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <button onClick={() => { setCollapsed(true); setManualOpen(false); }} title={t('common.minimize')} style={hdrBtn}>—</button>
+        <div onPointerDown={e => { dock.onHeaderPointerDown(e); onDragDown(e); }} style={{ ...headerBar, cursor: embedded ? 'default' : 'move', touchAction: embedded ? undefined : 'none', userSelect: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          {/* במשבצת דסק אין מזעור - הלוח לא היה חוזר אליה בלי תפריט התצוגה */}
+          {embedded
+            ? <span style={{ width: px(12) }} />
+            : <button onClick={() => { setCollapsed(true); setManualOpen(false); }} title={t('common.minimize')} style={hdrBtn}>—</button>}
           <span>{t('signalBoard.myMessages')}</span>
           <button onClick={() => setAddOpen(true)} title={t('common.add')} style={hdrBtn}>＋</button>
         </div>

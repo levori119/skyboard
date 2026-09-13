@@ -131,8 +131,9 @@ import { useDockableWindow } from '../../hooks/useDockableWindow';
 import ElementsTableWindow from '../ground/ElementsTableWindow';
 import DataWindowLayer from '../dataWindows/DataWindowLayer';
 import MissionDeskBody, { useMissionDeskName } from '../missiondesk/MissionDeskBody';
-import type { MissionDeskService, MDPresetMapConfig, MDPresetMapSettings } from '../../types/missionDesk';
-import { mdMapServices, mdMapSettings, mdStripsMapServiceId } from '../../utils/missionDesk';
+import type { MissionDeskService, MDPresetMapConfig, MDPresetMapSettings, MDNode, MDPresetViewTablesConfig, MDViewTableKey } from '../../types/missionDesk';
+import { mdMapServices, mdMapSettings, mdStripsMapServiceId, MD_VIEW_TABLES, mdViewTablesSettings, mdViewTableOwners } from '../../utils/missionDesk';
+import ViewTablesSlot from '../missiondesk/ViewTablesSlot';
 import MyScriptTestPanel from '../shared/MyScriptTestPanel';
 import { MapDrawToolbar } from '../map/MapDrawLayer';
 import { isFrac, fracToPx, pxToFrac, drawStrokeFrac, applyStrokeStyle, syncCanvasBitmap, type PenStroke, type MapShape } from '../../utils/mapDrawing';
@@ -2049,6 +2050,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   /** ברירת המחדל של העמדה, אלא אם הפקח הכריע אחרת בסשן הזה */
   const showDataWindows = showDataWindowsSession ?? (myPresetConfig?.show_data_windows === true);
   const showWindowContainer = showWindowContainerSession ?? (myPresetConfig?.show_window_container === true);
+  // הגדרת הדסק (שירותים + פריסה). מוצהרת כאן ולא ליד חלונות המפה של הדסק,
+  // כי גם טעינת טבלת האלמנטים והחלונות הצפים צריכים לדעת מה הדסק מחזיק.
+  const [mdDesk, setMdDesk] = useState<{ id: number; services: MissionDeskService[]; layout_json?: MDNode | null } | null>(null);
+  // שירות "טבלאות מתצוגה": איזו משבצת מחזיקה כל טבלה. טבלה שהדסק מחזיק לא
+  // נפתחת גם כחלון צף, ופריט התפריט שלה מוסתר - אחרת הוא נדלק ולא קורה כלום.
+  const mdViewTablesConfig: MDPresetViewTablesConfig = (myPresetConfig as any)?.mission_desk_view_tables || {};
+  const mdViewTableOwnerMap = useMemo(
+    () => (isMissionDeskMode ? mdViewTableOwners(mdDesk?.layout_json, mdDesk?.services, mdViewTablesConfig) : {}),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isMissionDeskMode, mdDesk, JSON.stringify(mdViewTablesConfig)],
+  );
+  const deskHostsTable = (key: MDViewTableKey) => mdViewTableOwnerMap[key] != null;
   // מזהה העמדה נמסר למודל הקונטיינר פעם אחת. כל חלון שנעשה בר-עגינה קורא
   // אותו משם, ולכן לא צריך להעביר presetId דרך חמש שכבות של props.
   React.useEffect(() => { setDockPreset(session.presetId ?? null); }, [session.presetId]);
@@ -7557,13 +7570,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // שהפקח יראה שינוי שנעשה בעמדה אחרת.
   useEffect(() => {
     const baseId = myPresetConfig?.parent_base_id;
-    if (!showElementsTable || !baseId) return;
+    // נטענת גם כשמשבצת בדסק המשימה מציגה אותה
+    if (!(showElementsTable || deskHostsTable('elements')) || !baseId) return;
     const load = () => fetch(`${API_URL}/airfield-elements/by-base/${baseId}`)
       .then(r => (r.ok ? r.json() : [])).then(setBaseElements).catch(() => {});
     load();
     pollingRegistry.register('sd-base-elements', load, 10000, { immediate: false });
     return () => pollingRegistry.unregister('sd-base-elements');
-  }, [showElementsTable, myPresetConfig?.parent_base_id]);
+  }, [showElementsTable, mdViewTableOwnerMap.elements, myPresetConfig?.parent_base_id]);
 
   /**
    * עדכון אלמנט מהטבלה - גם של שדה **אחר**.
@@ -10613,7 +10627,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   //
   // המפתח הוא מזהה **השירות** ולא מזהה המפה: שני חלונות בדסק יכולים להציג את
   // אותה מפה, ואז הזום, ההזזה והסקטור הנבחר חייבים להיות נפרדים לכל חלון.
-  const [mdDesk, setMdDesk] = useState<{ id: number; services: MissionDeskService[] } | null>(null);
   const [mdSlots, setMdSlots] = useState<Record<string, MDMapSlotState>>({});
   const [mdFixedTPoints, setMdFixedTPoints] = useState<Record<string, any[]>>({});
   const mdRegionObservers = useRef<Record<string, ResizeObserver>>({});
@@ -10945,6 +10958,71 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       );
       return renderStripsPanel();
     }
+    if (svc.service_type === 'view_tables') {
+      // אותם רכיבים שנפתחים מתפריט "תצוגה", מוטמעים במשבצת (ViewTablesSlot עוטף
+      // אותם ב-EmbeddedWindow). onClose ריק: למשבצת אין ✕.
+      const settings = mdViewTablesSettings(mdViewTablesConfig, svc.id);
+      const airfieldId = settings.airfield_id ?? myPresetConfig?.airfield_id ?? null;
+      const noop = () => {};
+      const renderTable = (key: MDViewTableKey): React.ReactNode => {
+        switch (key) {
+          case 'elements':
+            if (!myPresetConfig?.parent_base_id) return (
+              <div style={{ padding: 16, textAlign: 'center', color: T.muted, fontSize: 13 }}>{tr('missiondesk.viewTablesNoBase')}</div>
+            );
+            return (
+              <ElementsTableWindow
+                rows={baseElements}
+                themeMode={themeMode}
+                onClose={noop}
+                onUpdateStatus={(id, status) => updateBaseElement(id, { status })}
+                onUpdateDisplayState={(id, display_state) => updateBaseElement(id, { display_state })}
+              />
+            );
+          case 'trips':
+            return <TripsManagementWindow airfieldId={airfieldId} themeMode={themeMode} onClose={noop} />;
+          case 'drivers':
+            return <VehiclePermitsWindow airfieldId={airfieldId} themeMode={themeMode} onClose={noop} />;
+          case 'quantities':
+            return (
+              <DataWindowLayer
+                windows={myPresetConfig?.data_windows}
+                strips={strips}
+                evalCtx={{
+                  presetId: session.presetId ?? null,
+                  presetName: myPresetConfig?.name ?? null,
+                  myBaseId: myPresetConfig?.parent_base_id ?? null,
+                  aviationBases,
+                }}
+                presetId={session.presetId ?? null}
+                themeMode={themeMode}
+              />
+            );
+          case 'messages':
+            return session.presetId ? (
+              <SignalBoard
+                presetId={Number(session.presetId)}
+                allPresets={workstationPresets.map((p: any) => ({ id: Number(p.id), name: p.name || `עמדה ${p.id}`, parent_base_id: p.parent_base_id ?? null, parent_base_name: p.aviation_base_name || p.parent_base_name || null }))}
+                catalog={Array.isArray(myPresetConfig?.signal_catalog) ? myPresetConfig.signal_catalog : []}
+                themeMode={themeMode}
+                openTick={0}
+              />
+            ) : null;
+          case 'container':
+            return <WindowContainer themeMode={themeMode} />;
+        }
+      };
+      const tabs = settings.tables.map(key => {
+        const meta = MD_VIEW_TABLES.find(t => t.key === key)!;
+        return {
+          key,
+          icon: meta.icon,
+          label: tr(meta.labelKey),
+          node: mdViewTableOwnerMap[key] === svc.id ? renderTable(key) : null,
+        };
+      });
+      return <ViewTablesSlot presetId={session.presetId} serviceId={svc.id} tabs={tabs} themeMode={themeMode} />;
+    }
     return null;
   };
 
@@ -11141,8 +11219,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </div>
             </div>
           )}
-          {session.presetId && (
-            /* בסיס האב עובר לבורר הנמענים, שמקבץ לפיו את העמדות (parent_base_name מגיע מהשרת) */
+          {session.presetId && !deskHostsTable('messages') && (
+            /* בסיס האב עובר לבורר הנמענים, שמקבץ לפיו את העמדות (parent_base_name מגיע מהשרת).
+               לוח שמוצג במשבצת בדסק המשימה לא צף בנוסף - שני מופעים היו קופצים יחד. */
             <SignalBoard
               presetId={Number(session.presetId)}
               allPresets={workstationPresets.map((p: any) => ({ id: Number(p.id), name: p.name || `עמדה ${p.id}`, parent_base_id: p.parent_base_id ?? null, parent_base_name: p.aviation_base_name || p.parent_base_name || null }))}
@@ -11471,14 +11550,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', zIndex: 3000, minWidth: '200px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: dir, overflow: 'hidden' }}
                   onClick={e => e.stopPropagation()}>
                   <div style={{ padding: '6px 12px', fontSize: '10px', color: menuMuted, borderBottom: `1px solid ${menuBorder}` }}>{tr('shared.displayMode')}</div>
-                  <div
+                  {/* לוח הודעות שמוצג במשבצת בדסק - אין מה לפתוח */}
+                  {!deskHostsTable('messages') && <div
                     onClick={() => { setSignalOpenTick(t => t + 1); setShowViewMenu(false); }}
                     style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: menuAcc('#93c5fd','#2563eb'), borderBottom: `1px solid ${menuBorder}`, display: 'flex', alignItems: 'center', gap: '6px' }}
                     onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                     onMouseLeave={e => (e.currentTarget.style.background = '')}
                   >
                     {tr('ctrl.messageBoard')}
-                  </div>
+                  </div>}
                   {/* תצוגת עמדות אחרות — סרגל הריבועים בתחתית המסך. מוצג רק
                       אם הוגדרו לעמדה עמדות לצפייה (StationPeekBar מסתיר את עצמו
                       כשאין מה להציג או שאין הרשאת מיראז'). */}
@@ -11493,7 +11573,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   </div>
                   {/* קונטיינר החלונות - זמין ב**כל** עמדה. ההגדרה בניהול קובעת
                       רק אם הוא פתוח בעליית העמדה, לא אם הוא קיים. */}
-                  {(
+                  {!deskHostsTable('container') && (
                     <div
                       data-testid="dock-menu-toggle"
                       onClick={() => { setShowWindowContainerSession(v => !(v ?? (myPresetConfig?.show_window_container === true))); setShowViewMenu(false); }}
@@ -11524,7 +11604,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   {/* בורר המיקום - מקופל עד שלוחצים על המשולש. מוצג רק
                       כשהקונטיינר פתוח, אחרת הוא פקד שנדלק בלי שקורה משהו
                       על המסך (CLAUDE.md §Do NOT). */}
-                  {showWindowContainer && showDockPosMenu && (
+                  {showWindowContainer && showDockPosMenu && !deskHostsTable('container') && (
                     <div style={{ padding: '6px 12px', borderBottom: `1px solid ${menuBorder}` }}>
                       <div style={{ fontSize: '10px', color: menuMuted, marginBottom: '4px', textAlign: 'center' }}>{tr('dock.position')}</div>
                       <DockPositionPicker themeMode={themeMode} onPick={() => setShowViewMenu(false)} />
@@ -11818,8 +11898,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       {muteBlockAlerts ? '🔔 הפעל' : '🔕 השתק'} {tr('ctrl.blocks')}
                     </button>
                   </div>
-                  {/* הצג כמות מטוסים — חלונות הנתונים */}
-                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
+                  {/* הצג כמות מטוסים — חלונות הנתונים. מוסתר כשמשבצת בדסק מציגה אותם */}
+                  {!deskHostsTable('quantities') && <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
                     <span style={{ fontSize: '12px', color: showDataWindows ? menuAcc('#93c5fd','#2563eb') : menuMuted }}>
                       {showDataWindows ? '📊 ' : '⚪ '}{tr('dataWindows.showAircraftCount')}
                     </span>
@@ -11827,7 +11907,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       style={{ background: showDataWindows ? '#1e3a5f' : '#334155', color: showDataWindows ? '#93c5fd' : '#94a3b8', border: `1px solid ${showDataWindows ? '#3b82f6' : '#475569'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                       {showDataWindows ? tr('dataWindows.turnOff') : tr('dataWindows.turnOn')}
                     </button>
-                  </div>
+                  </div>}
                   {/* Contacts on transfer */}
                   <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
                     <span style={{ fontSize: '12px', color: showContactsOnTransfer ? menuAcc('#93c5fd','#2563eb') : menuMuted }}>
@@ -17200,7 +17280,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
         {/* קונטיינר החלונות - עמודה בין הפ"מים (order 4) לעזרים (order 6).
             מוצג רק כשהעמדה מאפשרת אותו והפקח פתח אותו בתפריט "תצוגה". */}
-        {showWindowContainer && (
+        {/* קונטיינר שמוצג במשבצת בדסק המשימה לא נפתח גם כעמודה: לקונטיינר אזור שחרור יחיד */}
+        {showWindowContainer && !deskHostsTable('container') && (
           <WindowContainer themeMode={themeMode} onClose={() => setShowWindowContainerSession(false)} />
         )}
 
@@ -21831,7 +21912,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {/* תצוגת עמדות אחרות — סרגל ריבועים חיים בתחתית המסך (ON TOP). רכיב משותף
           לכל סוגי העמדות; מסתיר את עצמו כשאין עמדות מוגדרות או שאין הרשאת מיראז'. */}
       {/* חלונות נתונים — שירות משותף לכל סוגי העמדות, צף מעל כל תצוגה */}
-      {showDataWindows && (
+      {showDataWindows && !deskHostsTable('quantities') && (
         <DataWindowLayer
           windows={myPresetConfig?.data_windows}
           strips={strips}

@@ -8,7 +8,7 @@ const router = new Router();
 
 // map/strips: חלון מפה וחלון הפ"ממים שלה. הדסק מגדיר *שיש* כאן מפה; איזו מפה,
 // אילו נקודות העברה ואילו מפות-סקטור - נקבע פר-עמדה (workstation_presets.mission_desk_map_config).
-const SERVICE_TYPES = ['buttons', 'freetext', 'table', 'image', 'label', 'map', 'strips'];
+const SERVICE_TYPES = ['buttons', 'freetext', 'table', 'image', 'label', 'map', 'strips', 'view_tables'];
 
 // ── דסקים ───────────────────────────────────────────────────────────────────
 

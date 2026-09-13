@@ -248,7 +248,7 @@ export const VehiclePermitsWindow: React.FC<VehiclePermitsWindowProps> = ({ airf
         // רשימת נהגים, טופס, רכבים וטבלת נסיעות אינם נכנסים לחלון צר.
         // יחידות החלון מחולקות ב---s כי #root תחת `zoom` מכפיל גם אותן
         // (/ui-adapt §מלכודת ה-vw/vh). בקונטיינר הגודל נקבע ברוחב העמודה.
-        ...(dock.docked ? {} : WINDOW_SIZE),
+        ...(dock.docked || dock.embedded ? {} : WINDOW_SIZE),
         display: 'flex', flexDirection: 'column',
         background: C.panel, color: C.text, direction: dir,
         boxShadow: '0 10px 34px rgba(0,0,0,0.5)',
@@ -276,12 +276,12 @@ export const VehiclePermitsWindow: React.FC<VehiclePermitsWindowProps> = ({ airf
         </span>
         {/* הכפתור יושב בתוך ידית הגרירה שתופסת את המצביע - בלי העצירה הלחיצה
             נבלעת בגרירה ולא מגיעה ל-onClick */}
-        <button
+        {!dock.embedded && <button
           onPointerDown={e => e.stopPropagation()}
           onClick={onClose}
           title={tr('shared.close')}
           style={{ background: 'none', border: 'none', color: C.text, fontSize: 15, cursor: 'pointer', lineHeight: 1, padding: '0 6px' }}
-        >✕</button>
+        >✕</button>}
       </div>
 
       {!airfieldId ? (

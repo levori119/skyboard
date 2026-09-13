@@ -12,7 +12,7 @@ export interface MDLeaf { id: string; type: 'leaf'; service_id: number | null }
 // הדסק (config) ומוצג לקריאה בלבד — אין להם state פר-עמדה.
 // map/strips: חלון מפה וחלון הפ"ממים שלו. הדסק מגדיר שיש כאן מפה; *איזו* מפה,
 // אילו נקודות העברה ואילו מפות-סקטור - נקבע פר-עמדה, כי אותו דסק משרת עמדות שונות.
-export type MDServiceType = 'buttons' | 'freetext' | 'table' | 'image' | 'label' | 'map' | 'strips';
+export type MDServiceType = 'buttons' | 'freetext' | 'table' | 'image' | 'label' | 'map' | 'strips' | 'view_tables';
 
 export interface MissionDesk { id: number; name: string; layout_json: MDNode | null }
 export interface MissionDeskService {
@@ -82,6 +82,18 @@ export interface MDPresetMapSettings {
 export type MDPresetMapConfig = Record<string, MDPresetMapSettings>;
 export const mdEmptyMapSettings = (): MDPresetMapSettings =>
   ({ map_id: null, transfer_points: [], sector_maps_enabled: false, sector_map_ids: [], flight_zones_mode: false, fz_pin_display: 'handwrite', strips_panel: true });
+
+// ── טבלאות מתצוגה פר-עמדה ───────────────────────────────────────────────────
+// שירות 'view_tables' מציג בתוך המשבצת טבלאות מתפריט "תצוגה" של העמדה.
+// *אילו* טבלאות - נקבע בהגדרת העמדה, כי אותו דסק משרת עמדות שונות:
+// workstation_presets.mission_desk_view_tables = { "<service_id>": MDPresetViewTablesSettings }.
+export type MDViewTableKey = 'elements' | 'trips' | 'drivers' | 'quantities' | 'messages' | 'container';
+export interface MDPresetViewTablesSettings {
+  tables: MDViewTableKey[];
+  // לנסיעות ולנהגים: לעמדת דסק אין שדה תעופה משלה, ולכן הוא נבחר כאן
+  airfield_id: number | null;
+}
+export type MDPresetViewTablesConfig = Record<string, MDPresetViewTablesSettings>;
 
 // ── מצב ריצה (state JSONB) ──────────────────────────────────────────────────
 export interface MDButtonStateDef { label: string; color: string; alertPresetIds?: number[] }

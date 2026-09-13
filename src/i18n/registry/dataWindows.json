@@ -50,6 +50,10 @@
       "he": "מספר + פ\"מים",
       "en": "Count + strips"
     },
+    "noWindowsForStation": {
+      "he": "לא הוגדרו לעמדה חלונות נתונים",
+      "en": "No data windows are defined for this station"
+    },
     "noQuery": {
       "he": "לא הוגדרה שאילתא",
       "en": "No query defined"

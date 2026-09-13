@@ -1,4 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react';
+import { useIsEmbeddedWindow } from './useDockableWindow';
 
 /**
  * גרירת חלון צף (`position: fixed`) בעכבר, בעט או באצבע.
@@ -37,8 +38,11 @@ const KEEP_VISIBLE_Y = 40;
 export function useDragPosition(elRef: React.RefObject<HTMLElement | null>) {
   const [pos, setPos] = useState<DragPos | null>(null);
   const posRef = useRef<DragPos | null>(null);
+  // חלון מוטמע במשבצת דסק יושב במקומו - ידית הגרירה שלו היא כותרת בלבד
+  const embedded = useIsEmbeddedWindow();
 
   const startDrag = useCallback((e: React.PointerEvent) => {
+    if (embedded) return;
     if (e.button > 0) return; // לחצן ימני/אמצעי - לא גרירה
     const s = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--s')) || 1;
     const handle = e.currentTarget as HTMLElement;
@@ -72,7 +76,7 @@ export function useDragPosition(elRef: React.RefObject<HTMLElement | null>) {
     handle.addEventListener('pointermove', move);
     handle.addEventListener('pointerup', up);
     handle.addEventListener('pointercancel', up);
-  }, [elRef]);
+  }, [elRef, embedded]);
 
   const reset = useCallback(() => { posRef.current = null; setPos(null); }, []);
 
@@ -87,7 +91,9 @@ export function useDragPosition(elRef: React.RefObject<HTMLElement | null>) {
   /** מוצמד לידית הגרירה - כולל ההגנות למגע/עט */
   const handleProps = {
     onPointerDown: startDrag,
-    style: { cursor: 'move', touchAction: 'none', userSelect: 'none' } as React.CSSProperties,
+    style: (embedded
+      ? { cursor: 'default', userSelect: 'none' }
+      : { cursor: 'move', touchAction: 'none', userSelect: 'none' }) as React.CSSProperties,
   };
 
   return { pos, dragged: pos !== null, startDrag, reset, moveTo, handleProps };
