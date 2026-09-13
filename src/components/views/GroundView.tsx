@@ -30,7 +30,7 @@ import {
 import { DEFAULT_CAMERA, shouldRenderPattern3D, shouldShowPatternLabels, type Camera3D } from '../../utils/pattern3d';
 import { altToDisplay, collectGreensAlerts, greensPoint, type GreensAlertRow } from '../../utils/joiningPoints';
 import { bidiAuto } from '../../utils/bidi';
-import { displayStateOptions, nextServiceability, serviceabilityStyle } from '../../utils/elementStatus';
+import { ELEMENT_NEUTRAL_FILL, canChangeElementStatus, displayStateOptions, nextServiceability, serviceabilityStyle } from '../../utils/elementStatus';
 import { activePatterns, boundsAspect } from '../../utils/trafficPattern';
 import { stepWidthScale, type RunwayPaletteMode } from '../../utils/runwayShape';
 import { closedRunwayEnds, isRunwayClosed } from '../../utils/runwayEnds';
@@ -3797,6 +3797,10 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           <TripMapVehicles airfieldId={airfield?.id ?? null} points={points} ptPos={ptPos} />
           {/* Airfield elements overlay */}
           {mapLayers.elements && airfieldElements && airfieldElements.filter(el => el.x_pct != null && el.y_pct != null && !hiddenElements.has(el.id) && !(externalHiddenElements?.has(el.id)) && (!el.hidden_on_map || (mapDisplaySettings.showRoutes && elemNavData[el.id])) && (el.category !== 'camera' || mapLayers.cameras)).map(el => {
+            // צבע ה**סוג** נשאר לתווית השם בלבד. על הסמל עצמו הוא בלבל: כתום היה
+            // ברירת המחדל לכל סוג בלי צבע, וכך כתום-עם-טבעת-ירוקה נקרא כ"אזהרה"
+            // בזמן שהאלמנט תקין. המילוי ניטרלי, והצבע היחיד על הסמל הוא הסטטוס
+            // (הטבעת) - חוץ מתקלה, שממלאת באדום כדי שלא תוחמץ.
             const elColor = el.type_color || '#f59e0b';
             const statusColors: Record<string, string> = { 'תקין': '#22c55e', 'לא תקין': '#ef4444', 'חלקי': '#f97316', 'שמיש': '#22c55e', 'תקול': '#ef4444', 'לא שמיש': '#ef4444' };
             const sColor = statusColors[el.status] || '#94a3b8';
@@ -3805,7 +3809,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             const isLaShamish = el.status === 'לא שמיש';
             const isTakin = el.status === 'תקין';
             const isShamish = el.status === 'שמיש';
-            const canChangeStatus = el.type_can_change_status === true || el.type_can_change_status === 'true';
+            const canChangeStatus = canChangeElementStatus(el);
             const canHaveRoute = el.type_can_have_route === true || el.type_can_have_route === 'true';
             const isSvgIcon = typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:');
             const elCatKey = el.category || 'כללי';
@@ -3883,7 +3887,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                       {renderGroundSvgIcon(isClosed ? (el.close_icon_key || el.type_close_icon || effectiveMapIconKey) : isOpen ? (el.open_icon_key || el.type_open_icon || effectiveMapIconKey) : (statusMapIcon || effectiveMapIconKey), 26, el.status, dState)}
                     </div>
                   ) : (
-                    <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: isClosed ? '#1e293b' : isOff ? '#1e293b' : (isTakul || isLaTakin || isLaShamish) ? '#ef4444' : elColor, border: isBeingEdited ? '3px solid #f59e0b' : isCatHighlighted ? '3px solid #3b82f6' : isClosed ? '3px solid #ef4444' : isOff ? '3px solid #475569' : (isLaTakin || isLaShamish) ? '3px solid #ef4444' : isTakin ? '3px solid #22c55e' : isOpen ? '3px solid #22c55e' : isShamish ? '4px solid #22c55e' : `2px solid ${canChangeStatus ? opColor : sColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', boxShadow: isBeingEdited ? '0 0 10px #f59e0b88' : isCatHighlighted ? '0 0 10px #3b82f688' : isClosed ? '0 0 8px #ef444488' : (isLaTakin || isLaShamish) ? '0 0 8px #ef444488' : isTakin ? '0 0 6px #22c55e88' : canChangeStatus ? `0 0 6px ${opColor}88` : isShamish ? '0 0 6px #22c55e88' : '0 1px 4px rgba(0,0,0,0.5)', margin: '0 auto', transition: 'box-shadow 0.2s, border 0.2s', opacity: isOff ? 0.5 : 1, transform: iconRotation ? `rotate(${iconRotation}deg)` : undefined, animation: isBlinking ? `af-elem-blink ${blinkRate}s step-end infinite` : undefined }}>
+                    <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: (isClosed || isOff) ? ELEMENT_NEUTRAL_FILL : (isTakul || isLaTakin || isLaShamish) ? '#ef4444' : ELEMENT_NEUTRAL_FILL, border: isBeingEdited ? '3px solid #f59e0b' : isCatHighlighted ? '3px solid #3b82f6' : isClosed ? '3px solid #ef4444' : isOff ? '3px solid #475569' : (isLaTakin || isLaShamish) ? '3px solid #ef4444' : isTakin ? '3px solid #22c55e' : isOpen ? '3px solid #22c55e' : isShamish ? '4px solid #22c55e' : `2px solid ${canChangeStatus ? opColor : sColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', boxShadow: isBeingEdited ? '0 0 10px #f59e0b88' : isCatHighlighted ? '0 0 10px #3b82f688' : isClosed ? '0 0 8px #ef444488' : (isLaTakin || isLaShamish) ? '0 0 8px #ef444488' : isTakin ? '0 0 6px #22c55e88' : canChangeStatus ? `0 0 6px ${opColor}88` : isShamish ? '0 0 6px #22c55e88' : '0 1px 4px rgba(0,0,0,0.5)', margin: '0 auto', transition: 'box-shadow 0.2s, border 0.2s', opacity: isOff ? 0.5 : 1, transform: iconRotation ? `rotate(${iconRotation}deg)` : undefined, animation: isBlinking ? `af-elem-blink ${blinkRate}s step-end infinite` : undefined }}>
                       {isOff ? '○' : !(isTakul || isLaTakin || isLaShamish) && (statusEmojiOnly || el.type_icon || (el.category === 'camera' ? '📷' : '🔧'))}
                     </div>
                   )}
@@ -5199,6 +5203,14 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               </div>
               {/* Display state — filtered to allowed_statuses values */}
               <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '5px', fontWeight: 'bold' }}>{tr('shared.displayMode')}</div>
+              {/* סוג שאינו בר-שינוי: "אין סטטוס" ולא כפתורים. displayStateOptions מחזיר
+                  את **כל** ברירות המחדל כשלסוג אין רשימה, ולכן בלי הבדיקה הזו אלמנט
+                  קבוע קיבל כאן כפתורי סטטוס שהפאנל הצדדי מסתיר - אותו אלמנט, שתי תשובות. */}
+              {!canChangeElementStatus(el) ? (
+                <div data-testid={`elem-popup-no-status-${el.id}`} style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px', padding: '6px 8px', border: '1px dashed #334155', borderRadius: '6px', textAlign: 'center' }}>
+                  {tr('ground.noStatus')}
+                </div>
+              ) : (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '8px' }}>
                 {filteredDsOpts.map(opt => (
                   <button key={opt.key + opt.label} onClick={() => { if (onUpdateElementDisplayState) onUpdateElementDisplayState(el.id, opt.key); setElemStatusPicker(null); }}
@@ -5209,6 +5221,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                   </button>
                 ))}
               </div>
+              )}
               {/* Blink rate when blink is selected */}
               {curDState === 'blink' && (
                 <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>

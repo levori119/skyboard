@@ -89,6 +89,29 @@ function parseAllowed(raw: unknown): string[] {
  * שהמפה לא יודעת לצייר. סוג בלי הגדרה נופל ל-`fallback` (ברירת המחדל לפי
  * האייקון, מ-`getElemDisplayStateOpts`).
  */
+/**
+ * מילוי ניטרלי לסמל אלמנט על מפת השדה.
+ *
+ * צבע ה**סוג** בלבל על הסמל: כתום היה ברירת המחדל לכל סוג בלי צבע, וכך
+ * כתום-עם-טבעת-ירוקה נקרא כ"אזהרה" בזמן שהאלמנט תקין. המילוי ניטרלי, והצבע
+ * היחיד על הסמל הוא הסטטוס (הטבעת) - חוץ מתקלה, שממלאת באדום כדי שלא תוחמץ.
+ */
+export const ELEMENT_NEUTRAL_FILL = '#1e293b';
+
+/**
+ * האם לסוג האלמנט יש סטטוס תפעולי שהפקח יכול לשנות.
+ *
+ * מקור אמת **יחיד**: הפאנל הצדדי, טבלת האלמנטים והפופאפ שעל המפה שאלו את זה
+ * כל אחד בעצמו, והפופאפ פשוט לא שאל - כך שאלמנט קבוע קיבל שם כפתורי סטטוס
+ * שהפאנל הסתיר. הערך מגיע מה-DB לפעמים כבוליאני ולפעמים כמחרוזת.
+ */
+// object ולא טיפוס מדויק: שורות אלמנט מגיעות כ-ElementRow (עם index signature)
+// וכ-any מהמפה, ו-TS דוחה טיפוס שכל שדותיו אופציונליים מול שורה שאינה מצהירה עליו.
+export function canChangeElementStatus(el: object): boolean {
+  const v = (el as { type_can_change_status?: unknown }).type_can_change_status;
+  return v === true || v === 'true';
+}
+
 export function displayStateOptions(rawAllowed: unknown, fallback: DisplayStateOption[]): DisplayStateOption[] {
   const allowed = parseAllowed(rawAllowed);
   if (allowed.length === 0) return fallback;

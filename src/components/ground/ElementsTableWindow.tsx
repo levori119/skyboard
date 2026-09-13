@@ -13,7 +13,7 @@ import {
   type ElementRow,
   type SortDir,
 } from '../../utils/elementTable';
-import { ELEMENT_SERVICEABILITY, displayStateOptions, serviceabilityStyle } from '../../utils/elementStatus';
+import { ELEMENT_SERVICEABILITY, canChangeElementStatus, displayStateOptions, serviceabilityStyle } from '../../utils/elementStatus';
 import { getElemDisplayStateOpts } from './groundShared';
 
 // ─── טבלת האלמנטים ───────────────────────────────────────────────────────────
@@ -174,7 +174,7 @@ export default function ElementsTableWindow({ rows, themeMode, onClose, onUpdate
           <tbody>
             {shown.map((el, i) => {
               const st = serviceabilityStyle(el.status);
-              const dsOpts = el.type_can_change_status
+              const dsOpts = canChangeElementStatus(el)
                 ? displayStateOptions(el.type_allowed_statuses, getElemDisplayStateOpts(String(el.type_icon || '')))
                 : [];
               const curDs = String(el.display_state || 'normal');
@@ -208,7 +208,7 @@ export default function ElementsTableWindow({ rows, themeMode, onClose, onUpdate
                         {dsOpts.map(o => <option key={o.key + o.label} value={o.key}>{o.label}</option>)}
                       </select>
                     ) : (
-                      <span style={{ color: C.muted }}>-</span>
+                      <span data-testid={`elements-table-no-status-${el.id}`} style={{ color: C.muted }}>{tr('ground.noStatus')}</span>
                     )}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'center', color: el.hidden_on_map ? C.muted : '#22c55e', fontWeight: 'bold' }}>

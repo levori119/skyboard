@@ -897,6 +897,10 @@
     "writeAMessageTo": {
       "he": "כתוב הודעה לנהג...",
       "en": "Write a message to the driver..."
+    },
+    "noStatus": {
+      "he": "אין סטטוס",
+      "en": "No status"
     }
   }
 }

@@ -23,7 +23,7 @@ import LearnDigitsOverlay from '../shared/LearnDigitsOverlay';
 import type { CrewMember, WorkstationSession, QGroup, TempZoneSeizure } from '../../types';
 import { evaluateQuery, emptyQGroup, hasConditions, clampMenuPos } from '../../utils/queryBuilder';
 import { catalogByKey, readControlValue } from '../../utils/stripControls';
-import { displayStateOptions, nextServiceability, serviceabilityStyle } from '../../utils/elementStatus';
+import { canChangeElementStatus, displayStateOptions, nextServiceability, serviceabilityStyle } from '../../utils/elementStatus';
 import { loadStripFieldCatalog, useStripFieldCatalog } from '../../utils/stripFieldCatalog';
 import { stripInCombined, resolveTransferFromPreset, type CombinedPosition } from '../../utils/unifiedStrips';
 import { getFormationDisplayName, getTransferLabel, getTransferSq, normalizeAlt, parseAltToFeet, computeBlockDeviation, parseAltRange, altRangeGap, mergeStripsWithPending } from '../../utils/strips';
@@ -17110,7 +17110,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               const isHidden = sdHiddenElements.has(el.id);
                               // הסטטוסים התפעוליים הם אלה שהוגדרו ל**סוג** האלמנט, כמו בפופאפ
                               const dsFallback = getElemDisplayStateOpts(el.type_icon || '');
-                              const dsOpts = el.type_can_change_status
+                              const dsOpts = canChangeElementStatus(el)
                                 ? displayStateOptions(el.type_allowed_statuses, dsFallback)
                                 : [];
                               const curDs = el.display_state || 'normal';
@@ -17139,9 +17139,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                     style={{ display: 'flex', alignItems: 'center', gap: '3px', background: 'transparent', border: 'none', padding: 0, flexShrink: 0, cursor: dsOpts.length ? 'pointer' : 'default' }}>
                                     {/* הסטטוס התפעולי שנבחר נקרא מהשורה עצמה - בלי לפתוח את התפריט ובלי לחפש
                                         את האלמנט על המפה. בלעדיו השורה מראה ריבוע ריק ולא רואים מה נבחר. */}
-                                    {dsOpts.length > 0 && (
+                                    {dsOpts.length > 0 ? (
                                       <span style={{ fontSize: '8px', fontWeight: 'bold', whiteSpace: 'nowrap', borderRadius: '3px', padding: '1px 4px', maxWidth: '54px', overflow: 'hidden', textOverflow: 'ellipsis', color: curDsOpt?.color || (lightMode ? '#64748b' : '#94a3b8'), background: (curDsOpt?.color || '#64748b') + '22', border: `1px solid ${(curDsOpt?.color || '#64748b')}55` }}>
                                         {curDsOpt?.label || curDs}
+                                      </span>
+                                    ) : (
+                                      // סוג קבוע: כתוב במפורש. מקום ריק בשורה נראה כמו סטטוס שלא נטען
+                                      <span data-testid={`elem-no-status-${el.id}`} style={{ fontSize: '8px', whiteSpace: 'nowrap', borderRadius: '3px', padding: '1px 4px', color: lightMode ? '#64748b' : '#94a3b8', border: `1px dashed ${lightMode ? '#cbd5e1' : '#334155'}` }}>
+                                        {tr('ground.noStatus')}
                                       </span>
                                     )}
                                     <span style={{ width: '18px', height: '18px', boxSizing: 'border-box', borderRadius: isSvg ? '3px' : '50%', background: isSvg ? 'transparent' : (el.type_color || '#f59e0b'), border: `2px solid ${st.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', flexShrink: 0 }}>

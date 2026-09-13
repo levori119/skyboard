@@ -3,6 +3,7 @@ import {
   ELEMENT_SERVICEABILITY,
   SERVICEABLE,
   UNSERVICEABLE,
+  canChangeElementStatus,
   displayStateOptions,
   nextServiceability,
   serviceabilityStyle,
@@ -105,5 +106,34 @@ describe('displayStateOptions - נגזר מ-allowed_statuses של הסוג', () 
     for (const o of displayStateOptions(['פתוח', 'סגור', 'מנצנץ', 'כבוי'], FALLBACK)) {
       expect(o.color, o.label).toMatch(/^#[0-9a-f]{6}$/i);
     }
+  });
+});
+
+// ─── האם לסוג יש סטטוס שאפשר לשנות ──────────────────────────────────────────
+//
+// הפאנל, הטבלה והפופאפ שאלו את זה כל אחד בעצמו - והפופאפ לא שאל בכלל, כך
+// שאלמנט קבוע קיבל שם כפתורי סטטוס שהפאנל הסתיר. עכשיו שלושתם עוברים כאן.
+describe('canChangeElementStatus', () => {
+  it('בוליאני אמת', () => {
+    expect(canChangeElementStatus({ type_can_change_status: true })).toBe(true);
+  });
+
+  // ה-DB מחזיר את הערך לפעמים כמחרוזת; בלי זה אלמנט בר-שינוי נראה "קבוע"
+  it('המחרוזת "true" מה-DB', () => {
+    expect(canChangeElementStatus({ type_can_change_status: 'true' })).toBe(true);
+  });
+
+  it('שקר, חסר, null ומחרוזת אחרת = קבוע', () => {
+    expect(canChangeElementStatus({ type_can_change_status: false })).toBe(false);
+    expect(canChangeElementStatus({})).toBe(false);
+    expect(canChangeElementStatus({ type_can_change_status: null })).toBe(false);
+    expect(canChangeElementStatus({ type_can_change_status: 'false' })).toBe(false);
+  });
+
+  // זו הסיבה שהפופאפ היה חייב לשאול: ברירות המחדל חוזרות גם לסוג קבוע
+  it('displayStateOptions לבדה מחזירה אפשרויות גם לסוג קבוע', () => {
+    const FB = [{ key: 'normal', label: 'x', color: '#000000' }];
+    expect(displayStateOptions([], FB).length).toBeGreaterThan(0);
+    expect(canChangeElementStatus({ type_can_change_status: false })).toBe(false);
   });
 });
