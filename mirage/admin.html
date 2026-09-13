@@ -84,15 +84,21 @@
 </header>
 <main>
   <table>
-    <thead><tr><th>מספר אישי</th><th>שם</th><th>הרשאות לפי אפליקציה</th><th></th></tr></thead>
+    <thead><tr><th>מספר אישי / ת"ז</th><th>שם</th><th>הרשאות לפי אפליקציה</th><th></th></tr></thead>
     <tbody id="rows"></tbody>
   </table>
 
   <form id="userForm">
-    <label>מספר אישי <input name="personalNumber" required pattern="[0-9]+" placeholder="1234567"></label>
+    <!-- שם המשתמש: מספר אישי ל-SKY-KING, **ת"ז (9 ספרות)** לאפליקציית DRIVER - הנהג
+         נכנס לאפליקציה עם הת"ז, ולפיה הוא מקבל רק את הנסיעות שנרשמו לו -->
+    <label>מספר אישי / ת"ז <input name="personalNumber" required pattern="[0-9]+" placeholder="1234567 / 012345678"></label>
     <label>שם פרטי <input name="firstName" required></label>
     <label>שם משפחה <input name="lastName"></label>
-    <label>אפליקציה <input name="app" value="SKY-KING"></label>
+    <label>אפליקציה <input name="app" value="SKY-KING" list="appNames"></label>
+    <datalist id="appNames">
+      <option value="SKY-KING">עמדות בקרה ומגדל</option>
+      <option value="DRIVER">אפליקציית הנהג - שם המשתמש הוא ת"ז</option>
+    </datalist>
     <label>סיסמה <input name="password" type="password" autocomplete="new-password" placeholder="לפי התקן"></label>
     <label>תפקיד
       <select name="role">

@@ -67,6 +67,8 @@ export interface RouteOption {
 export interface Trip {
   id: number; airfield_id: number | null;
   driver_id: number | null; driver_name: string; driver_phone: string;
+  /** ת"ז של נהג מזדמן - לפיה הנסיעה מגיעה לאפליקציית DRIVER שלו */
+  driver_national_id: string;
   permit_driver_name: string | null; permit_national_id: string | null;
   permit_from: string | null; permit_until: string | null; permit_status_override: string | null;
   vehicle_id: number | null; vehicle_name: string;
@@ -90,7 +92,7 @@ export interface Trip {
 }
 
 interface TripDraft {
-  driver_id: string; driver_name: string; driver_phone: string;
+  driver_id: string; driver_name: string; driver_phone: string; driver_national_id: string;
   vehicle_id: string; vehicle_name: string; vehicle_type_id: string;
   trip_type_id: string; icon: string;
   date: string; time: string;
@@ -107,7 +109,7 @@ interface TripDraft {
 }
 
 const EMPTY_DRAFT: TripDraft = {
-  driver_id: '', driver_name: '', driver_phone: '',
+  driver_id: '', driver_name: '', driver_phone: '', driver_national_id: '',
   vehicle_id: '', vehicle_name: '', vehicle_type_id: '',
   trip_type_id: '', icon: '',
   date: '', time: '',
@@ -163,6 +165,7 @@ const draftOf = (t: Trip): TripDraft => {
   return {
     driver_id: t.driver_id ? String(t.driver_id) : '',
     driver_name: t.driver_name || '', driver_phone: t.driver_phone || '',
+    driver_national_id: t.driver_national_id || '',
     vehicle_id: t.vehicle_id ? String(t.vehicle_id) : '',
     vehicle_name: t.vehicle_name || '',
     vehicle_type_id: t.vehicle_type_id ? String(t.vehicle_type_id) : '',
@@ -537,6 +540,8 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
     airfield_id: airfieldId,
     driver_id: d.driver_id ? Number(d.driver_id) : null,
     driver_name: d.driver_name, driver_phone: d.driver_phone,
+    // נהג מהמרשם מזוהה בת"ז שבמרשם; ת"ז ידנית ישנה הייתה שולחת את הנסיעה גם לאדם אחר
+    driver_national_id: d.driver_id ? '' : d.driver_national_id,
     vehicle_id: d.vehicle_id ? Number(d.vehicle_id) : null,
     vehicle_name: d.vehicle_name,
     vehicle_type_id: d.vehicle_type_id ? Number(d.vehicle_type_id) : null,
@@ -862,7 +867,7 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
 
         {/* ── רכב ונהג ─────────────────────────────────────────────────────── */}
         <div style={{ ...sectionStyle, marginTop: 0 }}>{tr('trips.sectionVehicle')}</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 1fr', gap: 7 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 1fr 1fr', gap: 7 }}>
           <div>
             <label style={labelStyle}>{tr('trips.driverPick')}</label>
             <select
@@ -891,6 +896,18 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
           <div>
             <label style={labelStyle}>{tr('trips.driverPhone')}</label>
             <input value={draft.driver_phone} onChange={e => setDraft(d => ({ ...d, driver_phone: e.target.value }))} inputMode="tel" style={inputStyle} />
+          </div>
+          {/* הת"ז היא מה ששולח את הנסיעה לאפליקציית DRIVER של הנהג. נהג מהמרשם -
+              הת"ז שלו מוצגת ואינה נערכת כאן; נהג מזדמן - הפקח מקליד אותה */}
+          <div>
+            <label style={labelStyle} title={tr('trips.driverNationalIdHint')}>{tr('trips.driverNationalId')}</label>
+            <input
+              value={draftDriver ? draftDriver.national_id : draft.driver_national_id}
+              onChange={e => setDraft(d => ({ ...d, driver_national_id: e.target.value }))}
+              disabled={!!draftDriver}
+              inputMode="numeric" maxLength={12}
+              style={{ ...inputStyle, direction: 'ltr', textAlign: 'end', opacity: draftDriver ? 0.7 : 1 }}
+            />
           </div>
         </div>
 

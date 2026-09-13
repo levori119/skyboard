@@ -17,15 +17,21 @@ vi.setConfig({ testTimeout: 30_000, hookTimeout: 120_000 });
 
 let pool, server, base, router;
 
-const req = (method, path, body) => fetch(`${base}${path}`, {
+const req = (method, path, body, headers = {}) => fetch(`${base}${path}`, {
   method,
-  headers: { 'Content-Type': 'application/json' },
+  headers: { 'Content-Type': 'application/json', ...headers },
   body: body === undefined ? undefined : JSON.stringify(body),
 });
 const get = (p) => req('GET', p);
 const post = (p, b) => req('POST', p, b);
 const put = (p, b) => req('PUT', p, b);
 const del = (p) => req('DELETE', p);
+
+// בקשה מאפליקציית DRIVER: הת"ז מגיעה מהאסימון (req.user), לא מהלקוח. כאן
+// middleware הבדיקה מציב את req.user כפי ש-middleware/auth.js היה מציב.
+const asDriver = nid => ({ 'X-Test-Driver': nid });
+const dget = (p, nid) => req('GET', p, undefined, asDriver(nid));
+const dpost = (p, nid, b) => req('POST', p, b, asDriver(nid));
 
 const AF = 1;
 const driver = (over = {}) => ({
@@ -111,6 +117,7 @@ beforeAll(async () => {
     vehicle_request_id INTEGER REFERENCES vehicle_requests(id) ON DELETE SET NULL,
     driver_name VARCHAR(120) NOT NULL DEFAULT '',
     driver_phone VARCHAR(40) NOT NULL DEFAULT '',
+    driver_national_id VARCHAR(20) NOT NULL DEFAULT '',
     requester_name VARCHAR(120) NOT NULL DEFAULT '',
     requester_phone VARCHAR(40) NOT NULL DEFAULT '',
     vehicle_name VARCHAR(120) NOT NULL DEFAULT '',
@@ -135,6 +142,11 @@ beforeAll(async () => {
 
   const app = express();
   app.use(express.json({ limit: '10mb' }));
+  app.use((r, _res, next) => {
+    const nid = r.get('X-Test-Driver');
+    if (nid !== undefined) r.user = { role: 'driver', nationalId: nid };
+    next();
+  });
   app.use(router);
   server = await listen(app, 0, '127.0.0.1');
   base = `http://127.0.0.1:${server.address().port}`;
@@ -562,46 +574,94 @@ describe('ניהול נסיעות - סטטוס וסוגים', () => {
 });
 
 describe('ניהול נסיעות - אפליקציית הנהג', () => {
-  const mkPhoneTrip = (over = {}) => post('/api/trips', {
-    airfield_id: AF, driver_phone: '050-2222222', vehicle_name: 'מיניבוס',
+  const MY_TZ = '012345678';
+  const OTHER_TZ = '087654321';
+  /** נסיעה לנהג מזדמן שאינו במרשם - הת"ז נרשמת על הנסיעה עצמה */
+  const mkManualTrip = (over = {}) => post('/api/trips', {
+    airfield_id: AF, driver_name: 'אורח', driver_phone: '050-2222222',
+    driver_national_id: MY_TZ, vehicle_name: 'מיניבוס',
     scheduled_at: tripAt(120), note: 'מקורי', ...over,
   }).then(r => r.json());
 
-  // אסימון הנהג אינו זהות אישית, ולכן בלי מזהה מפורש אין רשימה
-  it('בלי טלפון או ת"ז הבקשה נדחית ב-400', async () => {
-    expect((await get('/api/driver-trips')).status).toBe(400);
+  // בלי זהות אין רשימה: אסימון עמדה, או אסימון נהג ישן מקוד הגישה המשותף
+  it('בלי ת"ז באסימון הבקשה נדחית ב-403', async () => {
+    expect((await get('/api/driver-trips')).status).toBe(403);
+    expect((await dget('/api/driver-trips', '')).status).toBe(403);
   });
 
-  it('מחזיר את נסיעות הטלפון בלבד', async () => {
-    await mkPhoneTrip();
-    await mkPhoneTrip({ driver_phone: '050-3333333', vehicle_name: 'אחר' });
-    const rows = await (await get('/api/driver-trips?phone=050-2222222')).json();
+  it('מחזיר רק את נסיעות הת"ז שבאסימון', async () => {
+    await mkManualTrip();
+    await mkManualTrip({ driver_national_id: OTHER_TZ, vehicle_name: 'אחר' });
+    const rows = await (await dget('/api/driver-trips', MY_TZ)).json();
     expect(rows.map(r => r.vehicle_name)).toEqual(['מיניבוס']);
   });
 
-  it('מחזיר גם לפי ת"ז של נהג מהמרשם', async () => {
+  // הזהות היא האסימון - ת"ז או טלפון בפרמטר אינם פותחים נסיעות של אחר
+  it('ת"ז או טלפון בפרמטר אינם מקנים נסיעות של נהג אחר', async () => {
+    await mkManualTrip({ driver_national_id: OTHER_TZ, vehicle_name: 'של אחר' });
+    const rows = await (await dget(`/api/driver-trips?national_id=${OTHER_TZ}&phone=050-2222222`, MY_TZ)).json();
+    expect(rows).toEqual([]);
+  });
+
+  it('מחזיר גם נסיעה של נהג מהמרשם לפי הת"ז שלו במרשם', async () => {
     const id = await mkTripDriver();
     await post(`/api/entry-permits/${id}/trips`, { vehicle_name: 'רכב המרשם' });
-    const rows = await (await get('/api/driver-trips?national_id=012345678')).json();
+    const rows = await (await dget('/api/driver-trips', MY_TZ)).json();
     expect(rows.map(r => r.vehicle_name)).toEqual(['רכב המרשם']);
   });
 
+  // הפקח הקליד את הת"ז בלי האפס המוביל - זה עדיין אותו אדם
+  it('ת"ז בלי אפס מוביל מתאימה לאותו נהג', async () => {
+    await pool.query(`INSERT INTO entry_permit_trips (airfield_id, driver_national_id, vehicle_name, scheduled_at)
+                      VALUES ($1, '12345678', 'ישן', NOW() + INTERVAL '1 hour')`, [AF]);
+    const rows = await (await dget('/api/driver-trips', '012345678')).json();
+    expect(rows.map(r => r.vehicle_name)).toEqual(['ישן']);
+  });
+
+  it('נסיעה בלי ת"ז אינה מוחזרת לאף נהג', async () => {
+    await mkManualTrip({ driver_national_id: '' });
+    expect(await (await dget('/api/driver-trips', '000000000')).json()).toEqual([]);
+  });
+
   it('נסיעה שהסתיימה אינה מוחזרת לנהג', async () => {
-    await mkPhoneTrip({ status: 'ended' });
-    expect(await (await get('/api/driver-trips?phone=050-2222222')).json()).toEqual([]);
+    await mkManualTrip({ status: 'ended' });
+    expect(await (await dget('/api/driver-trips', MY_TZ)).json()).toEqual([]);
+  });
+
+  it('הת"ז נשמרת מנורמלת ועוברת לעותק בשכפול', async () => {
+    const t = await mkManualTrip({ driver_national_id: ' 1234-5678 ' });
+    expect(t.driver_national_id).toBe('012345678');
+    const [copy] = await (await post('/api/trips/duplicate', { items: [{ id: t.id, scheduled_at: tripAt(300) }] })).json();
+    expect(copy.driver_national_id).toBe('012345678');
   });
 
   it('אישור הנהג נרשם ואינו משנה את הסטטוס - הסטטוס הוא הכרעת המגדל', async () => {
-    const t = await mkPhoneTrip();
-    const acked = await (await post(`/api/driver-trips/${t.id}/ack`)).json();
+    const t = await mkManualTrip();
+    const acked = await (await dpost(`/api/driver-trips/${t.id}/ack`, MY_TZ)).json();
     expect(acked.driver_ack_at).toBeTruthy();
     expect(acked.status).toBe('pending');
   });
 
+  // 404 ולא 403: נהג אינו לומד שקיימת נסיעה במזהה הזה
+  it('נהג אינו מאשר ואינו משנה נסיעה של נהג אחר', async () => {
+    const t = await mkManualTrip({ driver_national_id: OTHER_TZ });
+    expect((await dpost(`/api/driver-trips/${t.id}/ack`, MY_TZ)).status).toBe(404);
+    expect((await dpost(`/api/driver-trips/${t.id}/change`, MY_TZ, { note: 'פריצה' })).status).toBe(404);
+    const [row] = await (await get(`/api/trips?airfield_id=${AF}`)).json();
+    expect(row.driver_ack_at).toBeNull();
+    expect(row.pending_change).toBeNull();
+  });
+
+  it('בלי זהות אין אישור ואין בקשת שינוי', async () => {
+    const t = await mkManualTrip();
+    expect((await post(`/api/driver-trips/${t.id}/ack`)).status).toBe(403);
+    expect((await post(`/api/driver-trips/${t.id}/change`, { note: 'x' })).status).toBe(403);
+  });
+
   // הנסיעה לא יכולה להשתנות מתחת לידי המגדל אם הוא עומד לדחות
   it('בקשת שינוי נשמרת בצד ואינה נוגעת בשורה', async () => {
-    const t = await mkPhoneTrip();
-    const after = await (await post(`/api/driver-trips/${t.id}/change`, {
+    const t = await mkManualTrip();
+    const after = await (await dpost(`/api/driver-trips/${t.id}/change`, MY_TZ, {
       scheduled_at: tripAt(200), note: 'מאחר בשעה',
     })).json();
     expect(after.note).toBe('מקורי');
@@ -611,23 +671,23 @@ describe('ניהול נסיעות - אפליקציית הנהג', () => {
   });
 
   it('בקשה ריקה נדחית ב-400', async () => {
-    const t = await mkPhoneTrip();
-    expect((await post(`/api/driver-trips/${t.id}/change`, {})).status).toBe(400);
+    const t = await mkManualTrip();
+    expect((await dpost(`/api/driver-trips/${t.id}/change`, MY_TZ, {})).status).toBe(400);
   });
 
   // הנהג אינו מאשר לעצמו נסיעה דרך שדה שלא נועד לו
   it('שדות שאינם ברשימת ההיתר אינם נכנסים לבקשה', async () => {
-    const t = await mkPhoneTrip();
-    const after = await (await post(`/api/driver-trips/${t.id}/change`, {
-      note: 'בסדר', status: 'approved', driver_phone: '050-9999999',
+    const t = await mkManualTrip();
+    const after = await (await dpost(`/api/driver-trips/${t.id}/change`, MY_TZ, {
+      note: 'בסדר', status: 'approved', driver_national_id: OTHER_TZ,
     })).json();
     expect(Object.keys(after.pending_change)).toEqual(['note']);
   });
 
   it('אישור המגדל מחיל את השינוי ומנקה את ההמתנה', async () => {
-    const t = await mkPhoneTrip();
+    const t = await mkManualTrip();
     const when = tripAt(200);
-    await post(`/api/driver-trips/${t.id}/change`, { scheduled_at: when, note: 'מאחר' });
+    await dpost(`/api/driver-trips/${t.id}/change`, MY_TZ, { scheduled_at: when, note: 'מאחר' });
     const after = await (await post(`/api/entry-permit-trips/${t.id}/change/approve`)).json();
     expect(after.note).toBe('מאחר');
     expect(new Date(after.scheduled_at).toISOString()).toBe(when);
@@ -636,8 +696,8 @@ describe('ניהול נסיעות - אפליקציית הנהג', () => {
   });
 
   it('דחיית המגדל זורקת את השינוי ומשאירה את הנסיעה כפי שהייתה', async () => {
-    const t = await mkPhoneTrip();
-    await post(`/api/driver-trips/${t.id}/change`, { note: 'מאחר' });
+    const t = await mkManualTrip();
+    await dpost(`/api/driver-trips/${t.id}/change`, MY_TZ, { note: 'מאחר' });
     const after = await (await post(`/api/entry-permit-trips/${t.id}/change/reject`)).json();
     expect(after.note).toBe('מקורי');
     expect(after.pending_change).toBeNull();
@@ -646,7 +706,7 @@ describe('ניהול נסיעות - אפליקציית הנהג', () => {
   // הכרעה בנסיעה שנמחקה בינתיים אינה יוצרת שורה חדשה
   it('הכרעה בנסיעה שאינה קיימת מחזירה 404', async () => {
     expect((await post('/api/entry-permit-trips/9999/change/approve')).status).toBe(404);
-    expect((await post('/api/driver-trips/9999/ack')).status).toBe(404);
+    expect((await dpost('/api/driver-trips/9999/ack', MY_TZ)).status).toBe(404);
   });
 });
 
@@ -694,8 +754,8 @@ describe('ניהול נסיעות - שכפול', () => {
 
   it('מצב חי של המקור אינו עובר לעותק', async () => {
     const src = await mkSource();
-    await post(`/api/driver-trips/${src.id}/ack`);
-    await post(`/api/driver-trips/${src.id}/change`, { note: 'מאחר' });
+    await dpost(`/api/driver-trips/${src.id}/ack`, src.permit_national_id);
+    await dpost(`/api/driver-trips/${src.id}/change`, src.permit_national_id, { note: 'מאחר' });
     await post(`/api/entry-permit-trips/${src.id}/alerted`);
     const [copy] = await (await post('/api/trips/duplicate', { items: [{ id: src.id, scheduled_at: tripAt(120) }] })).json();
     expect(copy.driver_ack_at).toBeNull();

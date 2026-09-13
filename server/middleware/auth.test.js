@@ -181,6 +181,20 @@ describe('חריגים תפעוליים קודמים לתחיליות הניהו
 });
 
 describe('אסימון נהג - מוגבל לנתיבי הנהג בלבד', () => {
+  // הת"ז היא הזהות שממנה נגזרות "הנסיעות שלי" - היא חייבת להגיע ל-handler
+  // מהאסימון החתום, ולא מכותרת או מפרמטר שהלקוח שולח
+  it('הת"ז שבאסימון הנהג מגיעה ל-req.user', async () => {
+    const token = signToken({ role: 'driver', nationalId: '012345678', name: 'דני כהן' });
+    const body = await (await call('GET', '/api/driver-trips', token)).json();
+    expect(body.user.role).toBe(ROLE.DRIVER);
+    expect(body.user.nationalId).toBe('012345678');
+  });
+
+  it('לאסימון עמדה אין ת"ז, גם כשהוא מגיע לנתיבי הנהג', async () => {
+    const body = await (await call('GET', '/api/driver-trips', user())).json();
+    expect(body.user.nationalId).toBeNull();
+  });
+
   it('נהג מגיע לנתיבי הרכב ולמפת הבסיס', async () => {
     for (const p of ['/api/vehicle-requests', '/api/vehicle-gps', '/api/airfields/by-base/7']) {
       expect(`${p} => ${(await call('GET', p, driver())).status}`).toBe(`${p} => 200`);

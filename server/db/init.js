@@ -1925,6 +1925,9 @@ async function applySchemaOnce() {
   await sq(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS base_id INTEGER REFERENCES aviation_bases(id) ON DELETE SET NULL`);
   await sq(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS via_route_ids JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS show_on_map BOOLEAN DEFAULT false`);
+  // ת"ז של הנהג ששלח את הבקשה מאפליקציית DRIVER - נחתמת מהאסימון, ולפיה הנהג
+  // רואה רק את הבקשות שלו. ריק = נשלחה מעמדה (או לפני שלנהג הייתה זהות).
+  await sq(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS requester_national_id VARCHAR(20) NOT NULL DEFAULT ''`);
 
   await sq(`CREATE TABLE IF NOT EXISTS vehicle_gps (
     id SERIAL PRIMARY KEY,
@@ -2105,6 +2108,9 @@ async function applySchemaOnce() {
   await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE`);
   await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS driver_name VARCHAR(120) NOT NULL DEFAULT ''`);
   await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS driver_phone VARCHAR(40) NOT NULL DEFAULT ''`);
+  // ת"ז של נהג מזדמן (9 ספרות, מנורמלת) - לפיה הנסיעה מגיעה לאפליקציית DRIVER
+  // שלו. נהג מהמרשם מזוהה דרך driver_id -> entry_permit_drivers.national_id.
+  await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS driver_national_id VARCHAR(20) NOT NULL DEFAULT ''`);
   await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS requester_name VARCHAR(120) NOT NULL DEFAULT ''`);
   await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS requester_phone VARCHAR(40) NOT NULL DEFAULT ''`);
   // שם הרכב נבחר מרכבי הנהג שבמרשם או מוקלד ידנית - ולכן טקסט, ולא רק מזהה

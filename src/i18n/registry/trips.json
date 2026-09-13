@@ -134,6 +134,14 @@
       "he": "טלפון הנהג",
       "en": "Driver phone"
     },
+    "driverNationalId": {
+      "he": "ת\"ז הנהג",
+      "en": "Driver ID number"
+    },
+    "driverNationalIdHint": {
+      "he": "לפי הת\"ז הנסיעה מופיעה לנהג באפליקציית DRIVER",
+      "en": "The trip appears in the driver's DRIVER app by this ID number"
+    },
     "driverPermit": {
       "he": "אישור כניסה",
       "en": "Entry permit"

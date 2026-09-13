@@ -3054,6 +3054,7 @@ REFACTOR_LOG #045.
 | `airfield_id` | INT → `airfields` | CASCADE. **נדרש** כדי לשלוף את נסיעות השדה בלי לעבור דרך הנהג - נסיעה בלי נהג לא הייתה נמצאת אחרת |
 | `driver_id` | INT → `entry_permit_drivers` | CASCADE, **NULL-able**: נסיעה יכולה להירשם לנהג מזדמן שאינו במרשם |
 | `driver_name` / `driver_phone` | VARCHAR | שם וטלפון הנהג כשאינו במרשם, או כפי שנרשמו לנסיעה |
+| `driver_national_id` | VARCHAR(20) | ת"ז של **נהג מזדמן**, מנורמלת ל-9 ספרות (ריק = לא הוזנה). לפיה הנסיעה מגיעה לאפליקציית DRIVER שלו. נהג מהמרשם מזוהה דרך `driver_id` → `entry_permit_drivers.national_id`, ולכן כשיש `driver_id` הלקוח שולח כאן ריק. עוברת לעותק בשכפול |
 | `requester_name` / `requester_phone` | VARCHAR | מבקש הנסיעה |
 | `vehicle_id` | INT → `entry_permit_vehicles` | SET NULL. הרכב מרשימת רכבי הנהג |
 | `vehicle_name` | VARCHAR(120) | שם הרכב - **נבחר מרשימה או מוקלד ידנית**, ולכן טקסט ולא רק מזהה |
@@ -3098,6 +3099,9 @@ REFACTOR_LOG #045.
 ### הקישור לבקשות הכניסה החיות
 
 `vehicle_requests.permit_driver_id` (חדש, SET NULL) מקבע את הנהג שהותאם.
+`vehicle_requests.requester_national_id` (VARCHAR(20), ריק כברירת מחדל) הוא הת"ז
+של הנהג ששלח את הבקשה מאפליקציית DRIVER - נחתם מהאסימון ולא מגוף הבקשה, ולפיו
+אסימון נהג רואה ונוגע רק בבקשות שלו. ריק = נשלחה מעמדה, או לפני שלנהג הייתה זהות.
 `GET /api/vehicle-requests` מצרף את האישור ב-`LEFT JOIN LATERAL`, בסדר עדיפות:
 **קישור מפורש** → **מספר רישוי קבוע** → **שם מלא**. כך הפקח רואה בפאנל "כניסת
 רכבים" אם למי שדופק בשער בכלל יש אישור בתוקף - **לפני** שהוא מאשר לו מסלול.

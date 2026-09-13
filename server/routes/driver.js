@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import pool from '../db/pool.js';
 import { DRIVER_CSP } from '../middleware/securityHeaders.js';
+import { driverScopeOf } from '../auth/driverIdentity.js';
 const router = new Router();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -131,9 +132,31 @@ function enrichWaypointsWithGeo(waypoints, row) {
   });
 }
 
-// Vehicle requests
+// ── בקשות כניסת רכב ──────────────────────────────────────────────────────────
+//
+// אותם נתיבים משרתים שני צרכנים: **העמדה** (הפקח רואה ומכריע בכל התור) ו**אפליקציית
+// DRIVER** (הנהג רואה ונוגע רק בבקשות שהוא שלח). הבקשה נחתמת בת"ז שבאסימון
+// הנהג (requester_national_id) - לא בערך שהלקוח שולח - ולפיה הנהג מסונן.
+// אסימון נהג בלי ת"ז (אסימון ישן מקוד הגישה המשותף שבוטל) מקבל 403.
+
+/** מה הנהג רשאי לשנות בבקשה שלו. אישור, מסלול וקישור למרשם הם הכרעת המגדל. */
+const DRIVER_REQUEST_FIELDS = ['destination', 'supply_type', 'notes', 'status'];
+const DRIVER_REQUEST_STATUSES = ['cancelled', 'arrived'];
+
+/** זהות הנהג לבקשה, או 403. `null` = התשובה כבר נשלחה. עמדה: `{ isDriver:false }`. */
+function requestScope(req, res) {
+  const scope = driverScopeOf(req.user);
+  if (scope.isDriver && !scope.nationalId) {
+    res.status(403).json({ error: 'driver_identity_required', message: 'נדרשת כניסת נהג מזוהה' });
+    return null;
+  }
+  return scope;
+}
+
 router.get('/api/vehicle-requests', async (req, res) => {
   try {
+    const scope = requestScope(req, res);
+    if (!scope) return;
     const { status } = req.query;
     let q = `SELECT vr.*,
              br.name AS route_name, br.waypoints AS route_waypoints,
@@ -180,8 +203,10 @@ router.get('/api/vehicle-requests', async (req, res) => {
                  JOIN airfield_permit_params z ON z.id = dz.zone_id
                 WHERE dz.driver_id = pd.id
              ) pz ON TRUE`;
-    const vals = [];
-    if (status) { q += ` WHERE vr.status = $1`; vals.push(status); }
+    const vals = [], where = [];
+    if (status) { vals.push(status); where.push(`vr.status = $${vals.length}`); }
+    if (scope.isDriver) { vals.push(scope.nationalId); where.push(`vr.requester_national_id = $${vals.length}`); }
+    if (where.length) q += ` WHERE ${where.join(' AND ')}`;
     q += ` ORDER BY vr.created_at DESC LIMIT 100`;
     const r = await pool.query(q, vals);
     const rows = r.rows.map(row => ({
@@ -197,18 +222,27 @@ router.get('/api/vehicle-requests', async (req, res) => {
 });
 router.post('/api/vehicle-requests', async (req, res) => {
   try {
+    const scope = requestScope(req, res);
+    if (!scope) return;
     const { driver_name, base_name, supply_type, destination, origin = '', vehicle_type = '', plate_number = '', from_point_id, to_point_id, base_id } = req.body;
     const r = await pool.query(
-      `INSERT INTO vehicle_requests(driver_name, base_name, supply_type, destination, origin, vehicle_type, plate_number, from_point_id, to_point_id, base_id)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-      [driver_name, base_name, supply_type, destination, origin, vehicle_type, plate_number, from_point_id || null, to_point_id || null, base_id || null]
+      `INSERT INTO vehicle_requests(driver_name, base_name, supply_type, destination, origin, vehicle_type, plate_number, from_point_id, to_point_id, base_id, requester_national_id)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+      [driver_name, base_name, supply_type, destination, origin, vehicle_type, plate_number, from_point_id || null, to_point_id || null, base_id || null, scope.nationalId]
     );
     res.json(r.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 router.put('/api/vehicle-requests/:id', async (req, res) => {
   try {
-    const { status, assigned_route_id, notes, destination, supply_type, origin, driver_name, vehicle_type, plate_number, via_route_ids, show_on_map, permit_driver_id } = req.body;
+    const scope = requestScope(req, res);
+    if (!scope) return;
+    let body = req.body || {};
+    if (scope.isDriver) {
+      body = Object.fromEntries(DRIVER_REQUEST_FIELDS.filter(f => body[f] !== undefined).map(f => [f, body[f]]));
+      if (body.status !== undefined && !DRIVER_REQUEST_STATUSES.includes(body.status)) delete body.status;
+    }
+    const { status, assigned_route_id, notes, destination, supply_type, origin, driver_name, vehicle_type, plate_number, via_route_ids, show_on_map, permit_driver_id } = body;
     const fields = ['updated_at=NOW()'], vals = [];
     let idx = 1;
     if (status !== undefined)            { fields.push(`status=$${idx++}`);            vals.push(status); }
@@ -227,10 +261,14 @@ router.put('/api/vehicle-requests/:id', async (req, res) => {
     if (show_on_map !== undefined)       { fields.push(`show_on_map=$${idx++}`);      vals.push(!!show_on_map); }
     if (permit_driver_id !== undefined)  { fields.push(`permit_driver_id=$${idx++}`); vals.push(permit_driver_id || null); }
     vals.push(req.params.id);
+    let owner = '';
+    // בקשה של נהג אחר = 404 ולא 403: הנהג אינו לומד שקיימת בקשה במזהה הזה
+    if (scope.isDriver) { vals.push(scope.nationalId); owner = ` AND requester_national_id=$${idx + 1}`; }
     const r = await pool.query(
-      `UPDATE vehicle_requests SET ${fields.join(',')} WHERE id=$${idx} RETURNING *`,
+      `UPDATE vehicle_requests SET ${fields.join(',')} WHERE id=$${idx}${owner} RETURNING *`,
       vals
     );
+    if (!r.rows.length) return res.status(404).json({ error: 'request_not_found' });
     if (r.rows[0]?.assigned_route_id) {
       const ro = await pool.query('SELECT * FROM base_routes WHERE id=$1', [r.rows[0].assigned_route_id]);
       res.json({ ...r.rows[0], route_waypoints: ro.rows[0]?.waypoints, route_name: ro.rows[0]?.name });
@@ -241,7 +279,14 @@ router.put('/api/vehicle-requests/:id', async (req, res) => {
 });
 router.delete('/api/vehicle-requests/:id', async (req, res) => {
   try {
-    await pool.query('DELETE FROM vehicle_requests WHERE id=$1', [req.params.id]);
+    const scope = requestScope(req, res);
+    if (!scope) return;
+    if (scope.isDriver) {
+      const r = await pool.query('DELETE FROM vehicle_requests WHERE id=$1 AND requester_national_id=$2', [req.params.id, scope.nationalId]);
+      if (!r.rowCount) return res.status(404).json({ error: 'request_not_found' });
+    } else {
+      await pool.query('DELETE FROM vehicle_requests WHERE id=$1', [req.params.id]);
+    }
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

@@ -3,10 +3,10 @@
 // כאן ממפים תפקידים לדגלי SKY-KING ומאחדים עם איש צוות קיים לפי personal_id
 // (כדי לשמור עמדות מאושרות והעדפות אישיות).
 import { Router } from 'express';
-import { timingSafeEqual } from 'crypto';
 import pool from '../db/pool.js';
 import { signToken, DEFAULT_TTL_MS } from '../auth/token.js';
 import { isLocalDbMode } from '../db/localPool.js';
+import { normalizeNationalId } from '../auth/driverIdentity.js';
 import {
   cacheCredential, verifyLocalLogin, createLoginLimiter, LOCAL_LOGIN,
 } from '../auth/localCredentials.js';
@@ -19,6 +19,9 @@ const localLimiter = createLoginLimiter();
 // 127.0.0.1 ולא localhost — fetch של Node מעדיף ::1 ועלול לפספס שרת IPv4-בלבד
 const MIRAGE_URL = process.env.MIRAGE_URL || 'http://127.0.0.1:7300';
 const MIRAGE_APP_NAME = process.env.MIRAGE_APP_NAME || 'SKY-KING';
+// אפליקציית הנהג היא אפליקציה נפרדת במיראז': הרשאה ל-SKY-KING אינה הופכת
+// בקר לנהג, והרשאה ל-DRIVER אינה פותחת עמדה.
+const MIRAGE_DRIVER_APP_NAME = process.env.MIRAGE_DRIVER_APP_NAME || 'DRIVER';
 // 10ש' ולא 4: המיראז' שואל Neon, וההתעוררות הקרה שלו לוקחת ~6ש' —
 // timeout קצר גרם ל-"mirage_unavailable" מזויף בכניסה הראשונה
 const MIRAGE_TIMEOUT_MS = 10000;
@@ -60,6 +63,39 @@ const CHANNEL_ERRORS = new Set(['bad_service_token', 'service_token_required', '
  */
 const isChannelFailure = (res) =>
   !res.ok && (CHANNEL_ERRORS.has(res.body?.error) || res.status >= 500);
+
+/**
+ * תשובת המיראז' שאינה "מורשה" -> תשובת HTTP ללקוח. מחזיר `true` כשנשלחה
+ * תשובה. משותף לכניסת העמדה ולכניסת הנהג, כדי ששתיהן יפרשו את המיראז' זהה.
+ *
+ * ⚠️ **קודם** כשל ערוץ, ורק אחר כך החלטה על המשתמש. הסדר הזה הוא התיקון:
+ * כשאסימון השירות חסר או שגוי, המיראז' מחזיר 401/503 ללא שדה `authorized`,
+ * והקוד הקודם נפל ישר ל-`not_authorized` — כלומר הציג למפעיל "אין לך הרשאה"
+ * על תקלת תצורה בין שני השירותים. במערכת מבצעית ההודעה הזו שולחת אותו לחפש
+ * את הבעיה במיראז' במקום בשרת, וזה בדיוק סוג הכשל השקט שהסקר מזהיר מפניו.
+ */
+function sendMirageDenial(res, mirage) {
+  if (isChannelFailure(mirage)) {
+    console.error(
+      `[mirage] ערוץ ההזדהות נכשל (HTTP ${mirage.status}, ${mirage.body?.error || 'לא ידוע'}). ` +
+      'בדוק ש-MIRAGE_SERVICE_TOKEN מוגדר עם אותו ערך בשני התהליכים.',
+    );
+    res.status(502).json({ error: 'mirage_unavailable', reason: mirage.body?.error || 'channel' });
+    return true;
+  }
+  const auth = mirage.body || {};
+  if (auth.authorized) return false;
+  // מיפוי סיבות לפי סוג: אישורים שגויים → 401, חסימת ניסיונות → 429, אחרת 403
+  const reason = auth.reason || 'denied';
+  if (reason === 'bad_credentials' || reason === 'password_not_set') {
+    res.status(401).json({ error: reason });
+  } else if (reason === 'rate_limited') {
+    res.status(429).json({ error: reason });
+  } else {
+    res.status(403).json({ error: 'not_authorized', reason });
+  }
+  return true;
+}
 
 // התאמת עמדת מיראז' ל-preset: עם id — השוואת ID טכני; ידנית — השוואת טקסט השם (trim)
 const wsMatchesPreset = (w, preset) =>
@@ -126,31 +162,8 @@ router.post('/api/auth/mirage-login', async (req, res) => {
     return res.status(502).json({ error: 'mirage_unavailable' });
   }
 
-  // ⚠️ **קודם** כשל ערוץ, ורק אחר כך החלטה על המשתמש. הסדר הזה הוא התיקון:
-  // כשאסימון השירות חסר או שגוי, המיראז' מחזיר 401/503 ללא שדה `authorized`,
-  // והקוד הקודם נפל ישר ל-`not_authorized` — כלומר הציג למפעיל "אין לך הרשאה"
-  // על תקלת תצורה בין שני השירותים. במערכת מבצעית ההודעה הזו שולחת אותו לחפש
-  // את הבעיה במיראז' במקום בשרת, וזה בדיוק סוג הכשל השקט שהסקר מזהיר מפניו.
-  if (isChannelFailure(mirage)) {
-    console.error(
-      `[mirage] ערוץ ההזדהות נכשל (HTTP ${mirage.status}, ${mirage.body?.error || 'לא ידוע'}). ` +
-      'בדוק ש-MIRAGE_SERVICE_TOKEN מוגדר עם אותו ערך בשני התהליכים.',
-    );
-    return res.status(502).json({ error: 'mirage_unavailable', reason: mirage.body?.error || 'channel' });
-  }
-
-  const auth = mirage.body || {};
-  if (!auth.authorized) {
-    // מיפוי סיבות לפי סוג: אישורים שגויים → 401, חסימת ניסיונות → 429, אחרת 403
-    const reason = auth.reason || 'denied';
-    if (reason === 'bad_credentials' || reason === 'password_not_set') {
-      return res.status(401).json({ error: reason });
-    }
-    if (reason === 'rate_limited') {
-      return res.status(429).json({ error: reason });
-    }
-    return res.status(403).json({ error: 'not_authorized', reason });
-  }
+  if (sendMirageDenial(res, mirage)) return;
+  const auth = mirage.body;
 
   const roles = Array.isArray(auth.roles) ? auth.roles : [];
   const is_admin = roles.includes('admin');
@@ -333,28 +346,44 @@ router.post('/api/auth/cache-credential', async (req, res) => {
   }
 });
 
-// ── הזדהות אפליקציית הנהג ─────────────────────────────────────────────────────
-// אפליקציית הנהג (public/driver.html) פונה ל-API בלי שום זהות, ולכן נעילת
-// SK-01 הייתה שוברת אותה. הפתרון אינו לפתוח לה חור אלא לתת לה אסימון משלה,
-// מוגבל לנתיבי הנהג בלבד (ROLE.DRIVER ב-middleware/auth.js).
+// ── הזדהות אפליקציית הנהג (DRIVER) ──────────────────────────────────────────
+// רק מי שיש לו הרשאה לאפליקציית DRIVER במיראז' נכנס, ושם המשתמש שלו הוא
+// **ת"ז**. הת"ז נחתמת באסימון, וממנה בלבד נגזר מה הנהג רואה - הנסיעות שנרשמו
+// לו (routes/permits.js) ובקשות הכניסה שהוא עצמו שלח (routes/driver.js).
 //
-// **fail-closed**: בלי DRIVER_ACCESS_CODE אין הזדהות נהג בכלל, ולא "פתוח
-// כשאינו מוגדר" — זו בדיוק הטעות של DIAG_TOKEN (SK-13).
-// הקוד משותף לכלל הנהגים בבסיס; הוא אינו מזהה אדם, רק מגדיר מי מורשה להתחבר.
-router.post('/api/auth/driver', (req, res) => {
-  const configured = process.env.DRIVER_ACCESS_CODE || '';
-  if (configured.length < 6) {
-    return res.status(503).json({ error: 'driver_access_disabled', message: 'גישת נהגים אינה מוגדרת במערכת' });
+// קוד הגישה המשותף (DRIVER_ACCESS_CODE) בוטל: הוא הגדיר מי נכנס אבל לא מי
+// הוא, ולכן כל נהג יכול היה לשלוף את הנסיעות של כל נהג אחר.
+//
+// אין כאן כניסה מנותקת: אפליקציית הנהג רצה בנייד מול השרת המרכזי, ועמדה
+// מנותקת אינה מגישה אותה.
+router.post('/api/auth/driver', async (req, res) => {
+  const nationalId = normalizeNationalId(req.body?.nationalId);
+  const password = String(req.body?.password || '');
+  if (!nationalId) return res.status(400).json({ error: 'missing_national_id' });
+  if (!password) return res.status(400).json({ error: 'missing_password' });
+  if (isLocalDbMode()) return res.status(503).json({ error: 'driver_offline' });
+
+  let mirage;
+  try {
+    mirage = await fetchMirage('/api/authorize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ app: MIRAGE_DRIVER_APP_NAME, personalNumber: nationalId, password }),
+    });
+  } catch (err) {
+    console.error('[mirage] service unavailable (driver):', err.message);
+    return res.status(502).json({ error: 'mirage_unavailable' });
   }
-  const given = String(req.body?.code || '');
-  const a = Buffer.from(given);
-  const b = Buffer.from(configured);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) {
-    return res.status(401).json({ error: 'bad_code', message: 'קוד גישה שגוי' });
-  }
+  if (sendMirageDenial(res, mirage)) return;
+
+  const name = mirage.body.user?.fullName || null;
   // תוקף קצר יותר מעמדה: מכשיר נייד של נהג אובד בקלות רבה יותר מעמדת בקרה.
   const ttl = 8 * 60 * 60 * 1000;
-  res.json({ token: signToken({ role: 'driver', name: 'driver' }, ttl), expiresInMs: ttl });
+  res.json({
+    token: signToken({ role: 'driver', nationalId, name }, ttl),
+    expiresInMs: ttl,
+    driver: { name, nationalId },
+  });
 });
 
 // רשימת המורשים לעמדה ספציפית לפי מיראז' — להחלפת איש צוות בכניסת מיראז'.

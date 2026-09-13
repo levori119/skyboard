@@ -17,6 +17,7 @@
 //   /api/entry-permits*   = מרשם האישורים והנסיעות
 import { Router } from 'express';
 import pool from '../db/pool.js';
+import { normalizeNationalId, nationalIdSql, driverScopeOf } from '../auth/driverIdentity.js';
 
 const router = new Router();
 
@@ -337,6 +338,9 @@ function tripSetters(b, set) {
   if (b.note !== undefined)                 set('note', b.note ?? '');
   if (b.driver_name !== undefined)          set('driver_name', str(b.driver_name));
   if (b.driver_phone !== undefined)         set('driver_phone', str(b.driver_phone));
+  // ת"ז של נהג מזדמן - לפיה הנסיעה מגיעה לאפליקציית DRIVER שלו. נהג מהמרשם
+  // מזוהה דרך driver_id, והת"ז שלו יושבת במרשם.
+  if (b.driver_national_id !== undefined)   set('driver_national_id', normalizeNationalId(b.driver_national_id));
   if (b.requester_name !== undefined)       set('requester_name', str(b.requester_name));
   if (b.requester_phone !== undefined)      set('requester_phone', str(b.requester_phone));
   if (b.escorts !== undefined)              set('escorts', jsonArr(b.escorts));
@@ -423,7 +427,7 @@ router.post('/api/trips', async (req, res) => {
  * (src/utils/trips.ts) - מצב חי שנוצר על הנסיעה המקורית בלבד.
  */
 const TRIP_COPY_COLUMNS = [
-  'airfield_id', 'driver_id', 'driver_name', 'driver_phone',
+  'airfield_id', 'driver_id', 'driver_name', 'driver_phone', 'driver_national_id',
   'requester_name', 'requester_phone',
   'vehicle_id', 'vehicle_name', 'vehicle_type_id', 'trip_type_id', 'icon',
   'from_point_id', 'to_point_id', 'from_text', 'to_text', 'stops',
@@ -573,22 +577,44 @@ router.post('/api/entry-permit-trips/:id/change/:decision', async (req, res) => 
 
 // ── אפליקציית הנהג ───────────────────────────────────────────────────────────
 //
-// אסימון הנהג אינו זהות אישית אלא קוד גישה משותף (ראה middleware/auth.js), ולכן
-// הנתיבים כאן **מחייבים מזהה מפורש** - טלפון או ת"ז - ואינם מחזירים רשימה בלעדיו.
-// זו אותה רמת אמון של /api/vehicle-requests, ולא הרחבה שלה.
+// הנהג מתחבר ל-DRIVER במיראז' עם **ת"ז**, והת"ז חתומה באסימון (routes/mirage.js
+// §/api/auth/driver). הנסיעות נשלפות **רק** לפיה - פרמטר ת"ז או טלפון מהלקוח
+// אינו מקנה דבר. נסיעה שייכת לנהג כשהת"ז שלו במרשם (driver_id) או שנרשמה על
+// הנסיעה עצמה לנהג מזדמן (driver_national_id). אסימון בלי ת"ז - עמדה, או אסימון
+// ישן מקוד הגישה המשותף שבוטל - מקבל 403.
+
+/** תנאי השייכות לנהג: `$n` הוא הת"ז המנורמלת מהאסימון. */
+const tripOwnedBy = n =>
+  `$${n} IN (${nationalIdSql('d.national_id')}, ${nationalIdSql('t.driver_national_id')})`;
+
+/** הת"ז מהאסימון, או 403. מחזיר `null` כשהתשובה כבר נשלחה. */
+function driverNationalId(req, res) {
+  const { nationalId } = driverScopeOf(req.user);
+  if (!nationalId) {
+    res.status(403).json({ error: 'driver_identity_required', message: 'נדרשת כניסת נהג מזוהה' });
+    return null;
+  }
+  return nationalId;
+}
+
+/**
+ * האם הנסיעה שייכת לנהג. נסיעה של נהג אחר מחזירה 404 ולא 403 - הנהג אינו
+ * לומד שקיימת נסיעה במזהה הזה.
+ */
+const ownsTrip = async (id, nationalId) => (await pool.query(
+  `SELECT 1 FROM entry_permit_trips t LEFT JOIN entry_permit_drivers d ON d.id = t.driver_id
+    WHERE t.id = $1 AND ${tripOwnedBy(2)}`, [id, nationalId]
+)).rows.length > 0;
 
 router.get('/api/driver-trips', async (req, res) => {
   try {
-    const phone = str(req.query.phone);
-    const nationalId = str(req.query.national_id);
-    if (!phone && !nationalId) return res.status(400).json({ error: 'missing_identifier' });
+    const nationalId = driverNationalId(req, res);
+    if (!nationalId) return;
     const r = await pool.query(
       `${TRIP_SELECT}
-        WHERE t.status <> 'ended'
-          AND (($1 <> '' AND BTRIM(t.driver_phone) = $1)
-            OR ($2 <> '' AND BTRIM(d.national_id) = $2))
+        WHERE t.status <> 'ended' AND ${tripOwnedBy(1)}
         ORDER BY t.scheduled_at NULLS LAST, t.id LIMIT 50`,
-      [phone, nationalId]
+      [nationalId]
     );
     res.json(r.rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -597,6 +623,9 @@ router.get('/api/driver-trips', async (req, res) => {
 /** אישור הנהג. אינו משנה סטטוס - הסטטוס הוא הכרעת המגדל, וזו רק הצהרת הנהג. */
 router.post('/api/driver-trips/:id/ack', async (req, res) => {
   try {
+    const nationalId = driverNationalId(req, res);
+    if (!nationalId) return;
+    if (!(await ownsTrip(req.params.id, nationalId))) return res.status(404).json({ error: 'trip_not_found' });
     const r = await pool.query(
       `UPDATE entry_permit_trips SET driver_ack_at = NOW(), updated_at = NOW()
         WHERE id=$1 RETURNING id`, [req.params.id]
@@ -614,10 +643,13 @@ router.post('/api/driver-trips/:id/ack', async (req, res) => {
  */
 router.post('/api/driver-trips/:id/change', async (req, res) => {
   try {
+    const nationalId = driverNationalId(req, res);
+    if (!nationalId) return;
     const b = req.body || {};
     const change = {};
     for (const f of DRIVER_EDITABLE_FIELDS) if (b[f] !== undefined) change[f] = b[f];
     if (!Object.keys(change).length) return res.status(400).json({ error: 'nothing_to_change' });
+    if (!(await ownsTrip(req.params.id, nationalId))) return res.status(404).json({ error: 'trip_not_found' });
     const r = await pool.query(
       `UPDATE entry_permit_trips
           SET pending_change=$1, pending_change_at=NOW(), updated_at=NOW()

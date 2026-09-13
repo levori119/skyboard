@@ -86,7 +86,7 @@ const RULES = [
   { m: ['GET'], p: '/api/health', need: NEED.PUBLIC, why: 'liveness - הפלטפורמה מנטרת אותו לפני שיש בכלל משתמש' },
   { m: ['GET'], p: '/api/ready', need: NEED.PUBLIC, why: 'readiness - load balancer, ללא זהות' },
   { m: ['POST'], p: '/api/auth/mirage-login', need: NEED.PUBLIC, why: 'זו נקודת ההזדהות עצמה' },
-  { m: ['POST'], p: '/api/auth/driver', need: NEED.PUBLIC, why: 'הזדהות אפליקציית הנהג (קוד גישה)' },
+  { m: ['POST'], p: '/api/auth/driver', need: NEED.PUBLIC, why: 'הזדהות אפליקציית הנהג (ת"ז + סיסמה במיראז\')' },
   // נקרא ע"י שרת העמדה עצמו מיד אחרי כניסה מוצלחת, כדי לאפשר כניסה בנתק.
   // אינו ציבורי בפועל: הנתיב קיים רק כשהשרת רץ על המאגר המקומי (isLocalDbMode)
   // והוא דוחה כל מקור שאינו loopback. ראה routes/mirage.js.
@@ -169,9 +169,9 @@ const RULES = [
   { m: ['GET'], p: /^\/api\/maps\/\d+\/imagedata$/, need: NEED.DRIVER, why: 'תמונת המפה לנהג' },
   { m: ['GET'], p: '/api/aviation-bases', need: NEED.DRIVER, why: 'בחירת בסיס בנהג' },
   { m: ['GET'], p: '/api/google-maps-key', need: NEED.DRIVER, why: 'SK-14 - נדרש לניווט; לפחות לא לאנונימי' },
-  // הנסיעות של הנהג עצמו - אישור נסיעה, ובקשה לשנות זמן יציאה / תחנות. אסימון
-  // הנהג אינו זהות אישית, ולכן הנתיב **מחייב מזהה מפורש** (טלפון/ת"ז) ואינו
-  // מחזיר רשימה בלעדיו. ראה routes/permits.js §אפליקציית הנהג.
+  // הנסיעות של הנהג עצמו - אישור נסיעה, ובקשה לשנות זמן יציאה / תחנות. השער
+  // כאן רק מכניס; הסינון לפי הת"ז שבאסימון נעשה ב-handler, שמחזיר 403 לאסימון
+  // בלי ת"ז. ראה routes/permits.js §אפליקציית הנהג.
   { m: ALL, p: /^\/api\/driver-trips(\/|$)/, need: NEED.DRIVER, why: 'הנסיעות של הנהג - אישור ובקשת שינוי מהאפליקציה' },
 ];
 
@@ -251,6 +251,8 @@ export function authMiddleware(req, res, next) {
   req.user = {
     crewMemberId: claims.crewMemberId ?? null,
     personalId: claims.personalId ?? null,
+    // ת"ז של נהג באפליקציית DRIVER - רק לאסימון נהג. ממנה נגזרות הנסיעות שלו.
+    nationalId: role === ROLE.DRIVER ? (claims.nationalId ?? null) : null,
     name: claims.name ?? null,
     role,
     isAdmin: role === ROLE.ADMIN,

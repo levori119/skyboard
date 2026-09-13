@@ -336,10 +336,11 @@
     <button onclick="closeTripsSheet()" style="background:none;border:none;color:#64748b;font-size:18px;cursor:pointer;padding:4px 8px">✕</button>
   </div>
   <div class="nav-sheet-body">
-    <div style="font-size:11px;color:#64748b;margin-bottom:5px">מספר הטלפון שלך, כפי שנרשם בנסיעה:</div>
-    <div style="display:flex;gap:6px;margin-bottom:10px">
-      <input id="tripsPhone" type="tel" inputmode="tel" placeholder="05X-XXXXXXX" style="flex:1;padding:9px 10px;background:#1e293b;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:14px;direction:ltr;text-align:right;outline:none"/>
+    <!-- הנסיעות נשלפות לפי הת"ז שאיתה הנהג נכנס - אין מה להקליד כאן -->
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+      <div style="flex:1;font-size:12px;color:#94a3b8">מחובר: <span id="tripsDriverName" style="color:#e2e8f0;font-weight:700"></span></div>
       <button onclick="loadMyTrips()" style="padding:9px 16px;background:#0284c7;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">רענן</button>
+      <button onclick="driverLogout()" style="padding:9px 12px;background:#334155;color:#e2e8f0;border:none;border-radius:8px;font-size:13px;cursor:pointer">יציאה</button>
     </div>
     <div id="tripsList"></div>
   </div>
@@ -387,13 +388,27 @@
 <script>
 const BASE = '';
 
-// ── הזדהות (ממצא אבטחה SK-01) ────────────────────────────────────────────────
-// עד כה האפליקציה פנתה ל-API בלי שום זהות. עכשיו כל קריאה נושאת אסימון נהג,
-// שמונפק ב-POST /api/auth/driver מול קוד גישה שמוגדר בשרת (DRIVER_ACCESS_CODE).
-// האסימון מוגבל לנתיבי הנהג בלבד - הוא אינו נותן גישה למידע העמדות.
-// בלי קוד מוגדר בשרת גישת הנהגים **סגורה**, ולא פתוחה (בניגוד ל-DIAG_TOKEN).
+// ── הזדהות: הרשאת DRIVER במיראז' ─────────────────────────────────────────────
+// רק מי שיש לו הרשאה לאפליקציית DRIVER במיראז' נכנס - עם **ת"ז** וסיסמה.
+// האסימון (POST /api/auth/driver) נושא את הת"ז, והשרת מסנן לפיה: הנהג מקבל
+// רק את הנסיעות שנרשמו לו ואת בקשות הכניסה שהוא שלח. קוד הגישה המשותף בוטל -
+// הוא לא זיהה אדם. האסימון מוגבל לנתיבי הנהג ואינו נותן גישה למידע העמדות.
 const DRIVER_TOKEN_KEY = 'skyking-driver-token';
+const DRIVER_NAME_KEY = 'skyking-driver-name';
 let DRIVER_TOKEN = sessionStorage.getItem(DRIVER_TOKEN_KEY) || '';
+
+function clearDriverSession() {
+  DRIVER_TOKEN = '';
+  sessionStorage.removeItem(DRIVER_TOKEN_KEY);
+  sessionStorage.removeItem(DRIVER_NAME_KEY);
+}
+
+/** יציאה: מכשיר משותף לא ישאיר לנהג הבא את הזהות או את הבקשה הפתוחה. */
+function driverLogout() {
+  clearDriverSession();
+  localStorage.removeItem('driverRequest');
+  location.reload();
+}
 
 // יירוט אחד במקום לגעת בכל אחת מעשרות הקריאות בקובץ הזה.
 const rawFetch = window.fetch.bind(window);
@@ -402,14 +417,32 @@ window.fetch = (input, init = {}) => {
   if (url.includes('/api/') && DRIVER_TOKEN) {
     init = { ...init, headers: { ...(init.headers || {}), Authorization: 'Bearer ' + DRIVER_TOKEN } };
   }
-  return rawFetch(input, init).then(function (res) {
-    if (res.status === 401 && url.includes('/api/')) {
-      DRIVER_TOKEN = '';
-      sessionStorage.removeItem(DRIVER_TOKEN_KEY);
-      showDriverGate('פג תוקף החיבור. יש להזין קוד גישה מחדש.');
+  return rawFetch(input, init).then(async function (res) {
+    if (!url.includes('/api/')) return res;
+    if (res.status === 401) {
+      clearDriverSession();
+      showDriverGate('פג תוקף החיבור. יש להיכנס מחדש.');
+    } else if (res.status === 403) {
+      // אסימון בלי ת"ז - נשאר מקוד הגישה המשותף שבוטל. נדרשת כניסה מזוהה.
+      const b = await res.clone().json().catch(function () { return {}; });
+      if (b.error === 'driver_identity_required') {
+        clearDriverSession();
+        showDriverGate('יש להיכנס עם ת"ז וסיסמה.');
+      }
     }
     return res;
   });
+};
+
+const DRIVER_LOGIN_ERRORS = {
+  missing_national_id: 'יש להזין ת"ז תקינה',
+  missing_password: 'יש להזין סיסמה',
+  bad_credentials: 'ת"ז או סיסמה שגויים',
+  password_not_set: 'לא הוגדרה לך סיסמה. פנה למנהל המערכת.',
+  not_authorized: 'אין לך הרשאה לאפליקציית DRIVER. פנה למנהל המערכת.',
+  rate_limited: 'יותר מדי ניסיונות. נסה שוב בעוד דקה.',
+  mirage_unavailable: 'מערכת ההרשאות אינה זמינה כרגע. נסה שוב.',
+  driver_offline: 'כניסת נהגים אינה זמינה בעמדה מנותקת.',
 };
 
 function showDriverGate(errText) {
@@ -420,32 +453,40 @@ function showDriverGate(errText) {
     el.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#0b1220;color:#e2e8f0;display:flex;align-items:center;justify-content:center;padding:20px;font-family:inherit';
     el.innerHTML =
       '<form id="driverGateForm" style="background:#152238;padding:26px 24px;border-radius:14px;width:100%;max-width:340px;border:1px solid #24344f">' +
-        '<h2 style="margin:0 0 6px;font-size:19px">כניסת נהג</h2>' +
-        '<p style="margin:0 0 16px;color:#93a4bd;font-size:13px">הזן את קוד הגישה שקיבלת</p>' +
-        '<input name="code" type="password" inputmode="text" autocomplete="one-time-code" placeholder="קוד גישה" ' +
-          'style="width:100%;padding:13px;margin-bottom:14px;border-radius:8px;border:1px solid #475569;background:#0b1220;color:#e2e8f0;font-size:16px">' +
+        '<h2 style="margin:0 0 6px;font-size:19px">כניסת נהג - DRIVER</h2>' +
+        '<p style="margin:0 0 16px;color:#93a4bd;font-size:13px">כניסה לנהגים מורשים בלבד</p>' +
+        '<input name="nationalId" type="text" inputmode="numeric" autocomplete="username" maxlength="12" placeholder="ת&quot;ז" ' +
+          'style="width:100%;box-sizing:border-box;padding:13px;margin-bottom:10px;border-radius:8px;border:1px solid #475569;background:#0b1220;color:#e2e8f0;font-size:16px;direction:ltr;text-align:right">' +
+        '<input name="password" type="password" autocomplete="current-password" placeholder="סיסמה" ' +
+          'style="width:100%;box-sizing:border-box;padding:13px;margin-bottom:14px;border-radius:8px;border:1px solid #475569;background:#0b1220;color:#e2e8f0;font-size:16px">' +
         '<button type="submit" style="width:100%;padding:14px;border:none;border-radius:8px;background:#2563eb;color:#fff;font-weight:700;font-size:16px">כניסה</button>' +
         '<div id="driverGateErr" style="color:#fca5a5;font-size:13px;margin-top:10px;min-height:18px"></div>' +
       '</form>';
     document.body.appendChild(el);
     el.querySelector('#driverGateForm').onsubmit = async function (ev) {
       ev.preventDefault();
-      const code = new FormData(ev.target).get('code');
-      const res = await rawFetch(BASE + '/api/auth/driver', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: code }),
-      });
+      const form = new FormData(ev.target);
+      const errEl = document.getElementById('driverGateErr');
+      errEl.textContent = '';
+      let res;
+      try {
+        res = await rawFetch(BASE + '/api/auth/driver', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nationalId: form.get('nationalId'), password: form.get('password') }),
+        });
+      } catch (e) {
+        errEl.textContent = 'אין חיבור לשרת. נסה שוב.';
+        return;
+      }
       if (!res.ok) {
         const b = await res.json().catch(function () { return {}; });
-        document.getElementById('driverGateErr').textContent =
-          b.error === 'driver_access_disabled'
-            ? 'גישת נהגים אינה מופעלת. פנה למוקד.'
-            : 'קוד גישה שגוי';
+        errEl.textContent = DRIVER_LOGIN_ERRORS[b.error] || 'הכניסה נכשלה. נסה שוב.';
         return;
       }
       const b = await res.json();
       DRIVER_TOKEN = b.token;
       sessionStorage.setItem(DRIVER_TOKEN_KEY, DRIVER_TOKEN);
+      sessionStorage.setItem(DRIVER_NAME_KEY, (b.driver && b.driver.name) || '');
       el.remove();
       location.reload(); // טעינה נקייה עם אסימון תקף, בלי לשחזר מצב חלקי
     };
@@ -1377,10 +1418,9 @@ function resetApp() {
 // המגדל. אחרת הנהג היה משנה מתחת לידיו נסיעה שהוא כבר אישר, והמגדל היה מגלה
 // זאת רק כשהרכב לא מגיע.
 //
-// זהות: אסימון הנהג הוא קוד גישה משותף ולא זהות אישית, ולכן הנסיעות נשלפות
-// לפי **מספר הטלפון** שנרשם בנסיעה. הוא נשמר מקומית כדי שלא יוקלד בכל פתיחה.
+// זהות: הנסיעות נשלפות לפי **הת"ז שבאסימון** - זו שאיתה הנהג נכנס במיראז'.
+// השרת מתעלם מכל מזהה שהלקוח שולח, ולכן אין כאן שדה להקליד.
 
-const TRIPS_PHONE_KEY = 'skyking-driver-phone';
 let myTrips = [];
 let tripsPollInterval = null;
 let tripChangeOpenId = null;
@@ -1395,7 +1435,7 @@ const TRIP_STATUS_HE = {
 function tripStatusOf(t) { return TRIP_STATUS_HE[t.status] || TRIP_STATUS_HE.pending; }
 
 function openTripsSheet() {
-  document.getElementById('tripsPhone').value = localStorage.getItem(TRIPS_PHONE_KEY) || '';
+  document.getElementById('tripsDriverName').textContent = sessionStorage.getItem(DRIVER_NAME_KEY) || '';
   document.getElementById('tripsSheet').classList.add('open');
   loadMyTrips();
   // סקר קל כל 20 שניות - כדי שאישור שהמגדל נתן יופיע בלי לרענן ידנית
@@ -1408,17 +1448,9 @@ function closeTripsSheet() {
 }
 
 async function loadMyTrips() {
-  const phone = (document.getElementById('tripsPhone').value || '').trim();
-  const list = document.getElementById('tripsList');
-  if (!phone) {
-    myTrips = [];
-    list.innerHTML = '<div style="color:#64748b;font-size:13px;text-align:center;padding:18px">הזן מספר טלפון כדי לראות את הנסיעות שלך</div>';
-    updateTripsBadge();
-    return;
-  }
-  localStorage.setItem(TRIPS_PHONE_KEY, phone);
+  if (!DRIVER_TOKEN) return;
   try {
-    const res = await fetch(`${BASE}/api/driver-trips?phone=${encodeURIComponent(phone)}`);
+    const res = await fetch(`${BASE}/api/driver-trips`);
     myTrips = res.ok ? await res.json() : [];
   } catch (e) { myTrips = []; }
   renderMyTrips();
@@ -1460,7 +1492,7 @@ function esc(v) {
 function renderMyTrips() {
   const list = document.getElementById('tripsList');
   if (!myTrips.length) {
-    list.innerHTML = '<div style="color:#64748b;font-size:13px;text-align:center;padding:18px">אין נסיעות פתוחות למספר הזה</div>';
+    list.innerHTML = '<div style="color:#64748b;font-size:13px;text-align:center;padding:18px">אין לך נסיעות פתוחות</div>';
     return;
   }
   list.innerHTML = myTrips.map(t => {
@@ -1550,15 +1582,9 @@ async function submitTripChange(id) {
 
 // טעינה ראשונית ברקע: התג על הכפתור צריך להיות נכון עוד לפני שהנהג פותח
 // את הגיליון, אחרת נסיעה שממתינה לאישורו אינה נראית כלל.
-if (localStorage.getItem(TRIPS_PHONE_KEY)) {
-  const bootTrips = () => {
-    const el = document.getElementById('tripsPhone');
-    if (!el) return;
-    el.value = localStorage.getItem(TRIPS_PHONE_KEY) || '';
-    loadMyTrips();
-  };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootTrips);
-  else bootTrips();
+if (DRIVER_TOKEN) {
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', loadMyTrips);
+  else loadMyTrips();
 }
 
 </script>
