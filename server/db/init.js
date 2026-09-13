@@ -2146,6 +2146,11 @@ async function applySchemaOnce() {
   // מתי הנהג שלח את הנסיעה כבקשה מאפליקציית DRIVER. NULL = המגדל רשם אותה.
   // מקפיץ למגדל התראה על בקשה חדשה כל עוד היא טרייה וממתינה (isNewDriverRequest)
   await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS driver_requested_at TIMESTAMPTZ`);
+  // "הפעל נסיעה" מאפליקציית הנהג - מותר מחצי שעה לפני עד חצי שעה אחרי המועד
+  await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS driver_started_at TIMESTAMPTZ`);
+  // עדכון מהנהג מחזיר את הנסיעה לממתין; כאן נשמר הסטטוס שלפניו, כדי שאישור או
+  // דחייה של העדכון יחזירו אותו. NULL = אין עדכון ממתין
+  await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS pending_change_prev_status VARCHAR(20)`);
   await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`);
   await sq(`CREATE INDEX IF NOT EXISTS idx_entry_permit_trips_airfield ON entry_permit_trips(airfield_id, scheduled_at DESC)`);
   // נסיעות ותיקות נרשמו לפני שהייתה עמודת שדה - השדה נגזר מהנהג שלהן

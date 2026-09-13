@@ -18,6 +18,7 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
 import { normalizeNationalId, nationalIdSql, driverScopeOf, driverMayUseBase, driverBaseGuard } from '../auth/driverIdentity.js';
+import { startWindowState, START_WINDOW_MINUTES } from '../../shared/driverLogic.js';
 
 const router = new Router();
 
@@ -552,21 +553,38 @@ router.post('/api/entry-permit-trips/:id/alerted', async (req, res) => {
 /**
  * הכרעת המגדל על שינוי שהנהג הציע: `approve` מחיל אותו על השורה, `reject`
  * זורק אותו. בשני המקרים ה-`pending_change` מתנקה - שינוי שהוכרע אינו ממתין.
+ *
+ * **הסטטוס:** עדכון מהנהג החזיר את הנסיעה לממתין ושמר את הסטטוס שלפניו
+ * (`pending_change_prev_status`). דחייה מחזירה אותו. אישור מחזיר אותו - **אלא אם
+ * השתנו התחנות**: אז הנתיב שאושר כבר אינו הדרך, הוא נמחק, והנסיעה נשארת ממתינה
+ * עד שהמגדל יבחר נתיב ויאשר מחדש.
  */
 router.post('/api/entry-permit-trips/:id/change/:decision', async (req, res) => {
   const client = await pool.connect();
   try {
     const decision = req.params.decision === 'approve' ? 'approve' : 'reject';
     await client.query('BEGIN');
-    const cur = await client.query('SELECT pending_change FROM entry_permit_trips WHERE id=$1 FOR UPDATE', [req.params.id]);
+    const cur = await client.query(
+      'SELECT pending_change, pending_change_prev_status, status FROM entry_permit_trips WHERE id=$1 FOR UPDATE',
+      [req.params.id]);
     if (!cur.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'trip_not_found' }); }
     const pending = cur.rows[0].pending_change || {};
-    const fields = ['updated_at=NOW()', 'pending_change=NULL', 'pending_change_at=NULL'], vals = [];
+    const prevStatus = cur.rows[0].pending_change_prev_status;
+    const fields = ['updated_at=NOW()', 'pending_change=NULL', 'pending_change_at=NULL', 'pending_change_prev_status=NULL'], vals = [];
     const set = (col, v) => { vals.push(v); fields.push(`${col}=$${vals.length}`); };
     if (decision === 'approve') {
       const allowed = {};
       for (const f of DRIVER_EDITABLE_FIELDS) if (f in pending) allowed[f] = pending[f];
       tripSetters(allowed, set);
+      if ('stops' in allowed) {
+        set('selected_route_ids', '[]');
+        set('selected_route_label', '');
+        set('status', 'pending');
+      } else if (prevStatus) {
+        set('status', tripStatus(prevStatus));
+      }
+    } else if (prevStatus) {
+      set('status', tripStatus(prevStatus));
     }
     vals.push(req.params.id);
     await client.query(`UPDATE entry_permit_trips SET ${fields.join(',')} WHERE id=$${vals.length}`, vals);
@@ -757,13 +775,42 @@ router.post('/api/driver-trips/:id/change', async (req, res) => {
     for (const f of DRIVER_EDITABLE_FIELDS) if (b[f] !== undefined) change[f] = b[f];
     if (!Object.keys(change).length) return res.status(400).json({ error: 'nothing_to_change' });
     if (!(await ownsTrip(req.params.id, scope))) return res.status(404).json({ error: 'trip_not_found' });
+    // כל עדכון מחזיר את הנסיעה ל**ממתין** - גם אם אושרה - עד שהמגדל מכריע.
+    // הסטטוס שלפני העדכון נשמר פעם אחת: עדכון שני לפני הכרעה אינו דורס אותו.
     const r = await pool.query(
       `UPDATE entry_permit_trips
-          SET pending_change=$1, pending_change_at=NOW(), updated_at=NOW()
+          SET pending_change=$1, pending_change_at=NOW(), updated_at=NOW(),
+              pending_change_prev_status = COALESCE(pending_change_prev_status, status),
+              status = 'pending'
         WHERE id=$2 RETURNING id`,
       [JSON.stringify(change), req.params.id]
     );
     if (!r.rows.length) return res.status(404).json({ error: 'trip_not_found' });
+    res.json(await oneTrip(req.params.id));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+/**
+ * "הפעל נסיעה" - הנהג יוצא לדרך. מותר רק לנסיעה **מאושרת**, ורק מחצי שעה לפני
+ * מועד היציאה ועד חצי שעה אחריו (START_WINDOW_MINUTES, משותף לאפליקציה). מחוץ
+ * לחלון - 409, והאפליקציה אומרת לנהג שנדרש לעדכן את זמן היציאה.
+ * `driver_started_at` מקפיץ למגדל התראה (TripAlertsLayer).
+ */
+router.post('/api/driver-trips/:id/start', async (req, res) => {
+  try {
+    const scope = driverScope(req, res);
+    if (!scope) return;
+    if (!(await ownsTrip(req.params.id, scope))) return res.status(404).json({ error: 'trip_not_found' });
+    const t = await oneTrip(req.params.id);
+    if (!t) return res.status(404).json({ error: 'trip_not_found' });
+    if (t.status !== 'approved') return res.status(409).json({ error: 'not_approved' });
+    const window = startWindowState(t.scheduled_at);
+    if (window !== 'open') {
+      return res.status(409).json({ error: 'outside_start_window', window, minutes: START_WINDOW_MINUTES });
+    }
+    await pool.query(
+      `UPDATE entry_permit_trips SET driver_started_at = COALESCE(driver_started_at, NOW()), updated_at = NOW()
+        WHERE id=$1`, [req.params.id]);
     res.json(await oneTrip(req.params.id));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

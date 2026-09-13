@@ -4,8 +4,28 @@
 import { describe, it, expect } from 'vitest';
 import {
   greetingFor, nearestBase, distanceMeters, groupDriverTrips, sortHistory,
-  buildTripRequest, joinLocalDateTime,
+  buildTripRequest, joinLocalDateTime, startWindowState, START_WINDOW_MINUTES,
 } from './driverLogic.js';
+
+describe('startWindowState - מתי אפשר להפעיל נסיעה', () => {
+  const NOW = new Date('2026-09-13T10:00:00Z').getTime();
+  const inMin = m => new Date(NOW + m * 60_000).toISOString();
+
+  it('חצי שעה לפני עד חצי שעה אחרי - פתוח, כולל הקצוות', () => {
+    expect(START_WINDOW_MINUTES).toBe(30);
+    for (const m of [30, 0, -30, 12]) expect(startWindowState(inMin(m), NOW)).toBe('open');
+  });
+
+  it('מוקדם מדי / מאוחר מדי', () => {
+    expect(startWindowState(inMin(31), NOW)).toBe('early');
+    expect(startWindowState(inMin(-31), NOW)).toBe('late');
+  });
+
+  it('בלי מועד - אין מה להפעיל', () => {
+    expect(startWindowState(null, NOW)).toBe('none');
+    expect(startWindowState('לא תאריך', NOW)).toBe('none');
+  });
+});
 
 const at = (h, m = 0) => new Date(2026, 8, 13, h, m);
 

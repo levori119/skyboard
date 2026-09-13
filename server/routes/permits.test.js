@@ -140,6 +140,8 @@ beforeAll(async () => {
     pending_change_at TIMESTAMPTZ,
     departure_alerted_at TIMESTAMPTZ,
     driver_requested_at TIMESTAMPTZ,
+    driver_started_at TIMESTAMPTZ,
+    pending_change_prev_status VARCHAR(20),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     created_at TIMESTAMPTZ DEFAULT NOW())`);
 
@@ -728,6 +730,88 @@ describe('ניהול נסיעות - אפליקציית הנהג', () => {
     expect((await post('/api/entry-permit-trips/9999/change/approve')).status).toBe(404);
     expect((await dpost('/api/driver-trips/9999/ack', MY_TZ)).status).toBe(404);
   });
+
+  // ── עדכון מהנהג מחזיר את הנסיעה לממתין - גם אם אושרה ──
+  const mkApproved = (over = {}) => mkManualTrip({
+    status: 'approved', from_point_id: 20, to_point_id: 21,
+    selected_route_ids: [3], selected_route_label: 'כביש היקפי', ...over,
+  });
+
+  it('עדכון של נסיעה מאושרת מחזיר אותה לממתין, וזוכר שהייתה מאושרת', async () => {
+    const t = await mkApproved();
+    const after = await (await dpost(`/api/driver-trips/${t.id}/change`, MY_TZ, { note: 'מאחר' })).json();
+    expect(after.status).toBe('pending');
+    expect(after.pending_change_prev_status).toBe('approved');
+    expect(after.pending_change).toEqual({ note: 'מאחר' });
+  });
+
+  // עדכון שני לפני שהמגדל הכריע אינו "שוכח" שהנסיעה הייתה מאושרת
+  it('עדכון נוסף לפני הכרעה שומר את הסטטוס המקורי', async () => {
+    const t = await mkApproved();
+    await dpost(`/api/driver-trips/${t.id}/change`, MY_TZ, { note: 'א' });
+    const after = await (await dpost(`/api/driver-trips/${t.id}/change`, MY_TZ, { note: 'ב' })).json();
+    expect(after.pending_change_prev_status).toBe('approved');
+  });
+
+  it('אישור עדכון זמן/הערה של נסיעה שהייתה מאושרת - חוזרת למאושרת עם הנתיב', async () => {
+    const t = await mkApproved();
+    const when = tripAt(90);
+    await dpost(`/api/driver-trips/${t.id}/change`, MY_TZ, { scheduled_at: when });
+    const after = await (await post(`/api/entry-permit-trips/${t.id}/change/approve`)).json();
+    expect(after.status).toBe('approved');
+    expect(after.selected_route_label).toBe('כביש היקפי');
+    expect(after.pending_change_prev_status).toBeNull();
+    expect(new Date(after.scheduled_at).toISOString()).toBe(when);
+  });
+
+  // תחנה חדשה משנה את הדרך - הנתיב שאושר כבר אינו הנסיעה
+  it('אישור עדכון תחנות - הנתיב נמחק והנסיעה נשארת ממתינה לאישור מחדש', async () => {
+    const t = await mkApproved();
+    await dpost(`/api/driver-trips/${t.id}/change`, MY_TZ, { stops: [{ point_id: null, text: 'מחסן' }] });
+    const after = await (await post(`/api/entry-permit-trips/${t.id}/change/approve`)).json();
+    expect(after.status).toBe('pending');
+    expect(after.selected_route_ids).toEqual([]);
+    expect(after.selected_route_label).toBe('');
+  });
+
+  it('דחיית עדכון מחזירה את הסטטוס שהיה לפניו', async () => {
+    const t = await mkApproved();
+    await dpost(`/api/driver-trips/${t.id}/change`, MY_TZ, { note: 'מאחר' });
+    const after = await (await post(`/api/entry-permit-trips/${t.id}/change/reject`)).json();
+    expect(after.status).toBe('approved');
+    expect(after.pending_change_prev_status).toBeNull();
+  });
+
+  // ── הפעלת נסיעה: חצי שעה לפני עד חצי שעה אחרי ──
+  it('נסיעה מאושרת בתוך החלון מופעלת', async () => {
+    const t = await mkApproved({ scheduled_at: tripAt(20) });
+    const res = await dpost(`/api/driver-trips/${t.id}/start`, MY_TZ);
+    expect(res.status).toBe(200);
+    expect((await res.json()).driver_started_at).toBeTruthy();
+  });
+
+  it('לפני החלון או אחריו - 409 עם הסיבה, והנסיעה אינה מופעלת', async () => {
+    const early = await mkApproved({ scheduled_at: tripAt(45) });
+    const r1 = await dpost(`/api/driver-trips/${early.id}/start`, MY_TZ);
+    expect(r1.status).toBe(409);
+    expect(await r1.json()).toMatchObject({ error: 'outside_start_window', window: 'early' });
+    const late = await mkApproved({ scheduled_at: tripAt(-45) });
+    expect(await (await dpost(`/api/driver-trips/${late.id}/start`, MY_TZ)).json()).toMatchObject({ window: 'late' });
+    const [row] = (await pool.query('SELECT driver_started_at FROM entry_permit_trips WHERE id=$1', [early.id])).rows;
+    expect(row.driver_started_at).toBeNull();
+  });
+
+  it('נסיעה שאינה מאושרת אינה מופעלת - 409', async () => {
+    const t = await mkManualTrip({ scheduled_at: tripAt(5) });
+    const res = await dpost(`/api/driver-trips/${t.id}/start`, MY_TZ);
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe('not_approved');
+  });
+
+  it('נסיעה של נהג אחר - 404', async () => {
+    const t = await mkApproved({ scheduled_at: tripAt(5), driver_national_id: '087654321' });
+    expect((await dpost(`/api/driver-trips/${t.id}/start`, MY_TZ)).status).toBe(404);
+  });
 });
 
 describe('ניהול נסיעות - בקשה חדשה מאפליקציית הנהג', () => {
@@ -795,6 +879,8 @@ describe('ניהול נסיעות - בקשה חדשה מאפליקציית הנ�
     const t = await (await dpost('/api/driver-trips', MY_TZ, request())).json();
     const [copy] = await (await post('/api/trips/duplicate', { items: [{ id: t.id, scheduled_at: tripAt(600) }] })).json();
     expect(copy.driver_requested_at).toBeNull();
+    expect(copy.driver_started_at).toBeNull();
+    expect(copy.pending_change_prev_status).toBeNull();
   });
 });
 

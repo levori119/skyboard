@@ -1890,9 +1890,12 @@ function tripCard(t, kind) {
       ${stopNames.length ? `<div style="font-size:11px;color:#64748b;margin-top:2px">תחנות: ${esc(stopNames.join(' · '))}</div>` : ''}
       ${t.vehicle_name && t.trip_type_name ? `<div style="font-size:11px;color:#64748b;margin-top:2px">🚙 ${esc(t.vehicle_name)}</div>` : ''}
       ${t.note ? `<div style="font-size:11px;color:#64748b;margin-top:2px">📝 ${esc(t.note)}</div>` : ''}
-      ${active && t.pending_change_at ? '<div style="font-size:11px;color:#fbbf24;margin-top:4px">✋ בקשת השינוי שלך ממתינה לאישור המגדל</div>' : ''}
+      ${active && t.pending_change_at ? `<div style="font-size:11px;color:#fbbf24;margin-top:4px">✋ ממתין לאישור המגדל בעקבות העדכון שלך: ${esc(changedFieldsText(t))}</div>` : ''}
       ${kind === 'approved' && t.driver_ack_at ? '<div style="font-size:11px;color:#4ade80;margin-top:4px">✓ אישרת את הנסיעה</div>' : ''}
+      ${kind === 'approved' && t.driver_started_at ? `<div style="font-size:12px;color:#c4b5fd;margin-top:4px;font-weight:700">🚦 הנסיעה הופעלה ${esc(timeText(t.driver_started_at))}</div>` : ''}
       ${active ? `
+      ${kind === 'approved' && !t.driver_started_at ? `
+      <button class="trip-btn" style="background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;width:100%;margin-top:9px;padding:12px;font-size:15px" onclick="startTrip(${t.id})">🚦 הפעל נסיעה</button>` : ''}
       <div style="display:flex;gap:6px;margin-top:9px">
         ${kind === 'approved' && !t.driver_ack_at ? `<button class="trip-btn" style="background:#22c55e;color:#062e14" onclick="ackTrip(${t.id})">✓ מאשר נסיעה</button>` : ''}
         <button class="trip-btn" style="background:#334155;color:#e2e8f0" onclick="toggleTripChange(${t.id})">${isChanging ? 'בטל' : '✏️ בקש שינוי'}</button>
@@ -1912,6 +1915,80 @@ function tripCard(t, kind) {
                   onclick="submitTripChange(${t.id})">שלח בקשת שינוי לאישור המגדל</button>
         </div>` : ''}
     </div>`;
+}
+
+const CHANGE_FIELD_HE = { scheduled_at: 'זמן יציאה', stops: 'תחנות ביניים', note: 'הערה' };
+
+/** מה הנהג עדכן - מתוך העדכון שממתין להכרעת המגדל. */
+function changedFieldsText(t) {
+  let change = t.pending_change;
+  if (typeof change === 'string') { try { change = JSON.parse(change); } catch (e) { change = null; } }
+  const keys = Object.keys(change || {}).filter(k => CHANGE_FIELD_HE[k]);
+  return keys.length ? keys.map(k => CHANGE_FIELD_HE[k]).join(', ') : 'פרטי הנסיעה';
+}
+
+function timeText(iso) {
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? '' : d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+}
+
+// ── הפעלת נסיעה ──────────────────────────────────────────────────────────────
+// מותר מחצי שעה לפני מועד היציאה ועד חצי שעה אחריו (DriverLogic.startWindowState,
+// אותו כלל שהשרת אוכף). מחוץ לחלון - הודעה שנדרש לעדכן את זמן היציאה, וכפתור
+// שפותח את בקשת השינוי. עדכון מחזיר את הנסיעה לממתין עד אישור המגדל.
+
+async function startTrip(id) {
+  const t = myTrips.find(x => x.id === id);
+  if (!t) return;
+  const state = DriverLogic.startWindowState(t.scheduled_at);
+  if (state !== 'open') { showStartBlocked(t, state); return; }
+  let res;
+  try {
+    res = await fetch(`${BASE}/api/driver-trips/${id}/start`, { method: 'POST' });
+  } catch (e) {
+    alert('אין חיבור לשרת. נסה שוב.');
+    return;
+  }
+  if (res.status === 409) {
+    const b = await res.json().catch(() => ({}));
+    if (b.error === 'outside_start_window') { showStartBlocked(t, b.window); return; }
+    alert('הנסיעה אינה מאושרת כרגע. רענן ונסה שוב.');
+    await loadHome();
+    return;
+  }
+  if (!res.ok) { alert('הפעלת הנסיעה נכשלה. נסה שוב.'); return; }
+  await loadHome();
+  showToast('🚦 הנסיעה הופעלה - נסיעה טובה');
+}
+
+function showStartBlocked(t, state) {
+  const mins = DriverLogic.START_WINDOW_MINUTES;
+  const when = t.scheduled_at ? tripWhenText(t) : 'לא נקבע מועד';
+  const why = state === 'early' ? 'מוקדם מדי להפעיל את הנסיעה.'
+    : state === 'late' ? 'עבר הזמן להפעלת הנסיעה.'
+    : 'לנסיעה לא נקבע מועד יציאה.';
+  const el = document.createElement('div');
+  el.id = 'startBlocked';
+  el.style.cssText = 'position:fixed;inset:0;z-index:99970;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;padding:20px;direction:rtl';
+  el.innerHTML = `
+    <div style="background:#1e293b;border:2px solid #f59e0b;border-radius:14px;padding:20px;max-width:360px;width:100%;text-align:center">
+      <div style="font-size:40px">⏰</div>
+      <div style="font-size:17px;font-weight:800;color:#fbbf24;margin:6px 0">נדרש לעדכן את זמן היציאה</div>
+      <div style="font-size:14px;color:#e2e8f0;line-height:1.55">${esc(why)}<br>הנסיעה מתוכננת ל: <b>${esc(when)}</b><br>
+        אפשר להפעיל נסיעה מחצי שעה לפני ועד חצי שעה אחרי זמן היציאה (${mins} דק').</div>
+      <div style="font-size:12px;color:#94a3b8;margin-top:8px">עדכון יחזיר את הנסיעה לממתין עד אישור המגדל.</div>
+      <button class="btn btn-primary" style="margin-top:14px" id="startBlockedUpdate">✏️ עדכן זמן יציאה</button>
+      <button class="btn" style="background:#334155;color:#e2e8f0" id="startBlockedClose">סגור</button>
+    </div>`;
+  document.body.appendChild(el);
+  el.querySelector('#startBlockedClose').onclick = () => el.remove();
+  el.querySelector('#startBlockedUpdate').onclick = () => {
+    el.remove();
+    tripChangeOpenId = t.id;
+    renderHome();
+    const input = document.getElementById('chgWhen' + t.id);
+    if (input) { input.scrollIntoView({ behavior: 'smooth', block: 'center' }); input.focus(); }
+  };
 }
 
 function toggleTripChange(id) {
@@ -1954,7 +2031,10 @@ async function submitTripChange(id) {
   }
   tripChangeOpenId = null;
   await loadHome();
-  showToast('בקשת השינוי נשלחה. הנסיעה תשתנה רק אחרי אישור המגדל.');
+  showToast('העדכון נשלח. הנסיעה ממתינה לאישור המגדל.');
+  // העדכון העביר את הנסיעה לממתין - מראים לנהג איפה היא עכשיו
+  homeTab = 'pending';
+  renderHome();
 }
 
 // ── בקשה חדשה ────────────────────────────────────────────────────────────────

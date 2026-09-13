@@ -133,6 +133,8 @@ describe('בקשת נסיעה חדשה מהנהג - התראה למגדל', () =
 
   it('חותמת הבקשה אינה עוברת לעותק', () => {
     expect(TRIP_FIELDS_NOT_COPIED).toContain('driver_requested_at');
+    expect(TRIP_FIELDS_NOT_COPIED).toContain('driver_started_at');
+    expect(TRIP_FIELDS_NOT_COPIED).toContain('pending_change_prev_status');
   });
 });
 

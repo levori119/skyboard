@@ -43,6 +43,11 @@ import {
   type TripEscort, type TripGroupKey, type TripStatus, type TripStop,
 } from '../../utils/trips';
 
+/** שדות שהנהג רשאי לעדכן -> מפתח התווית שלהם */
+const PENDING_FIELD_KEY: Record<string, string> = {
+  scheduled_at: 'trips.fieldScheduledAt', stops: 'trips.fieldStops', note: 'trips.fieldNote',
+};
+
 /** בחירת הקיבוץ נשמרת פר-עמדה: הפקח מקבץ כל משמרת באותה צורה. */
 const GROUP_BY_KEY = 'skyking-trips-group-by';
 const readGroupBy = (): TripGroupKey => {
@@ -106,6 +111,10 @@ export interface Trip {
   departure_alerted_at: string | null;
   /** הנהג שלח את הנסיעה כבקשה מאפליקציית DRIVER. null = המגדל רשם אותה */
   driver_requested_at?: string | null;
+  /** הנהג לחץ "הפעל נסיעה" */
+  driver_started_at?: string | null;
+  /** הסטטוס שלפני עדכון הנהג שממתין להכרעה. null = אין עדכון ממתין */
+  pending_change_prev_status?: string | null;
   base_id?: number | null; base_name?: string | null;
   vehicle_request_id: number | null;
 }
@@ -705,6 +714,16 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
     setQuickBusy(null);
   };
 
+  /** הכרעה בעדכון נהג מהרשימה - מחזירה גם את הסטטוס שהיה לפני העדכון (בשרת). */
+  const resolveChangeQuick = async (t: Trip, decision: 'approve' | 'reject') => {
+    setQuickBusy(t.id);
+    try {
+      await fetch(`${API_URL}/entry-permit-trips/${t.id}/change/${decision}`, { method: 'POST' });
+      await loadTrips();
+    } catch { /* הרשת נופלת - השורה נשארת כמו שהיא */ }
+    setQuickBusy(null);
+  };
+
   /** הנסיעות המסומנות בפועל. סימון של שורה שנעלמה מהסינון אינו נחשב. */
   const pickedTrips = useMemo(() => filtered.filter(t => picked.has(t.id)), [filtered, picked]);
   const allFilteredPicked = filtered.length > 0 && pickedTrips.length === filtered.length;
@@ -885,9 +904,18 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         <StatusChip status={st} small />
                         {pending && <span title={tr('trips.pendingChange')} style={{ fontSize: 11 }}>✋</span>}
+                        {t.driver_started_at && <span title={tr('trips.driverStartedShort')} style={{ fontSize: 11 }}>🚦</span>}
                         {t.driver_ack_at && <span title={tr('trips.driverAckedShort')} style={{ fontSize: 11, color: '#22c55e' }}>✓</span>}
                         {t.vehicle_request_id && <span title={tr('trips.fromRequest')} style={{ fontSize: 11 }}>🚛</span>}
                       </div>
+                      {/* עדכון מהנהג החזיר את הנסיעה לממתין - אומרים בשורה מה עודכן */}
+                      {pending && (
+                        <div style={{ fontSize: 9, color: '#fbbf24', marginTop: 2 }}>
+                          {tr('trips.pendingBecauseUpdate', {
+                            fields: pendingChangeFields(t).map(f => tr(PENDING_FIELD_KEY[f] || f)).join(', '),
+                          })}
+                        </div>
+                      )}
                     </td>
                     <td style={{ ...td, textAlign: 'end', whiteSpace: 'nowrap' }}>
                       {/* אישור / דחייה ישירות מהרשימה. כשצריך קודם לבחור נתיב,
@@ -896,6 +924,18 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
                         const blocker = quickApproveBlocker(t);
                         const busy = quickBusy === t.id;
                         const quick = { height: 22, padding: '0 9px', marginInlineEnd: 4, opacity: busy ? 0.6 : 1, cursor: busy ? 'wait' : 'pointer' };
+                        // עדכון מהנהג ממתין: ההכרעה היא על **העדכון**. אישור רגיל היה
+                        // משאיר אותו תלוי, והנהג לא היה יודע אם השינוי שלו התקבל
+                        if (pending) {
+                          return (
+                            <>
+                              <button disabled={busy} onClick={() => void resolveChangeQuick(t, 'approve')}
+                                style={{ ...btn('#22c55e'), ...quick }}>✓ {tr('trips.alertApproveChange')}</button>
+                              <button disabled={busy} onClick={() => void resolveChangeQuick(t, 'reject')}
+                                style={{ ...btn('#ef4444'), ...quick }}>✕ {tr('trips.alertRejectChange')}</button>
+                            </>
+                          );
+                        }
                         return (
                           <>
                             {blocker === null && (

@@ -127,3 +127,22 @@ export function buildTripRequest(form) {
   if (!body.to_point_id && !body.to_text) errors.push('to');
   return { body, errors };
 }
+
+/**
+ * כמה דקות לפני ואחרי מועד היציאה מותר לנהג ללחוץ "הפעל נסיעה". משותף לאפליקציה
+ * ולשרת (routes/permits.js), כדי שהכפתור והאכיפה לא יתפצלו.
+ */
+export const START_WINDOW_MINUTES = 30;
+
+/**
+ * 'open' - אפשר להפעיל; 'early' / 'late' - מחוץ לחלון, ונדרש לעדכן את זמן היציאה;
+ * 'none' - לנסיעה אין מועד.
+ */
+export function startWindowState(scheduledAt, now = Date.now()) {
+  const t = scheduledAt ? new Date(scheduledAt).getTime() : NaN;
+  if (!Number.isFinite(t)) return 'none';
+  const diffMin = (t - now) / 60000;
+  if (diffMin > START_WINDOW_MINUTES) return 'early';
+  if (diffMin < -START_WINDOW_MINUTES) return 'late';
+  return 'open';
+}

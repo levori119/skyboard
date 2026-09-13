@@ -1,10 +1,12 @@
 // התראות מתפרצות של ניהול נסיעות - עמדת ניהול שדה תעופה.
 //
-// ארבע התראות, וכולן עונות על אותה שאלה: "משהו קרה לנסיעה ואתה צריך להכריע".
+// ההתראות, וכולן עונות על אותה שאלה: "משהו קרה לנסיעה ואתה צריך להכריע".
+//   🚦 הנהג הפעיל את הנסיעה - לחץ "הפעל נסיעה" בחלון הזמן המותר
 //   📨 בקשת נסיעה חדשה - הנהג שלח בקשה מאפליקציית DRIVER, והיא ממתינה לאישור
 //   🚦 תחילת נסיעה   - 10 דקות לפני היציאה המשוערת (יחד עם עליית הרכב למפה)
 //   ✅ הנהג אישר      - הנהג לחץ "מאשר" באפליקציה שלו
-//   ✋ הנהג ביקש שינוי - זמן יציאה / תחנות / הערה, וממתין לאישור **נוסף** של המגדל
+//   ✋ הנהג ביקש שינוי - זמן יציאה / תחנות / הערה. הנסיעה חוזרת לממתין (גם אם אושרה)
+//                      עד שהמגדל מאשר או דוחה את העדכון
 //
 // למה שכבה נפרדת ולא באנר בתוך GroundView: ההתראה שייכת ל**עמדה** ולא למפה,
 // היא צריכה להופיע גם כשהמפה מגוללת או מוחלפת, והיא נושאת פעולה (אשר/דחה) -
@@ -37,7 +39,7 @@ import type { Trip } from './TripsManagementWindow';
 /** כל 15 שניות: מספיק צפוף ל-10 דקות התראה, ולא מעמיס את ה-DB. */
 const POLL_MS = 15_000;
 
-type AlertKind = 'departure' | 'ack' | 'change' | 'request';
+type AlertKind = 'departure' | 'ack' | 'change' | 'request' | 'started';
 
 interface TripAlert { key: string; kind: AlertKind; trip: Trip }
 
@@ -46,6 +48,7 @@ const KIND_STYLE: Record<AlertKind, { icon: string; accent: string; titleKey: st
   ack: { icon: '✅', accent: '#22c55e', titleKey: 'trips.alertDriverAckTitle' },
   change: { icon: '✋', accent: '#ef4444', titleKey: 'trips.alertDriverChangeTitle' },
   request: { icon: '📨', accent: '#38bdf8', titleKey: 'trips.alertDriverRequestTitle' },
+  started: { icon: '🚦', accent: '#a78bfa', titleKey: 'trips.alertDriverStartedTitle' },
 };
 
 const FIELD_KEY: Record<string, string> = {
@@ -78,6 +81,10 @@ export const TripAlertsLayer: React.FC<TripAlertsLayerProps> = ({ airfieldId, th
       // הבקשה קודמת: היא חוסמת יציאה, ולכן צריכה להיות מעל ההתראה על היציאה
       if (hasPendingDriverChange(t) && isDriverActionFresh(t.pending_change_at, now)) {
         out.push({ key: `chg:${t.id}:${t.pending_change_at}`, kind: 'change', trip: t });
+      }
+      // הנהג לחץ "הפעל נסיעה" - הרכב יוצא לדרך עכשיו
+      if (isDriverActionFresh(t.driver_started_at, now)) {
+        out.push({ key: `start:${t.id}:${t.driver_started_at}`, kind: 'started', trip: t });
       }
       if (isDriverActionFresh(t.driver_ack_at, now)) {
         out.push({ key: `ack:${t.id}:${t.driver_ack_at}`, kind: 'ack', trip: t });

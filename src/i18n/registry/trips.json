@@ -418,6 +418,18 @@
       "he": "הנהג אישר את הנסיעה",
       "en": "Driver approved the trip"
     },
+    "alertDriverStartedTitle": {
+      "he": "הנהג הפעיל את הנסיעה",
+      "en": "Driver started the trip"
+    },
+    "driverStartedShort": {
+      "he": "הנהג הפעיל את הנסיעה",
+      "en": "Driver started the trip"
+    },
+    "pendingBecauseUpdate": {
+      "he": "ממתין בעקבות עדכון: {{fields}}",
+      "en": "Pending after update: {{fields}}"
+    },
     "alertDriverRequestTitle": {
       "he": "בקשת נסיעה חדשה מנהג",
       "en": "New trip request from a driver"

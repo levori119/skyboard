@@ -388,6 +388,7 @@ export function duplicateSchedule(
 export const TRIP_FIELDS_NOT_COPIED = [
   'status', 'driver_ack_at', 'pending_change', 'pending_change_at',
   'departure_alerted_at', 'vehicle_request_id', 'ended_at', 'driver_requested_at',
+  'driver_started_at', 'pending_change_prev_status',
 ] as const;
 
 // ── תחנות ביניים ─────────────────────────────────────────────────────────────
