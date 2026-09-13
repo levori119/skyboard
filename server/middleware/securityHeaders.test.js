@@ -76,12 +76,37 @@ describe('CSP של אפליקציית הנהג', () => {
     expect(directives(DRIVER_CSP)['script-src']).toContain("'unsafe-inline'");
   });
 
-  it('שאר ההנחיות זהות למדיניות העמדה', () => {
+  // הכרעה מתועדת (TRIP_LIVE_TRACKING_SPEC.md §7, אורי 2026-09-13): במסך הנסיעה החי
+  // הנהג יכול לעבור למפת Google. ההנחיות נפתחות **רק** למקורות של Google, ורק
+  // בדף הנהג. הבדיקה נשארת מחמירה: כל מקור נוסף מעבר לרשימה הזו נכשל כאן.
+  const GOOGLE_EXTRA = {
+    'style-src': ['https://fonts.googleapis.com'],
+    'img-src': ['https://*.googleapis.com', 'https://*.gstatic.com', 'https://*.google.com', 'https://*.googleusercontent.com', 'https://*.ggpht.com'],
+    'font-src': ['https://fonts.gstatic.com'],
+    'connect-src': ['https://maps.googleapis.com', 'https://*.googleapis.com', 'https://*.gstatic.com'],
+  };
+
+  it('שאר ההנחיות = מדיניות העמדה + מקורות Google בלבד, ולא מקור אחד מעבר', () => {
     const driver = directives(DRIVER_CSP);
     const app = appCsp();
     for (const name of Object.keys(app)) {
       if (name === 'script-src') continue;
-      expect(driver[name]).toEqual(app[name]);
+      expect(driver[name], name).toEqual([...app[name], ...(GOOGLE_EXTRA[name] || [])]);
+    }
+  });
+
+  it('script-src של הנהג = inline + Google בלבד', () => {
+    expect(directives(DRIVER_CSP)['script-src']).toEqual([
+      "'self'", "'unsafe-inline'",
+      'https://maps.googleapis.com', 'https://*.googleapis.com', 'https://*.gstatic.com', "'unsafe-eval'", 'blob:',
+    ]);
+  });
+
+  it('frame-src, object-src ו-form-action של הנהג לא נפתחו ל-Google', () => {
+    const driver = directives(DRIVER_CSP);
+    const app = appCsp();
+    for (const name of ['frame-src', 'object-src', 'form-action', 'base-uri', 'frame-ancestors']) {
+      expect(driver[name], name).toEqual(app[name]);
     }
   });
 });

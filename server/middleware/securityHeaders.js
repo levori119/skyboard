@@ -23,19 +23,23 @@
 // ול-tesseract.js, ששניהם מריצים WebAssembly בעיבוד מפות וזיהוי כתב.
 const SCRIPT_SRC = "script-src 'self' 'wasm-unsafe-eval'";
 
-const csp = (scriptSrc) => [
+/**
+ * `extra` - מקורות נוספים לכל הנחיה, לחריג מתועד בלבד (ראה DRIVER_CSP).
+ * כך ה-CSP של העמדה נבנה מאותה פונקציה בלי תוספות, ואינו יכול להיפתח בטעות.
+ */
+const csp = (scriptSrc, extra = {}) => [
   "default-src 'self'",
 
   scriptSrc,
 
   // 'unsafe-inline' בלית ברירה: הלקוח מסגנן ב-style={{...}} (מאות מופעים) ומזריק
   // <style> עם keyframes דינמיים. style-src בלי inline משבית את שניהם.
-  "style-src 'self' 'unsafe-inline'",
+  `style-src 'self' 'unsafe-inline'${extra.style ? ' ' + extra.style : ''}`,
 
   // data: - מפות השדה, סמלי בסיס וכתב יד נשמרים ב-DB כ-data URL.
   // blob:  - html-to-image ו-canvas.toBlob בייצוא לוח ובצילום מסך.
-  "img-src 'self' data: blob:",
-  "font-src 'self' data:",
+  `img-src 'self' data: blob:${extra.img ? ' ' + extra.img : ''}`,
+  `font-src 'self' data:${extra.font ? ' ' + extra.font : ''}`,
   "media-src 'self' data: blob:",
 
   // ה-worker של tesseract.js נוצר מ-blob URL.
@@ -43,7 +47,7 @@ const csp = (scriptSrc) => [
 
   // api.sunrise-sunset.org - זמני אור ראשון/אחרון בתצוגה האנכית. נכשל בשקט
   // ברשת מבודדת (יש catch), ולכן מותר ולא נדרש.
-  "connect-src 'self' https://api.sunrise-sunset.org",
+  `connect-src 'self' https://api.sunrise-sunset.org${extra.connect ? ' ' + extra.connect : ''}`,
 
   // מסגרות: העמדות הנצפות (מאותו מקור) ומצלמות שהמפעיל מגדיר בכתובת חופשית -
   // סטרים בכתובת IP ברשת המקומית או קישור YouTube. אין דרך לרשום אותן מראש.
@@ -58,14 +62,29 @@ const csp = (scriptSrc) => [
   "form-action 'self'",       // טופס מוזרק לא יוכל לשלוח נתונים החוצה
 ].join('; ');
 
-const CSP = csp(SCRIPT_SRC);
+export const CSP = csp(SCRIPT_SRC);
 
 // חריג מתועד: public/driver.html הוא דף עצמאי בן קובץ אחד - סקריפט מוטבע של
 // ~980 שורות ו-23 מטפלי onclick/onchange בתגיות. תחת script-src 'self' הדף
 // עולה ריק לחלוטין. עד שהסקריפט יוצא לקובץ וההאזנות יעברו ל-addEventListener,
 // הנתיב הזה מקבל 'unsafe-inline'. הנזק תחום: הדף אינו קורא מידע עמדות, ואסימון
 // הנהג מוגבל לנתיבי /api/driver בלבד (ראה server/routes/driver.js).
-export const DRIVER_CSP = csp("script-src 'self' 'unsafe-inline'");
+//
+// **Google Maps - גם כן רק כאן** (TRIP_LIVE_TRACKING_SPEC.md §7). במסך הנסיעה החי
+// הנהג יכול לעבור ממפת השדה למפת Google (הכרעת אורי 2026-09-13). ההשלכה:
+// כל עוד מפת Google פתוחה, טעינת האריחים חושפת לספק חיצוני את אזור הרכב.
+// ברירת המחדל בפתיחה היא מפת השדה, ו-Google נטענת רק כשהנהג עובר אליה.
+// 'unsafe-eval' ו-blob: נדרשים לספריית Maps JS (רשימת ה-CSP המתועדת של Google).
+// **ה-CSP של העמדה אינו משתנה** - מאומת ב-server/routes/driverPage.test.js.
+const GOOGLE_MAPS = {
+  script: "https://maps.googleapis.com https://*.googleapis.com https://*.gstatic.com 'unsafe-eval' blob:",
+  style: 'https://fonts.googleapis.com',
+  img: 'https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.googleusercontent.com https://*.ggpht.com',
+  font: 'https://fonts.gstatic.com',
+  connect: 'https://maps.googleapis.com https://*.googleapis.com https://*.gstatic.com',
+};
+
+export const DRIVER_CSP = csp(`script-src 'self' 'unsafe-inline' ${GOOGLE_MAPS.script}`, GOOGLE_MAPS);
 
 export function securityHeaders(req, res, next) {
   res.setHeader('Content-Security-Policy', CSP);

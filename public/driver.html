@@ -191,7 +191,10 @@
      הקוד שמשתמש בו מחכה לאירוע driverlogic (ראה whenLogic). -->
 <script type="module">
   import * as DriverLogic from '/driver/logic.js';
+  // מעקב נסיעה חי - אותה גאומטריה, ספים וכלל חסימה שהשרת והמגדל מריצים
+  import * as TripTracking from '/driver/tracking.js';
   window.DriverLogic = DriverLogic;
+  window.TripTracking = TripTracking;
   window.dispatchEvent(new Event('driverlogic'));
 </script>
 </head>
@@ -542,11 +545,55 @@
 <div id="crossingAlertOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:10000;align-items:center;justify-content:center;padding:20px;direction:rtl;flex-direction:column">
   <div style="background:#1e293b;border:3px solid #ef4444;border-radius:16px;padding:24px 20px;max-width:340px;width:100%;text-align:center;box-shadow:0 0 40px rgba(239,68,68,0.5);animation:pulse-border 1s infinite">
     <div style="font-size:48px;margin-bottom:8px">⚠️</div>
-    <div style="font-size:17px;font-weight:700;color:#ef4444;margin-bottom:8px">עצור! מסלול טיסה/הסעה</div>
+    <div id="crossingAlertTitle" style="font-size:17px;font-weight:700;color:#ef4444;margin-bottom:8px">עצור! מסלול טיסה/הסעה</div>
     <div id="crossingAlertText" style="font-size:14px;color:#fca5a5;line-height:1.5;margin-bottom:6px"></div>
     <div style="font-size:12px;color:#94a3b8;margin-bottom:16px">פעל לפי התמרורים · הסתכל לשני הצדדים</div>
-    <button onclick="dismissCrossingAlert()" style="padding:12px 24px;background:#ef4444;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;width:100%">✓ הבנתי — ממשיך בזהירות</button>
+    <button onclick="dismissCrossingAlert()" style="padding:12px 24px;background:#ef4444;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;width:100%">✓ הבנתי - ממשיך בזהירות</button>
   </div>
+</div>
+
+<!-- מסך נסיעה חי - נפתח אחרי "הפעל נסיעה" (TRIP_LIVE_TRACKING_SPEC.md).
+     מעל כל המסכים (9000), מתחת להתרעת הסכנה (10000) ולהודעות (99980). -->
+<style>
+  #liveTripScreen .lt-tab{flex:1;padding:9px 6px;border:1.5px solid #334155;background:#1e293b;color:#cbd5e1;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer}
+  #liveTripScreen .lt-tab.on{background:#312e81;border-color:#818cf8;color:#fff}
+  #liveTripScreen .lt-tab:disabled{cursor:not-allowed}
+  #liveTripScreen .lt-mark{position:absolute;transform:translate(-50%,-50%);pointer-events:none}
+  #liveTripScreen .lt-el{width:30px;height:30px;border-radius:50%;background:#0f172acc;border:3px solid;display:flex;align-items:center;justify-content:center;font-size:15px}
+  #liveTripScreen .lt-el-label{position:absolute;top:32px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:10px;font-weight:700;background:#0f172acc;padding:1px 5px;border-radius:5px}
+  #liveTripScreen .lt-ep{font-size:20px;filter:drop-shadow(0 1px 3px #000)}
+  #liveTripScreen .lt-veh{width:26px;height:26px;border-radius:50%;background:#0ea5e9;border:3px solid #fff;box-shadow:0 0 0 6px #0ea5e944,0 2px 8px #000;display:flex;align-items:center;justify-content:center}
+  #liveTripScreen .lt-veh-arrow{color:#fff;font-size:12px;line-height:1}
+</style>
+<div id="liveTripScreen" style="display:none;position:fixed;inset:0;z-index:9000;background:#0f172a;direction:rtl;flex-direction:column">
+  <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#1e293b;border-bottom:1px solid #334155">
+    <div style="flex:1;min-width:0">
+      <div id="ltTitle" style="font-size:15px;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+      <div id="ltSub" style="font-size:12px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+    </div>
+    <button onclick="closeLiveTrip()" style="padding:9px 11px;background:#334155;color:#e2e8f0;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">לרשימה</button>
+    <button onclick="endLiveTrip()" style="padding:9px 11px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">🏁 סיים נסיעה</button>
+  </div>
+  <div style="display:flex;gap:6px;padding:8px 12px">
+    <button id="ltTabAf" class="lt-tab on" onclick="setLiveMap('airfield')">🗺 מפת שדה</button>
+    <button id="ltTabG" class="lt-tab" onclick="setLiveMap('google')">🌍 Google <span id="ltTabGHint" style="font-size:10px;font-weight:400"></span></button>
+    <button id="ltFollow" class="lt-tab on" onclick="toggleLiveFollow()" style="flex:0 0 auto">🎯 עקוב</button>
+  </div>
+  <div id="ltBanner" style="display:none;margin:0 12px 8px;padding:7px 10px;background:#78350f;border:1px solid #f59e0b;border-radius:8px;color:#fde68a;font-size:12px"></div>
+  <div style="flex:1;position:relative;overflow:hidden;background:#020617">
+    <div id="ltAf" style="position:absolute;inset:0;overflow:hidden">
+      <div id="ltAfStage" style="position:absolute;top:0;left:0;transform-origin:0 0">
+        <img id="ltAfImg" alt="" style="display:none;width:100%;height:100%">
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">
+          <polyline id="ltAfRoute" fill="none" stroke="#a855f7" stroke-width="6" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke" opacity="0.9"/>
+        </svg>
+        <div id="ltAfMarks" style="position:absolute;inset:0"></div>
+      </div>
+      <div id="ltAfNoImg" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;color:#64748b;font-size:13px;padding:20px;text-align:center">לא הוגדרה תמונת מפה לשדה</div>
+    </div>
+    <div id="ltGoogle" style="position:absolute;inset:0;display:none"></div>
+  </div>
+  <div id="ltStatus" style="padding:9px 12px;background:#1e293b;border-top:1px solid #334155;font-size:12px;color:#cbd5e1;min-height:18px"></div>
 </div>
 
 <!-- DRIVER MESSAGE POPUP -->
@@ -1500,6 +1547,12 @@ function dismissCrossingAlert() {
 }
 
 function playCrossingAlert(isRunway) {
+  playHazardSound(isRunway, isRunway ? 'עצור! מסלול טיסה. פעל לפי התמרורים.' : 'שים לב! מסלול הסעה מטוסים.');
+}
+
+/** צפצוף והקראה. `urgent` - ארבעה צפצופים בטון גבוה (מסלול טיסה, אלמנט סוגר). */
+function playHazardSound(urgent, text) {
+  const isRunway = urgent;
   // Audio beep via Web Audio API
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1520,9 +1573,7 @@ function playCrossingAlert(isRunway) {
   try {
     if ('speechSynthesis' in window) {
       speechSynthesis.cancel();
-      const msg = new SpeechSynthesisUtterance(
-        isRunway ? 'עצור! מסלול טיסה. פעל לפי התמרורים.' : 'שים לב! מסלול הסעה מטוסים.'
-      );
+      const msg = new SpeechSynthesisUtterance(text);
       msg.lang = 'he-IL';
       msg.rate = 0.85;
       msg.volume = 1;
@@ -1893,6 +1944,8 @@ function tripCard(t, kind) {
       ${active && t.pending_change_at ? `<div style="font-size:11px;color:#fbbf24;margin-top:4px">✋ ממתין לאישור המגדל בעקבות העדכון שלך: ${esc(changedFieldsText(t))}</div>` : ''}
       ${kind === 'approved' && t.driver_ack_at ? '<div style="font-size:11px;color:#4ade80;margin-top:4px">✓ אישרת את הנסיעה</div>' : ''}
       ${kind === 'approved' && t.driver_started_at ? `<div style="font-size:12px;color:#c4b5fd;margin-top:4px;font-weight:700">🚦 הנסיעה הופעלה ${esc(timeText(t.driver_started_at))}</div>` : ''}
+      ${kind === 'approved' && t.driver_started_at && !t.ended_at ? `
+      <button class="trip-btn" style="background:linear-gradient(135deg,#0ea5e9,#2563eb);color:#fff;width:100%;margin-top:9px;padding:12px;font-size:15px" onclick="openLiveTrip(${t.id})">🗺 פתח מפת נסיעה</button>` : ''}
       ${active ? `
       ${kind === 'approved' && !t.driver_started_at ? `
       <button class="trip-btn" style="background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;width:100%;margin-top:9px;padding:12px;font-size:15px" onclick="startTrip(${t.id})">🚦 הפעל נסיעה</button>` : ''}
@@ -1959,6 +2012,8 @@ async function startTrip(id) {
   if (!res.ok) { alert('הפעלת הנסיעה נכשלה. נסה שוב.'); return; }
   await loadHome();
   showToast('🚦 הנסיעה הופעלה - נסיעה טובה');
+  // המפה, הנתיב והאלמנטים שעל הדרך - ומכאן גם שידור המיקום למגדל
+  openLiveTrip(id);
 }
 
 function showStartBlocked(t, state) {
@@ -2208,6 +2263,523 @@ function openGateEntry() {
     sel.value = String(homeBaseId);
     onBaseChange();
   }
+}
+
+
+// ── מסך נסיעה חי (TRIP_LIVE_TRACKING_SPEC.md) ────────────────────────────────
+//
+// אחרי "הפעל נסיעה": מפת השדה (ברירת מחדל) או Google, הנתיב שהמגדל אישר,
+// האלמנטים שעל הדרך במצבם, ונקודת ה-GPS.
+//
+// **ההתרעות מחושבות כאן, מקומית**, מהנתונים שנטענו - דרך TripTracking
+// (shared/tripTracking.js), אותו קוד שהשרת והמגדל מריצים. כך נהג שנכנס לאזור
+// בלי קליטה ליד מסלול טיסה עדיין מקבל את ההתרעה. הקריאות משודרות לשרת, שמחשב
+// מהן את הסטייה למגדל.
+//
+// מחזור החיים שייך ל**נסיעה** ולא למסך: "לרשימה" ממשיך לעקוב, ורק "סיים נסיעה"
+// (או נסיעה שהמגדל סגר) עוצרים את ה-GPS.
+
+const LIVE_POLL_MS = 5000;   // רענון מצב האלמנטים - רמזור שהתחלף (D11)
+const LIVE_SEND_MS = 5000;   // קצב שידור הקריאות לשרת
+const LIVE_FOLLOW_ZOOM = 3;  // הגדלת מפת השדה במצב "עקוב"
+
+let live = null;
+
+function liveEl(id) { return document.getElementById(id); }
+
+async function openLiveTrip(id) {
+  if (!window.TripTracking) { whenLogic(() => openLiveTrip(id)); return; }
+  if (live && live.tripId !== id) stopLiveSession();
+  liveEl('liveTripScreen').style.display = 'flex';
+  if (live && live.tripId === id) { renderLiveMap(); return; }
+  live = {
+    tripId: id, data: null, watchId: null, fix: null, pendingFix: null, sending: false, sendFailed: false,
+    alertState: { inside: [], lastAt: {} }, nearest: null, pollTimer: null, sendTimer: null,
+    mapMode: 'airfield', follow: true, wakeLock: null,
+    gmap: null, gmapObjs: null, gmapsKey: undefined, gpsState: 'waiting', loadedMapId: null,
+  };
+  setLiveMapTabs('airfield');
+  liveEl('ltFollow').classList.add('on');
+  setLiveBanner('');
+  setLiveStatus('טוען את מפת הנסיעה…');
+  const ok = await refreshLiveData();
+  if (!ok || !live || live.tripId !== id) return;
+  startLiveGps();
+  acquireWakeLock();
+  live.pollTimer = setInterval(refreshLiveData, LIVE_POLL_MS);
+  live.sendTimer = setInterval(sendPendingFix, LIVE_SEND_MS);
+  checkGoogleAvailability();
+}
+
+/** חזרה לרשימה - המעקב נמשך, כי הנסיעה עדיין פעילה */
+function closeLiveTrip() {
+  liveEl('liveTripScreen').style.display = 'none';
+}
+
+async function endLiveTrip() {
+  if (!live) return;
+  if (!confirm('לסיים את הנסיעה? המיקום יפסיק להישלח למגדל.')) return;
+  const id = live.tripId;
+  let res;
+  try {
+    res = await fetch(`${BASE}/api/driver-trips/${id}/end`, { method: 'POST' });
+  } catch (e) { alert('אין חיבור לשרת. נסה שוב.'); return; }
+  if (!res.ok) { alert('סיום הנסיעה נכשל. נסה שוב.'); return; }
+  stopLiveSession();
+  closeLiveTrip();
+  await loadHome();
+  showToast('🏁 הנסיעה הסתיימה');
+}
+
+function stopLiveSession() {
+  if (!live) return;
+  if (live.watchId != null && navigator.geolocation) navigator.geolocation.clearWatch(live.watchId);
+  clearInterval(live.pollTimer);
+  clearInterval(live.sendTimer);
+  releaseWakeLock();
+  if (live.gmapObjs) clearGoogleObjects();
+  live = null;
+}
+
+/** נסיעה שהסתיימה מבחוץ (המגדל סגר אותה) - מפסיקים לשדר ומודיעים */
+async function liveTripEndedElsewhere() {
+  stopLiveSession();
+  closeLiveTrip();
+  await loadHome();
+  showToast('🏁 הנסיעה הסתיימה');
+}
+
+async function refreshLiveData() {
+  if (!live) return false;
+  const id = live.tripId;
+  let data;
+  try {
+    const res = await fetch(`${BASE}/api/driver-trips/${id}/live`);
+    if (res.status === 404) { stopLiveSession(); closeLiveTrip(); showToast('הנסיעה אינה זמינה'); return false; }
+    if (!res.ok) throw new Error('live ' + res.status);
+    data = await res.json();
+  } catch (e) {
+    // אין קליטה - ממשיכים עם הנתונים האחרונים, וההתרעות המקומיות ממשיכות (D14)
+    if (live && !live.data) setLiveStatus('אין חיבור לשרת - מנסה שוב…');
+    return !!(live && live.data);
+  }
+  if (!live || live.tripId !== id) return false;
+  if (data.trip && (data.trip.ended_at || data.trip.status === 'ended')) { await liveTripEndedElsewhere(); return false; }
+  live.data = data;
+  renderLiveHeader();
+  renderLiveBanners();
+  await ensureAirfieldImage();
+  if (!live) return false;
+  renderLiveMap();
+  // האלמנטים התעדכנו - רמזור שהאדים כשהרכב כבר קרוב נבדק מול הקריאה האחרונה
+  if (live.fix) { checkLiveHazards(); renderLiveStatus(); }
+  return true;
+}
+
+function renderLiveHeader() {
+  const d = live.data, t = d.trip || {};
+  liveEl('ltTitle').textContent = `${t.icon || '🚗'} ${t.trip_type_name || t.vehicle_name || t.vehicle_type_name || 'נסיעה'}`;
+  const from = (d.from && d.from.name) || t.from_text || '-';
+  const to = (d.to && d.to.name) || t.to_text || '-';
+  liveEl('ltSub').textContent = `${from} ← ${to}`;
+}
+
+/** D2/D3 - המסך אומר במפורש למה חסר קו נתיב או נקודת מיקום */
+function renderLiveBanners() {
+  const d = live.data, msgs = [];
+  if (!d.has_route) msgs.push('לא נשמר נתיב לנסיעה - מוצגים מוצא ויעד בלבד');
+  if (!d.has_anchor) msgs.push('המפה אינה מעוגנת - המיקום שלך לא מוצג על מפת השדה');
+  setLiveBanner(msgs.join(' · '));
+}
+
+function setLiveBanner(text) {
+  const b = liveEl('ltBanner');
+  b.textContent = text;
+  b.style.display = text ? 'block' : 'none';
+}
+
+function setLiveStatus(text) { liveEl('ltStatus').textContent = text; }
+
+function renderLiveStatus() {
+  if (!live || live.gpsState !== 'ok' || !live.fix) return;
+  const f = live.fix;
+  const parts = [`📍 דיוק ${Math.round(f.accuracy || 0)} מ'`];
+  if (Number.isFinite(f.speed_kmh)) parts.push(`${Math.round(f.speed_kmh)} קמ"ש`);
+  if (f.accuracy > TripTracking.MAX_ACCURACY_M) parts.push('⚠ דיוק נמוך - ההתרעות מושהות');
+  else if (live.nearest) parts.push(`הקרוב: ${live.nearest.name || liveKindName(live.nearest.kind)} ${Math.round(live.nearest.meters)} מ'`);
+  if (live.sendFailed) parts.push('⚠ המיקום לא נשלח למגדל');
+  setLiveStatus(parts.join(' · '));
+}
+
+// ── GPS ──────────────────────────────────────────────────────────────────────
+
+function startLiveGps() {
+  if (!navigator.geolocation) { live.gpsState = 'unsupported'; setLiveStatus('המכשיר אינו תומך במיקום'); return; }
+  live.watchId = navigator.geolocation.watchPosition(onLiveFix, onLiveGpsError, {
+    enableHighAccuracy: true, maximumAge: 2000, timeout: 20000,
+  });
+  setLiveStatus('📡 מחפש אות GPS…');
+}
+
+function onLiveFix(p) {
+  if (!live) return;
+  const c = p.coords;
+  live.fix = {
+    lat: c.latitude, lon: c.longitude, accuracy: c.accuracy,
+    // בעמידה הדפדפן מחזיר null לכיוון - שומרים את הכיוון האחרון שנמדד
+    heading: Number.isFinite(c.heading) ? c.heading : ((live.fix && live.fix.heading) || 0),
+    speed_kmh: Number.isFinite(c.speed) ? c.speed * 3.6 : null,
+  };
+  live.pendingFix = live.fix;
+  live.fixAt = Date.now();
+  live.gpsState = 'ok';
+  renderLiveMap();
+  checkLiveHazards();
+  renderLiveStatus();
+}
+
+function onLiveGpsError(err) {
+  if (!live) return;
+  if (err.code === 1) {
+    live.gpsState = 'denied';
+    setLiveStatus('🚫 אין הרשאת מיקום - אפשר גישה למיקום בהגדרות הדפדפן כדי שהמגדל יראה אותך');
+  } else if (live.gpsState !== 'ok') {
+    live.gpsState = 'searching';
+    setLiveStatus('📡 מחפש אות GPS…');
+  }
+}
+
+/**
+ * שידור לשרת כל LIVE_SEND_MS: הקריאה החדשה, ובהיעדרה - **האחרונה שוב, כפעימה**.
+ *
+ * טלפון עומד כמעט לא מפיק קריאות GPS חדשות. בלי הפעימה, רכב שעצר 300 מ' מהנתיב
+ * שולח קריאה אחת בלבד - והשנייה, שמאשרת סטייה נמשכת, לא מגיעה לעולם: המגדל לא
+ * מקבל התרעה על רכב שחנה במקום הלא נכון. ובאותה סיבה רכב חונה היה מסומן במגדל
+ * "אות אבד" אחרי דקה.
+ *
+ * הפעימה נשלחת רק כל עוד הקריאה האמיתית טרייה (STALE_FIX_MS). מעבר לזה עוצרים,
+ * כדי שאובדן אות אמיתי ייראה במגדל כאובדן אות ולא כרכב שעומד במקום.
+ */
+async function sendPendingFix() {
+  if (!live || live.sending) return;
+  const fresh = live.fix && live.fixAt && Date.now() - live.fixAt < TripTracking.STALE_FIX_MS;
+  const fix = live.pendingFix || (fresh ? live.fix : null);
+  if (!fix) return;
+  const id = live.tripId;
+  live.sending = true;
+  try {
+    const res = await fetch(`${BASE}/api/driver-trips/${id}/gps`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lat: fix.lat, lng: fix.lon, accuracy: fix.accuracy, heading: fix.heading, speed_kmh: fix.speed_kmh }),
+    });
+    if (!live || live.tripId !== id) return;
+    if (res.status === 409) {
+      const b = await res.json().catch(() => ({}));
+      if (b.error === 'trip_ended') { await liveTripEndedElsewhere(); return; }
+    }
+    live.sendFailed = !res.ok;
+    if (res.ok && live.pendingFix === fix) live.pendingFix = null;
+  } catch (e) {
+    // אין קליטה - הקריאה האחרונה תישלח בפעם הבאה
+    if (live) live.sendFailed = true;
+  } finally {
+    if (live) { live.sending = false; renderLiveStatus(); }
+  }
+}
+
+// ── נעילת המסך (D13) ─────────────────────────────────────────────────────────
+// דפדפן עוצר את ה-GPS כשהמסך נכבה, ובדף אינטרנט אין דרך לעקוף את זה. נעילת
+// המסך היא ההגנה היחידה: בלעדיה המגדל מאבד את הרכב אחרי 30 שניות בכיס.
+
+async function acquireWakeLock() {
+  if (!live || !('wakeLock' in navigator)) return;
+  try {
+    live.wakeLock = await navigator.wakeLock.request('screen');
+  } catch (e) { /* סוללה חלשה או דפדפן שאינו מאפשר - ממשיכים בלי */ }
+}
+
+function releaseWakeLock() {
+  if (live && live.wakeLock) {
+    live.wakeLock.release().catch(() => {});
+    live.wakeLock = null;
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  // הדפדפן משחרר את הנעילה כשהדף מוסתר; כשחוזרים - מבקשים שוב
+  if (document.visibilityState === 'visible' && live && (!live.wakeLock || live.wakeLock.released)) acquireWakeLock();
+});
+
+window.addEventListener('resize', () => {
+  if (live && liveEl('liveTripScreen').style.display !== 'none') renderLiveMap();
+});
+
+// ── התרעות סכנה ──────────────────────────────────────────────────────────────
+
+function checkLiveHazards() {
+  const d = live && live.data;
+  if (!d || !live.fix) return;
+  const hazards = TripTracking.findHazards(live.fix, { runways: d.runways, taxiways: d.taxiways, elements: d.elements });
+  const r = TripTracking.nextAlertState(hazards, live.alertState, Date.now());
+  live.alertState = r.state;
+  live.nearest = hazards[0] || null;
+  if (r.toAlert.length) showTripHazard(r.toAlert[0]);
+}
+
+const HAZARD_TEXT = {
+  runway: h => ({
+    title: 'עצור! מסלול טיסה',
+    body: `🛬 ${h.name || 'מסלול טיסה'} · ${Math.round(h.meters)} מ' ממך`,
+    speak: 'עצור! מסלול טיסה לפניך. פעל לפי התמרורים.',
+  }),
+  taxiway: h => ({
+    title: 'שים לב! מסלול הסעה',
+    body: `✈️ ${h.name || 'מסלול הסעה'} · ${Math.round(h.meters)} מ' ממך`,
+    speak: 'שים לב! מסלול הסעה של מטוסים לפניך.',
+  }),
+  element: h => ({
+    title: `עצור! ${h.name || 'אלמנט'} סגור`,
+    body: `🚧 ${h.name || 'אלמנט'} סוגר את הדרך · ${Math.round(h.meters)} מ' ממך`,
+    speak: `עצור! ${h.name || 'אלמנט'} סגור לפניך.`,
+  }),
+};
+
+function showTripHazard(h) {
+  const t = (HAZARD_TEXT[h.kind] || HAZARD_TEXT.element)(h);
+  liveEl('crossingAlertTitle').textContent = t.title;
+  liveEl('crossingAlertText').textContent = t.body;
+  liveEl('crossingAlertOverlay').style.display = 'flex';
+  crossingAlertActive = true;
+  playHazardSound(h.kind !== 'taxiway', t.speak);
+}
+
+function liveKindName(k) {
+  return { runway: 'מסלול טיסה', taxiway: 'מסלול הסעה', element: 'אלמנט' }[k] || '';
+}
+
+// ── מפת השדה ─────────────────────────────────────────────────────────────────
+
+function setLiveMapTabs(mode) {
+  liveEl('ltAf').style.display = mode === 'airfield' ? 'block' : 'none';
+  liveEl('ltGoogle').style.display = mode === 'google' ? 'block' : 'none';
+  liveEl('ltTabAf').classList.toggle('on', mode === 'airfield');
+  liveEl('ltTabG').classList.toggle('on', mode === 'google');
+}
+
+async function setLiveMap(mode) {
+  if (!live) return;
+  if (mode === 'google') {
+    if (live.gmapsKey === undefined) await checkGoogleAvailability();
+    if (!live) return;
+    if (!live.gmapsKey) { showToast('אין מפתח Google מוגדר בשרת - מפת Google אינה זמינה'); return; }
+  }
+  live.mapMode = mode;
+  setLiveMapTabs(mode);
+  if (mode === 'google') await ensureGoogleMap();
+  renderLiveMap();
+}
+
+function toggleLiveFollow() {
+  if (!live) return;
+  live.follow = !live.follow;
+  liveEl('ltFollow').classList.toggle('on', live.follow);
+  renderLiveMap();
+}
+
+async function ensureAirfieldImage() {
+  const mapId = live.data.map_id;
+  const img = liveEl('ltAfImg');
+  if (!mapId) { img.style.display = 'none'; liveEl('ltAfNoImg').style.display = 'flex'; return; }
+  if (live.loadedMapId === mapId) return;
+  live.loadedMapId = mapId;
+  try {
+    const r = await fetch(`${BASE}/api/maps/${mapId}/imagedata`);
+    const j = r.ok ? await r.json() : null;
+    if (!live) return;
+    if (j && j.image_data) {
+      await new Promise(done => {
+        img.onload = done; img.onerror = done;
+        img.src = j.image_data.startsWith('data:') ? j.image_data : `data:image/png;base64,${j.image_data}`;
+      });
+      img.style.display = 'block';
+      liveEl('ltAfNoImg').style.display = 'none';
+    } else {
+      img.style.display = 'none';
+      liveEl('ltAfNoImg').style.display = 'flex';
+    }
+  } catch (e) {
+    if (live) live.loadedMapId = null; // ננסה שוב ברענון הבא
+  }
+}
+
+/** מיקום על מפת השדה באחוזים: אחוזים שמורים, ואחרת מהנ"צ דרך העוגן */
+function livePct(pt) {
+  if (!pt) return null;
+  if (Number.isFinite(pt.xPct) && Number.isFinite(pt.yPct)) return { x: pt.xPct, y: pt.yPct };
+  if (Number.isFinite(pt.x_pct) && Number.isFinite(pt.y_pct)) return { x: pt.x_pct, y: pt.y_pct };
+  const lon = Number.isFinite(pt.lon) ? pt.lon : pt.lng;
+  if (live.data.anchor && Number.isFinite(pt.lat) && Number.isFinite(lon)) return TripTracking.latLonToPct(pt.lat, lon, live.data.anchor);
+  return null;
+}
+
+function liveStateLabel(el) {
+  return TripTracking.DISPLAY_STATE_LABEL[el.display_state] || el.status || '';
+}
+
+function liveElementGlyph(el) {
+  if (el.type_icon && !String(el.type_icon).startsWith('MAP:')) return el.type_icon;
+  return { 'מחסומים': '🚧', 'רמזורים': '🚦', 'STOP BAR': '🛑' }[el.category] || '⚠️';
+}
+
+function renderLiveMap() {
+  if (!live || !live.data) return;
+  if (live.mapMode === 'google') renderGoogleMap();
+  else renderAirfieldMap();
+}
+
+function renderAirfieldMap() {
+  const wrap = liveEl('ltAf'), stage = liveEl('ltAfStage'), img = liveEl('ltAfImg');
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+  if (!W || !H) return;
+  const aspect = img.naturalWidth ? img.naturalHeight / img.naturalWidth : 0.75;
+  // נקודת הרכב רק במפה מעוגנת - בלי עוגן אין דרך לדעת איפה הוא על התמונה (D3)
+  const vehiclePct = live.fix && live.data.has_anchor
+    ? TripTracking.latLonToPct(live.fix.lat, live.fix.lon, live.data.anchor) : null;
+  const zoom = live.follow && vehiclePct ? LIVE_FOLLOW_ZOOM : 1;
+  const sw = W * zoom, sh = sw * aspect;
+  stage.style.width = `${sw}px`;
+  stage.style.height = `${sh}px`;
+  let tx = 0, ty = sh < H ? (H - sh) / 2 : 0;
+  if (zoom > 1) {
+    tx = Math.min(0, Math.max(W - sw, W / 2 - (vehiclePct.x / 100) * sw));
+    ty = sh <= H ? (H - sh) / 2 : Math.min(0, Math.max(H - sh, H / 2 - (vehiclePct.y / 100) * sh));
+  }
+  stage.style.transform = `translate(${tx}px, ${ty}px)`;
+
+  const d = live.data;
+  const pts = (d.route || []).map(livePct).filter(Boolean);
+  liveEl('ltAfRoute').setAttribute('points', pts.map(p => `${p.x},${p.y}`).join(' '));
+
+  const marks = [];
+  const put = (p, html, z) => { if (p) marks.push(`<div class="lt-mark" style="left:${p.x}%;top:${p.y}%;z-index:${z}">${html}</div>`); };
+  put(livePct(d.from), '<div class="lt-ep">🟢</div>', 2);
+  put(livePct(d.to), '<div class="lt-ep">🏁</div>', 2);
+  for (const el of d.elements || []) {
+    // אדום = סוגר את הדרך עכשיו; ירוק = פתוח. אותו כלל כמו ההתרעה.
+    // **תווית רק לאלמנט שסוגר** - הוא זה שהנהג צריך לפעול מולו (הכרעת אורי).
+    // תוויות לכולם נערמו זו על זו ליד מחסומים סמוכים, ואף אחת לא נקראה.
+    const color = el.blocking ? '#ef4444' : '#22c55e';
+    put(livePct(el),
+      `<div class="lt-el" style="border-color:${color}">${esc(liveElementGlyph(el))}</div>` +
+      (el.blocking ? `<div class="lt-el-label" style="color:${color}">${esc(el.name)} · ${esc(liveStateLabel(el))}</div>` : ''),
+      el.blocking ? 4 : 3);
+  }
+  if (vehiclePct) {
+    // ➤ מצביע מזרחה (90°); הכיוון מהטלפון נמדד מהצפון
+    put(vehiclePct, `<div class="lt-veh"><div class="lt-veh-arrow" style="transform:rotate(${(live.fix.heading || 0) - 90}deg)">➤</div></div>`, 5);
+  }
+  liveEl('ltAfMarks').innerHTML = marks.join('');
+}
+
+// ── Google Maps ──────────────────────────────────────────────────────────────
+// נטען רק כשהנהג עובר אליה: כל עוד מפת Google פתוחה, טעינת האריחים חושפת לספק
+// חיצוני את אזור הרכב (TRIP_LIVE_TRACKING_SPEC.md §7).
+
+/** "לא לתת לפקד להידלק בלי שקורה משהו" - בלי מפתח המתג כבוי והסיבה כתובה */
+async function checkGoogleAvailability() {
+  if (!live) return;
+  if (live.gmapsKey === undefined) {
+    try {
+      const r = await fetch(`${BASE}/api/google-maps-key`);
+      const j = r.ok ? await r.json() : {};
+      if (live) live.gmapsKey = j.key || '';
+    } catch (e) { if (live) live.gmapsKey = ''; }
+  }
+  if (!live) return;
+  const has = !!live.gmapsKey;
+  const btn = liveEl('ltTabG');
+  btn.disabled = !has;
+  btn.style.opacity = has ? '1' : '0.45';
+  btn.title = has ? '' : 'אין מפתח Google מוגדר בשרת - מפת Google אינה זמינה';
+  liveEl('ltTabGHint').textContent = has ? '' : '(אין מפתח)';
+}
+
+let gmapsLoading = null;
+function loadGoogleMaps(key) {
+  if (window.google && window.google.maps) return Promise.resolve();
+  if (gmapsLoading) return gmapsLoading;
+  gmapsLoading = new Promise((resolve, reject) => {
+    window.__skykingGmapsReady = () => resolve();
+    const s = document.createElement('script');
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&callback=__skykingGmapsReady&language=he&region=IL`;
+    s.async = true;
+    s.onerror = () => { gmapsLoading = null; reject(new Error('gmaps')); };
+    document.head.appendChild(s);
+  });
+  return gmapsLoading;
+}
+
+function firstLiveLatLng() {
+  const d = live.data || {};
+  const p = (d.route || [])[0] || d.from;
+  return p && Number.isFinite(p.lat) && Number.isFinite(p.lon) ? { lat: p.lat, lng: p.lon } : null;
+}
+
+async function ensureGoogleMap() {
+  if (!live || live.gmap) return;
+  try { await loadGoogleMaps(live.gmapsKey); }
+  catch (e) { showToast('טעינת מפת Google נכשלה - חוזר למפת השדה'); if (live) setLiveMap('airfield'); return; }
+  if (!live) return;
+  live.gmap = new google.maps.Map(liveEl('ltGoogle'), {
+    mapTypeId: 'hybrid', disableDefaultUI: true, zoomControl: true, gestureHandling: 'greedy',
+    center: firstLiveLatLng() || { lat: 31.5, lng: 34.8 }, zoom: 16,
+  });
+  live.gmapObjs = { route: null, elements: [], from: null, to: null, vehicle: null, fitted: false };
+}
+
+function renderGoogleMap() {
+  if (!live.gmap || !window.google || !window.google.maps) return;
+  const d = live.data, o = live.gmapObjs, G = google.maps;
+  const path = (d.route || []).filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lon)).map(p => ({ lat: p.lat, lng: p.lon }));
+  if (!o.route) o.route = new G.Polyline({ map: live.gmap, strokeColor: '#a855f7', strokeWeight: 6, strokeOpacity: 0.9 });
+  o.route.setPath(path);
+
+  // האלמנטים נבנים מחדש בכל רענון - המצב שלהם משתנה
+  o.elements.forEach(m => m.setMap(null));
+  o.elements = (d.elements || []).filter(el => Number.isFinite(el.lat)).map(el => new G.Marker({
+    map: live.gmap, position: { lat: el.lat, lng: el.lon },
+    title: `${el.name} · ${liveStateLabel(el)}`,
+    label: { text: liveElementGlyph(el), fontSize: '14px' },
+    icon: { path: G.SymbolPath.CIRCLE, scale: 13, fillColor: '#0f172a', fillOpacity: 0.9, strokeColor: el.blocking ? '#ef4444' : '#22c55e', strokeWeight: 4 },
+  }));
+
+  const endpoint = (pt, glyph) => (pt && Number.isFinite(pt.lat) && Number.isFinite(pt.lon)
+    ? new G.Marker({ map: live.gmap, position: { lat: pt.lat, lng: pt.lon }, label: { text: glyph, fontSize: '18px' }, icon: { path: G.SymbolPath.CIRCLE, scale: 0 } })
+    : null);
+  if (!o.from) o.from = endpoint(d.from, '🟢');
+  if (!o.to) o.to = endpoint(d.to, '🏁');
+
+  if (live.fix) {
+    const pos = { lat: live.fix.lat, lng: live.fix.lon };
+    const icon = { path: G.SymbolPath.FORWARD_CLOSED_ARROW, scale: 6, rotation: live.fix.heading || 0, fillColor: '#38bdf8', fillOpacity: 1, strokeColor: '#ffffff', strokeWeight: 2 };
+    if (!o.vehicle) o.vehicle = new G.Marker({ map: live.gmap, position: pos, icon, zIndex: 999 });
+    else { o.vehicle.setPosition(pos); o.vehicle.setIcon(icon); }
+    if (live.follow) live.gmap.panTo(pos);
+  }
+  if (!o.fitted && path.length >= 2) {
+    const b = new G.LatLngBounds();
+    path.forEach(p => b.extend(p));
+    live.gmap.fitBounds(b, 40);
+    o.fitted = true;
+  }
+}
+
+function clearGoogleObjects() {
+  const o = live.gmapObjs;
+  [o.route, o.from, o.to, o.vehicle, ...o.elements].forEach(m => { if (m) m.setMap(null); });
+  live.gmapObjs = null;
+  live.gmap = null;
+  liveEl('ltGoogle').innerHTML = '';
 }
 
 
