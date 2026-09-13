@@ -3110,3 +3110,48 @@ REFACTOR_LOG #045.
 רכבים" אם למי שדופק בשער בכלל יש אישור בתוקף - **לפני** שהוא מאשר לו מסלול.
 אישור הבקשה מקבע את הקישור ורושם נסיעה, כדי שההתאמה לא תתגלגל מחדש בכל טעינה
 ושינוי ברישוי לא ינתק נסיעה קיימת מבעליה.
+
+## מעקב נסיעה חי - `entry_permit_trip_gps` ו-`entry_permit_trip_live`
+
+אפיון מלא: [TRIP_LIVE_TRACKING_SPEC.md](TRIP_LIVE_TRACKING_SPEC.md). **טלמטריה ולא רשומה** -
+שתי הטבלאות נפרדות מ-`entry_permit_trips` בכוונה: שורת הנסיעה היא מה שהמפעיל
+עורך, ועדכון כל 5 שניות היה מערבב אות GPS ברשומה תפעולית.
+
+| טבלה | סיווג | ביטול (CTRL+Z) |
+|---|---|---|
+| `entry_permit_trip_gps` | OPERATIONAL | **חסום** - קריאת GPS אינה פעולת מפעיל |
+| `entry_permit_trip_live` | OPERATIONAL | **חסום** - ביטול היה מחזיר את הרכב למקום שכבר עזב |
+
+### `entry_permit_trip_gps` - היסטוריית הקריאות
+
+| עמודה | טיפוס | הערות |
+|---|---|---|
+| `trip_id` | INT → `entry_permit_trips` | CASCADE |
+| `lat` / `lng` | DOUBLE PRECISION | |
+| `accuracy_m` / `heading` / `speed_kmh` | DOUBLE PRECISION | מהטלפון, יכולים להיות NULL |
+| `recorded_at` | TIMESTAMPTZ | |
+
+נחתכת ל-`GPS_HISTORY_LIMIT` = **500** הקריאות האחרונות לנסיעה, בכל קריאה חדשה.
+
+### `entry_permit_trip_live` - המצב החי (שורה אחת לנסיעה)
+
+| עמודה | טיפוס | הערות |
+|---|---|---|
+| `trip_id` | INT PK → `entry_permit_trips` | CASCADE |
+| `lat` / `lng` / `accuracy_m` / `heading` / `speed_kmh` / `fix_at` | | הקריאה האחרונה |
+| `deviation_m` | DOUBLE PRECISION | מרחק מהנתיב שאושר. NULL = אין נתיב שמור |
+| `deviation_streak` | INT | קריאות רצופות מעל 200 מ'. **2 = סטייה** (הכרעת אורי) |
+| `blocking_element_id` | INT → `airfield_elements` | SET NULL. האלמנט הסוגר הקרוב ≤ 50 מ' על הנתיב |
+| `blocking_distance_m` | DOUBLE PRECISION | |
+
+**הסטייה והחסימה מחושבות בשרת** על כל קריאה, כדי ששני מגדלים על אותו שדה יראו
+את אותה התרעה באותו רגע. הכללים עצמם ב-`shared/tripTracking.js` - אותו קוד
+שאפליקציית הנהג מריצה.
+
+### הנתיב שאושר - `route_options[].waypoints`
+
+כל אפשרות נתיב נושאת מעתה את הנתיב עצמו (`compactRouteWaypoints`):
+`{lat, lon, xPct, yPct, routeType, isCrossing}`. הנתיב שאושר הוא האפשרות
+ש-`route_ids` שלה שווה (כקבוצה) ל-`selected_route_ids`. **הסטייה נמדדת מולו,
+לא מול חישוב מחדש** - רשת הדרכים עלולה להשתנות בין האישור ליציאה. נסיעה שאושרה
+לפני השינוי - בלי `waypoints` - מקבלת `has_route=false` וזיהוי הסטייה כבוי.

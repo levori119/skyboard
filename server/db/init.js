@@ -2153,6 +2153,41 @@ async function applySchemaOnce() {
   await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS pending_change_prev_status VARCHAR(20)`);
   await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`);
   await sq(`CREATE INDEX IF NOT EXISTS idx_entry_permit_trips_airfield ON entry_permit_trips(airfield_id, scheduled_at DESC)`);
+
+  // ── מעקב נסיעה חי (TRIP_LIVE_TRACKING_SPEC.md) ─────────────────────────────
+  // טלמטריה ולא רשומה: שתי הטבלאות נפרדות מ-entry_permit_trips בכוונה. שורת
+  // הנסיעה היא מה שהמפעיל עורך, ועדכון כל 5 שניות היה מערבב אות GPS ברשומה
+  // תפעולית. שתיהן ברשימת החסימה של הביטול - קריאת GPS אינה פעולת מפעיל.
+
+  // היסטוריית הקריאות. נחתכת ל-500 האחרונות לנסיעה (routes/permits.js).
+  await sq(`CREATE TABLE IF NOT EXISTS entry_permit_trip_gps (
+    id SERIAL PRIMARY KEY,
+    trip_id INTEGER NOT NULL REFERENCES entry_permit_trips(id) ON DELETE CASCADE,
+    lat DOUBLE PRECISION NOT NULL,
+    lng DOUBLE PRECISION NOT NULL,
+    accuracy_m DOUBLE PRECISION,
+    heading DOUBLE PRECISION,
+    speed_kmh DOUBLE PRECISION,
+    recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_entry_permit_trip_gps_trip ON entry_permit_trip_gps(trip_id, recorded_at DESC)`);
+
+  // המצב החי - שורה אחת לנסיעה. הסטייה והאלמנט החוסם מחושבים **בשרת** על כל
+  // קריאה, כדי ששני מגדלים על אותו שדה יראו את אותה התרעה באותו רגע.
+  await sq(`CREATE TABLE IF NOT EXISTS entry_permit_trip_live (
+    trip_id INTEGER PRIMARY KEY REFERENCES entry_permit_trips(id) ON DELETE CASCADE,
+    lat DOUBLE PRECISION NOT NULL,
+    lng DOUBLE PRECISION NOT NULL,
+    accuracy_m DOUBLE PRECISION,
+    heading DOUBLE PRECISION,
+    speed_kmh DOUBLE PRECISION,
+    fix_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deviation_m DOUBLE PRECISION,
+    deviation_streak INTEGER NOT NULL DEFAULT 0,
+    blocking_element_id INTEGER REFERENCES airfield_elements(id) ON DELETE SET NULL,
+    blocking_distance_m DOUBLE PRECISION,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
   // נסיעות ותיקות נרשמו לפני שהייתה עמודת שדה - השדה נגזר מהנהג שלהן
   await sq(`UPDATE entry_permit_trips t SET airfield_id = d.airfield_id
               FROM entry_permit_drivers d WHERE d.id = t.driver_id AND t.airfield_id IS NULL`);

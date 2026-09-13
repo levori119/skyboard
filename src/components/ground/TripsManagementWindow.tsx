@@ -40,7 +40,8 @@ import {
   isRouteChosen, normalizeEscorts, normalizeStops, pendingChangeFields,
   routeSignature, suggestedVehicleIcon, tripStatusKey,
   TRIP_GROUP_KEYS, groupTrips, quickApproveBlocker,
-  type TripEscort, type TripGroupKey, type TripStatus, type TripStop,
+  compactRouteWaypoints,
+  type RouteWaypoint, type TripEscort, type TripGroupKey, type TripStatus, type TripStop,
 } from '../../utils/trips';
 
 /** שדות שהנהג רשאי לעדכן -> מפתח התווית שלהם */
@@ -83,6 +84,8 @@ export interface RouteOption {
   label: string;
   dist_m: number;
   crossings: number;
+  /** הנתיב עצמו - מעקב הנסיעה החי מודד סטייה מולו (ראה compactRouteWaypoints) */
+  waypoints?: RouteWaypoint[];
 }
 
 export interface Trip {
@@ -516,6 +519,8 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
             label: String(data.segmentPath || segments.map(s => s.name).join(' → ') || ''),
             dist_m: Number(data.totalDistM) || 0,
             crossings: Array.isArray(data.crossings) ? data.crossings.length : 0,
+            // נשמר עם האפשרות - כך שהנתיב שהפקח אישר הוא הנתיב שהנהג נמדד מולו
+            waypoints: compactRouteWaypoints(data.waypoints),
           };
           return option;
         } catch { return null; }

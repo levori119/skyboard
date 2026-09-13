@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  DEPARTURE_ALERT_MINUTES, DRIVER_ACTION_ALERT_MINUTES, STALE_TRIP_HOURS, TRIP_STATUSES, TRIP_VEHICLE_ICONS,
+  compactRouteWaypoints, DEPARTURE_ALERT_MINUTES, DRIVER_ACTION_ALERT_MINUTES, STALE_TRIP_HOURS, TRIP_STATUSES, TRIP_VEHICLE_ICONS,
   MAX_TRIP_COPIES, TRIP_FIELDS_NOT_COPIED, clampCopies, duplicateSchedule,
   asTripStatus, canApproveTrip, dedupeRouteOptions, hasPendingDriverChange, isDepartureAlertDue,
   isDriverActionFresh, isNewDriverRequest, isRouteChosen, isVehicleOnMap, routeInputSignature, routeSignature,
@@ -440,5 +440,33 @@ describe('אישור מהרשימה', () => {
   it('נסיעה שכבר מאושרת או הסתיימה - אין מה לאשר', () => {
     expect(quickApproveBlocker({ ...base, status: 'approved' })).toBe('status');
     expect(quickApproveBlocker({ ...base, status: 'ended' })).toBe('status');
+  });
+});
+
+// ── הנתיב שאושר נשמר על הנסיעה (מעקב נסיעה חי) ────────────────────────────
+describe('compactRouteWaypoints - הנתיב לשמירה', () => {
+  it('שומר נ"צ, אחוזים, סוג וחצייה - ומשליך את כל השאר', () => {
+    const [w] = compactRouteWaypoints([{
+      lat: 31.25, lon: 34.65, xPct: 50, yPct: 50, routeType: 'taxiway', isCrossing: true,
+      instruction: 'פנה ימינה', crossingDetails: { a: 1 }, nodeId: 'n7', turn: 'right',
+    }]);
+    expect(w).toEqual({ lat: 31.25, lon: 34.65, xPct: 50, yPct: 50, routeType: 'taxiway', isCrossing: true });
+  });
+
+  it('נקודה בלי נ"צ ובלי אחוזים נזרקת', () => {
+    expect(compactRouteWaypoints([{ instruction: 'x' }, { lat: 31.2, lon: 34.6 }])).toHaveLength(1);
+  });
+
+  it('נקודה עם אחוזים בלבד נשמרת - הנ"צ ייגזר מהעוגן', () => {
+    expect(compactRouteWaypoints([{ x: 40, y: 50 }])[0]).toMatchObject({ lat: null, lon: null, xPct: 40, yPct: 50 });
+  });
+
+  it('lng במקום lon, וברירת מחדל לסוג הדרך', () => {
+    expect(compactRouteWaypoints([{ lat: 31.2, lng: 34.6 }])[0]).toMatchObject({ lon: 34.6, routeType: 'vehicle', isCrossing: false });
+  });
+
+  it('קלט שאינו רשימה - ריק', () => {
+    expect(compactRouteWaypoints(null)).toEqual([]);
+    expect(compactRouteWaypoints('x')).toEqual([]);
   });
 });

@@ -28,6 +28,11 @@ router.get('/driver/logic.js', (req, res) => {
   res.type('application/javascript');
   res.sendFile(path.join(__dirname, '../../shared', 'driverLogic.js'));
 });
+// מעקב נסיעה חי - אותה גאומטריה, ספים וכלל חסימה שהשרת והמגדל מריצים
+router.get('/driver/tracking.js', (req, res) => {
+  res.type('application/javascript');
+  res.sendFile(path.join(__dirname, '../../shared', 'tripTracking.js'));
+});
 
 // --- Preset Links API ---
 router.get('/api/preset-links/:presetId', async (req, res) => {

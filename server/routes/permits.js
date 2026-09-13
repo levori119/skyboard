@@ -19,6 +19,10 @@ import { Router } from 'express';
 import pool from '../db/pool.js';
 import { normalizeNationalId, nationalIdSql, driverScopeOf, driverMayUseBase, driverBaseGuard } from '../auth/driverIdentity.js';
 import { startWindowState, START_WINDOW_MINUTES } from '../../shared/driverLogic.js';
+import {
+  anchorFrom, pctToLatLon, metersToPolyline, metersToSegment, isElementBlocking, routeRelevantElements,
+  nextDeviationStreak, isDeviating, isFixStale, ELEMENT_ALERT_M, MAX_ACCURACY_M,
+} from '../../shared/tripTracking.js';
 
 const router = new Router();
 
@@ -875,6 +879,297 @@ router.post('/api/driver-trips/:id/start', async (req, res) => {
       `UPDATE entry_permit_trips SET driver_started_at = COALESCE(driver_started_at, NOW()), updated_at = NOW()
         WHERE id=$1`, [req.params.id]);
     res.json(await oneTrip(req.params.id));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── מעקב נסיעה חי (TRIP_LIVE_TRACKING_SPEC.md) ──────────────────────────────
+//
+// הגאומטריה, הספים וכלל החסימה חיים ב-shared/tripTracking.js - אותו קוד שרץ
+// באפליקציית הנהג ובמגדל. כאן רק השליפה, השמירה והבעלות.
+
+/** היסטוריית ה-GPS נחתכת לאורך הזה לכל נסיעה */
+export const GPS_HISTORY_LIMIT = 500;
+
+const parseList = v => {
+  if (Array.isArray(v)) return v;
+  if (typeof v === 'string' && v.trim()) { try { const x = JSON.parse(v); return Array.isArray(x) ? x : []; } catch { return []; } }
+  return [];
+};
+
+/**
+ * העוגן של השדה: המפה קודמת, ובהיעדר עוגן בה - העוגן של השדה עצמו.
+ * אותו סדר עדיפויות כמו SectorDashboard (groundAnchor), כדי שהנהג והמגדל
+ * ימקמו את אותה נקודה באותו מקום.
+ */
+async function airfieldGeo(airfieldId, q = pool) {
+  if (!airfieldId) return { map_id: null, anchor: null };
+  const r = await q.query(
+    `SELECT a.map_id,
+            m.anchor1_x_img AS m_ax1, m.anchor1_y_img AS m_ay1, m.anchor1_lat AS m_alat1, m.anchor1_lon AS m_alon1,
+            m.anchor2_x_img AS m_ax2, m.anchor2_y_img AS m_ay2, m.anchor2_lat AS m_alat2, m.anchor2_lon AS m_alon2,
+            a.anchor1_x_img, a.anchor1_y_img, a.anchor1_lat, a.anchor1_lon,
+            a.anchor2_x_img, a.anchor2_y_img, a.anchor2_lat, a.anchor2_lon
+       FROM airfields a LEFT JOIN maps m ON m.id = a.map_id WHERE a.id = $1`, [airfieldId]);
+  const row = r.rows[0];
+  if (!row) return { map_id: null, anchor: null };
+  const fromMap = anchorFrom({
+    anchor1_x_img: row.m_ax1, anchor1_y_img: row.m_ay1, anchor1_lat: row.m_alat1, anchor1_lon: row.m_alon1,
+    anchor2_x_img: row.m_ax2, anchor2_y_img: row.m_ay2, anchor2_lat: row.m_alat2, anchor2_lon: row.m_alon2,
+  });
+  return { map_id: row.map_id ?? null, anchor: fromMap || anchorFrom(row) };
+}
+
+/**
+ * הנתיב **שהמגדל אישר**: האפשרות ב-route_options ש-route_ids שלה שווה (כקבוצה)
+ * ל-selected_route_ids. לא חישוב מחדש - רשת הדרכים עלולה להשתנות בין האישור
+ * ליציאה, ואז "סטייה" הייתה נמדדת מול דרך שאיש לא אישר.
+ * כל נקודה מקבלת נ"צ: מהנתיב עצמו, ובהיעדרו מהאחוזים דרך העוגן.
+ */
+function approvedRoute(trip, anchor) {
+  const selected = new Set(parseList(trip.selected_route_ids).map(Number).filter(Number.isFinite));
+  if (!selected.size) return [];
+  const option = parseList(trip.route_options).find(o => {
+    const ids = parseList(o?.route_ids).map(Number);
+    return ids.length === selected.size && ids.every(id => selected.has(id));
+  });
+  const wps = parseList(option?.waypoints);
+  const route = [];
+  for (const w of wps) {
+    let lat = Number(w?.lat), lon = Number(w?.lon ?? w?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      const g = pctToLatLon(w?.xPct ?? w?.x, w?.yPct ?? w?.y, anchor);
+      if (!g) continue;
+      ({ lat, lon } = g);
+    }
+    route.push({
+      lat, lon,
+      xPct: Number.isFinite(Number(w?.xPct)) ? Number(w.xPct) : null,
+      yPct: Number.isFinite(Number(w?.yPct)) ? Number(w.yPct) : null,
+      routeType: w?.routeType || 'vehicle',
+      isCrossing: !!w?.isCrossing,
+    });
+  }
+  return route.length >= 2 ? route : [];
+}
+
+/** קו בנ"צ מרשימת נקודות באחוזים ({x,y} או {xPct,yPct}). נקודה שכבר נושאת נ"צ - נשמרת. */
+function geoLine(points, anchor) {
+  const line = [];
+  for (const pt of parseList(points)) {
+    const lat = Number(pt?.lat), lon = Number(pt?.lon ?? pt?.lng);
+    if (Number.isFinite(lat) && Number.isFinite(lon)) { line.push({ lat, lon }); continue; }
+    const g = pctToLatLon(pt?.xPct ?? pt?.x, pt?.yPct ?? pt?.y, anchor);
+    if (g) line.push(g);
+  }
+  return line;
+}
+
+/** האלמנטים שעל הנתיב, כל אחד עם נ"צ והאם הוא סוגר את הדרך עכשיו. */
+async function routeElements(airfieldId, route, anchor, q = pool) {
+  if (!anchor || route.length < 2) return [];
+  const r = await q.query(
+    `SELECT ae.id, ae.name, ae.category, ae.status, ae.display_state, ae.blocking_statuses,
+            ae.x_pct, ae.y_pct, ae.rotation, aet.icon AS type_icon, aet.allowed_statuses AS type_allowed_statuses
+       FROM airfield_elements ae LEFT JOIN airfield_element_types aet ON aet.id = ae.element_type_id
+      WHERE ae.airfield_id = $1 AND ae.x_pct IS NOT NULL AND ae.y_pct IS NOT NULL`, [airfieldId]);
+  return routeRelevantElements(r.rows, route, anchor).map(el => ({
+    id: el.id, name: el.name, category: el.category, status: el.status, display_state: el.display_state,
+    blocking_statuses: el.blocking_statuses, type_allowed_statuses: el.type_allowed_statuses,
+    type_icon: el.type_icon, rotation: el.rotation,
+    x_pct: el.x_pct, y_pct: el.y_pct, lat: el.lat, lon: el.lon,
+    route_distance_m: el.route_distance_m, blocking: isElementBlocking(el),
+  }));
+}
+
+/** נקודת שדה (מוצא/יעד) עם נ"צ */
+async function pointGeo(id, anchor, q = pool) {
+  if (!id) return null;
+  const r = await q.query('SELECT id, name, x_pct, y_pct FROM airfield_points WHERE id = $1', [id]);
+  const pt = r.rows[0];
+  if (!pt) return null;
+  const g = pctToLatLon(pt.x_pct, pt.y_pct, anchor);
+  return { id: pt.id, name: pt.name, x_pct: pt.x_pct, y_pct: pt.y_pct, lat: g?.lat ?? null, lon: g?.lon ?? null };
+}
+
+/**
+ * מסלולי הטיסה וההסעה של השדה כקווים בנ"צ.
+ * טיסה - airfield_runways (קו האמצע). הסעה - base_routes מסוג taxiway ו-airfield_routes
+ * של כלי טיס שאינם מסלול טיסה (מסלול טיסה משוקף שם כקו, ולא ייספר פעמיים).
+ */
+async function movementAreas(airfieldId, anchor, q = pool) {
+  if (!airfieldId || !anchor) return { runways: [], taxiways: [] };
+  const [rw, br, ar] = await Promise.all([
+    q.query('SELECT id, name, start_x_pct, start_y_pct, end_x_pct, end_y_pct FROM airfield_runways WHERE airfield_id = $1', [airfieldId]),
+    q.query("SELECT id, name, waypoints FROM base_routes WHERE airfield_id = $1 AND route_type = 'taxiway'", [airfieldId]),
+    q.query("SELECT id, name, route_path FROM airfield_routes WHERE airfield_id = $1 AND route_category = 'aircraft' AND NOT COALESCE(is_runway, false)", [airfieldId]),
+  ]);
+  const runways = rw.rows
+    .map(r => ({ id: `rw${r.id}`, name: r.name || '', line: geoLine([{ x: r.start_x_pct, y: r.start_y_pct }, { x: r.end_x_pct, y: r.end_y_pct }], anchor) }))
+    .filter(r => r.line.length >= 2);
+  const taxiways = [
+    ...br.rows.map(r => ({ id: `br${r.id}`, name: r.name || '', line: geoLine(r.waypoints, anchor) })),
+    ...ar.rows.map(r => ({ id: `ar${r.id}`, name: r.name || '', line: geoLine(r.route_path, anchor) })),
+  ].filter(r => r.line.length >= 2);
+  return { runways, taxiways };
+}
+
+/** נסיעה פעילה: הופעלה, לא הסתיימה */
+const isLiveTrip = t => !!t?.driver_started_at && !t.ended_at && t.status !== 'ended';
+
+/**
+ * כל נתוני המפה לנהג בקריאה אחת (D1-D3). האפליקציה טוענת אותם בהפעלה ומחשבת
+ * מהם את ההתרעות **מקומית**, כך שהן לא תלויות בקליטה.
+ */
+router.get('/api/driver-trips/:id/live', async (req, res) => {
+  try {
+    const scope = driverScope(req, res);
+    if (!scope) return;
+    if (!(await ownsTrip(req.params.id, scope))) return res.status(404).json({ error: 'trip_not_found' });
+    const t = await oneTrip(req.params.id);
+    if (!t) return res.status(404).json({ error: 'trip_not_found' });
+    const geo = await airfieldGeo(t.airfield_id);
+    const route = approvedRoute(t, geo.anchor);
+    const [elements, areas, from, to] = await Promise.all([
+      routeElements(t.airfield_id, route, geo.anchor),
+      movementAreas(t.airfield_id, geo.anchor),
+      pointGeo(t.from_point_id, geo.anchor),
+      pointGeo(t.to_point_id, geo.anchor),
+    ]);
+    res.json({
+      trip: t,
+      map_id: geo.map_id,
+      anchor: geo.anchor,
+      has_anchor: !!geo.anchor,
+      has_route: route.length >= 2,
+      route, elements, from, to,
+      stop_names: parseList(t.stop_names),
+      runways: areas.runways, taxiways: areas.taxiways,
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+/**
+ * קריאת GPS מהנהג. השרת שומר, מחשב סטייה ואלמנט חוסם **בעצמו** - כך ששני
+ * מגדלים רואים את אותה התרעה - ומחזיר את המצב.
+ */
+router.post('/api/driver-trips/:id/gps', async (req, res) => {
+  try {
+    const scope = driverScope(req, res);
+    if (!scope) return;
+    const b = req.body || {};
+    const lat = Number(b.lat), lng = Number(b.lng ?? b.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+      return res.status(400).json({ error: 'invalid_position' });
+    }
+    const opt = v => (v === undefined || v === null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
+    const accuracy = opt(b.accuracy), heading = opt(b.heading), speed = opt(b.speed_kmh ?? b.speed);
+
+    if (!(await ownsTrip(req.params.id, scope))) return res.status(404).json({ error: 'trip_not_found' });
+    const t = await oneTrip(req.params.id);
+    if (!t) return res.status(404).json({ error: 'trip_not_found' });
+    if (!t.driver_started_at) return res.status(409).json({ error: 'not_started' });
+    if (!isLiveTrip(t)) return res.status(409).json({ error: 'trip_ended' });
+
+    const geo = await airfieldGeo(t.airfield_id);
+    const route = approvedRoute(t, geo.anchor);
+    const pos = { lat, lon: lng };
+    const dev = route.length >= 2 ? metersToPolyline(pos, route) : null;
+    const deviationM = dev ? dev.meters : null;
+
+    const prev = (await pool.query('SELECT deviation_streak FROM entry_permit_trip_live WHERE trip_id = $1', [t.id])).rows[0];
+    const streak = nextDeviationStreak(prev?.deviation_streak ?? 0, deviationM, accuracy);
+
+    // האלמנט הסוגר הקרוב ביותר על הדרך. קריאה בדיוק גרוע אינה מקפיצה התרעה.
+    let blocking = null;
+    if (accuracy === null || accuracy <= MAX_ACCURACY_M) {
+      for (const el of await routeElements(t.airfield_id, route, geo.anchor)) {
+        if (!el.blocking) continue;
+        const d = metersToSegment(pos, el, el);
+        if (d <= ELEMENT_ALERT_M && (!blocking || d < blocking.distance_m)) {
+          blocking = { id: el.id, name: el.name, display_state: el.display_state, distance_m: d };
+        }
+      }
+    }
+
+    await pool.query(
+      `INSERT INTO entry_permit_trip_gps (trip_id, lat, lng, accuracy_m, heading, speed_kmh) VALUES ($1,$2,$3,$4,$5,$6)`,
+      [t.id, lat, lng, accuracy, heading, speed]);
+    await pool.query(
+      `DELETE FROM entry_permit_trip_gps WHERE trip_id = $1 AND id NOT IN (
+         SELECT id FROM entry_permit_trip_gps WHERE trip_id = $1 ORDER BY recorded_at DESC, id DESC LIMIT $2)`,
+      [t.id, GPS_HISTORY_LIMIT]);
+    await pool.query(
+      `INSERT INTO entry_permit_trip_live
+         (trip_id, lat, lng, accuracy_m, heading, speed_kmh, fix_at, deviation_m, deviation_streak,
+          blocking_element_id, blocking_distance_m, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,NOW(),$7,$8,$9,$10,NOW())
+       ON CONFLICT (trip_id) DO UPDATE SET
+         lat=EXCLUDED.lat, lng=EXCLUDED.lng, accuracy_m=EXCLUDED.accuracy_m, heading=EXCLUDED.heading,
+         speed_kmh=EXCLUDED.speed_kmh, fix_at=EXCLUDED.fix_at, deviation_m=EXCLUDED.deviation_m,
+         deviation_streak=EXCLUDED.deviation_streak, blocking_element_id=EXCLUDED.blocking_element_id,
+         blocking_distance_m=EXCLUDED.blocking_distance_m, updated_at=NOW()`,
+      [t.id, lat, lng, accuracy, heading, speed, deviationM, streak, blocking?.id ?? null, blocking?.distance_m ?? null]);
+
+    res.json({ deviation_m: deviationM, deviation_streak: streak, deviating: isDeviating(streak), blocking_element: blocking });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+/**
+ * סיום נסיעה (D12). בלעדיו המעקב אינו נגמר, והמגדל רואה רכב רפאים עומד על המפה.
+ * הנסיעה עוברת להיסטוריה - היא בוצעה, וזו עובדה ולא הכרעה של המגדל.
+ */
+router.post('/api/driver-trips/:id/end', async (req, res) => {
+  try {
+    const scope = driverScope(req, res);
+    if (!scope) return;
+    if (!(await ownsTrip(req.params.id, scope))) return res.status(404).json({ error: 'trip_not_found' });
+    const t = await oneTrip(req.params.id);
+    if (!t) return res.status(404).json({ error: 'trip_not_found' });
+    if (!t.driver_started_at) return res.status(409).json({ error: 'not_started' });
+    await pool.query(
+      `UPDATE entry_permit_trips SET ended_at = COALESCE(ended_at, NOW()), status = 'ended', updated_at = NOW()
+        WHERE id = $1`, [t.id]);
+    res.json(await oneTrip(t.id));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+/**
+ * הנסיעות הפעילות בשדה, למגדל: מיקום אחרון, סטייה, אלמנט חוסם והנתיב שאושר.
+ * `stale` - אין קריאה, או שהאחרונה ישנה מ-60 ש' (אות אבד).
+ */
+router.get('/api/trips/live', async (req, res) => {
+  try {
+    const { airfield_id } = req.query;
+    if (!airfield_id) return res.json([]);
+    const trips = (await pool.query(
+      `${TRIP_SELECT} WHERE t.airfield_id = $1 AND t.driver_started_at IS NOT NULL
+         AND t.ended_at IS NULL AND t.status <> 'ended' ORDER BY t.driver_started_at`, [airfield_id])).rows;
+    if (!trips.length) return res.json([]);
+    const ids = trips.map(t => t.id);
+    const live = (await pool.query(
+      `SELECT l.*, e.name AS blocking_name, e.display_state AS blocking_display_state
+         FROM entry_permit_trip_live l LEFT JOIN airfield_elements e ON e.id = l.blocking_element_id
+        WHERE l.trip_id = ANY($1::int[])`, [ids])).rows;
+    const byTrip = new Map(live.map(l => [l.trip_id, l]));
+    const geo = await airfieldGeo(Number(airfield_id));
+    const now = Date.now();
+    res.json(trips.map(t => {
+      const l = byTrip.get(t.id);
+      const route = approvedRoute(t, geo.anchor);
+      return {
+        ...t,
+        route,
+        has_route: route.length >= 2,
+        has_anchor: !!geo.anchor,
+        position: l ? { lat: l.lat, lng: l.lng, accuracy_m: l.accuracy_m, heading: l.heading, speed_kmh: l.speed_kmh, fix_at: l.fix_at } : null,
+        stale: isFixStale(l?.fix_at ?? null, now),
+        deviation_m: l?.deviation_m ?? null,
+        deviating: isDeviating(l?.deviation_streak ?? 0),
+        blocking_element: l?.blocking_element_id
+          ? { id: l.blocking_element_id, name: l.blocking_name, display_state: l.blocking_display_state, distance_m: l.blocking_distance_m }
+          : null,
+      };
+    }));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

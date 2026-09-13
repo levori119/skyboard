@@ -19,6 +19,7 @@
 | [CIV_STRIP_CONTROLS.md](CIV_STRIP_CONTROLS.md) | **פקדים על הסטריפ** - חמשת הסוגים, ב"מ, היקף (פנימי ללוח / גלובלי לפ"מ), עיצוב מותנה ומטריצת המקרים |
 | [UNDO_SPEC.md](UNDO_SPEC.md) | **ביטול פעולה (CTRL+Z)** - יומן הביטול, רשימת החסימה (העברות ו-GAPI), זיהוי התנגשות בין עמדות ומטריצת המקרים |
 | [TEMP_ZONE_SEIZURE_SPEC.md](TEMP_ZONE_SEIZURE_SPEC.md) | **הלאמת אזור זמני** - ציור מרחב על המפה, הפצה לעמדות, התראה מתפרצת ואישור, צביעת האזורים המושפעים ומטריצת המקרים |
+| [TRIP_LIVE_TRACKING_SPEC.md](TRIP_LIVE_TRACKING_SPEC.md) | **מעקב נסיעה חי** - מפת הנהג אחרי הפעלה, שידור GPS, התרעות התקרבות לנהג, סטייה ואלמנט חוסם במגדל, הספים ומטריצת המקרים |
 | [USER_STORIES.md](USER_STORIES.md) | סטוריות משתמש |
 
 > **לפני שמחפשים איפה קוד נמצא - לבדוק ב-SERVICES.md.** הקוד מודולרי: server.js → server/routes/*, App.tsx → src/components/*.

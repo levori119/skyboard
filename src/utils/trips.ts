@@ -159,6 +159,16 @@ export const tripIcon = (trip: { icon?: string | null; vehicle_type_name?: strin
 // אותו נתיב פיזי** - בשדה שבו אין דרך חלופית. שלוש שורות זהות ברשימה אינן
 // בחירה אלא רעש, ובמצב שבו כולן מסומנות אי אפשר בכלל לדעת מה אושר לנהג.
 
+/** נקודה בנתיב שאושר - בדיוק מה שמעקב הנסיעה החי צריך, ותו לא. */
+export interface RouteWaypoint {
+  lat: number | null;
+  lon: number | null;
+  xPct: number | null;
+  yPct: number | null;
+  routeType: string;
+  isCrossing: boolean;
+}
+
 export interface RouteOptionLike {
   /** רמת ההרשאה ששימשה לחישוב */
   key: string;
@@ -167,6 +177,44 @@ export interface RouteOptionLike {
   label: string;
   dist_m: number;
   crossings: number;
+  /**
+   * הנתיב עצמו, כפי שחושב ברגע שהפקח ראה אותו. מעקב הנסיעה החי מודד סטייה
+   * **מולו** ולא מול חישוב מחדש (TRIP_LIVE_TRACKING_SPEC.md §1). חסר בנסיעות
+   * שאושרו לפני שנשמר - ואז זיהוי הסטייה כבוי, והמסך אומר זאת.
+   */
+  waypoints?: RouteWaypoint[];
+}
+
+/**
+ * הנתיב מ-/api/route-plan בצורה מצומצמת לשמירה על הנסיעה.
+ *
+ * התשובה נושאת לכל נקודה הוראות פנייה, פרטי חצייה ומזהי צמתים - שלושה נתיבים
+ * כאלה על כל נסיעה היו מנפחים את השורה בלי שמעקב הנסיעה צריך אותם. נקודה בלי
+ * נ"צ **ובלי** אחוזים אינה ניתנת למיקום ונזרקת.
+ */
+export function compactRouteWaypoints(raw: unknown): RouteWaypoint[] {
+  if (!Array.isArray(raw)) return [];
+  const num = (v: unknown): number | null => {
+    if (v === null || v === undefined || v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  const out: RouteWaypoint[] = [];
+  for (const w of raw as Record<string, unknown>[]) {
+    if (!w || typeof w !== 'object') continue;
+    const lat = num(w.lat), lon = num(w.lon ?? w.lng);
+    const xPct = num(w.xPct ?? w.x), yPct = num(w.yPct ?? w.y);
+    const hasGeo = lat !== null && lon !== null;
+    const hasPct = xPct !== null && yPct !== null;
+    if (!hasGeo && !hasPct) continue;
+    out.push({
+      lat: hasGeo ? lat : null, lon: hasGeo ? lon : null,
+      xPct: hasPct ? xPct : null, yPct: hasPct ? yPct : null,
+      routeType: typeof w.routeType === 'string' && w.routeType ? w.routeType : 'vehicle',
+      isCrossing: w.isCrossing === true,
+    });
+  }
+  return out;
 }
 
 /**

@@ -81,6 +81,9 @@ export const OPERATIONAL_TABLES = [
   // האישורים עצמם (entry_permit_*) הם מרשם ניהולי ויושבים ב-CONFIG_TABLES,
   // כדי שתרגול ייעשה מול רשימת המורשים האמיתית.
   'entry_permit_trips',
+  // מעקב נסיעה חי - טלמטריה של שדה חי, מבודדת פר-סביבה
+  'entry_permit_trip_gps',
+  'entry_permit_trip_live',
   // GAPI — תור יציאה + דדופ אירועים נכנסים (מבודדים פר-סביבה)
   'gapi_outbox',
   'gapi_inbound_events',
