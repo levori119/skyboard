@@ -48,6 +48,7 @@ import WeatherLayer, { type WeatherStatus } from '../../weather/WeatherLayer';
 import WeatherMenu from '../../weather/WeatherMenu';
 import WeatherWindow from '../../weather/WeatherWindow';
 import type { WeatherPrefs } from '../../weather/prefs';
+import { shouldShowNavOverlay, navPathStroke } from '../../utils/vehicleRouteAnim';
 
 /**
  * כמה מקום להשאיר בתחתית פאנל השכבות לפאנל "מסלולים בשימוש".
@@ -1355,15 +1356,6 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
     () => routeConflicts.filter((c: any) => !malfunctionElementIds.has(c.elementId)),
     [routeConflicts, malfunctionElementIds]
   );
-
-  const animatedRouteIds = React.useMemo(() => {
-    const ids = new Set<number>();
-    Object.keys(routeAnimProgress).forEach(elIdStr => {
-      const nav = elemNavData[Number(elIdStr)];
-      if (nav?.viaRouteIds) nav.viaRouteIds.forEach((id: number) => ids.add(id));
-    });
-    return ids;
-  }, [routeAnimProgress, elemNavData]);
 
   const DENSITY_WARN = 3; // warn when >= this many aircraft at a point
   const pointAircraftCount = React.useMemo(() => {
@@ -3369,13 +3361,13 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           )}
 
           {/* Route lines overlay */}
-          {(mapLayers.routes_aircraft || mapLayers.routes_vehicle || animatedRouteIds.size > 0) && imgBounds && airfieldRoutes && airfieldRoutes.some((r: any) => { const p = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []); return p.length >= 2; }) && (
+          {(mapLayers.routes_aircraft || mapLayers.routes_vehicle) && imgBounds && airfieldRoutes && airfieldRoutes.some((r: any) => { const p = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []); return p.length >= 2; }) && (
             <svg viewBox="0 0 100 100" preserveAspectRatio="none"
               style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 2 }}>
               {(airfieldRoutes || []).map((r: any) => {
                 const cat = r.route_category || 'general';
                 const isVehicle = cat === 'vehicle';
-                if (isVehicle && !mapLayers.routes_vehicle && !animatedRouteIds.has(r.id)) return null;
+                if (isVehicle && !mapLayers.routes_vehicle) return null;
                 if (!isVehicle && !mapLayers.routes_aircraft) return null;
                 const pts: {x:number;y:number}[] = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []);
                 if (pts.length < 2) return null;
@@ -3512,7 +3504,10 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           )}
 
           {/* Nav route highlights — trimmed at intersection points */}
-          {mapDisplaySettings.showRoutes && imgBounds && Object.entries(elemNavData).map(([elIdStr, nav]) => {
+          {imgBounds && Object.entries(elemNavData).map(([elIdStr, nav]) => {
+            // אנימציה פעילה (▶) מציגה את המסלול בקו אדום עד העצירה, גם כש"הצג מסלול נסיעה" כבוי
+            const isAnimating = routeAnimProgress[Number(elIdStr)] !== undefined;
+            if (!shouldShowNavOverlay(mapDisplaySettings.showRoutes, isAnimating)) return null;
             if (!nav.viaRouteIds.length && !nav.fromPointId && !nav.toPointId) return null;
             const el = (airfieldElements || []).find((e: any) => e.id === Number(elIdStr));
             if (!el || el.x_pct == null) return null;
@@ -3654,7 +3649,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 {trimmedPaths.map((rp: any, i: number) => {
                   if (!rp) return null;
                   const isVehicle = rp.category === 'vehicle';
-                  const stroke = isVehicle ? '#f97316' : '#60a5fa';
+                  const stroke = navPathStroke(isVehicle, isAnimating);
                   return (
                     <React.Fragment key={`${rp.id}-${i}`}>
                       <polyline
