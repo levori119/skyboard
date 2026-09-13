@@ -7,11 +7,12 @@ import { describe, it, expect } from 'vitest';
 import {
   anchorFrom, pctToLatLon, latLonToPct, metersToSegment, metersToPolyline,
   DISPLAY_STATE_LABEL, effectiveBlockingStatuses, isElementBlocking,
-  nextDeviationStreak, isDeviating, routeRelevantElements, findHazards, cooldownOver, nextAlertState,
+  nextDeviationStreak, isDeviating, roadControlElements, compactWaypoints, findHazards, cooldownOver, nextAlertState,
   RUNWAY_ALERT_M, TAXIWAY_ALERT_M, ELEMENT_ALERT_M, DEVIATION_M, DEVIATION_STREAK,
   ROUTE_CORRIDOR_M, MAX_ACCURACY_M, STALE_FIX_MS, ALERT_COOLDOWN_MS, isFixStale,
 } from './tripTracking.js';
 import { distanceMeters } from './driverLogic.js';
+import { compactRouteWaypoints } from '../src/utils/trips.ts';
 
 // עוגן אמיתי בערך: שדה בנגב. שתי פינות התמונה.
 const ROW = {
@@ -76,6 +77,13 @@ describe('המרת נ"צ ↔ אחוזי מפה', () => {
     const p = latLonToPct(g.lat, g.lon, A);
     expect(p.x).toBeCloseTo(37.2, 9);
     expect(p.y).toBeCloseTo(81.9, 9);
+  });
+  // Number(null) === 0: אלמנט בלי מיקום נחת בפינת המפה במקום להיות מדולג
+  it('אחוזים חסרים (null / ריק) - null ולא פינת המפה', () => {
+    expect(pctToLatLon(null, null, A)).toBeNull();
+    expect(pctToLatLon('', 50, A)).toBeNull();
+    expect(pctToLatLon(50, undefined, A)).toBeNull();
+    expect(pctToLatLon(0, 0, A)).toEqual({ lat: 31.3, lon: 34.6 });
   });
   it('בלי עוגן - null ולא נקודה מומצאת', () => {
     expect(pctToLatLon(50, 50, null)).toBeNull();
@@ -213,28 +221,51 @@ describe('סטייה מהנתיב - שתי קריאות רצופות', () => {
   });
 });
 
-describe('אלמנטים רלוונטיים לנתיב - פרוזדור 40 מ\'', () => {
+// זה קרה בשדה: הרמזורים והמחסומים עמדו 200 מ' ויותר מהנתיב שאושר, ואחרי
+// שהפרוזדור סינן אותם הנהג קיבל מפה בלי אף אלמנט - ובנסיעה בלי נתיב שמור, בלי
+// אלמנטים בכלל. אלמנטי השליטה בתנועה מוצגים תמיד, והנתיב רק מסמן מי עליו.
+describe('roadControlElements - רמזורים, מחסומים ו-STOP BAR בשדה', () => {
   const route = [{ lat: 31.25, lon: 34.64 }, { lat: 31.25, lon: 34.66 }];
-  const near = { id: 1, name: 'מחסום', category: 'מחסומים', ...latLonToPct(31.2502, 34.65, A) };
-  const far = { id: 2, name: 'רחוק', category: 'מחסומים', ...latLonToPct(31.26, 34.65, A) };
-  const cam = { id: 3, name: 'מצלמה', category: 'camera', ...latLonToPct(31.25, 34.65, A) };
-  const toEl = e => ({ id: e.id, name: e.name, category: e.category, x_pct: e.x, y_pct: e.y });
+  const at = (lat, lon) => latLonToPct(lat, lon, A);
+  const el = (id, category, lat, lon, extra = {}) => {
+    const p = at(lat, lon);
+    return { id, name: `א${id}`, category, x_pct: p.x, y_pct: p.y, ...extra };
+  };
+  const near = el(1, 'מחסומים', 31.2502, 34.65);
+  const far = el(2, 'רמזורים', 31.26, 34.65);          // ~1.1 ק"מ
+  const stopBar = el(3, 'STOP BAR', 31.2501, 34.645);
+  const cam = el(4, 'camera', 31.25, 34.65);
+  const vehicle = el(5, 'כלי רכב', 31.25, 34.65);
+  const office = el(6, 'מקטם מנהלתי', 31.25, 34.65); // אין לו מצב שסוגר דרך
+  const typed = el(7, 'שער', 31.2502, 34.651, { type_allowed_statuses: ['פתוח', 'סגור'] });
 
-  it('רק אלמנטים בתוך הפרוזדור, עם נ"צ ומרחק', () => {
-    const r = routeRelevantElements([toEl(near), toEl(far)], route, A);
-    expect(r.map(e => e.id)).toEqual([1]);
-    expect(r[0].lat).toBeCloseTo(31.2502, 6);
-    expect(r[0].route_distance_m).toBeLessThan(ROUTE_CORRIDOR_M);
+  it('כל אלמנט שיכול לסגור דרך - גם רחוק מהנתיב', () => {
+    const r = roadControlElements([near, far, stopBar, typed], route, A);
+    expect(r.map(e => e.id)).toEqual([1, 2, 3, 7]);
   });
-  it('מצלמות וכלי רכב אינם אלמנט על הדרך', () => {
-    expect(routeRelevantElements([toEl(cam)], route, A)).toEqual([]);
+
+  it('on_route מסמן רק את מי שבתוך הפרוזדור, עם המרחק', () => {
+    const r = Object.fromEntries(roadControlElements([near, far], route, A).map(e => [e.id, e]));
+    expect(r[1].on_route).toBe(true);
+    expect(r[1].route_distance_m).toBeLessThan(ROUTE_CORRIDOR_M);
+    expect(r[2].on_route).toBe(false);
+    expect(r[2].route_distance_m).toBeGreaterThan(1000);
+    expect(r[1].lat).toBeCloseTo(31.2502, 6);
   });
-  it('בלי עוגן או בלי נתיב - אין אלמנטים', () => {
-    expect(routeRelevantElements([toEl(near)], route, null)).toEqual([]);
-    expect(routeRelevantElements([toEl(near)], [], A)).toEqual([]);
+
+  it('מצלמות, כלי רכב ואלמנט בלי מצב סוגר - לא', () => {
+    expect(roadControlElements([cam, vehicle, office], route, A)).toEqual([]);
   });
-  it('אלמנט בלי מיקום מדולג', () => {
-    expect(routeRelevantElements([{ id: 9, category: 'מחסומים', x_pct: null, y_pct: null }], route, A)).toEqual([]);
+
+  // D2: נסיעה בלי נתיב שמור - האלמנטים עדיין על המפה
+  it('בלי נתיב - כולם, בלי on_route ובלי מרחק', () => {
+    const r = roadControlElements([near, far], [], A);
+    expect(r.map(e => [e.id, e.on_route, e.route_distance_m])).toEqual([[1, false, null], [2, false, null]]);
+  });
+
+  it('בלי עוגן - אין, ואלמנט בלי מיקום מדולג', () => {
+    expect(roadControlElements([near], route, null)).toEqual([]);
+    expect(roadControlElements([{ id: 9, category: 'מחסומים', x_pct: null, y_pct: null }], route, A)).toEqual([]);
   });
 });
 
@@ -338,5 +369,23 @@ describe('nextAlertState - התרעה בכניסה לאזור, לא כל עוד 
 
   it('מצב ריק או חסר - מתנהג כהתחלה', () => {
     expect(nextAlertState([H('runway:2')], undefined, T0).toAlert).toHaveLength(1);
+  });
+});
+
+// הלקוח שומר את הנתיב באישור (compactRouteWaypoints), והשרת משלים נתיב לנסיעה
+// ישנה (compactWaypoints). צורה שונה = נתיב שהשרת השלים נקרא אחרת מנתיב שהפקח שמר.
+describe('compactWaypoints - אותה צורה כמו בלקוח', () => {
+  const samples = [
+    [{ lat: 31.25, lon: 34.65, xPct: 50, yPct: 50, routeType: 'taxiway', isCrossing: true, instruction: 'פנה', nodeId: 'n7' }],
+    [{ instruction: 'x' }, { lat: 31.2, lon: 34.6 }],
+    [{ x: 40, y: 50 }],
+    [{ lat: 31.2, lng: 34.6 }],
+    [{ lat: '31.2', lon: '34.6', routeType: '', isCrossing: 'true' }],
+    [{ lat: null, lon: 34.6, xPct: 10, yPct: '' }],
+    null,
+    'x',
+  ];
+  it.each(samples.map((x, i) => [i, x]))('דוגמה %i', (_i, raw) => {
+    expect(compactWaypoints(raw)).toEqual(compactRouteWaypoints(raw));
   });
 });

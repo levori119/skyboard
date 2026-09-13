@@ -20,9 +20,10 @@ import pool from '../db/pool.js';
 import { normalizeNationalId, nationalIdSql, driverScopeOf, driverMayUseBase, driverBaseGuard } from '../auth/driverIdentity.js';
 import { startWindowState, START_WINDOW_MINUTES, buildTemplate } from '../../shared/driverLogic.js';
 import {
-  anchorFrom, pctToLatLon, metersToPolyline, metersToSegment, isElementBlocking, routeRelevantElements,
+  anchorFrom, pctToLatLon, metersToPolyline, metersToSegment, isElementBlocking, roadControlElements, compactWaypoints,
   nextDeviationStreak, isDeviating, isFixStale, ELEMENT_ALERT_M, MAX_ACCURACY_M, DISPLAY_STATE_LABEL,
 } from '../../shared/tripTracking.js';
+import { planRoute } from './driver.js';
 
 const router = new Router();
 
@@ -1029,23 +1030,30 @@ async function airfieldGeo(airfieldId, q = pool) {
   return { map_id: row.map_id ?? null, anchor: fromMap || anchorFrom(row) };
 }
 
-/**
- * הנתיב **שהמגדל אישר**: האפשרות ב-route_options ש-route_ids שלה שווה (כקבוצה)
- * ל-selected_route_ids. לא חישוב מחדש - רשת הדרכים עלולה להשתנות בין האישור
- * ליציאה, ואז "סטייה" הייתה נמדדת מול דרך שאיש לא אישר.
- * כל נקודה מקבלת נ"צ: מהנתיב עצמו, ובהיעדרו מהאחוזים דרך העוגן.
- */
-function approvedRoute(trip, anchor) {
+/** האפשרות שהמגדל בחר: route_ids שלה שווה (כקבוצה) ל-selected_route_ids. */
+function selectedOption(trip) {
   const selected = new Set(parseList(trip.selected_route_ids).map(Number).filter(Number.isFinite));
-  if (!selected.size) return [];
-  const option = parseList(trip.route_options).find(o => {
+  if (!selected.size) return { option: null, index: -1 };
+  const options = parseList(trip.route_options);
+  const index = options.findIndex(o => {
     const ids = parseList(o?.route_ids).map(Number);
     return ids.length === selected.size && ids.every(id => selected.has(id));
   });
-  const wps = parseList(option?.waypoints);
+  return { option: index >= 0 ? options[index] : null, index };
+}
+
+/**
+ * הנתיב **שהמגדל אישר**, מהנקודות שנשמרו על האפשרות שנבחרה. לא חישוב מחדש -
+ * רשת הדרכים עלולה להשתנות בין האישור ליציאה, ואז "סטייה" הייתה נמדדת מול דרך
+ * שאיש לא אישר (לנסיעה ישנה בלי נקודות - resolveApprovedRoute).
+ * כל נקודה מקבלת נ"צ: מהנתיב עצמו, ובהיעדרו מהאחוזים דרך העוגן.
+ */
+function approvedRoute(trip, anchor) {
+  const wps = parseList(selectedOption(trip).option?.waypoints);
   const route = [];
   for (const w of wps) {
-    let lat = Number(w?.lat), lon = Number(w?.lon ?? w?.lng);
+    // num ולא Number: Number(null) הוא 0, ונקודה בלי נ"צ או בלי אחוזים נחתה בפינת המפה
+    let lat = num(w?.lat), lon = num(w?.lon ?? w?.lng);
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
       const g = pctToLatLon(w?.xPct ?? w?.x, w?.yPct ?? w?.y, anchor);
       if (!g) continue;
@@ -1053,8 +1061,8 @@ function approvedRoute(trip, anchor) {
     }
     route.push({
       lat, lon,
-      xPct: Number.isFinite(Number(w?.xPct)) ? Number(w.xPct) : null,
-      yPct: Number.isFinite(Number(w?.yPct)) ? Number(w.yPct) : null,
+      xPct: Number.isFinite(num(w?.xPct)) ? num(w.xPct) : null,
+      yPct: Number.isFinite(num(w?.yPct)) ? num(w.yPct) : null,
       routeType: w?.routeType || 'vehicle',
       isCrossing: !!w?.isCrossing,
     });
@@ -1062,11 +1070,70 @@ function approvedRoute(trip, anchor) {
   return route.length >= 2 ? route : [];
 }
 
+// ── השלמת נתיב לנסיעה שאושרה לפני שהנתיב נשמר ─────────────────────────────
+// זה קרה: כל הנסיעות שאושרו לפני שמירת הנקודות על הנסיעה הגיעו לנהג ולמגדל בלי
+// קו. הנתיב מחושב מחדש **באותו מתכנן** שהפקח ראה (planRoute), עם ההרשאות של
+// האפשרות שנבחרה - ומתקבל **רק** אם עבר בדיוק באותם מקטעים שאושרו. רשת שהשתנתה
+// מאז נותנת מקטעים אחרים, ואז אין קו: "סטייה" מול דרך שאיש לא אישר גרועה מחוסר
+// נתיב, שהמסך אומר במפורש. נתיב שהתקבל נשמר על האפשרות, כך שהחישוב קורה פעם אחת.
+
+/** ההרשאות של כל אפשרות - אותן שלוש כמו ROUTE_VARIANTS בחלון ניהול נסיעות */
+const ROUTE_VARIANT_PERMISSIONS = {
+  vehicle: ['vehicle'],
+  taxiways: ['vehicle', 'taxiways'],
+  runways: ['vehicle', 'taxiways', 'runways'],
+};
+/** חישוב שלא הניב את הנתיב שאושר אינו חוזר על כל קריאה (5 ש') - רק כשהנסיעה השתנתה או שעבר הזמן */
+const REPLAN_RETRY_MS = 10 * 60_000;
+const replanMisses = new Map();
+
+async function resolveApprovedRoute(trip, anchor) {
+  const route = approvedRoute(trip, anchor);
+  if (route.length || !anchor) return route;
+  const { option, index } = selectedOption(trip);
+  // יש נקודות שמורות ועדיין אין קו - הבעיה אינה נתיב חסר, וחישוב מחדש לא יפתור אותה
+  if (!option || parseList(option.waypoints).length) return route;
+  const permissions = ROUTE_VARIANT_PERMISSIONS[option.key];
+  if (!permissions || !trip.from_point_id || !trip.to_point_id) return [];
+
+  const missKey = `${trip.id}|${new Date(trip.updated_at).getTime()}`;
+  const missAt = replanMisses.get(missKey);
+  if (missAt && Date.now() - missAt < REPLAN_RETRY_MS) return [];
+
+  let plan = null;
+  try {
+    plan = await planRoute({
+      airfield_id: trip.airfield_id,
+      from_point_id: trip.from_point_id,
+      to_point_id: trip.to_point_id,
+      via_point_ids: parseList(trip.stops).map(st => num(st?.point_id)).filter(Boolean),
+      permissions,
+    });
+  } catch { plan = null; }
+  const approved = new Set(parseList(option.route_ids).map(Number));
+  const got = [...new Set((plan?.routeSegments || []).map(sg => Number(sg.id)))];
+  const waypoints = compactWaypoints(plan?.waypoints);
+  if (got.length !== approved.size || !got.every(id => approved.has(id)) || waypoints.length < 2) {
+    if (replanMisses.size > 1000) replanMisses.clear();
+    replanMisses.set(missKey, Date.now());
+    return [];
+  }
+
+  const options = parseList(trip.route_options);
+  const next = options.map((o, i) => (i === index ? { ...o, waypoints } : o));
+  // רק אם האפשרויות לא השתנו בינתיים (הפקח שומר בדיוק עכשיו) - לא דורסים אותו.
+  // updated_at לא מתעדכן: זו השלמה של מה שאושר, לא שינוי בנסיעה.
+  await pool.query(
+    'UPDATE entry_permit_trips SET route_options = $2::jsonb WHERE id = $1 AND route_options = $3::jsonb',
+    [trip.id, JSON.stringify(next), JSON.stringify(options)]);
+  return approvedRoute({ ...trip, route_options: next }, anchor);
+}
+
 /** קו בנ"צ מרשימת נקודות באחוזים ({x,y} או {xPct,yPct}). נקודה שכבר נושאת נ"צ - נשמרת. */
 function geoLine(points, anchor) {
   const line = [];
   for (const pt of parseList(points)) {
-    const lat = Number(pt?.lat), lon = Number(pt?.lon ?? pt?.lng);
+    const lat = num(pt?.lat), lon = num(pt?.lon ?? pt?.lng);
     if (Number.isFinite(lat) && Number.isFinite(lon)) { line.push({ lat, lon }); continue; }
     const g = pctToLatLon(pt?.xPct ?? pt?.x, pt?.yPct ?? pt?.y, anchor);
     if (g) line.push(g);
@@ -1074,20 +1141,23 @@ function geoLine(points, anchor) {
   return line;
 }
 
-/** האלמנטים שעל הנתיב, כל אחד עם נ"צ והאם הוא סוגר את הדרך עכשיו. */
+/**
+ * אלמנטי השליטה בתנועה בשדה (roadControlElements), כל אחד עם נ"צ, האם הוא על
+ * הנתיב והאם הוא סוגר את הדרך עכשיו. גם בלי נתיב - המפה לא נשארת ריקה.
+ */
 async function routeElements(airfieldId, route, anchor, q = pool) {
-  if (!anchor || route.length < 2) return [];
+  if (!anchor) return [];
   const r = await q.query(
     `SELECT ae.id, ae.name, ae.category, ae.status, ae.display_state, ae.blocking_statuses,
             ae.x_pct, ae.y_pct, ae.rotation, aet.icon AS type_icon, aet.allowed_statuses AS type_allowed_statuses
        FROM airfield_elements ae LEFT JOIN airfield_element_types aet ON aet.id = ae.element_type_id
       WHERE ae.airfield_id = $1 AND ae.x_pct IS NOT NULL AND ae.y_pct IS NOT NULL`, [airfieldId]);
-  return routeRelevantElements(r.rows, route, anchor).map(el => ({
+  return roadControlElements(r.rows, route, anchor).map(el => ({
     id: el.id, name: el.name, category: el.category, status: el.status, display_state: el.display_state,
     blocking_statuses: el.blocking_statuses, type_allowed_statuses: el.type_allowed_statuses,
     type_icon: el.type_icon, rotation: el.rotation,
     x_pct: el.x_pct, y_pct: el.y_pct, lat: el.lat, lon: el.lon,
-    route_distance_m: el.route_distance_m, blocking: isElementBlocking(el),
+    route_distance_m: el.route_distance_m, on_route: el.on_route, blocking: isElementBlocking(el),
   }));
 }
 
@@ -1138,7 +1208,7 @@ router.get('/api/driver-trips/:id/live', async (req, res) => {
     const t = await oneTrip(req.params.id);
     if (!t) return res.status(404).json({ error: 'trip_not_found' });
     const geo = await airfieldGeo(t.airfield_id);
-    const route = approvedRoute(t, geo.anchor);
+    const route = await resolveApprovedRoute(t, geo.anchor);
     const [elements, areas, from, to] = await Promise.all([
       routeElements(t.airfield_id, route, geo.anchor),
       movementAreas(t.airfield_id, geo.anchor),
@@ -1181,7 +1251,7 @@ router.post('/api/driver-trips/:id/gps', async (req, res) => {
     if (!isLiveTrip(t)) return res.status(409).json({ error: 'trip_ended' });
 
     const geo = await airfieldGeo(t.airfield_id);
-    const route = approvedRoute(t, geo.anchor);
+    const route = await resolveApprovedRoute(t, geo.anchor);
     const pos = { lat, lon: lng };
     const dev = route.length >= 2 ? metersToPolyline(pos, route) : null;
     const deviationM = dev ? dev.meters : null;
@@ -1189,7 +1259,8 @@ router.post('/api/driver-trips/:id/gps', async (req, res) => {
     const prev = (await pool.query('SELECT deviation_streak FROM entry_permit_trip_live WHERE trip_id = $1', [t.id])).rows[0];
     const streak = nextDeviationStreak(prev?.deviation_streak ?? 0, deviationM, accuracy);
 
-    // האלמנט הסוגר הקרוב ביותר על הדרך. קריאה בדיוק גרוע אינה מקפיצה התרעה.
+    // האלמנט הסוגר הקרוב ביותר **לרכב** - גם כשסטה מהנתיב, המחסום שמולו סוגר את
+    // הדרך שלו. קריאה בדיוק גרוע אינה מקפיצה התרעה.
     let blocking = null;
     if (accuracy === null || accuracy <= MAX_ACCURACY_M) {
       for (const el of await routeElements(t.airfield_id, route, geo.anchor)) {
@@ -1263,9 +1334,10 @@ router.get('/api/trips/live', async (req, res) => {
     const byTrip = new Map(live.map(l => [l.trip_id, l]));
     const geo = await airfieldGeo(Number(airfield_id));
     const now = Date.now();
-    res.json(trips.map(t => {
+    const routes = await Promise.all(trips.map(t => resolveApprovedRoute(t, geo.anchor)));
+    res.json(trips.map((t, i) => {
       const l = byTrip.get(t.id);
-      const route = approvedRoute(t, geo.anchor);
+      const route = routes[i];
       return {
         ...t,
         route,

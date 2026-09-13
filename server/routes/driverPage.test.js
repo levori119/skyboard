@@ -118,6 +118,14 @@ describe('מסך הנסיעה החי', () => {
     expect(SCRIPT).toMatch(/המפה אינה מעוגנת/);
   });
 
+  // כל אלמנטי השליטה בשדה מגיעים מהשרת; מי שאינו על הנתיב מוצג קטן, בלי תווית
+  it('אלמנט שאינו על הנתיב - מסומן off בשתי המפות, ותווית רק למי שעל הנתיב', () => {
+    expect(HTML).toMatch(/\.lt-el\.off\{/);
+    expect(SCRIPT).toContain("const onRoute = el.on_route !== false;");
+    expect(SCRIPT).toContain("el.blocking && onRoute ?");
+    expect(SCRIPT).toMatch(/opacity: el\.on_route === false \? 0\.6 : 1/);
+  });
+
   it('D5: אין הרשאת מיקום - הודעה מפורשת', () => {
     expect(SCRIPT).toMatch(/אין הרשאת מיקום/);
   });

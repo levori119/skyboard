@@ -215,14 +215,53 @@ describe('GET /api/driver-trips/:id/live - נתוני המפה לנהג', () => 
     expect(d.anchor).toMatchObject({ lat1: 31.3, lon2: 34.7 });
   });
 
-  it('רק האלמנטים שעל הדרך, כל אחד עם נ"צ והאם הוא סוגר', async () => {
+  // בשדה אמיתי הרמזורים עמדו 200 מ' ויותר מהנתיב, והנהג קיבל מפה בלי אלמנטים
+  it('כל אלמנטי השליטה בשדה, on_route מסמן את שעל הדרך, בלי מצלמות', async () => {
     const t = await mkStarted();
     const d = await (await dget(`/api/driver-trips/${t.id}/live`, MY_TZ)).json();
     const byId = Object.fromEntries(d.elements.map(e => [e.id, e]));
-    expect(Object.keys(byId).map(Number).sort()).toEqual([31, 32]);
-    expect(byId[31].blocking).toBe(true);
-    expect(byId[32].blocking).toBe(false);
+    expect(Object.keys(byId).map(Number).sort()).toEqual([31, 32, 33]);
+    expect(byId[31]).toMatchObject({ blocking: true, on_route: true });
+    expect(byId[32]).toMatchObject({ blocking: false, on_route: true });
+    expect(byId[33]).toMatchObject({ blocking: true, on_route: false });
+    expect(byId[33].route_distance_m).toBeGreaterThan(1000);
     expect(byId[31].lat).toBeCloseTo(31.2498, 4);
+  });
+
+  it('נסיעה בלי נתיב - האלמנטים עדיין על המפה', async () => {
+    const t = await mkStarted({ route_options: [], selected_route_ids: [] });
+    const d = await (await dget(`/api/driver-trips/${t.id}/live`, MY_TZ)).json();
+    expect(d.has_route).toBe(false);
+    expect(d.elements.map(e => e.id).sort()).toEqual([31, 32, 33]);
+    expect(d.elements.every(e => e.on_route === false)).toBe(true);
+  });
+
+  // זה קרה: כל הנסיעות שאושרו לפני שהנתיב נשמר על הנסיעה הגיעו לנהג בלי קו
+  it('נסיעה שאושרה לפני שמירת הנתיב - הנתיב מחושב מחדש באותו מתכנן, ונשמר', async () => {
+    const t = await mkStarted({
+      route_options: [{ key: 'vehicle', route_ids: [52], label: 'כביש היקפי', dist_m: 1900, crossings: 0 }],
+      selected_route_ids: [52], selected_route_label: 'כביש היקפי',
+    });
+    const d = await (await dget(`/api/driver-trips/${t.id}/live`, MY_TZ)).json();
+    expect(d.has_route).toBe(true);
+    expect(d.route.length).toBeGreaterThanOrEqual(2);
+    expect(d.route[0].lat).toBeCloseTo(31.25, 3);
+    expect(d.route.at(-1).lon).toBeCloseTo(34.66, 3);
+    const { rows: [row] } = await pool.query('SELECT route_options FROM entry_permit_trips WHERE id=$1', [t.id]);
+    expect(row.route_options[0].waypoints.length).toBe(d.route.length);
+    expect(row.route_options[0]).toMatchObject({ key: 'vehicle', route_ids: [52], label: 'כביש היקפי' });
+  });
+
+  // המגדל אישר נתיב אחר ממה שהמתכנן מחזיר היום (המפה השתנתה) - לא מציגים נתיב שלא אושר
+  it('חישוב מחדש שאינו הנתיב שאושר - בלי נתיב, ושום דבר לא נשמר', async () => {
+    const t = await mkStarted({
+      route_options: [{ key: 'vehicle', route_ids: [51], label: 'הסעה A', dist_m: 1, crossings: 0 }],
+      selected_route_ids: [51],
+    });
+    const d = await (await dget(`/api/driver-trips/${t.id}/live`, MY_TZ)).json();
+    expect(d.has_route).toBe(false);
+    const { rows: [row] } = await pool.query('SELECT route_options FROM entry_permit_trips WHERE id=$1', [t.id]);
+    expect(row.route_options[0].waypoints).toBeUndefined();
   });
 
   it('מסלולי טיסה והסעה - קווים בנ"צ, מכל המקורות', async () => {
@@ -241,6 +280,23 @@ describe('GET /api/driver-trips/:id/live - נתוני המפה לנהג', () => 
     expect(d.from).toMatchObject({ id: 20, name: 'שער ראשי' });
     expect(d.from.lat).toBeCloseTo(31.25, 6);
     expect(d.to).toMatchObject({ id: 21 });
+  });
+
+  // זה קרה בשדה: הצומת הווירטואלי בתחילת הנתיב נשמר עם xPct=null, Number(null) הפך
+  // אותו ל-0, והקו על מפת השדה יצא מהפינה השמאלית העליונה של המפה
+  it('נקודה עם xPct=null - האחוזים נשארים null, ונקודה עם lat=null נגזרת מהעוגן', async () => {
+    const t = await mkStarted({
+      route_options: [{ key: 'vehicle', route_ids: [5], label: 'x', dist_m: 1, crossings: 0, waypoints: [
+        { lat: 31.25, lon: 34.64, xPct: null, yPct: null, routeType: 'virtual', isCrossing: false },
+        { lat: null, lon: null, xPct: 60, yPct: 50, routeType: 'vehicle', isCrossing: false },
+      ] }],
+    });
+    const d = await (await dget(`/api/driver-trips/${t.id}/live`, MY_TZ)).json();
+    expect(d.route).toHaveLength(2);
+    expect(d.route[0]).toMatchObject({ lat: 31.25, lon: 34.64, xPct: null, yPct: null });
+    expect(d.route[1].xPct).toBe(60);
+    expect(d.route[1].lat).toBeCloseTo(31.25, 6);
+    expect(d.route[1].lon).toBeCloseTo(34.66, 6);
   });
 
   it('נסיעה של נהג אחר - 404', async () => {
@@ -272,7 +328,7 @@ describe('GET /api/driver-trips/:id/live - נתוני המפה לנהג', () => 
     const t = await mkStarted();
     const d = await (await dget(`/api/driver-trips/${t.id}/live`, MY_TZ)).json();
     expect(d.has_anchor).toBe(true);
-    expect(d.elements.map(e => e.id).sort()).toEqual([31, 32]);
+    expect(d.elements.map(e => e.id).sort()).toEqual([31, 32, 33]);
   });
 });
 
@@ -336,6 +392,13 @@ describe('POST /api/driver-trips/:id/gps - קריאה מהנהג', () => {
     const r = await (await dpost(`/api/driver-trips/${t.id}/gps`, MY_TZ, ON_ROUTE)).json();
     expect(r.blocking_element).toMatchObject({ id: 31, name: 'מחסום צפוני' });
     expect(r.blocking_element.distance_m).toBeLessThan(50);
+  });
+
+  // ההתרעה נמדדת מהרכב: רכב שסטה ונתקל במחסום סגור - המחסום סוגר את הדרך שלו
+  it('ליד מחסום סגור מחוץ לנתיב - גם נרשם', async () => {
+    const t = await mkStarted();
+    const r = await (await dpost(`/api/driver-trips/${t.id}/gps`, MY_TZ, { lat: 31.2601, lng: 34.65, accuracy: 8 })).json();
+    expect(r.blocking_element).toMatchObject({ id: 33, name: 'מחסום רחוק' });
   });
 
   it('ליד מחסום פתוח בלבד - אין חסימה', async () => {
@@ -415,6 +478,16 @@ describe('GET /api/trips/live - המגדל', () => {
     await dpost(`/api/driver-trips/${t.id}/gps`, MY_TZ, ON_ROUTE);
     const [r] = await (await get(`/api/trips/live?airfield_id=${AF}`)).json();
     expect(r.blocking_element).toMatchObject({ id: 31, name: 'מחסום צפוני', display_state: 'close', state_label: 'סגור' });
+  });
+
+  it('נסיעה שאושרה לפני שמירת הנתיב - גם המגדל מקבל את הקו', async () => {
+    await mkStarted({
+      route_options: [{ key: 'vehicle', route_ids: [52], label: 'כביש היקפי', dist_m: 1900, crossings: 0 }],
+      selected_route_ids: [52],
+    });
+    const [r] = await (await get(`/api/trips/live?airfield_id=${AF}`)).json();
+    expect(r.has_route).toBe(true);
+    expect(r.route.length).toBeGreaterThanOrEqual(2);
   });
 
   it('בלי airfield_id - רשימה ריקה', async () => {

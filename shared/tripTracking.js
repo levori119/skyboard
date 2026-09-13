@@ -63,7 +63,8 @@ export function anchorFrom(row) {
 
 /** אחוזי מפה → נ"צ. בלי עוגן - null, ולא נקודה מומצאת. */
 export function pctToLatLon(xPct, yPct, a) {
-  if (!a || !Number.isFinite(Number(xPct)) || !Number.isFinite(Number(yPct))) return null;
+  // finite ולא Number: Number(null) הוא 0, ואלמנט בלי מיקום היה נוחת בפינת המפה
+  if (!a || !Number.isFinite(finite(xPct)) || !Number.isFinite(finite(yPct))) return null;
   const tx = (Number(xPct) - a.x1) / (a.x2 - a.x1);
   const ty = (Number(yPct) - a.y1) / (a.y2 - a.y1);
   return { lat: a.lat1 + ty * (a.lat2 - a.lat1), lon: a.lon1 + tx * (a.lon2 - a.lon1) };
@@ -122,6 +123,33 @@ export function metersToPolyline(p, line) {
   return best;
 }
 
+// ── הנתיב שנשמר על הנסיעה ────────────────────────────────────────────────────
+
+/**
+ * נקודות מ-/api/route-plan בצורה המצומצמת שנשמרת ב-route_options.waypoints.
+ * **מראה של `compactRouteWaypoints`** (src/utils/trips.ts) - הלקוח שומר בה בזמן
+ * האישור, והשרת בה כשהוא משלים נתיב לנסיעה ישנה. בדיקת התאמה ב-trips.test.ts.
+ */
+export function compactWaypoints(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  for (const w of raw) {
+    if (!w || typeof w !== 'object') continue;
+    const lat = finite(w.lat), lon = finite(w.lon ?? w.lng);
+    const xPct = finite(w.xPct ?? w.x), yPct = finite(w.yPct ?? w.y);
+    const hasGeo = Number.isFinite(lat) && Number.isFinite(lon);
+    const hasPct = Number.isFinite(xPct) && Number.isFinite(yPct);
+    if (!hasGeo && !hasPct) continue;
+    out.push({
+      lat: hasGeo ? lat : null, lon: hasGeo ? lon : null,
+      xPct: hasPct ? xPct : null, yPct: hasPct ? yPct : null,
+      routeType: typeof w.routeType === 'string' && w.routeType ? w.routeType : 'vehicle',
+      isCrossing: w.isCrossing === true,
+    });
+  }
+  return out;
+}
+
 // ── אלמנט סוגר את הדרך ───────────────────────────────────────────────────────
 // הכלל של /api/live-runway-conflicts ושל חלון הניווט במגדל, מאוחד.
 
@@ -165,19 +193,29 @@ export function isElementBlocking(el) {
 }
 
 /**
- * האלמנטים שעל הדרך: בתוך `ROUTE_CORRIDOR_M` מקו הנתיב, עם נ"צ ומרחק מחושבים.
- * `route` - נקודות `{lat, lon}`. בלי עוגן אין דרך למקם אלמנט (הוא שמור באחוזים).
+ * אלמנטי השליטה בתנועה בשדה - כל אלמנט שיכול לסגור דרך (רמזור, מחסום, STOP BAR,
+ * או סוג עם סטטוסים) - עם נ"צ. `on_route` - בתוך `ROUTE_CORRIDOR_M` מקו הנתיב,
+ * עם `route_distance_m`; בלי נתיב כולם `on_route=false`.
+ *
+ * **לא מסננים לפי הנתיב.** בשדה אמיתי הרמזורים עמדו 200 מ' ויותר מהנתיב שנשמר
+ * (הנתיב הוא צמתי כבישים, והרמזור מצויר ליד הצומת), והפרוזדור השאיר את הנהג
+ * בלי אף אלמנט על המפה. ההתרעה ממילא נמדדת מהרכב (`ELEMENT_ALERT_M`), לא מהנתיב.
+ * בלי עוגן אין דרך למקם אלמנט (הוא שמור באחוזים).
  */
-export function routeRelevantElements(elements, route, anchor) {
-  if (!anchor || !Array.isArray(route) || !route.some(validPt) || !Array.isArray(elements)) return [];
+export function roadControlElements(elements, route, anchor) {
+  if (!anchor || !Array.isArray(elements)) return [];
+  const line = Array.isArray(route) && route.some(validPt) ? route : null;
   const out = [];
   for (const el of elements) {
-    if (!el || NOT_ON_ROAD.has(el.category)) continue;
+    if (!el || NOT_ON_ROAD.has(el.category) || !effectiveBlockingStatuses(el).length) continue;
     const g = pctToLatLon(el.x_pct, el.y_pct, anchor);
     if (!g) continue;
-    const d = metersToPolyline(g, route);
-    if (!d || d.meters > ROUTE_CORRIDOR_M) continue;
-    out.push({ ...el, lat: g.lat, lon: g.lon, route_distance_m: d.meters, route_index: d.index });
+    const d = line ? metersToPolyline(g, line) : null;
+    out.push({
+      ...el, lat: g.lat, lon: g.lon,
+      route_distance_m: d ? d.meters : null,
+      on_route: !!d && d.meters <= ROUTE_CORRIDOR_M,
+    });
   }
   return out;
 }
