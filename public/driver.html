@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
-<title>כניסת רכב לבסיס</title>
+<title>SKY-KING DRIVER</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:system-ui,-apple-system,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh;direction:rtl}
@@ -115,20 +115,100 @@
   .trip-chip{display:inline-block;padding:1px 8px;border-radius:9px;font-size:11px;font-weight:700}
   .trip-btn{flex:1;padding:9px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer}
   .nav-btn-fab{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:4900;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;border:none;border-radius:28px;padding:13px 28px;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(124,58,237,.5);white-space:nowrap;display:none}
+
+  /* ── מסך הכניסה: אמבולנס ומשאית נכנסים לבסיס ─────────────────────────── */
+  .gate-scene{position:relative;height:118px;margin:0 0 14px;overflow:hidden;border-radius:12px;background:linear-gradient(#0b1a33,#13284a 62%,#1f2937 62%)}
+  .gate-scene .stars{position:absolute;inset:0;background-image:radial-gradient(#cbd5e1 1px,transparent 1.5px);background-size:38px 26px;opacity:.25}
+  .gate-scene .road{position:absolute;left:0;right:0;bottom:0;height:45px;background:#1f2937}
+  .gate-scene .dashes{position:absolute;left:-60px;right:-60px;bottom:20px;height:4px;background:repeating-linear-gradient(90deg,#facc15 0 26px,transparent 26px 52px);animation:roadMove .45s linear 5}
+  .gate-scene .barrier{position:absolute;right:26px;bottom:38px;width:70px;height:6px;border-radius:3px;background:repeating-linear-gradient(90deg,#ef4444 0 12px,#f8fafc 12px 24px);transform-origin:right center;animation:barrierUp .7s 1.6s ease-out forwards}
+  .gate-scene .post{position:absolute;right:20px;bottom:24px;width:10px;height:26px;border-radius:3px;background:#94a3b8}
+  .gate-scene .veh{position:absolute;bottom:14px;transform:translateX(-160%)}
+  .gate-scene .veh-amb{left:40px;animation:driveIn 1.5s cubic-bezier(.2,.75,.25,1) forwards}
+  .gate-scene .veh-truck{left:-4px;bottom:12px;animation:driveInTruck 1.9s .35s cubic-bezier(.2,.75,.25,1) forwards}
+  .gate-scene .wheel{transform-box:fill-box;transform-origin:center;animation:wheelSpin .35s linear 5}
+  .gate-scene .siren-r{animation:sirenBlink .5s steps(1) infinite}
+  .gate-scene .siren-b{animation:sirenBlink .5s .25s steps(1) infinite}
+  .gate-scene .brand{position:absolute;top:10px;right:14px;font-size:13px;font-weight:800;letter-spacing:1.5px;color:#e2e8f0;opacity:0;animation:fadeUp .6s 1.2s forwards}
+  @keyframes roadMove{to{transform:translateX(-52px)}}
+  @keyframes driveIn{from{transform:translateX(-360px)}to{transform:translateX(118px)}}
+  @keyframes driveInTruck{from{transform:translateX(-420px)}to{transform:translateX(16px)}}
+  @keyframes wheelSpin{to{transform:rotate(360deg)}}
+  @keyframes barrierUp{to{transform:rotate(-70deg)}}
+  @keyframes sirenBlink{50%{opacity:.15}}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){
+    .gate-scene *{animation-duration:.01s!important;animation-iteration-count:1!important;animation-delay:0s!important}
+  }
+
+  /* ── ברכה אחרי כניסה ──────────────────────────────────────────────────── */
+  #greetSplash{position:fixed;inset:0;z-index:99990;background:radial-gradient(circle at 50% 40%,#1e3a8a,#0b1220 70%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;transition:opacity .45s}
+  #greetSplash .g1{font-size:30px;font-weight:800;color:#f8fafc;opacity:0;animation:fadeUp .6s .1s forwards}
+  #greetSplash .g2{font-size:22px;font-weight:700;color:#7dd3fc;opacity:0;animation:fadeUp .6s .45s forwards}
+  #greetSplash .g3{font-size:40px;opacity:0;animation:fadeUp .6s .8s forwards}
+
+  /* ── דף הבית: טאבים ───────────────────────────────────────────────────── */
+  #homeScreen{display:none;padding-bottom:128px}
+  .home-hello{font-size:21px;font-weight:800;color:#f8fafc}
+  .home-hello-sub{font-size:12px;color:#94a3b8;margin-top:2px}
+  .home-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px}
+  .home-top .spacer{flex:1}
+  .ghost-btn{padding:8px 12px;background:#334155;color:#e2e8f0;border:none;border-radius:8px;font-size:13px;cursor:pointer}
+  .base-card{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:10px 12px;margin-bottom:12px}
+  .base-card label{display:block;font-size:12px;color:#94a3b8;margin-bottom:5px}
+  .base-card select{width:100%;padding:11px 12px;background:#0f172a;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:15px;-webkit-appearance:none}
+  .base-gps{font-size:11px;color:#4ade80;margin-top:5px}
+  .tabs{display:flex;gap:6px;margin-bottom:12px;position:sticky;top:70px;z-index:50;background:#0f172a;padding:4px 0}
+  .tab{flex:1;padding:10px 4px;border:1.5px solid #334155;border-radius:10px;background:#1e293b;color:#94a3b8;font-size:13px;font-weight:700;cursor:pointer;line-height:1.25}
+  .tab.on{background:#0c4a6e;border-color:#38bdf8;color:#f0f9ff}
+  .tab .n{display:inline-block;min-width:18px;padding:0 5px;margin-inline-start:4px;border-radius:9px;background:#334155;color:#e2e8f0;font-size:11px}
+  .tab.on .n{background:#38bdf8;color:#082f49}
+  .group-title{font-size:13px;font-weight:700;margin:14px 2px 7px}
+  .empty-tab{color:#64748b;font-size:13px;text-align:center;padding:26px 10px}
+  .trip-base{font-size:10px;color:#7dd3fc;border:1px solid #0c4a6e;border-radius:8px;padding:0 6px;margin-inline-start:6px}
+  .trip-card{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:11px 12px;margin-bottom:9px}
+  .trip-card.rejected{border-color:#7f1d1d}
+  .trip-card.done{opacity:.85}
+  .home-bar{position:fixed;left:0;right:0;bottom:0;z-index:4800;background:linear-gradient(transparent,#0f172a 30%);padding:18px 16px 14px}
+  .home-bar .inner{max-width:480px;margin:0 auto;display:flex;flex-direction:column;gap:7px}
+  .home-bar .gate-link{background:none;border:none;color:#94a3b8;font-size:13px;cursor:pointer;padding:4px;text-decoration:underline}
+  #toast{position:fixed;left:50%;bottom:120px;transform:translateX(-50%);z-index:99980;background:#166534;color:#f0fdf4;padding:10px 16px;border-radius:10px;font-size:14px;font-weight:700;box-shadow:0 6px 20px rgba(0,0,0,.4);display:none;width:max-content;max-width:90vw;text-align:center}
+
+  /* ── טופס בקשה חדשה ───────────────────────────────────────────────────── */
+  #requestScreen{display:none;padding-bottom:40px}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .field textarea{width:100%;padding:12px 14px;background:#0f172a;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:15px;outline:none;direction:rtl;font-family:inherit;resize:vertical}
+  .field input.other{margin-top:6px}
+  .list-row{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+  .list-row select,.list-row input{flex:1;min-width:0;padding:10px;background:#0f172a;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:14px}
+  .x-btn{flex:0 0 auto;width:36px;height:36px;border:none;border-radius:8px;background:#334155;color:#fca5a5;font-size:16px;cursor:pointer}
+  .add-btn{background:none;border:1.5px dashed #475569;color:#94a3b8;border-radius:8px;padding:8px;width:100%;font-size:13px;cursor:pointer}
+  .form-errors{background:#450a0a;border:1px solid #991b1b;color:#fecaca;border-radius:8px;padding:9px 12px;font-size:13px;margin-bottom:12px;display:none}
+  .req-note{font-size:12px;color:#64748b;margin:-4px 2px 14px}
 </style>
+<!-- הלוגיקה הטהורה (ברכה, בסיס קרוב, טאבים, בניית בקשה) - מודול נבדק ב-vitest:
+     shared/driverLogic.js, מוגש מ-/driver/logic.js. מודול נטען אחרי הפענוח, ולכן
+     הקוד שמשתמש בו מחכה לאירוע driverlogic (ראה whenLogic). -->
+<script type="module">
+  import * as DriverLogic from '/driver/logic.js';
+  window.DriverLogic = DriverLogic;
+  window.dispatchEvent(new Event('driverlogic'));
+</script>
 </head>
 <body>
 
 <div class="header">
-  <span class="header-icon">🚛</span>
+  <span class="header-icon">🚑</span>
   <div>
-    <div class="header h1" style="font-size:18px;font-weight:700;color:#f1f5f9">כניסת רכב לבסיס</div>
-    <div class="sub" id="headerSub">מלא פרטים לאישור כניסה</div>
+    <div style="font-size:18px;font-weight:700;color:#f1f5f9">SKY-KING DRIVER</div>
+    <div class="sub" id="headerSub">אפליקציית הנהג</div>
   </div>
 </div>
 
-<!-- FORM SCREEN -->
-<div id="formScreen" class="container">
+<!-- FORM SCREEN - "כניסה לשער עכשיו": בקשת כניסה חיה, מסלול, ניווט ו-GPS.
+     כבר לא מסך הפתיחה - נפתח מדף הבית. -->
+<div id="formScreen" class="container" style="display:none">
+  <button class="ghost-btn" style="margin-bottom:12px" onclick="goHome()">→ חזרה לנסיעות שלי</button>
   <div class="card">
     <div class="card-title">פרטי הנהג</div>
     <div class="field">
@@ -203,7 +283,7 @@
       <input id="plateNumber" type="text" placeholder="למשל: 12-345-67"/>
     </div>
   </div>
-  <button class="btn btn-primary" onclick="submitRequest()">📤 שלח בקשת כניסה</button>
+  <button class="btn btn-primary" id="gateSubmitBtn" onclick="submitRequest()">📤 שלח בקשת כניסה</button>
 </div>
 
 <!-- WAITING SCREEN -->
@@ -326,25 +406,137 @@
 <!-- FAB button to open nav sheet -->
 <button id="navFab" class="nav-btn-fab" onclick="openNavSheet()">🧭 ניווט שדה</button>
 
-<!-- MY TRIPS - הנסיעות שהמגדל תכנן לנהג הזה -->
-<button id="tripsFab" class="trips-fab" onclick="openTripsSheet()">🚙 הנסיעות שלי<span id="tripsFabBadge" class="badge" style="display:none">0</span></button>
-
-<div id="tripsSheet" class="nav-sheet">
-  <div class="nav-sheet-handle"></div>
-  <div class="nav-sheet-hdr">
-    <span style="font-size:15px;font-weight:700;color:#38bdf8">🚙 הנסיעות שלי</span>
-    <button onclick="closeTripsSheet()" style="background:none;border:none;color:#64748b;font-size:18px;cursor:pointer;padding:4px 8px">✕</button>
-  </div>
-  <div class="nav-sheet-body">
-    <!-- הנסיעות נשלפות לפי הת"ז שאיתה הנהג נכנס - אין מה להקליד כאן -->
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
-      <div style="flex:1;font-size:12px;color:#94a3b8">מחובר: <span id="tripsDriverName" style="color:#e2e8f0;font-weight:700"></span></div>
-      <button onclick="loadMyTrips()" style="padding:9px 16px;background:#0284c7;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">רענן</button>
-      <button onclick="driverLogout()" style="padding:9px 12px;background:#334155;color:#e2e8f0;border:none;border-radius:8px;font-size:13px;cursor:pointer">יציאה</button>
+<!-- HOME - הנסיעות של הנהג: מאושרות / בקשות ממתינות / היסטוריה -->
+<div id="homeScreen" class="container">
+  <div class="home-top">
+    <div class="spacer">
+      <div class="home-hello" id="homeHello"></div>
+      <div class="home-hello-sub">הנסיעות והבקשות שלך</div>
     </div>
-    <div id="tripsList"></div>
+    <button class="ghost-btn" onclick="loadHome()">רענן</button>
+    <button class="ghost-btn" onclick="driverLogout()">יציאה</button>
+  </div>
+
+  <!-- נהג שמורשה לכמה בסיסים בוחר את הבסיס. ברירת המחדל - הקרוב לפי GPS -->
+  <div class="base-card" id="homeBaseCard" style="display:none">
+    <label for="homeBaseSel">הבסיס שלך</label>
+    <select id="homeBaseSel" onchange="onHomeBaseChange(this.value)"></select>
+    <div class="base-gps" id="homeBaseGps" style="display:none">📍 נבחר לפי המיקום שלך - אפשר לבחור בסיס אחר</div>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" id="tabApproved" onclick="switchTab('approved')">✅ מאושרות<span class="n" id="nApproved">0</span></button>
+    <button class="tab" id="tabPending" onclick="switchTab('pending')">⏳ ממתינות<span class="n" id="nPending">0</span></button>
+    <button class="tab" id="tabHistory" onclick="switchTab('history')">🕘 היסטוריה</button>
+  </div>
+  <div id="homeList"></div>
+</div>
+
+<div class="home-bar" id="homeBar" style="display:none">
+  <div class="inner">
+    <button class="btn btn-primary" onclick="openNewRequest()">➕ בקשה חדשה</button>
+    <!-- כניסה חיה לשער: בקשת כניסה, מסלול, ניווט ו-GPS - הזרימה הקיימת -->
+    <button class="gate-link" onclick="openGateEntry()">🚧 כניסה לשער עכשיו</button>
   </div>
 </div>
+
+<!-- NEW REQUEST - טופס נסיעה כמו בחלון "ניהול נסיעות", בלי חלקי האישור -->
+<div id="requestScreen" class="container">
+  <div class="home-top">
+    <div class="spacer"><div class="home-hello">➕ בקשת נסיעה חדשה</div></div>
+    <button class="ghost-btn" onclick="goHome()">ביטול</button>
+  </div>
+  <div class="req-note">הבקשה תישלח למגדל לאישור. הנתיב והאישור נקבעים במגדל.</div>
+  <div class="form-errors" id="reqErrors"></div>
+
+  <div class="card">
+    <div class="card-title">בסיס ורכב</div>
+    <div class="field" id="reqBaseField">
+      <label for="reqBase">בסיס *</label>
+      <select id="reqBase" onchange="loadRequestOptions(this.value)"></select>
+    </div>
+    <div class="field" id="reqAirfieldField">
+      <label for="reqAirfield">שדה *</label>
+      <select id="reqAirfield" onchange="fillRequestPoints()"></select>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label for="reqTripType">סוג נסיעה</label>
+        <select id="reqTripType"></select>
+      </div>
+      <div class="field">
+        <label for="reqVehicleType">סוג רכב</label>
+        <select id="reqVehicleType"></select>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label for="reqVehicleName">שם / מספר רכב</label>
+        <input id="reqVehicleName" type="text" placeholder="למשל: מיניבוס 12-345-67"/>
+      </div>
+      <div class="field">
+        <label for="reqDriverPhone">הטלפון שלך</label>
+        <input id="reqDriverPhone" type="tel" inputmode="tel" style="direction:ltr;text-align:right"/>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">מועד ומסלול</div>
+    <div class="row2">
+      <div class="field">
+        <label for="reqDate">תאריך *</label>
+        <input id="reqDate" type="date"/>
+      </div>
+      <div class="field">
+        <label for="reqTime">שעת יציאה *</label>
+        <input id="reqTime" type="time"/>
+      </div>
+    </div>
+    <div class="field">
+      <label for="reqFrom">מוצא *</label>
+      <select id="reqFrom" onchange="toggleOther('reqFrom')"></select>
+      <input id="reqFromText" class="other" type="text" placeholder="מוצא בטקסט חופשי" style="display:none"/>
+    </div>
+    <div class="field">
+      <label>תחנות ביניים</label>
+      <div id="reqStops"></div>
+      <button class="add-btn" type="button" onclick="addReqStop()">➕ הוסף תחנה</button>
+    </div>
+    <div class="field">
+      <label for="reqTo">יעד *</label>
+      <select id="reqTo" onchange="toggleOther('reqTo')"></select>
+      <input id="reqToText" class="other" type="text" placeholder="יעד בטקסט חופשי" style="display:none"/>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">מבקש הנסיעה ונלווים</div>
+    <div class="row2">
+      <div class="field">
+        <label for="reqRequester">מבקש הנסיעה</label>
+        <input id="reqRequester" type="text"/>
+      </div>
+      <div class="field">
+        <label for="reqRequesterPhone">טלפון המבקש</label>
+        <input id="reqRequesterPhone" type="tel" inputmode="tel" style="direction:ltr;text-align:right"/>
+      </div>
+    </div>
+    <div class="field">
+      <label>נלווים</label>
+      <div id="reqEscorts"></div>
+      <button class="add-btn" type="button" onclick="addReqEscort()">➕ הוסף נלווה</button>
+    </div>
+    <div class="field">
+      <label for="reqNote">הערה</label>
+      <textarea id="reqNote" rows="2"></textarea>
+    </div>
+  </div>
+
+  <button class="btn btn-success" id="reqSubmitBtn" onclick="submitTripRequest()">📤 שלח בקשה למגדל</button>
+</div>
+
+<div id="toast"></div>
 
 <!-- CROSSING ALERT OVERLAY -->
 <div id="crossingAlertOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:10000;align-items:center;justify-content:center;padding:20px;direction:rtl;flex-direction:column">
@@ -446,6 +638,37 @@ const DRIVER_LOGIN_ERRORS = {
   no_base_permitted: 'לא שויכת לאף בסיס. פנה למנהל המערכת.',
 };
 
+// סצנת הכניסה: אמבולנס ומשאית נכנסים, והמחסום עולה. CSS בלבד (.gate-scene),
+// ומכבדת prefers-reduced-motion.
+const GATE_SCENE =
+  '<div class="gate-scene" aria-hidden="true">' +
+    '<div class="stars"></div><div class="road"></div><div class="dashes"></div>' +
+    '<div class="post"></div><div class="barrier"></div>' +
+    '<div class="brand">SKY-KING DRIVER</div>' +
+    // משאית
+    '<svg class="veh veh-truck" width="112" height="52" viewBox="0 0 112 52">' +
+      '<rect x="2" y="6" width="66" height="32" rx="3" fill="#cbd5e1"/>' +
+      '<rect x="6" y="11" width="58" height="4" fill="#94a3b8"/>' +
+      '<path d="M70 16 h22 l14 12 v10 h-36 z" fill="#f59e0b"/>' +
+      '<path d="M76 19 h14 l9 8 h-23 z" fill="#bae6fd"/>' +
+      '<rect x="2" y="37" width="104" height="4" fill="#475569"/>' +
+      '<g class="wheel"><circle cx="20" cy="43" r="8" fill="#0f172a"/><circle cx="20" cy="43" r="3" fill="#94a3b8"/><rect x="19" y="36" width="2" height="4" fill="#94a3b8"/></g>' +
+      '<g class="wheel"><circle cx="88" cy="43" r="8" fill="#0f172a"/><circle cx="88" cy="43" r="3" fill="#94a3b8"/><rect x="87" y="36" width="2" height="4" fill="#94a3b8"/></g>' +
+    '</svg>' +
+    // אמבולנס
+    '<svg class="veh veh-amb" width="104" height="50" viewBox="0 0 104 50">' +
+      '<rect x="4" y="8" width="64" height="30" rx="4" fill="#f8fafc"/>' +
+      '<path d="M68 14 h16 l14 12 v12 h-30 z" fill="#f8fafc"/>' +
+      '<path d="M72 17 h10 l10 9 h-20 z" fill="#bae6fd"/>' +
+      '<rect x="4" y="26" width="94" height="4" fill="#ef4444"/>' +
+      '<rect x="30" y="12" width="6" height="16" fill="#ef4444"/><rect x="25" y="17" width="16" height="6" fill="#ef4444"/>' +
+      '<rect class="siren-r" x="14" y="3" width="10" height="5" rx="2" fill="#ef4444"/>' +
+      '<rect class="siren-b" x="26" y="3" width="10" height="5" rx="2" fill="#3b82f6"/>' +
+      '<g class="wheel"><circle cx="22" cy="40" r="8" fill="#0f172a"/><circle cx="22" cy="40" r="3" fill="#94a3b8"/><rect x="21" y="33" width="2" height="4" fill="#94a3b8"/></g>' +
+      '<g class="wheel"><circle cx="80" cy="40" r="8" fill="#0f172a"/><circle cx="80" cy="40" r="3" fill="#94a3b8"/><rect x="79" y="33" width="2" height="4" fill="#94a3b8"/></g>' +
+    '</svg>' +
+  '</div>';
+
 function showDriverGate(errText) {
   let el = document.getElementById('driverGate');
   if (!el) {
@@ -453,7 +676,8 @@ function showDriverGate(errText) {
     el.id = 'driverGate';
     el.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#0b1220;color:#e2e8f0;display:flex;align-items:center;justify-content:center;padding:20px;font-family:inherit';
     el.innerHTML =
-      '<form id="driverGateForm" style="background:#152238;padding:26px 24px;border-radius:14px;width:100%;max-width:340px;border:1px solid #24344f">' +
+      '<form id="driverGateForm" style="background:#152238;padding:18px 20px 22px;border-radius:14px;width:100%;max-width:360px;border:1px solid #24344f">' +
+        GATE_SCENE +
         '<h2 style="margin:0 0 6px;font-size:19px">כניסת נהג - DRIVER</h2>' +
         '<p style="margin:0 0 16px;color:#93a4bd;font-size:13px">כניסה לנהגים מורשים בלבד</p>' +
         '<input name="nationalId" type="text" inputmode="numeric" autocomplete="username" maxlength="12" placeholder="ת&quot;ז" ' +
@@ -488,6 +712,8 @@ function showDriverGate(errText) {
       DRIVER_TOKEN = b.token;
       sessionStorage.setItem(DRIVER_TOKEN_KEY, DRIVER_TOKEN);
       sessionStorage.setItem(DRIVER_NAME_KEY, (b.driver && b.driver.name) || '');
+      // אחרי הטעינה מחדש - ברכה מלאת מסך, פעם אחת (initHome)
+      sessionStorage.setItem('skyking-driver-just-in', '1');
       el.remove();
       location.reload(); // טעינה נקייה עם אסימון תקף, בלי לשחזר מצב חלקי
     };
@@ -950,12 +1176,15 @@ window.addEventListener('load', () => {
 });
 
 function showScreen(id) {
-  ['formScreen','waitingScreen','approvedScreen','rejectedScreen','arrivedScreen'].forEach(s => {
+  ['homeScreen','requestScreen','formScreen','waitingScreen','approvedScreen','rejectedScreen','arrivedScreen'].forEach(s => {
     const el = document.getElementById(s);
     if (!el) return;
     el.style.display = s === id ? 'block' : 'none';
-    if (s !== 'formScreen') el.classList.toggle('active', s === id);
+    if (!['homeScreen','requestScreen','formScreen'].includes(s)) el.classList.toggle('active', s === id);
   });
+  // סרגל "בקשה חדשה" שייך לדף הבית בלבד
+  const bar = document.getElementById('homeBar');
+  if (bar) bar.style.display = id === 'homeScreen' ? '' : 'none';
   // Show nav FAB when base is selected and on form/waiting/approved screens
   const showFab = ['formScreen','waitingScreen','approvedScreen'].includes(id) && navAirfieldId != null;
   showNavFab(showFab);
@@ -991,7 +1220,7 @@ function validate() {
 
 async function submitRequest() {
   if (!validate()) return;
-  const btn = document.querySelector('.btn-primary');
+  const btn = document.getElementById('gateSubmitBtn');
   btn.textContent = '⏳ שולח...'; btn.disabled = true;
   try {
     const originName = getOriginName();
@@ -1080,7 +1309,7 @@ async function pollStatus() {
         document.getElementById('driverMsgOverlay').style.display = 'none';
         localStorage.removeItem('driverRequest');
         requestId = null; currentRequest = null;
-        showScreen('formScreen');
+        goHome();
       }, 5000);
     } else if (req.status === 'rejected') {
       clearInterval(pollInterval); stopGPS();
@@ -1155,7 +1384,7 @@ async function cancelApproved() {
   stopGPS();
   localStorage.removeItem('driverRequest');
   requestId = null; currentRequest = null;
-  showScreen('formScreen');
+  goHome();
 }
 
 function showApproved(req) {
@@ -1413,71 +1642,206 @@ function resetApp() {
   document.getElementById('destSel').disabled = true;
   adminLocPoints = [];
   document.getElementById('baseInfoPanel').classList.remove('visible');
-  showScreen('formScreen');
+  goHome();
 }
 
-// ── הנסיעות שלי ──────────────────────────────────────────────────────────────
+// ── דף הבית: ברכה, בסיס, טאבים ובקשה חדשה ────────────────────────────────────
 //
-// הנסיעות שהמגדל תכנן לנהג הזה. הנהג **מאשר** נסיעה, ו**מבקש לשנות** זמן
-// יציאה / תחנות / הערה - ושתי הפעולות מקפיצות התראה מתפרצת במגדל.
+// המסך הראשי של הנהג אחרי הכניסה:
+//   ✅ נסיעות מאושרות  - מהמוקדמת למאוחרת
+//   ⏳ בקשות ממתינות  - מקובצות: ממתין לאישור / נדחה, כל קבוצה מהמוקדמת
+//   🕘 היסטוריה       - רק נסיעות שבוצעו (status=ended)
+//   ➕ בקשה חדשה      - טופס הנסיעה של המגדל, בלי חלקי האישור (סטטוס, נתיב, אישור הסתובבות)
 //
 // ⚠️ בקשת שינוי **אינה משנה את הנסיעה**: היא נשמרת בצד וממתינה לאישור נוסף של
-// המגדל. אחרת הנהג היה משנה מתחת לידיו נסיעה שהוא כבר אישר, והמגדל היה מגלה
-// זאת רק כשהרכב לא מגיע.
+// המגדל. אחרת הנהג היה משנה מתחת לידיו נסיעה שהוא כבר אישר.
 //
-// זהות: הנסיעות נשלפות לפי **הת"ז שבאסימון** - זו שאיתה הנהג נכנס במיראז'.
-// השרת מתעלם מכל מזהה שהלקוח שולח, ולכן אין כאן שדה להקליד.
+// זהות: הנסיעות נשלפות לפי **הת"ז שבאסימון**, ורק בבסיסים שהנהג מורשה אליהם
+// בהרשאת SKY-KING DRIVER. ההחלטות הטהורות (ברכה, בסיס קרוב, חלוקה לטאבים, בניית
+// הבקשה) יושבות ב-shared/driverLogic.js ונבדקות שם.
+
+const JUST_IN_KEY = 'skyking-driver-just-in';
+const LAST_BASE_KEY = 'skyking-driver-base';
+const DRIVER_PHONE_KEY = 'skyking-driver-phone';
+const OTHER = '__other';
 
 let myTrips = [];
-let tripsPollInterval = null;
+let historyTrips = [];
+let historyLoaded = false;
+let homeTab = 'approved';
+let homePoll = null;
 let tripChangeOpenId = null;
+let homeBases = [];
+let homeBaseId = null;
+let baseChosenByGps = false;
+let reqOptions = null;
+let reqStops = [];
+let reqEscorts = [];
 
 const TRIP_STATUS_HE = {
   approved: { label: 'יש אישור', color: '#22c55e' },
-  not_approved: { label: 'אין אישור', color: '#ef4444' },
-  pending: { label: 'ממתין', color: '#f59e0b' },
-  ended: { label: 'הסתיים', color: '#94a3b8' },
+  not_approved: { label: 'נדחה', color: '#ef4444' },
+  pending: { label: 'ממתין לאישור', color: '#f59e0b' },
+  ended: { label: 'בוצעה', color: '#94a3b8' },
 };
 
 function tripStatusOf(t) { return TRIP_STATUS_HE[t.status] || TRIP_STATUS_HE.pending; }
 
-function openTripsSheet() {
-  document.getElementById('tripsDriverName').textContent = sessionStorage.getItem(DRIVER_NAME_KEY) || '';
-  document.getElementById('tripsSheet').classList.add('open');
-  loadMyTrips();
-  // סקר קל כל 20 שניות - כדי שאישור שהמגדל נתן יופיע בלי לרענן ידנית
-  if (!tripsPollInterval) tripsPollInterval = setInterval(loadMyTrips, 20000);
+/** המודול נטען אחרי הפענוח - מחכים לו לפני שמשתמשים בו. */
+function whenLogic(fn) {
+  if (window.DriverLogic) fn();
+  else window.addEventListener('driverlogic', fn, { once: true });
 }
 
-function closeTripsSheet() {
-  document.getElementById('tripsSheet').classList.remove('open');
-  if (tripsPollInterval) { clearInterval(tripsPollInterval); tripsPollInterval = null; }
+function showToast(text) {
+  const el = document.getElementById('toast');
+  el.textContent = text;
+  el.style.display = 'block';
+  clearTimeout(showToast.t);
+  showToast.t = setTimeout(() => { el.style.display = 'none'; }, 3200);
 }
 
-async function loadMyTrips() {
+/** ברכה מלאת מסך מיד אחרי כניסה - פעם אחת, לא בכל רענון. */
+function showGreetingSplash(name) {
+  const el = document.createElement('div');
+  el.id = 'greetSplash';
+  el.innerHTML = `<div class="g3">🚑 🚚</div><div class="g1">${esc(DriverLogic.greetingFor())}</div><div class="g2">${esc(name)}</div>`;
+  document.body.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; }, 1700);
+  setTimeout(() => el.remove(), 2200);
+}
+
+async function initHome() {
+  const name = sessionStorage.getItem(DRIVER_NAME_KEY) || '';
+  if (sessionStorage.getItem(JUST_IN_KEY)) {
+    sessionStorage.removeItem(JUST_IN_KEY);
+    showGreetingSplash(name);
+  }
+  await loadHomeBases();
+  // בקשת כניסה חיה לשער שנפתחה קודם - הזרימה שלה גוברת (ראה ה-load למעלה)
+  if (!hasActiveGateRequest()) goHome();
+}
+
+/** בקשת כניסה חיה לשער שעדיין בתהליך - ה-load משחזר אותה למסך ההמתנה. */
+function hasActiveGateRequest() {
+  try {
+    const data = JSON.parse(localStorage.getItem('driverRequest') || 'null');
+    return !!data && !['arrived', 'rejected', 'cancelled'].includes(data.status);
+  } catch (e) { return false; }
+}
+
+function goHome(tab) {
+  if (tab) homeTab = tab;
+  showScreen('homeScreen');
+  renderHomeHeader();
+  renderHome();
+  loadHome();
+  window.scrollTo(0, 0);
+  // סקר קל כל 20 שניות, רק כשדף הבית מוצג - אישור שהמגדל נתן מופיע בלי רענון
+  if (!homePoll) {
+    homePoll = setInterval(() => {
+      if (document.getElementById('homeScreen').style.display !== 'none') loadHome();
+    }, 20000);
+  }
+}
+
+// ── בסיס: ברירת מחדל לפי GPS ─────────────────────────────────────────────────
+
+async function loadHomeBases() {
+  try {
+    const res = await fetch(`${BASE}/api/aviation-bases`);
+    homeBases = res.ok ? await res.json() : [];
+  } catch (e) { homeBases = []; }
+  const last = Number(localStorage.getItem(LAST_BASE_KEY));
+  homeBaseId = (homeBases.find(b => b.id === last) || homeBases[0] || {}).id ?? null;
+  renderHomeBases();
+  // כמה בסיסים - מציעים את הקרוב למיקום הטלפון. הבחירה נשארת בידי הנהג.
+  if (homeBases.length > 1 && navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      const near = DriverLogic.nearestBase(homeBases, { lat: pos.coords.latitude, lng: pos.coords.longitude });
+      if (near) { homeBaseId = near.id; baseChosenByGps = true; renderHomeBases(); }
+    }, () => {}, { enableHighAccuracy: false, timeout: 8000, maximumAge: 120000 });
+  }
+}
+
+function renderHomeBases() {
+  const card = document.getElementById('homeBaseCard');
+  card.style.display = homeBases.length > 1 ? '' : 'none';
+  const sel = document.getElementById('homeBaseSel');
+  sel.innerHTML = homeBases.map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('');
+  if (homeBaseId != null) sel.value = String(homeBaseId);
+  document.getElementById('homeBaseGps').style.display = baseChosenByGps ? '' : 'none';
+  renderHomeHeader();
+}
+
+function onHomeBaseChange(v) {
+  homeBaseId = Number(v);
+  baseChosenByGps = false;
+  localStorage.setItem(LAST_BASE_KEY, String(homeBaseId));
+  renderHomeBases();
+}
+
+function renderHomeHeader() {
+  const name = sessionStorage.getItem(DRIVER_NAME_KEY) || '';
+  const hello = window.DriverLogic ? DriverLogic.greetingFor() : 'שלום';
+  document.getElementById('homeHello').textContent = name ? `${hello}, ${name}` : hello;
+}
+
+// ── טאבים ────────────────────────────────────────────────────────────────────
+
+async function loadHome() {
   if (!DRIVER_TOKEN) return;
   try {
     const res = await fetch(`${BASE}/api/driver-trips`);
-    myTrips = res.ok ? await res.json() : [];
-  } catch (e) { myTrips = []; }
-  renderMyTrips();
-  updateTripsBadge();
+    if (res.ok) myTrips = await res.json();
+  } catch (e) { /* נשארים עם הרשימה האחרונה */ }
+  if (homeTab === 'history' || historyLoaded) await loadHistory();
+  renderHome();
 }
 
-/** נסיעה שממתינה לאישור הנהג - זה מה שהתג על הכפתור סופר. */
-function tripAwaitsDriver(t) { return !t.driver_ack_at && t.status !== 'ended'; }
+async function loadHistory() {
+  try {
+    const res = await fetch(`${BASE}/api/driver-trips?view=history`);
+    if (res.ok) { historyTrips = await res.json(); historyLoaded = true; }
+  } catch (e) { /* נשארים עם הרשימה האחרונה */ }
+}
 
-function updateTripsBadge() {
-  const n = myTrips.filter(tripAwaitsDriver).length;
-  const badge = document.getElementById('tripsFabBadge');
-  badge.textContent = String(n);
-  badge.style.display = n > 0 ? 'inline-block' : 'none';
+async function switchTab(tab) {
+  homeTab = tab;
+  tripChangeOpenId = null;
+  renderHome();
+  if (tab === 'history' && !historyLoaded) { await loadHistory(); renderHome(); }
+}
+
+function renderHome() {
+  if (!window.DriverLogic) return;
+  const g = DriverLogic.groupDriverTrips(myTrips);
+  document.getElementById('nApproved').textContent = String(g.approved.length);
+  document.getElementById('nPending').textContent = String(g.pending.length + g.rejected.length);
+  for (const [id, tab] of [['tabApproved', 'approved'], ['tabPending', 'pending'], ['tabHistory', 'history']]) {
+    document.getElementById(id).classList.toggle('on', homeTab === tab);
+  }
+  const empty = text => `<div class="empty-tab">${text}</div>`;
+  const list = document.getElementById('homeList');
+  if (homeTab === 'approved') {
+    list.innerHTML = g.approved.length ? g.approved.map(t => tripCard(t, 'approved')).join('') : empty('אין נסיעות מאושרות');
+  } else if (homeTab === 'pending') {
+    list.innerHTML = (!g.pending.length && !g.rejected.length)
+      ? empty('אין בקשות ממתינות')
+      : `<div class="group-title" style="color:#f59e0b">⏳ ממתין לאישור (${g.pending.length})</div>` +
+        (g.pending.length ? g.pending.map(t => tripCard(t, 'pending')).join('') : empty('אין בקשות שממתינות לאישור')) +
+        `<div class="group-title" style="color:#ef4444">🚫 נדחה (${g.rejected.length})</div>` +
+        (g.rejected.length ? g.rejected.map(t => tripCard(t, 'rejected')).join('') : empty('אין בקשות שנדחו'));
+  } else {
+    const h = DriverLogic.sortHistory(historyTrips);
+    list.innerHTML = !historyLoaded ? empty('טוען...') : (h.length ? h.map(t => tripCard(t, 'done')).join('') : empty('אין נסיעות שבוצעו'));
+  }
 }
 
 function tripWhenText(t) {
   if (!t.scheduled_at) return 'לא נקבע מועד';
   const d = new Date(t.scheduled_at);
-  return d.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleString('he-IL', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
 function tripEndpoint(name, text) { return name || text || '-'; }
@@ -1496,57 +1860,54 @@ function esc(v) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function renderMyTrips() {
-  const list = document.getElementById('tripsList');
-  if (!myTrips.length) {
-    list.innerHTML = '<div style="color:#64748b;font-size:13px;text-align:center;padding:18px">אין לך נסיעות פתוחות</div>';
-    return;
-  }
-  list.innerHTML = myTrips.map(t => {
-    const st = tripStatusOf(t);
-    const stopNames = Array.isArray(t.stop_names) ? t.stop_names.filter(Boolean) : [];
-    const awaiting = tripAwaitsDriver(t);
-    const isChanging = tripChangeOpenId === t.id;
-    return `
-      <div class="trip-card${awaiting ? ' awaiting' : ''}">
-        <div style="display:flex;align-items:center;gap:7px">
-          <span style="font-size:18px">${esc(t.icon || '🚗')}</span>
-          <span style="flex:1;font-size:14px;font-weight:700;color:#f1f5f9">${esc(t.vehicle_name || t.vehicle_type_name || 'נסיעה')}</span>
-          <span class="trip-chip" style="color:${st.color};border:1px solid ${st.color}66;background:${st.color}1f">${esc(st.label)}</span>
-        </div>
-        <div style="font-size:12px;color:#94a3b8;margin-top:4px">
-          ${esc(tripEndpoint(t.from_point_name, t.from_text))} ← ${esc(tripEndpoint(t.to_point_name, t.to_text))}
-        </div>
-        ${stopNames.length ? `<div style="font-size:11px;color:#64748b;margin-top:2px">תחנות: ${esc(stopNames.join(' · '))}</div>` : ''}
-        <div style="font-size:12px;color:#cbd5e1;margin-top:3px">🕒 ${esc(tripWhenText(t))}</div>
-        ${t.note ? `<div style="font-size:11px;color:#64748b;margin-top:2px">📝 ${esc(t.note)}</div>` : ''}
-        ${t.pending_change_at ? '<div style="font-size:11px;color:#fbbf24;margin-top:4px">✋ בקשת השינוי שלך ממתינה לאישור המגדל</div>' : ''}
-        ${t.driver_ack_at ? '<div style="font-size:11px;color:#4ade80;margin-top:4px">✓ אישרת את הנסיעה</div>' : ''}
-        <div style="display:flex;gap:6px;margin-top:8px">
-          ${t.driver_ack_at ? '' : `<button class="trip-btn" style="background:#22c55e;color:#062e14" onclick="ackTrip(${t.id})">✓ מאשר נסיעה</button>`}
-          <button class="trip-btn" style="background:#334155;color:#e2e8f0" onclick="toggleTripChange(${t.id})">${isChanging ? 'בטל' : '✏️ בקש שינוי'}</button>
-        </div>
-        ${isChanging ? `
-          <div style="margin-top:8px;background:#0f172a;border-radius:8px;padding:9px">
-            <div style="font-size:11px;color:#64748b;margin-bottom:3px">זמן יציאה מבוקש</div>
-            <input id="chgWhen${t.id}" type="datetime-local" value="${esc(toLocalInputValue(t.scheduled_at))}"
-                   style="width:100%;padding:8px;background:#1e293b;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:13px;outline:none"/>
-            <div style="font-size:11px;color:#64748b;margin:7px 0 3px">תחנות ביניים, תחנה בכל שורה</div>
-            <textarea id="chgStops${t.id}" rows="3"
-                      style="width:100%;padding:8px;background:#1e293b;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:13px;direction:rtl;outline:none;box-sizing:border-box">${esc(stopNames.join('\n'))}</textarea>
-            <div style="font-size:11px;color:#64748b;margin:7px 0 3px">הערה למגדל</div>
-            <textarea id="chgNote${t.id}" rows="2"
-                      style="width:100%;padding:8px;background:#1e293b;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:13px;direction:rtl;outline:none;box-sizing:border-box">${esc(t.note || '')}</textarea>
-            <button class="trip-btn" style="background:#f59e0b;color:#0f172a;width:100%;margin-top:8px"
-                    onclick="submitTripChange(${t.id})">שלח בקשת שינוי לאישור המגדל</button>
-          </div>` : ''}
-      </div>`;
-  }).join('');
+/** כרטיס נסיעה. `kind`: approved | pending | rejected | done - קובע אילו פעולות מוצגות. */
+function tripCard(t, kind) {
+  const st = tripStatusOf(t);
+  const stopNames = Array.isArray(t.stop_names) ? t.stop_names.filter(Boolean) : [];
+  const isChanging = tripChangeOpenId === t.id;
+  const active = kind === 'approved' || kind === 'pending';
+  const baseTag = homeBases.length > 1 && t.base_name ? `<span class="trip-base">${esc(t.base_name)}</span>` : '';
+  return `
+    <div class="trip-card${kind === 'rejected' ? ' rejected' : ''}${kind === 'done' ? ' done' : ''}">
+      <div style="display:flex;align-items:center;gap:7px">
+        <span style="font-size:18px">${esc(t.icon || '🚗')}</span>
+        <span style="flex:1;font-size:14px;font-weight:700;color:#f1f5f9">${esc(t.trip_type_name || t.vehicle_name || t.vehicle_type_name || 'נסיעה')}${baseTag}</span>
+        <span class="trip-chip" style="color:${st.color};border:1px solid ${st.color}66;background:${st.color}1f">${esc(st.label)}</span>
+      </div>
+      <div style="font-size:13px;color:#cbd5e1;margin-top:5px">🕒 ${esc(tripWhenText(t))}</div>
+      <div style="font-size:12px;color:#94a3b8;margin-top:3px">
+        ${esc(tripEndpoint(t.from_point_name, t.from_text))} ← ${esc(tripEndpoint(t.to_point_name, t.to_text))}
+      </div>
+      ${stopNames.length ? `<div style="font-size:11px;color:#64748b;margin-top:2px">תחנות: ${esc(stopNames.join(' · '))}</div>` : ''}
+      ${t.vehicle_name && t.trip_type_name ? `<div style="font-size:11px;color:#64748b;margin-top:2px">🚙 ${esc(t.vehicle_name)}</div>` : ''}
+      ${t.note ? `<div style="font-size:11px;color:#64748b;margin-top:2px">📝 ${esc(t.note)}</div>` : ''}
+      ${active && t.pending_change_at ? '<div style="font-size:11px;color:#fbbf24;margin-top:4px">✋ בקשת השינוי שלך ממתינה לאישור המגדל</div>' : ''}
+      ${kind === 'approved' && t.driver_ack_at ? '<div style="font-size:11px;color:#4ade80;margin-top:4px">✓ אישרת את הנסיעה</div>' : ''}
+      ${active ? `
+      <div style="display:flex;gap:6px;margin-top:9px">
+        ${kind === 'approved' && !t.driver_ack_at ? `<button class="trip-btn" style="background:#22c55e;color:#062e14" onclick="ackTrip(${t.id})">✓ מאשר נסיעה</button>` : ''}
+        <button class="trip-btn" style="background:#334155;color:#e2e8f0" onclick="toggleTripChange(${t.id})">${isChanging ? 'בטל' : '✏️ בקש שינוי'}</button>
+      </div>` : ''}
+      ${isChanging ? `
+        <div style="margin-top:8px;background:#0f172a;border-radius:8px;padding:9px">
+          <div style="font-size:11px;color:#64748b;margin-bottom:3px">זמן יציאה מבוקש</div>
+          <input id="chgWhen${t.id}" type="datetime-local" value="${esc(toLocalInputValue(t.scheduled_at))}"
+                 style="width:100%;padding:8px;background:#1e293b;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:13px;outline:none"/>
+          <div style="font-size:11px;color:#64748b;margin:7px 0 3px">תחנות ביניים, תחנה בכל שורה</div>
+          <textarea id="chgStops${t.id}" rows="3"
+                    style="width:100%;padding:8px;background:#1e293b;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:13px;direction:rtl;outline:none;box-sizing:border-box">${esc(stopNames.join('\n'))}</textarea>
+          <div style="font-size:11px;color:#64748b;margin:7px 0 3px">הערה למגדל</div>
+          <textarea id="chgNote${t.id}" rows="2"
+                    style="width:100%;padding:8px;background:#1e293b;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:13px;direction:rtl;outline:none;box-sizing:border-box">${esc(t.note || '')}</textarea>
+          <button class="trip-btn" style="background:#f59e0b;color:#0f172a;width:100%;margin-top:8px"
+                  onclick="submitTripChange(${t.id})">שלח בקשת שינוי לאישור המגדל</button>
+        </div>` : ''}
+    </div>`;
 }
 
 function toggleTripChange(id) {
   tripChangeOpenId = tripChangeOpenId === id ? null : id;
-  renderMyTrips();
+  renderHome();
 }
 
 async function ackTrip(id) {
@@ -1557,7 +1918,7 @@ async function ackTrip(id) {
     alert('שליחת האישור נכשלה. נסה שוב.');
     return;
   }
-  await loadMyTrips();
+  await loadHome();
 }
 
 async function submitTripChange(id) {
@@ -1583,15 +1944,188 @@ async function submitTripChange(id) {
     return;
   }
   tripChangeOpenId = null;
-  await loadMyTrips();
-  alert('הבקשה נשלחה. הנסיעה תשתנה רק אחרי אישור המגדל.');
+  await loadHome();
+  showToast('בקשת השינוי נשלחה. הנסיעה תשתנה רק אחרי אישור המגדל.');
 }
 
-// טעינה ראשונית ברקע: התג על הכפתור צריך להיות נכון עוד לפני שהנהג פותח
-// את הגיליון, אחרת נסיעה שממתינה לאישורו אינה נראית כלל.
+// ── בקשה חדשה ────────────────────────────────────────────────────────────────
+
+const p2 = n => String(n).padStart(2, '0');
+
+async function openNewRequest() {
+  showScreen('requestScreen');
+  window.scrollTo(0, 0);
+  document.getElementById('reqErrors').style.display = 'none';
+  const baseSel = document.getElementById('reqBase');
+  baseSel.innerHTML = homeBases.map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('');
+  if (homeBaseId != null) baseSel.value = String(homeBaseId);
+  document.getElementById('reqBaseField').style.display = homeBases.length > 1 ? '' : 'none';
+  // ברירת מחדל: היום, בעוד שעה עגולה - הנהג משנה רק אם צריך
+  const soon = new Date(Date.now() + 60 * 60000);
+  soon.setMinutes(soon.getMinutes() < 30 ? 30 : 60, 0, 0);
+  document.getElementById('reqDate').value = `${soon.getFullYear()}-${p2(soon.getMonth() + 1)}-${p2(soon.getDate())}`;
+  document.getElementById('reqTime').value = `${p2(soon.getHours())}:${p2(soon.getMinutes())}`;
+  document.getElementById('reqDriverPhone').value = localStorage.getItem(DRIVER_PHONE_KEY) || '';
+  for (const id of ['reqVehicleName', 'reqRequester', 'reqRequesterPhone', 'reqNote', 'reqFromText', 'reqToText']) {
+    document.getElementById(id).value = '';
+  }
+  reqStops = [];
+  reqEscorts = [];
+  renderReqStops();
+  renderReqEscorts();
+  if (baseSel.value) await loadRequestOptions(baseSel.value);
+}
+
+async function loadRequestOptions(baseId) {
+  reqOptions = { airfields: [], points: [], vehicle_types: [], trip_types: [] };
+  try {
+    const res = await fetch(`${BASE}/api/driver-trip-options/${baseId}`);
+    if (res.ok) reqOptions = await res.json();
+  } catch (e) { /* טופס עם טקסט חופשי בלבד */ }
+  const afSel = document.getElementById('reqAirfield');
+  afSel.innerHTML = reqOptions.airfields.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('')
+    || '<option value="">אין שדות בבסיס הזה</option>';
+  document.getElementById('reqAirfieldField').style.display = reqOptions.airfields.length > 1 ? '' : 'none';
+  fillRequestPoints();
+}
+
+/** סוגים ונקודות לפי השדה שנבחר - כל שדה עם הרשימות שלו, כמו בחלון המגדל. */
+function fillRequestPoints() {
+  const afId = Number(document.getElementById('reqAirfield').value);
+  const opt = (arr, empty) => `<option value="">${empty}</option>` +
+    arr.filter(x => x.airfield_id === afId).map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('');
+  document.getElementById('reqTripType').innerHTML = opt(reqOptions.trip_types, '-- בחר --');
+  document.getElementById('reqVehicleType').innerHTML = opt(reqOptions.vehicle_types, '-- בחר --');
+  const points = opt(reqOptions.points, '-- בחר נקודה --') + `<option value="${OTHER}">אחר (טקסט חופשי)</option>`;
+  document.getElementById('reqFrom').innerHTML = points;
+  document.getElementById('reqTo').innerHTML = points;
+  toggleOther('reqFrom');
+  toggleOther('reqTo');
+  reqStops = reqStops.map(s => ({ point_id: '', text: s.text }));
+  renderReqStops();
+}
+
+function toggleOther(id) {
+  const other = document.getElementById(id).value === OTHER;
+  document.getElementById(id + 'Text').style.display = other ? '' : 'none';
+}
+
+function pointOptions(selected) {
+  const afId = Number(document.getElementById('reqAirfield').value);
+  const pts = (reqOptions ? reqOptions.points : []).filter(p => p.airfield_id === afId);
+  return `<option value="">טקסט חופשי</option>` +
+    pts.map(p => `<option value="${p.id}"${String(p.id) === String(selected) ? ' selected' : ''}>${esc(p.name)}</option>`).join('');
+}
+
+function renderReqStops() {
+  document.getElementById('reqStops').innerHTML = reqStops.map((s, i) => `
+    <div class="list-row">
+      <select onchange="reqStops[${i}].point_id=this.value;renderReqStops()">${pointOptions(s.point_id)}</select>
+      ${s.point_id ? '' : `<input value="${esc(s.text)}" placeholder="שם התחנה" oninput="reqStops[${i}].text=this.value"/>`}
+      <button class="x-btn" type="button" onclick="reqStops.splice(${i},1);renderReqStops()">✕</button>
+    </div>`).join('');
+}
+
+function addReqStop() { reqStops.push({ point_id: '', text: '' }); renderReqStops(); }
+
+function renderReqEscorts() {
+  document.getElementById('reqEscorts').innerHTML = reqEscorts.map((e, i) => `
+    <div class="list-row">
+      <input value="${esc(e.name)}" placeholder="שם" oninput="reqEscorts[${i}].name=this.value"/>
+      <input value="${esc(e.national_id)}" placeholder="ת.ז." inputmode="numeric" oninput="reqEscorts[${i}].national_id=this.value"/>
+      <button class="x-btn" type="button" onclick="reqEscorts.splice(${i},1);renderReqEscorts()">✕</button>
+    </div>`).join('');
+}
+
+function addReqEscort() { reqEscorts.push({ name: '', national_id: '' }); renderReqEscorts(); }
+
+const REQ_ERROR_TEXT = {
+  airfield: 'לבסיס הזה אין שדה מוגדר',
+  when: 'יש לבחור תאריך ושעת יציאה',
+  from: 'יש לבחור מוצא',
+  to: 'יש לבחור יעד',
+};
+
+const REQ_SERVER_ERROR_TEXT = {
+  base_not_permitted: 'אינך מורשה לבסיס הזה',
+  invalid_reference: 'אחד הפרטים אינו שייך לשדה שנבחר. בחר שוב ונסה',
+  missing_fields: 'חסרים פרטי חובה',
+};
+
+async function submitTripRequest() {
+  const val = id => document.getElementById(id).value;
+  const pointOf = id => (val(id) === OTHER ? '' : val(id));
+  const { body, errors } = DriverLogic.buildTripRequest({
+    airfield_id: val('reqAirfield'),
+    trip_type_id: val('reqTripType'),
+    vehicle_type_id: val('reqVehicleType'),
+    vehicle_name: val('reqVehicleName'),
+    date: val('reqDate'),
+    time: val('reqTime'),
+    from_point_id: pointOf('reqFrom'),
+    from_text: val('reqFrom') === OTHER ? val('reqFromText') : '',
+    to_point_id: pointOf('reqTo'),
+    to_text: val('reqTo') === OTHER ? val('reqToText') : '',
+    stops: reqStops,
+    requester_name: val('reqRequester'),
+    requester_phone: val('reqRequesterPhone'),
+    driver_phone: val('reqDriverPhone'),
+    escorts: reqEscorts,
+    note: val('reqNote'),
+  });
+  const errEl = document.getElementById('reqErrors');
+  if (errors.length) {
+    errEl.innerHTML = errors.map(e => `• ${esc(REQ_ERROR_TEXT[e] || e)}`).join('<br>');
+    errEl.style.display = 'block';
+    window.scrollTo(0, 0);
+    return;
+  }
+  errEl.style.display = 'none';
+  const btn = document.getElementById('reqSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ שולח...';
+  try {
+    const res = await fetch(`${BASE}/api/driver-trips`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const b = await res.json().catch(() => ({}));
+      errEl.textContent = REQ_SERVER_ERROR_TEXT[b.error] || 'שליחת הבקשה נכשלה. נסה שוב.';
+      errEl.style.display = 'block';
+      window.scrollTo(0, 0);
+      return;
+    }
+    if (body.driver_phone) localStorage.setItem(DRIVER_PHONE_KEY, body.driver_phone);
+    showToast('✅ הבקשה נשלחה למגדל');
+    goHome('pending');
+  } catch (e) {
+    errEl.textContent = 'אין חיבור לשרת. נסה שוב.';
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '📤 שלח בקשה למגדל';
+  }
+}
+
+// ── כניסה לשער עכשיו - הזרימה הקיימת (בקשת כניסה, מסלול, ניווט, GPS) ─────────
+
+function openGateEntry() {
+  showScreen('formScreen');
+  window.scrollTo(0, 0);
+  const nameEl = document.getElementById('driverName');
+  if (!nameEl.value) nameEl.value = sessionStorage.getItem(DRIVER_NAME_KEY) || '';
+  const sel = document.getElementById('baseSel');
+  if (homeBaseId != null && sel.value !== String(homeBaseId) && sel.querySelector(`option[value="${homeBaseId}"]`)) {
+    sel.value = String(homeBaseId);
+    onBaseChange();
+  }
+}
+
 if (DRIVER_TOKEN) {
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', loadMyTrips);
-  else loadMyTrips();
+  whenLogic(() => {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initHome);
+    else initHome();
+  });
 }
 
 </script>

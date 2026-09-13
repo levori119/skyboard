@@ -362,6 +362,10 @@
       "he": "הנהג אישר את הנסיעה",
       "en": "Driver approved the trip"
     },
+    "alertDriverRequestTitle": {
+      "he": "בקשת נסיעה חדשה מנהג",
+      "en": "New trip request from a driver"
+    },
     "alertDriverChangeTitle": {
       "he": "הנהג ביקש לשנות - נדרש אישור",
       "en": "Driver requested a change - approval needed"

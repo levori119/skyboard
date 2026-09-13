@@ -3,7 +3,7 @@ import {
   DEPARTURE_ALERT_MINUTES, DRIVER_ACTION_ALERT_MINUTES, STALE_TRIP_HOURS, TRIP_STATUSES, TRIP_VEHICLE_ICONS,
   MAX_TRIP_COPIES, TRIP_FIELDS_NOT_COPIED, clampCopies, duplicateSchedule,
   asTripStatus, canApproveTrip, dedupeRouteOptions, hasPendingDriverChange, isDepartureAlertDue,
-  isDriverActionFresh, isRouteChosen, isVehicleOnMap, routeInputSignature, routeSignature,
+  isDriverActionFresh, isNewDriverRequest, isRouteChosen, isVehicleOnMap, routeInputSignature, routeSignature,
   minutesUntilDeparture, normalizeEscorts, normalizeStops, pendingChangeFields,
   stopLabel, suggestedVehicleIcon, tripIcon, tripStatusKey,
 } from './trips';
@@ -112,6 +112,27 @@ describe('התראה על פעולת נהג - מתפרצת רק כשהיא טר�
   it('בלי חותמת זמן אין התראה', () => {
     expect(isDriverActionFresh(null, NOW)).toBe(false);
     expect(isDriverActionFresh('לא תאריך', NOW)).toBe(false);
+  });
+});
+
+describe('בקשת נסיעה חדשה מהנהג - התראה למגדל', () => {
+  it('בקשה טרייה שעדיין ממתינה מתפרצת', () => {
+    expect(isNewDriverRequest({ status: 'pending', driver_requested_at: inMin(-3) }, NOW)).toBe(true);
+  });
+
+  // המגדל כבר הכריע - אין מה להתריע
+  it('בקשה שהמגדל כבר אישר או דחה אינה מתפרצת', () => {
+    expect(isNewDriverRequest({ status: 'approved', driver_requested_at: inMin(-3) }, NOW)).toBe(false);
+    expect(isNewDriverRequest({ status: 'not_approved', driver_requested_at: inMin(-3) }, NOW)).toBe(false);
+  });
+
+  it('בקשה ישנה, או נסיעה שהמגדל רשם בעצמו, אינה מתפרצת', () => {
+    expect(isNewDriverRequest({ status: 'pending', driver_requested_at: inMin(-DRIVER_ACTION_ALERT_MINUTES - 1) }, NOW)).toBe(false);
+    expect(isNewDriverRequest({ status: 'pending', driver_requested_at: null }, NOW)).toBe(false);
+  });
+
+  it('חותמת הבקשה אינה עוברת לעותק', () => {
+    expect(TRIP_FIELDS_NOT_COPIED).toContain('driver_requested_at');
   });
 });
 

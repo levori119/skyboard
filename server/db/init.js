@@ -2143,6 +2143,9 @@ async function applySchemaOnce() {
   await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS pending_change_at TIMESTAMPTZ`);
   // מתי כבר הוקפצה ההתראה - כדי שההתראה המתפרצת תעלה פעם אחת ולא בכל poll
   await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS departure_alerted_at TIMESTAMPTZ`);
+  // מתי הנהג שלח את הנסיעה כבקשה מאפליקציית DRIVER. NULL = המגדל רשם אותה.
+  // מקפיץ למגדל התראה על בקשה חדשה כל עוד היא טרייה וממתינה (isNewDriverRequest)
+  await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS driver_requested_at TIMESTAMPTZ`);
   await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`);
   await sq(`CREATE INDEX IF NOT EXISTS idx_entry_permit_trips_airfield ON entry_permit_trips(airfield_id, scheduled_at DESC)`);
   // נסיעות ותיקות נרשמו לפני שהייתה עמודת שדה - השדה נגזר מהנהג שלהן

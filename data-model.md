@@ -3054,6 +3054,7 @@ REFACTOR_LOG #045.
 | `airfield_id` | INT → `airfields` | CASCADE. **נדרש** כדי לשלוף את נסיעות השדה בלי לעבור דרך הנהג - נסיעה בלי נהג לא הייתה נמצאת אחרת |
 | `driver_id` | INT → `entry_permit_drivers` | CASCADE, **NULL-able**: נסיעה יכולה להירשם לנהג מזדמן שאינו במרשם |
 | `driver_name` / `driver_phone` | VARCHAR | שם וטלפון הנהג כשאינו במרשם, או כפי שנרשמו לנסיעה |
+| `driver_requested_at` | TIMESTAMPTZ | מתי הנהג שלח את הנסיעה כ**בקשה** מאפליקציית DRIVER (`POST /api/driver-trips`). NULL = המגדל רשם אותה. מקפיץ למגדל התראת "בקשת נסיעה חדשה" כל עוד היא טרייה (30 דק') וממתינה. **אינה** עוברת לעותק בשכפול |
 | `driver_national_id` | VARCHAR(20) | ת"ז של **נהג מזדמן**, מנורמלת ל-9 ספרות (ריק = לא הוזנה). לפיה הנסיעה מגיעה לאפליקציית DRIVER שלו. נהג מהמרשם מזוהה דרך `driver_id` → `entry_permit_drivers.national_id`, ולכן כשיש `driver_id` הלקוח שולח כאן ריק. עוברת לעותק בשכפול |
 | `requester_name` / `requester_phone` | VARCHAR | מבקש הנסיעה |
 | `vehicle_id` | INT → `entry_permit_vehicles` | SET NULL. הרכב מרשימת רכבי הנהג |

@@ -172,7 +172,9 @@ const RULES = [
   // הנסיעות של הנהג עצמו - אישור נסיעה, ובקשה לשנות זמן יציאה / תחנות. השער
   // כאן רק מכניס; הסינון לפי הת"ז שבאסימון נעשה ב-handler, שמחזיר 403 לאסימון
   // בלי ת"ז. ראה routes/permits.js §אפליקציית הנהג.
-  { m: ALL, p: /^\/api\/driver-trips(\/|$)/, need: NEED.DRIVER, why: 'הנסיעות של הנהג - אישור ובקשת שינוי מהאפליקציה' },
+  { m: ALL, p: /^\/api\/driver-trips(\/|$)/, need: NEED.DRIVER, why: 'הנסיעות של הנהג - אישור, בקשת שינוי ובקשת נסיעה חדשה מהאפליקציה' },
+  // שדות, נקודות וסוגים לטופס הבקשה - מוגבל לבסיסי הנהג (driverBaseGuard)
+  { m: ['GET'], p: /^\/api\/driver-trip-options\/\d+$/, need: NEED.DRIVER, why: 'אפשרויות טופס בקשת הנסיעה של הנהג' },
 ];
 
 const roleRank = { [ROLE.ADMIN]: 3, [ROLE.TEAM_LEAD]: 2, [ROLE.USER]: 1, [ROLE.DRIVER]: 0 };

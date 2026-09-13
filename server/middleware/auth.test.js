@@ -196,7 +196,7 @@ describe('אסימון נהג - מוגבל לנתיבי הנהג בלבד', () =
   });
 
   it('נהג מגיע לנתיבי הרכב ולמפת הבסיס', async () => {
-    for (const p of ['/api/vehicle-requests', '/api/vehicle-gps', '/api/airfields/by-base/7']) {
+    for (const p of ['/api/vehicle-requests', '/api/vehicle-gps', '/api/airfields/by-base/7', '/api/driver-trip-options/7']) {
       expect(`${p} => ${(await call('GET', p, driver())).status}`).toBe(`${p} => 200`);
     }
   });

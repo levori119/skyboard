@@ -21,6 +21,14 @@ router.get('/driver', (req, res) => {
   res.sendFile(path.join(__dirname, '../../public', 'driver.html'));
 });
 
+// הלוגיקה הטהורה של אפליקציית הנהג (ברכה, בסיס קרוב, טאבים, בניית בקשה) -
+// מודול ES אחד שנבדק ב-vitest ונטען בדף. תחת /driver/ כי הנתיב הזה כבר מנותב
+// לשרת גם ב-vite dev וגם בשרת העמדה.
+router.get('/driver/logic.js', (req, res) => {
+  res.type('application/javascript');
+  res.sendFile(path.join(__dirname, '../../shared', 'driverLogic.js'));
+});
+
 // --- Preset Links API ---
 router.get('/api/preset-links/:presetId', async (req, res) => {
   try {

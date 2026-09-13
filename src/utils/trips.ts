@@ -61,6 +61,17 @@ export function isDriverActionFresh(ts: string | null | undefined, now: number =
   return now - t <= DRIVER_ACTION_ALERT_MINUTES * MS_PER_MIN && now - t >= -MS_PER_MIN;
 }
 
+/**
+ * בקשת נסיעה חדשה שהנהג שלח מאפליקציית DRIVER, ועדיין ממתינה להכרעת המגדל.
+ * מתפרצת רק כשהיא טרייה; נסיעה שהמגדל רשם בעצמו אין לה `driver_requested_at`.
+ */
+export function isNewDriverRequest(
+  t: { status: string; driver_requested_at?: string | null },
+  now: number = Date.now(),
+): boolean {
+  return asTripStatus(t.status) === 'pending' && isDriverActionFresh(t.driver_requested_at, now);
+}
+
 /** דקות עד היציאה המשוערת. שלילי = היציאה כבר עברה. null = אין זמן מתוכנן. */
 export function minutesUntilDeparture(scheduledAt: string | null | undefined, now: number = Date.now()): number | null {
   if (!scheduledAt) return null;
@@ -272,7 +283,7 @@ export function duplicateSchedule(
  */
 export const TRIP_FIELDS_NOT_COPIED = [
   'status', 'driver_ack_at', 'pending_change', 'pending_change_at',
-  'departure_alerted_at', 'vehicle_request_id', 'ended_at',
+  'departure_alerted_at', 'vehicle_request_id', 'ended_at', 'driver_requested_at',
 ] as const;
 
 // ── תחנות ביניים ─────────────────────────────────────────────────────────────

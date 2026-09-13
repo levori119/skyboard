@@ -17,7 +17,7 @@
 //   /api/entry-permits*   = מרשם האישורים והנסיעות
 import { Router } from 'express';
 import pool from '../db/pool.js';
-import { normalizeNationalId, nationalIdSql, driverScopeOf } from '../auth/driverIdentity.js';
+import { normalizeNationalId, nationalIdSql, driverScopeOf, driverMayUseBase, driverBaseGuard } from '../auth/driverIdentity.js';
 
 const router = new Router();
 
@@ -293,9 +293,13 @@ const TRIP_SELECT = `
          d.national_id AS permit_national_id,
          d.permit_from, d.permit_until, d.status_override AS permit_status_override,
          vr.status AS request_status,
+         taf.base_id, tb.name AS base_name,
          COALESCE(st.stop_names, '[]') AS stop_names
     FROM entry_permit_trips t
     LEFT JOIN entry_permit_drivers d ON d.id = t.driver_id
+    -- הבסיס של הנסיעה - לנהג שמורשה לכמה בסיסים
+    LEFT JOIN airfields taf ON taf.id = t.airfield_id
+    LEFT JOIN aviation_bases tb ON tb.id = taf.base_id
     LEFT JOIN airfield_points fp ON fp.id = t.from_point_id
     LEFT JOIN airfield_points tp ON tp.id = t.to_point_id
     LEFT JOIN entry_permit_vehicles v ON v.id = t.vehicle_id
@@ -611,17 +615,115 @@ const ownsTrip = async (id, scope) => (await pool.query(
     WHERE t.id = $1 AND ${tripOwnedBy(2)}`, [id, scope.nationalId, scope.baseIds]
 )).rows.length > 0;
 
+/**
+ * הנסיעות של הנהג. ברירת מחדל - הפעילות (לטאבים "מאושרות" ו"ממתינות").
+ * `view=history` - רק נסיעות שבוצעו (status=ended), האחרונה ראשונה.
+ */
 router.get('/api/driver-trips', async (req, res) => {
   try {
     const scope = driverScope(req, res);
     if (!scope) return;
+    const history = req.query.view === 'history';
     const r = await pool.query(
       `${TRIP_SELECT}
-        WHERE t.status <> 'ended' AND ${tripOwnedBy(1)}
-        ORDER BY t.scheduled_at NULLS LAST, t.id LIMIT 50`,
+        WHERE t.status ${history ? '=' : '<>'} 'ended' AND ${tripOwnedBy(1)}
+        ORDER BY ${history
+          ? 'COALESCE(t.scheduled_at, t.ended_at) DESC NULLS LAST, t.id DESC LIMIT 100'
+          : 't.scheduled_at NULLS LAST, t.id LIMIT 100'}`,
       [scope.nationalId, scope.baseIds]
     );
     res.json(r.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+/**
+ * הנהג שולח **בקשת נסיעה** מהאפליקציה - אותה ישות נסיעה שהמגדל רושם בחלון
+ * "ניהול נסיעות", ולכן היא מופיעה שם כמו כל נסיעה ממתינה.
+ *
+ * הנהג קובע רק את מה שהוא יודע: מתי, מאיפה לאן, דרך אילו תחנות, במה ועם מי.
+ * **הזהות** נלקחת מהאסימון, **הסטטוס** תמיד "ממתין", ו**הנתיב** ו**אישור
+ * ההסתובבות** הם הכרעת המגדל - שדות אלה פשוט אינם נקראים מהגוף.
+ * `driver_requested_at` מקפיץ למגדל התראה על בקשה חדשה (TripAlertsLayer).
+ */
+const DRIVER_REQUEST_FIELDS = [
+  'trip_type_id', 'vehicle_type_id', 'vehicle_name', 'scheduled_at',
+  'from_point_id', 'to_point_id', 'from_text', 'to_text', 'stops',
+  'requester_name', 'requester_phone', 'driver_phone', 'escorts', 'note',
+];
+
+router.post('/api/driver-trips', async (req, res) => {
+  try {
+    const scope = driverScope(req, res);
+    if (!scope) return;
+    const raw = req.body || {};
+    const b = Object.fromEntries(DRIVER_REQUEST_FIELDS.filter(f => raw[f] !== undefined).map(f => [f, raw[f]]));
+    const airfieldId = num(raw.airfield_id);
+    const stops = Array.isArray(b.stops) ? b.stops : [];
+    if (!airfieldId || !b.scheduled_at || !(num(b.from_point_id) || str(b.from_text)) || !(num(b.to_point_id) || str(b.to_text))) {
+      return res.status(400).json({ error: 'missing_fields', required: ['airfield_id', 'scheduled_at', 'from', 'to'] });
+    }
+
+    const af = (await pool.query('SELECT base_id FROM airfields WHERE id=$1', [airfieldId])).rows[0];
+    if (!af || !driverMayUseBase(scope, af.base_id)) {
+      return res.status(403).json({ error: 'base_not_permitted', message: 'אינך מורשה לבסיס זה' });
+    }
+
+    // כל מזהה שהנהג שלח חייב להשתייך לשדה הזה ולסוג הנכון. אחרת נקודה של שדה
+    // אחר נשמרת בשקט, והמגדל רואה נסיעה ממקום שאינו בשדה שלו.
+    const pointIds = [b.from_point_id, b.to_point_id, ...stops.map(s => s?.point_id)].map(num).filter(Boolean);
+    if (pointIds.length) {
+      const { rows } = await pool.query(
+        'SELECT COUNT(DISTINCT id)::int AS n FROM airfield_points WHERE airfield_id=$1 AND id = ANY($2::int[])',
+        [airfieldId, pointIds]);
+      if (rows[0].n !== new Set(pointIds).size) return res.status(400).json({ error: 'invalid_reference', field: 'point' });
+    }
+    for (const [field, kind] of [['trip_type_id', 'trip_type'], ['vehicle_type_id', 'vehicle_type']]) {
+      const id = num(b[field]);
+      if (!id) continue;
+      const { rows } = await pool.query(
+        'SELECT 1 FROM airfield_permit_params WHERE id=$1 AND airfield_id=$2 AND kind=$3', [id, airfieldId, kind]);
+      if (!rows.length) return res.status(400).json({ error: 'invalid_reference', field });
+    }
+
+    const cols = [], vals = [], ph = [];
+    const set = (col, v) => { cols.push(col); vals.push(v); ph.push(`$${vals.length}`); };
+    set('airfield_id', airfieldId);
+    tripSetters(b, set);
+    set('status', 'pending');
+    set('driver_national_id', scope.nationalId);
+    set('driver_name', str(req.user?.name));
+    const r = await pool.query(
+      `INSERT INTO entry_permit_trips (${cols.join(',')}, driver_requested_at)
+       VALUES (${ph.join(',')}, NOW()) RETURNING id`, vals
+    );
+    res.status(201).json(await oneTrip(r.rows[0].id));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+/**
+ * מה טופס הבקשה של הנהג צריך כדי למלא נסיעה בבסיס: השדות, הנקודות שלהם, וסוגי
+ * הרכב והנסיעה הפעילים. נתיב אחד במקום ארבעה, כי הנהג אינו מורשה לנתיבי
+ * הניהול (`/api/permit-params`, `/api/airfields/:id/points`).
+ */
+router.get('/api/driver-trip-options/:baseId', driverBaseGuard, async (req, res) => {
+  try {
+    const baseId = num(req.params.baseId);
+    const airfields = (await pool.query(
+      'SELECT id, name FROM airfields WHERE base_id=$1 ORDER BY name, id', [baseId])).rows;
+    const ids = airfields.map(a => a.id);
+    const points = ids.length ? (await pool.query(
+      'SELECT id, name, airfield_id FROM airfield_points WHERE airfield_id = ANY($1::int[]) ORDER BY name, id', [ids])).rows : [];
+    const params = ids.length ? (await pool.query(
+      `SELECT id, name, kind, airfield_id FROM airfield_permit_params
+        WHERE airfield_id = ANY($1::int[]) AND kind IN ('vehicle_type','trip_type') AND active
+        ORDER BY sort_order, name`, [ids])).rows : [];
+    const strip = ({ kind, ...p }) => p;
+    res.json({
+      airfields,
+      points,
+      vehicle_types: params.filter(p => p.kind === 'vehicle_type').map(strip),
+      trip_types: params.filter(p => p.kind === 'trip_type').map(strip),
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

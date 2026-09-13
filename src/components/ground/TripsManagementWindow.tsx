@@ -88,6 +88,9 @@ export interface Trip {
   selected_route_ids: unknown; selected_route_label: string;
   driver_ack_at: string | null; pending_change: unknown; pending_change_at: string | null;
   departure_alerted_at: string | null;
+  /** הנהג שלח את הנסיעה כבקשה מאפליקציית DRIVER. null = המגדל רשם אותה */
+  driver_requested_at?: string | null;
+  base_id?: number | null; base_name?: string | null;
   vehicle_request_id: number | null;
 }
 

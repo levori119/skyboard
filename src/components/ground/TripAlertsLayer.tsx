@@ -1,6 +1,7 @@
 // התראות מתפרצות של ניהול נסיעות - עמדת ניהול שדה תעופה.
 //
-// שלוש התראות, וכולן עונות על אותה שאלה: "משהו קרה לנסיעה ואתה צריך להכריע".
+// ארבע התראות, וכולן עונות על אותה שאלה: "משהו קרה לנסיעה ואתה צריך להכריע".
+//   📨 בקשת נסיעה חדשה - הנהג שלח בקשה מאפליקציית DRIVER, והיא ממתינה לאישור
 //   🚦 תחילת נסיעה   - 10 דקות לפני היציאה המשוערת (יחד עם עליית הרכב למפה)
 //   ✅ הנהג אישר      - הנהג לחץ "מאשר" באפליקציה שלו
 //   ✋ הנהג ביקש שינוי - זמן יציאה / תחנות / הערה, וממתין לאישור **נוסף** של המגדל
@@ -28,7 +29,7 @@ import useDragPosition from '../../hooks/useDragPosition';
 import { useDockableWindow } from '../../hooks/useDockableWindow';
 import useAirfieldTrips from '../../hooks/useAirfieldTrips';
 import {
-  asTripStatus, hasPendingDriverChange, isDepartureAlertDue, isDriverActionFresh,
+  asTripStatus, hasPendingDriverChange, isDepartureAlertDue, isDriverActionFresh, isNewDriverRequest,
   minutesUntilDeparture, pendingChangeFields, suggestedVehicleIcon,
 } from '../../utils/trips';
 import type { Trip } from './TripsManagementWindow';
@@ -36,7 +37,7 @@ import type { Trip } from './TripsManagementWindow';
 /** כל 15 שניות: מספיק צפוף ל-10 דקות התראה, ולא מעמיס את ה-DB. */
 const POLL_MS = 15_000;
 
-type AlertKind = 'departure' | 'ack' | 'change';
+type AlertKind = 'departure' | 'ack' | 'change' | 'request';
 
 interface TripAlert { key: string; kind: AlertKind; trip: Trip }
 
@@ -44,6 +45,7 @@ const KIND_STYLE: Record<AlertKind, { icon: string; accent: string; titleKey: st
   departure: { icon: '🚦', accent: '#f59e0b', titleKey: 'trips.alertDepartureTitle' },
   ack: { icon: '✅', accent: '#22c55e', titleKey: 'trips.alertDriverAckTitle' },
   change: { icon: '✋', accent: '#ef4444', titleKey: 'trips.alertDriverChangeTitle' },
+  request: { icon: '📨', accent: '#38bdf8', titleKey: 'trips.alertDriverRequestTitle' },
 };
 
 const FIELD_KEY: Record<string, string> = {
@@ -69,6 +71,10 @@ export const TripAlertsLayer: React.FC<TripAlertsLayerProps> = ({ airfieldId, th
   const alerts = useMemo<TripAlert[]>(() => {
     const out: TripAlert[] = [];
     for (const t of trips) {
+      // בקשה חדשה מהנהג - הפקח פותח אותה בחלון ומשלים נתיב ואישור
+      if (isNewDriverRequest(t, now)) {
+        out.push({ key: `req:${t.id}:${t.driver_requested_at}`, kind: 'request', trip: t });
+      }
       // הבקשה קודמת: היא חוסמת יציאה, ולכן צריכה להיות מעל ההתראה על היציאה
       if (hasPendingDriverChange(t) && isDriverActionFresh(t.pending_change_at, now)) {
         out.push({ key: `chg:${t.id}:${t.pending_change_at}`, kind: 'change', trip: t });

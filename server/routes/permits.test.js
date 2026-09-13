@@ -49,6 +49,8 @@ beforeAll(async () => {
   ({ default: router } = await import('./permits.js'));
   const { listen } = await import('../listen.js');
 
+  await pool.query(`CREATE TABLE public.aviation_bases (id SERIAL PRIMARY KEY, name VARCHAR(100))`);
+  await pool.query(`INSERT INTO aviation_bases (id, name) VALUES (70, 'בסיס א'), (80, 'בסיס ב')`);
   await pool.query(`CREATE TABLE public.airfields (
     id SERIAL PRIMARY KEY, name VARCHAR(200) NOT NULL, base_id INTEGER)`);
   await pool.query(`CREATE TABLE public.airfield_polygons (
@@ -137,6 +139,7 @@ beforeAll(async () => {
     pending_change JSONB,
     pending_change_at TIMESTAMPTZ,
     departure_alerted_at TIMESTAMPTZ,
+    driver_requested_at TIMESTAMPTZ,
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     created_at TIMESTAMPTZ DEFAULT NOW())`);
 
@@ -171,7 +174,7 @@ beforeEach(async () => {
   await pool.query('DELETE FROM airfields');
   await pool.query(`INSERT INTO airfields (id, name, base_id) VALUES (1, 'שדה א', 70), (2, 'שדה ב', 80)`);
   await pool.query(`INSERT INTO airfield_polygons (id, airfield_id, name) VALUES (10, 1, 'מנשא צפוני')`);
-  await pool.query(`INSERT INTO airfield_points (id, airfield_id, name) VALUES (20, 1, 'שער ראשי'), (21, 1, 'מסוף מטען')`);
+  await pool.query(`INSERT INTO airfield_points (id, airfield_id, name) VALUES (20, 1, 'שער ראשי'), (21, 1, 'מסוף מטען'), (22, 2, 'שער שדה ב')`);
   await pool.query(`INSERT INTO airfield_permit_params (id, airfield_id, kind, name, polygon_id) VALUES
     (100, 1, 'zone', 'מנשא צפוני', 10),
     (101, 1, 'zone', 'אזור דלק', NULL),
@@ -724,6 +727,102 @@ describe('ניהול נסיעות - אפליקציית הנהג', () => {
   it('הכרעה בנסיעה שאינה קיימת מחזירה 404', async () => {
     expect((await post('/api/entry-permit-trips/9999/change/approve')).status).toBe(404);
     expect((await dpost('/api/driver-trips/9999/ack', MY_TZ)).status).toBe(404);
+  });
+});
+
+describe('ניהול נסיעות - בקשה חדשה מאפליקציית הנהג', () => {
+  const MY_TZ = '012345678';
+  const request = (over = {}) => ({
+    airfield_id: AF, trip_type_id: 104, vehicle_type_id: 103, vehicle_name: 'מיניבוס',
+    scheduled_at: tripAt(180), from_point_id: 20, to_text: 'שער דרומי',
+    stops: [{ point_id: 21, text: '' }], requester_name: 'יוסי', requester_phone: '050',
+    driver_phone: '052', escorts: [{ name: 'דנה', national_id: '1' }], note: 'הערה', ...over,
+  });
+
+  it('נוצרת נסיעה ממתינה על שם הנהג המחובר, עם חותמת בקשה', async () => {
+    const res = await dpost('/api/driver-trips', MY_TZ, request());
+    expect(res.status).toBe(201);
+    const t = await res.json();
+    expect(t.status).toBe('pending');
+    expect(t.driver_national_id).toBe(MY_TZ);
+    expect(t.driver_requested_at).toBeTruthy();
+    expect(t.trip_type_name).toBe('הסעת אח"מ');
+    expect(t.stop_names).toEqual(['מסוף מטען']);
+    expect(t.base_name).toBe('בסיס א');
+    // והיא מופיעה אצלו מיד
+    expect((await (await dget('/api/driver-trips', MY_TZ)).json()).map(x => x.id)).toEqual([t.id]);
+  });
+
+  // הסטטוס, הנתיב והזהות אינם בידי הנהג
+  it('הנהג אינו מאשר לעצמו, אינו בוחר נתיב ואינו רושם נסיעה על שם אחר', async () => {
+    const t = await (await dpost('/api/driver-trips', MY_TZ, request({
+      status: 'approved', selected_route_ids: [1], roam_permit_id: 105,
+      driver_national_id: '087654321', driver_id: 1,
+    }))).json();
+    expect(t.status).toBe('pending');
+    expect(t.selected_route_ids).toEqual([]);
+    expect(t.roam_permit_id).toBeNull();
+    expect(t.driver_national_id).toBe(MY_TZ);
+    expect(t.driver_id).toBeNull();
+  });
+
+  it('שדה של בסיס שהנהג אינו מורשה אליו - 403', async () => {
+    const res = await dpost('/api/driver-trips', MY_TZ, request({ airfield_id: 2, from_point_id: 22 }));
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toBe('base_not_permitted');
+  });
+
+  // נקודה או סוג של שדה אחר היו נשמרים בשקט ומציגים למגדל נסיעה שאינה הגיונית
+  it('נקודה משדה אחר או סוג נסיעה שאינו סוג נסיעה - 400', async () => {
+    expect((await dpost('/api/driver-trips', MY_TZ, request({ from_point_id: 22 }))).status).toBe(400);
+    expect((await dpost('/api/driver-trips', MY_TZ, request({ trip_type_id: 103 }))).status).toBe(400);
+    expect((await dpost('/api/driver-trips', MY_TZ, request({ stops: [{ point_id: 22, text: '' }] }))).status).toBe(400);
+  });
+
+  it('בלי מועד, מוצא או יעד - 400', async () => {
+    for (const over of [{ scheduled_at: null }, { from_point_id: null }, { to_text: '' }]) {
+      const res = await dpost('/api/driver-trips', MY_TZ, request(over));
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toBe('missing_fields');
+    }
+  });
+
+  it('בלי זהות נהג - 403', async () => {
+    expect((await post('/api/driver-trips', request())).status).toBe(403);
+  });
+
+  it('חותמת הבקשה אינה עוברת לעותק בשכפול', async () => {
+    const t = await (await dpost('/api/driver-trips', MY_TZ, request())).json();
+    const [copy] = await (await post('/api/trips/duplicate', { items: [{ id: t.id, scheduled_at: tripAt(600) }] })).json();
+    expect(copy.driver_requested_at).toBeNull();
+  });
+});
+
+describe('ניהול נסיעות - היסטוריה ואפשרויות לטופס הנהג', () => {
+  const MY_TZ = '012345678';
+  const mk = over => post('/api/trips', { airfield_id: AF, driver_national_id: MY_TZ, ...over }).then(r => r.json());
+
+  it('view=history מחזיר רק נסיעות שהסתיימו, האחרונה ראשונה', async () => {
+    await mk({ vehicle_name: 'פעילה', scheduled_at: tripAt(60) });
+    await mk({ vehicle_name: 'ישנה', status: 'ended', scheduled_at: tripAt(-3000) });
+    await mk({ vehicle_name: 'חדשה', status: 'ended', scheduled_at: tripAt(-60) });
+    const rows = await (await dget('/api/driver-trips?view=history', MY_TZ)).json();
+    expect(rows.map(r => r.vehicle_name)).toEqual(['חדשה', 'ישנה']);
+  });
+
+  it('אפשרויות הטופס לבסיס: שדות, נקודות, סוגי רכב וסוגי נסיעה פעילים', async () => {
+    await pool.query(`INSERT INTO airfield_permit_params (id, airfield_id, kind, name, active) VALUES (106, 1, 'trip_type', 'כבוי', FALSE)`);
+    const res = await dget('/api/driver-trip-options/70', MY_TZ);
+    expect(res.status).toBe(200);
+    const o = await res.json();
+    expect(o.airfields).toEqual([{ id: 1, name: 'שדה א' }]);
+    expect(o.points.map(p => p.name).sort()).toEqual(['מסוף מטען', 'שער ראשי']);
+    expect(o.vehicle_types.map(p => p.name)).toEqual(['מיניבוס']);
+    expect(o.trip_types.map(p => p.name)).toEqual(['הסעת אח"מ']);
+  });
+
+  it('אפשרויות לבסיס שהנהג אינו מורשה אליו - 403', async () => {
+    expect((await dget('/api/driver-trip-options/80', MY_TZ)).status).toBe(403);
   });
 });
 
