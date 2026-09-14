@@ -600,9 +600,15 @@
   #liveTripScreen .lt-ep{font-size:20px;filter:drop-shadow(0 1px 3px #000)}
   #liveTripScreen .lt-veh{width:26px;height:26px;border-radius:50%;background:#0ea5e9;border:3px solid #fff;box-shadow:0 0 0 6px #0ea5e944,0 2px 8px #000;display:flex;align-items:center;justify-content:center}
   #liveTripScreen .lt-veh-arrow{color:#fff;font-size:12px;line-height:1}
+  #liveTripScreen .lt-zoom-btn{width:48px;height:48px;border-radius:12px;border:1.5px solid #475569;background:#0f172ae6;color:#f1f5f9;font-size:24px;font-weight:700;line-height:1;cursor:pointer;box-shadow:0 2px 10px #000a}
+  #liveTripScreen .lt-zoom-btn:active{background:#312e81}
 </style>
-<div id="liveTripScreen" style="display:none;position:fixed;inset:0;z-index:9000;background:#0f172a;direction:rtl;flex-direction:column">
-  <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#1e293b;border-bottom:1px solid #334155">
+<!-- המפה תופסת **את כל המסך**, והכותרת, הטאבים ושורת המצב צפים מעליה.
+     כשהם נערמו מעל המפה כבלוקים היא קיבלה רק את מה שנשאר ביניהם - ועל טלפון
+     לאורך, מפת שדה רחבה שהותאמה לרוחב בלבד ישבה ברצועה צרה עם שוליים שחורים. -->
+<div id="liveTripScreen" style="display:none;position:fixed;inset:0;z-index:9000;background:#020617;direction:rtl;flex-direction:column">
+  <div id="ltTop" style="position:absolute;top:0;left:0;right:0;z-index:20;background:linear-gradient(#0f172af2,#0f172ad9)">
+  <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #33415599">
     <div style="flex:1;min-width:0">
       <div id="ltTitle" style="font-size:15px;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
       <div id="ltSub" style="font-size:12px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
@@ -616,8 +622,11 @@
     <button id="ltFollow" class="lt-tab on" onclick="toggleLiveFollow()" style="flex:0 0 auto">🎯 עקוב</button>
   </div>
   <div id="ltBanner" style="display:none;margin:0 12px 8px;padding:7px 10px;background:#78350f;border:1px solid #f59e0b;border-radius:8px;color:#fde68a;font-size:12px"></div>
-  <div style="flex:1;position:relative;overflow:hidden;background:#020617">
-    <div id="ltAf" style="position:absolute;inset:0;overflow:hidden">
+  </div>
+  <div style="position:absolute;inset:0;overflow:hidden;background:#020617">
+    <!-- touch-action:none - בלעדיו הדפדפן תופס את האצבע כגלילה/זום של הדף, ואירועי
+         ה-pointer של הגרירה והצביטה לא נשלחים בכלל (CLAUDE.md §גרירה) -->
+    <div id="ltAf" style="position:absolute;inset:0;overflow:hidden;touch-action:none;user-select:none">
       <div id="ltAfStage" style="position:absolute;top:0;left:0;transform-origin:0 0">
         <img id="ltAfImg" alt="" style="display:none;width:100%;height:100%">
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">
@@ -628,8 +637,13 @@
       <div id="ltAfNoImg" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;color:#64748b;font-size:13px;padding:20px;text-align:center">לא הוגדרה תמונת מפה לשדה</div>
     </div>
     <div id="ltGoogle" style="position:absolute;inset:0;display:none"></div>
+    <!-- זום: מעל שורת המצב, בצד. כפתורים גדולים - נוהגים בהם באצבע אחת ובמבט חטוף -->
+    <div id="ltZoom" style="position:absolute;left:12px;bottom:64px;z-index:15;display:flex;flex-direction:column;gap:8px">
+      <button type="button" class="lt-zoom-btn" onclick="liveZoomBy(LIVE_ZOOM_STEP)" aria-label="הגדל">＋</button>
+      <button type="button" class="lt-zoom-btn" onclick="liveZoomBy(1 / LIVE_ZOOM_STEP)" aria-label="הקטן">－</button>
+    </div>
   </div>
-  <div id="ltStatus" style="padding:9px 12px;background:#1e293b;border-top:1px solid #334155;font-size:12px;color:#cbd5e1;min-height:18px"></div>
+  <div id="ltStatus" style="position:absolute;left:0;right:0;bottom:0;z-index:20;padding:9px 12px;background:#0f172ae6;border-top:1px solid #33415599;font-size:12px;color:#cbd5e1;min-height:18px"></div>
 </div>
 
 <!-- DRIVER MESSAGE POPUP -->
@@ -1996,6 +2010,15 @@ function routeLine(from, to, stopsCount, extras) {
  * כרטיס נסיעה בשורה מצומצמת. `kind`: approved | pending | rejected | done - קובע
  * אילו פעולות מוצגות. שכפול ושמירה כתבנית זמינים בכל כרטיס, כאייקונים.
  */
+/**
+ * הנסיעה שהנהג כבר הפעיל ועוד לא סיים. נסיעה אחת פעילה בכל רגע: מיקום אחד
+ * שמשודר לשתי נסיעות מציג במגדל שני רכבים במקום אחד. השרת אוכף את הכלל;
+ * כאן הוא רק מונע מהנהג ללחוץ על כפתור שיידחה.
+ */
+function activeLiveTrip(exceptId) {
+  return myTrips.find(x => x.id !== exceptId && x.status === 'approved' && x.driver_started_at && !x.ended_at) || null;
+}
+
 function tripCard(t, kind) {
   const st = tripStatusOf(t);
   const stopNames = Array.isArray(t.stop_names) ? t.stop_names.filter(Boolean) : [];
@@ -2011,7 +2034,8 @@ function tripCard(t, kind) {
     kind === 'approved' && t.driver_started_at ? `<span style="color:#c4b5fd;font-weight:700">🚦 הופעלה ${esc(timeText(t.driver_started_at))}</span>` : '',
   ].filter(Boolean).join(' · ');
   const live = kind === 'approved' && t.driver_started_at && !t.ended_at;
-  const canStart = kind === 'approved' && !t.driver_started_at;
+  const otherLive = kind === 'approved' && !t.driver_started_at ? activeLiveTrip(t.id) : null;
+  const canStart = kind === 'approved' && !t.driver_started_at && !otherLive;
   const canAck = kind === 'approved' && !t.driver_ack_at;
   return `
     <div class="trip-card${kind === 'rejected' ? ' rejected' : ''}${kind === 'done' ? ' done' : ''}">
@@ -2028,11 +2052,12 @@ function tripCard(t, kind) {
         <button class="tc-icon" type="button" title="שמור כתבנית" aria-label="שמור כתבנית" onclick="saveTripAsTemplate(${t.id})">📋</button>
       </div>
       ${active && t.pending_change_at ? `<div class="tc-flag" style="color:#fbbf24">✋ ממתין לאישור המגדל בעקבות העדכון שלך: ${esc(changedFieldsText(t))}</div>` : ''}
-      ${live || canStart || canAck ? `
+      ${live || canStart || canAck || otherLive ? `
       <div class="tc-actions">
         ${flags ? `<span class="tc-flag tc-flag-in">${flags}</span>` : ''}
         ${canAck ? `<button class="trip-btn" style="background:#22c55e;color:#062e14" onclick="ackTrip(${t.id})">✓ מאשר נסיעה</button>` : ''}
         ${canStart ? `<button class="trip-btn" style="background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff" onclick="startTrip(${t.id})">🚦 הפעל נסיעה</button>` : ''}
+        ${otherLive ? `<span class="tc-flag tc-flag-in" style="color:#fbbf24">🚦 נסיעה אחרת פעילה - סיים אותה לפני הפעלת נסיעה זו</span><button class="trip-btn" style="background:#334155;color:#e2e8f0" onclick="openLiveTrip(${otherLive.id})">לנסיעה הפעילה</button>` : ''}
         ${live ? `<button class="trip-btn" style="background:linear-gradient(135deg,#0ea5e9,#2563eb);color:#fff" onclick="openLiveTrip(${t.id})">🗺 מפת נסיעה</button>` : ''}
       </div>` : flags ? `<div class="tc-flag">${flags}</div>` : ''}
       ${isChanging ? `
@@ -2096,6 +2121,8 @@ function timeText(iso) {
 async function startTrip(id) {
   const t = myTrips.find(x => x.id === id);
   if (!t) return;
+  const busy = activeLiveTrip(id);
+  if (busy) { showAnotherTripActive(busy.id); return; }
   const state = DriverLogic.startWindowState(t.scheduled_at);
   if (state !== 'open') { showStartBlocked(t, state); return; }
   let res;
@@ -2108,6 +2135,8 @@ async function startTrip(id) {
   if (res.status === 409) {
     const b = await res.json().catch(() => ({}));
     if (b.error === 'outside_start_window') { showStartBlocked(t, b.window); return; }
+    // הנסיעה הפעילה הופעלה ממכשיר אחר, או שהרשימה כאן עוד לא ידעה עליה
+    if (b.error === 'another_trip_active') { await loadHome(); showAnotherTripActive(b.active_trip_id); return; }
     alert('הנסיעה אינה מאושרת כרגע. רענן ונסה שוב.');
     await loadHome();
     return;
@@ -2117,6 +2146,12 @@ async function startTrip(id) {
   showToast('🚦 הנסיעה הופעלה - נסיעה טובה');
   // המפה, הנתיב והאלמנטים שעל הדרך - ומכאן גם שידור המיקום למגדל
   openLiveTrip(id);
+}
+
+function showAnotherTripActive(activeId) {
+  if (confirm('יש לך כבר נסיעה פעילה. אי אפשר להפעיל שתי נסיעות בו-זמנית - סיים את הנסיעה הפעילה קודם.\n\nלעבור לנסיעה הפעילה?')) {
+    if (activeId) openLiveTrip(activeId);
+  }
 }
 
 function showStartBlocked(t, state) {
@@ -2562,7 +2597,12 @@ function openGateEntry() {
 
 const LIVE_POLL_MS = 5000;   // רענון מצב האלמנטים - רמזור שהתחלף (D11)
 const LIVE_SEND_MS = 5000;   // קצב שידור הקריאות לשרת
-const LIVE_FOLLOW_ZOOM = 3;  // הגדלת מפת השדה במצב "עקוב"
+// זום מפת השדה: 1 = המפה מכסה את כל המסך. ברירת המחדל מתקרבת מספיק כדי לראות
+// את הדרך סביב הרכב, והנהג מגדיל ומקטין בכפתורים או בצביטה.
+const LIVE_ZOOM_DEFAULT = 3;
+const LIVE_ZOOM_MIN = 1;
+const LIVE_ZOOM_MAX = 10;
+const LIVE_ZOOM_STEP = 1.4;
 
 let live = null;
 
@@ -2576,7 +2616,7 @@ async function openLiveTrip(id) {
   live = {
     tripId: id, data: null, watchId: null, fix: null, pendingFix: null, sending: false, sendFailed: false,
     alertState: { inside: [], lastAt: {} }, nearest: null, pollTimer: null, sendTimer: null,
-    mapMode: 'airfield', follow: true, wakeLock: null,
+    mapMode: 'airfield', follow: true, zoom: LIVE_ZOOM_DEFAULT, center: null, view: null, wakeLock: null,
     gmap: null, gmapObjs: null, gmapsKey: undefined, gpsState: 'waiting', loadedMapId: null,
   };
   setLiveMapTabs('airfield');
@@ -2843,6 +2883,8 @@ function liveKindName(k) {
 function setLiveMapTabs(mode) {
   liveEl('ltAf').style.display = mode === 'airfield' ? 'block' : 'none';
   liveEl('ltGoogle').style.display = mode === 'google' ? 'block' : 'none';
+  // ל-Google כפתורי זום משלה - שני סטים על אותו מסך הם פקד שלא ברור מה הוא מזיז
+  liveEl('ltZoom').style.display = mode === 'airfield' ? 'flex' : 'none';
   liveEl('ltTabAf').classList.toggle('on', mode === 'airfield');
   liveEl('ltTabG').classList.toggle('on', mode === 'google');
 }
@@ -2863,8 +2905,7 @@ async function setLiveMap(mode) {
 
 function toggleLiveFollow() {
   if (!live) return;
-  live.follow = !live.follow;
-  liveEl('ltFollow').classList.toggle('on', live.follow);
+  setLiveFollow(!live.follow);
   renderLiveMap();
 }
 
@@ -2927,24 +2968,119 @@ function renderLiveMap() {
   else renderAirfieldMap();
 }
 
-function renderAirfieldMap() {
+/** מיקום הרכב על מפת השדה באחוזים. רק במפה מעוגנת - בלי עוגן אין דרך לדעת איפה הוא (D3) */
+function liveVehiclePct() {
+  return live && live.fix && live.data && live.data.has_anchor
+    ? TripTracking.latLonToPct(live.fix.lat, live.fix.lon, live.data.anchor) : null;
+}
+
+/**
+ * גודל המפה ומיקומה על המסך - בלי לבנות מחדש את הסימונים, כדי שגרירה וצביטה
+ * יזוזו חלק. הסימונים ממוקמים באחוזים בתוך הבמה ולכן נעים איתה.
+ *
+ * - **כיסוי מלא**: בזום 1 המפה מכסה את כל המסך (הצלע הקצרה שלה נמתחת עד הקצה).
+ *   התאמה לרוחב בלבד השאירה על טלפון לאורך רצועה צרה עם שוליים שחורים.
+ * - **מרכז**: במצב "עקוב" - הרכב; אחרת - הנקודה שהנהג גרר אליה.
+ * - המרכז הוא מרכז **השטח הגלוי**, בין הכותרת הצפה לשורת המצב, ולא מרכז המסך:
+ *   אחרת הרכב יושב מתחת לכותרת.
+ */
+function applyAirfieldView() {
   const wrap = liveEl('ltAf'), stage = liveEl('ltAfStage'), img = liveEl('ltAfImg');
   const W = wrap.clientWidth, H = wrap.clientHeight;
-  if (!W || !H) return;
+  if (!W || !H) return null;
   const aspect = img.naturalWidth ? img.naturalHeight / img.naturalWidth : 0.75;
-  // נקודת הרכב רק במפה מעוגנת - בלי עוגן אין דרך לדעת איפה הוא על התמונה (D3)
-  const vehiclePct = live.fix && live.data.has_anchor
-    ? TripTracking.latLonToPct(live.fix.lat, live.fix.lon, live.data.anchor) : null;
-  const zoom = live.follow && vehiclePct ? LIVE_FOLLOW_ZOOM : 1;
-  const sw = W * zoom, sh = sw * aspect;
+  const topH = liveEl('ltTop').offsetHeight || 0;
+  const botH = liveEl('ltStatus').offsetHeight || 0;
+  const baseW = Math.max(W, H / aspect);
+  const sw = baseW * live.zoom, sh = sw * aspect;
+  const vehiclePct = liveVehiclePct();
+  if (live.follow && vehiclePct) live.center = { x: vehiclePct.x, y: vehiclePct.y };
+  const c = live.center || { x: 50, y: 50 };
+  const cx = W / 2, cy = topH + (H - topH - botH) / 2;
+  // אפשר לגלול עד שקצה המפה מגיע לקצה השטח הגלוי - כך גם הרצועה שמתחת לכותרת
+  // נגישה, ולא נעלמת לתמיד מאחוריה
+  const tx = Math.min(0, Math.max(W - sw, cx - (c.x / 100) * sw));
+  const ty = Math.min(topH, Math.max(H - botH - sh, cy - (c.y / 100) * sh));
   stage.style.width = `${sw}px`;
   stage.style.height = `${sh}px`;
-  let tx = 0, ty = sh < H ? (H - sh) / 2 : 0;
-  if (zoom > 1) {
-    tx = Math.min(0, Math.max(W - sw, W / 2 - (vehiclePct.x / 100) * sw));
-    ty = sh <= H ? (H - sh) / 2 : Math.min(0, Math.max(H - sh, H / 2 - (vehiclePct.y / 100) * sh));
-  }
   stage.style.transform = `translate(${tx}px, ${ty}px)`;
+  live.view = { W, H, sw, sh, tx, ty, cx, cy };
+  return vehiclePct;
+}
+
+/** זום סביב מרכז השטח הגלוי. במצב "עקוב" הרכב נשאר במרכז. */
+function liveZoomBy(factor) {
+  if (!live) return;
+  live.zoom = Math.min(LIVE_ZOOM_MAX, Math.max(LIVE_ZOOM_MIN, live.zoom * factor));
+  applyAirfieldView();
+}
+
+/** המרכז הנוכחי באחוזים, כפי שהוא מוצג - נקודת המוצא לגרירה */
+function liveViewCenterPct() {
+  const v = live.view;
+  if (!v) return live.center || { x: 50, y: 50 };
+  return { x: ((v.cx - v.tx) / v.sw) * 100, y: ((v.cy - v.ty) / v.sh) * 100 };
+}
+
+function setLiveFollow(on) {
+  if (!live) return;
+  live.follow = on;
+  liveEl('ltFollow').classList.toggle('on', on);
+}
+
+/**
+ * גרירה באצבע אחת וצביטה בשתיים, ב-Pointer Events (CLAUDE.md §גרירה): עובד
+ * באצבע, בעט ובעכבר, עם setPointerCapture כדי שהגרירה לא תיקטע. גרירה מכבה את
+ * "עקוב" - אחרת המפה קופצת חזרה לרכב מתחת לאצבע ב-GPS הבא. 🎯 מחזיר.
+ */
+(function bindLiveMapGestures() {
+  const wrap = document.getElementById('ltAf');
+  if (!wrap) return;
+  const pts = new Map();
+  let last = null;
+  const snapshot = () => {
+    const a = [...pts.values()];
+    if (a.length >= 2) {
+      return { mx: (a[0].x + a[1].x) / 2, my: (a[0].y + a[1].y) / 2, dist: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) };
+    }
+    return a.length ? { mx: a[0].x, my: a[0].y, dist: 0 } : null;
+  };
+  wrap.addEventListener('pointerdown', e => {
+    if (!live || live.mapMode !== 'airfield') return;
+    wrap.setPointerCapture(e.pointerId);
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    last = snapshot();
+  });
+  wrap.addEventListener('pointermove', e => {
+    if (!live || !pts.has(e.pointerId) || !live.view) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const now = snapshot();
+    if (!now || !last) { last = now; return; }
+    const dx = now.mx - last.mx, dy = now.my - last.my;
+    const pinch = pts.size >= 2 && last.dist > 0 && now.dist > 0;
+    if (!pinch && Math.hypot(dx, dy) < 1) return;
+    if (live.follow) setLiveFollow(false);
+    const c = liveViewCenterPct();
+    // גרירה מזיזה את המרכז הפוך לתנועת האצבע
+    live.center = { x: c.x - (dx / live.view.sw) * 100, y: c.y - (dy / live.view.sh) * 100 };
+    if (pinch) live.zoom = Math.min(LIVE_ZOOM_MAX, Math.max(LIVE_ZOOM_MIN, live.zoom * (now.dist / last.dist)));
+    applyAirfieldView();
+    last = now;
+  });
+  const lift = e => { pts.delete(e.pointerId); last = snapshot(); };
+  wrap.addEventListener('pointerup', lift);
+  wrap.addEventListener('pointercancel', lift);
+  // גלגלת - לבדיקה ממחשב
+  wrap.addEventListener('wheel', e => {
+    if (!live || live.mapMode !== 'airfield') return;
+    e.preventDefault();
+    liveZoomBy(e.deltaY < 0 ? LIVE_ZOOM_STEP : 1 / LIVE_ZOOM_STEP);
+  }, { passive: false });
+})();
+
+function renderAirfieldMap() {
+  const vehiclePct = applyAirfieldView();
+  if (!live.view) return;
 
   const d = live.data;
   const pts = (d.route || []).map(livePct).filter(Boolean);

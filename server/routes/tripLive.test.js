@@ -477,10 +477,12 @@ describe('POST /api/driver-trips/:id/end - סיום נסיעה', () => {
 
 describe('GET /api/trips/live - המגדל', () => {
   it('רק נסיעות שהופעלו ולא הסתיימו, עם המיקום והמצב', async () => {
-    const live = await mkStarted();
-    const notStarted = await mkTrip();
+    // הנסיעה שהסתיימה מופעלת ומסתיימת **לפני** שהפעילה מופעלת: לנהג יש נסיעה
+    // פעילה אחת בכל רגע, והפעלה שנייה לפני סיום הראשונה נדחית ב-409
     const ended = await mkStarted();
     await dpost(`/api/driver-trips/${ended.id}/end`, MY_TZ);
+    const live = await mkStarted();
+    const notStarted = await mkTrip();
     await dpost(`/api/driver-trips/${live.id}/gps`, MY_TZ, OFF_300);
     await dpost(`/api/driver-trips/${live.id}/gps`, MY_TZ, OFF_300);
 

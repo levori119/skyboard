@@ -986,10 +986,40 @@ router.post('/api/driver-trips/:id/start', async (req, res) => {
     if (window !== 'open') {
       return res.status(409).json({ error: 'outside_start_window', window, minutes: START_WINDOW_MINUTES });
     }
-    await pool.query(
-      `UPDATE entry_permit_trips SET driver_started_at = COALESCE(driver_started_at, NOW()), updated_at = NOW()
-        WHERE id=$1`, [req.params.id]);
-    res.json(await oneTrip(req.params.id));
+
+    // ── נסיעה אחת פעילה לנהג ──────────────────────────────────────────────
+    // נהג שמפעיל נסיעה שנייה לפני שסיים את הראשונה משדר מיקום לשתיהן: המגדל רואה
+    // שני רכבים במקום אחד, והתרעת הסטייה של אחת מהן נכונה והשנייה שקרית. הכלל
+    // נאכף **כאן** ולא רק באפליקציה - שני מכשירים או לחיצה כפולה היו עוקפים
+    // אותו. נעילת advisory פר-ת"ז מסדרת שתי הפעלות מקבילות, כדי ששתיהן לא יעברו
+    // את הבדיקה לפני שאחת מהן כתבה.
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`driver-start:${scope.nationalId}`]);
+      const other = await client.query(
+        `SELECT t.id FROM entry_permit_trips t LEFT JOIN entry_permit_drivers d ON d.id = t.driver_id
+          WHERE t.id <> $3 AND t.driver_started_at IS NOT NULL AND t.ended_at IS NULL
+            AND t.status <> 'ended' AND ${tripOwnedBy(1)}
+          ORDER BY t.driver_started_at DESC LIMIT 1`,
+        [scope.nationalId, scope.baseIds, t.id]);
+      if (other.rows.length) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ error: 'another_trip_active', active_trip_id: other.rows[0].id });
+      }
+      await client.query(
+        `UPDATE entry_permit_trips SET driver_started_at = COALESCE(driver_started_at, NOW()), updated_at = NOW()
+          WHERE id=$1`, [t.id]);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      // שחרור **לפני** oneTrip: המאגר המקומי הוא חיבור יחיד, ו-pool.query בזמן
+      // שה-client מוחזק הוא דדלוק
+      client.release();
+    }
+    res.json(await oneTrip(t.id));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

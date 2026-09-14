@@ -913,6 +913,58 @@ describe('ניהול נסיעות - אפליקציית הנהג', () => {
     const t = await mkApproved({ scheduled_at: tripAt(5), driver_national_id: '087654321' });
     expect((await dpost(`/api/driver-trips/${t.id}/start`, MY_TZ)).status).toBe(404);
   });
+
+  // ── נסיעה אחת פעילה לנהג ──
+  // שתי נסיעות פעילות = מיקום אחד משודר לשתיהן, והמגדל רואה שני רכבים במקום אחד
+  it('אי אפשר להפעיל נסיעה שנייה לפני שהראשונה הסתיימה', async () => {
+    const a = await mkApproved({ scheduled_at: tripAt(10) });
+    const b = await mkApproved({ scheduled_at: tripAt(15) });
+    expect((await dpost(`/api/driver-trips/${a.id}/start`, MY_TZ)).status).toBe(200);
+    const res = await dpost(`/api/driver-trips/${b.id}/start`, MY_TZ);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: 'another_trip_active', active_trip_id: a.id });
+    const [row] = (await pool.query('SELECT driver_started_at FROM entry_permit_trips WHERE id=$1', [b.id])).rows;
+    expect(row.driver_started_at).toBeNull();
+  });
+
+  it('אחרי סיום הראשונה אפשר להפעיל את השנייה', async () => {
+    const a = await mkApproved({ scheduled_at: tripAt(10) });
+    const b = await mkApproved({ scheduled_at: tripAt(15) });
+    await dpost(`/api/driver-trips/${a.id}/start`, MY_TZ);
+    expect((await dpost(`/api/driver-trips/${a.id}/end`, MY_TZ)).status).toBe(200);
+    expect((await dpost(`/api/driver-trips/${b.id}/start`, MY_TZ)).status).toBe(200);
+  });
+
+  // הפעלה חוזרת של אותה נסיעה (מסך שנפתח שוב) אינה נחשבת נסיעה שנייה
+  it('הפעלה חוזרת של אותה נסיעה מותרת ושומרת את זמן ההפעלה הראשון', async () => {
+    const a = await mkApproved({ scheduled_at: tripAt(10) });
+    const first = await (await dpost(`/api/driver-trips/${a.id}/start`, MY_TZ)).json();
+    const again = await dpost(`/api/driver-trips/${a.id}/start`, MY_TZ);
+    expect(again.status).toBe(200);
+    expect((await again.json()).driver_started_at).toBe(first.driver_started_at);
+  });
+
+  it('נסיעה פעילה של נהג אחר אינה חוסמת', async () => {
+    const other = await mkApproved({ scheduled_at: tripAt(10), driver_national_id: '087654321' });
+    await dpost(`/api/driver-trips/${other.id}/start`, '087654321');
+    const mine = await mkApproved({ scheduled_at: tripAt(10) });
+    expect((await dpost(`/api/driver-trips/${mine.id}/start`, MY_TZ)).status).toBe(200);
+  });
+
+  // לחיצה כפולה או שני מכשירים: שתי ההפעלות יוצאות יחד, ורק אחת עוברת
+  it('שתי הפעלות מקבילות של נסיעות שונות - רק אחת מצליחה', async () => {
+    const a = await mkApproved({ scheduled_at: tripAt(10) });
+    const b = await mkApproved({ scheduled_at: tripAt(12) });
+    const [ra, rb] = await Promise.all([
+      dpost(`/api/driver-trips/${a.id}/start`, MY_TZ),
+      dpost(`/api/driver-trips/${b.id}/start`, MY_TZ),
+    ]);
+    expect([ra.status, rb.status].sort()).toEqual([200, 409]);
+    const { rows } = await pool.query(
+      'SELECT COUNT(*)::int AS n FROM entry_permit_trips WHERE id = ANY($1::int[]) AND driver_started_at IS NOT NULL',
+      [[a.id, b.id]]);
+    expect(rows[0].n).toBe(1);
+  });
 });
 
 describe('ניהול נסיעות - בקשה חדשה מאפליקציית הנהג', () => {
