@@ -3167,10 +3167,22 @@ REFACTOR_LOG #045.
 את אותה התרעה באותו רגע. הכללים עצמם ב-`shared/tripTracking.js` - אותו קוד
 שאפליקציית הנהג מריצה.
 
+### `airfield_elements.relevant_for` - למי האלמנט רלוונטי
+
+| עמודה | טיפוס | הערות |
+|---|---|---|
+| `relevant_for` | JSONB | `["vehicles","aircraft"]` (ברירת מחדל - שניהם), בחירה מרובה, לפחות אחד |
+
+נקבע בטופס האלמנט בניהול ("למי רלוונטי"). **רכבים בלבד** נכנסים לאפליקציית הנהג
+(`by-base?driver_only=true`, `/live`), לחישוב נתיב לרכב (`planRoute` - אלמנטים לתפעול;
+חלון הרכב במגדל) ולחסימה במעקב החי. ערך חסר או פגום = שניהם, כך שאלמנט ישן לא נעלם
+בשקט מהנהג. הכלל ב-[`shared/elementRelevance.js`](shared/elementRelevance.js).
+
 ### הנתיב שאושר - `route_options[].waypoints`
 
 כל אפשרות נתיב נושאת מעתה את הנתיב עצמו (`compactRouteWaypoints`):
-`{lat, lon, xPct, yPct, routeType, isCrossing}`. הנתיב שאושר הוא האפשרות
+`{lat, lon, xPct, yPct, routeType, isCrossing, isStop?}` (`isStop` רק כשהנקודה היא תחנה -
+מחלק את הקו ללגים באפליקציית הנהג). הנתיב שאושר הוא האפשרות
 ש-`route_ids` שלה שווה (כקבוצה) ל-`selected_route_ids`. **הסטייה נמדדת מולו,
 לא מול חישוב מחדש** - רשת הדרכים עלולה להשתנות בין האישור ליציאה. נסיעה שאושרה
 לפני השינוי - בלי `waypoints` - מקבלת `has_route=false` וזיהוי הסטייה כבוי.

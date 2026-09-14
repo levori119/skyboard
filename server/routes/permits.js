@@ -23,6 +23,7 @@ import {
   anchorFrom, pctToLatLon, metersToPolyline, metersToSegment, isElementBlocking, roadControlElements, compactWaypoints,
   nextDeviationStreak, isDeviating, isFixStale, ELEMENT_ALERT_M, MAX_ACCURACY_M, DISPLAY_STATE_LABEL,
 } from '../../shared/tripTracking.js';
+import { onlyRelevantFor } from '../../shared/elementRelevance.js';
 import { planRoute } from './driver.js';
 
 const router = new Router();
@@ -1104,6 +1105,8 @@ function approvedRoute(trip, anchor) {
       yPct: Number.isFinite(num(w?.yPct)) ? num(w.yPct) : null,
       routeType: w?.routeType || 'vehicle',
       isCrossing: !!w?.isCrossing,
+      // התחנות מחלקות את הקו ללגים באפליקציית הנהג
+      ...(w?.isStop === true ? { isStop: true } : {}),
     });
   }
   return route.length >= 2 ? route : [];
@@ -1188,17 +1191,19 @@ function geoLine(points, anchor) {
 /**
  * אלמנטי השליטה בתנועה בשדה (roadControlElements), כל אחד עם נ"צ, האם הוא על
  * הנתיב והאם הוא סוגר את הדרך עכשיו. גם בלי נתיב - המפה לא נשארת ריקה.
+ * רק אלמנטים שרלוונטיים לרכבים (relevant_for) - אלמנט של מטוסים בלבד אינו
+ * מוצג לנהג ואינו חוסם אותו.
  */
 async function routeElements(airfieldId, route, anchor, q = pool) {
   if (!anchor) return [];
   const r = await q.query(
     `SELECT ae.id, ae.name, ae.category, ae.status, ae.display_state, ae.blocking_statuses,
-            ae.x_pct, ae.y_pct, ae.rotation, ae.blink_rate, ae.open_icon_key, ae.close_icon_key,
+            ae.x_pct, ae.y_pct, ae.rotation, ae.blink_rate, ae.open_icon_key, ae.close_icon_key, ae.relevant_for,
             aet.icon AS type_icon, aet.allowed_statuses AS type_allowed_statuses,
             aet.open_icon AS type_open_icon, aet.close_icon AS type_close_icon, aet.status_icons AS type_status_icons
        FROM airfield_elements ae LEFT JOIN airfield_element_types aet ON aet.id = ae.element_type_id
       WHERE ae.airfield_id = $1 AND ae.x_pct IS NOT NULL AND ae.y_pct IS NOT NULL`, [airfieldId]);
-  return roadControlElements(r.rows, route, anchor).map(el => ({
+  return roadControlElements(onlyRelevantFor(r.rows, 'vehicles'), route, anchor).map(el => ({
     id: el.id, name: el.name, category: el.category, status: el.status, display_state: el.display_state,
     blocking_statuses: el.blocking_statuses, type_allowed_statuses: el.type_allowed_statuses,
     // כל מה שהסמל של המגדל צריך (shared/elementSymbols.js) - אותו סמל, מצב והבהוב אצל הנהג
@@ -1207,6 +1212,20 @@ async function routeElements(airfieldId, route, anchor, q = pool) {
     blink_rate: el.blink_rate, rotation: el.rotation,
     x_pct: el.x_pct, y_pct: el.y_pct, lat: el.lat, lon: el.lon,
     route_distance_m: el.route_distance_m, on_route: el.on_route, blocking: isElementBlocking(el),
+  }));
+}
+
+/**
+ * התחנות בדרך, לפי הסדר, עם מיקום - אפליקציית הנהג מחלקת בהן את הנתיב ללגים.
+ * תחנה בטקסט חופשי מגיעה בלי מיקום (ולא חותכת).
+ */
+async function tripStops(stops, anchor, q = pool) {
+  return Promise.all(parseList(stops).map(async s => {
+    const p = s?.point_id ? await pointGeo(s.point_id, anchor, q) : null;
+    return {
+      name: p?.name || String(s?.text ?? ''),
+      lat: p?.lat ?? null, lon: p?.lon ?? null, xPct: p?.x_pct ?? null, yPct: p?.y_pct ?? null,
+    };
   }));
 }
 
@@ -1258,11 +1277,12 @@ router.get('/api/driver-trips/:id/live', async (req, res) => {
     if (!t) return res.status(404).json({ error: 'trip_not_found' });
     const geo = await airfieldGeo(t.airfield_id);
     const route = await resolveApprovedRoute(t, geo.anchor);
-    const [elements, areas, from, to] = await Promise.all([
+    const [elements, areas, from, to, stops] = await Promise.all([
       routeElements(t.airfield_id, route, geo.anchor),
       movementAreas(t.airfield_id, geo.anchor),
       pointGeo(t.from_point_id, geo.anchor),
       pointGeo(t.to_point_id, geo.anchor),
+      tripStops(t.stops, geo.anchor),
     ]);
     res.json({
       trip: t,
@@ -1272,6 +1292,7 @@ router.get('/api/driver-trips/:id/live', async (req, res) => {
       has_route: route.length >= 2,
       route, elements, from, to,
       stop_names: parseList(t.stop_names),
+      stops,
       runways: areas.runways, taxiways: areas.taxiways,
     });
   } catch (err) { res.status(500).json({ error: err.message }); }

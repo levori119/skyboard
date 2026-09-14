@@ -7,6 +7,7 @@ import {
   airfieldOfRunway, resolveAidStatus, resolveEndUse, resolveGrf, resolveLighting,
   resolveLinkedRouteNotams, resolveNotams,
 } from '../utils/runwayState.js';
+import { parseRelevantFor, onlyRelevantFor, DEFAULT_RELEVANT_FOR } from '../../shared/elementRelevance.js';
 const router = new Router();
 
 // אייקון סוג אלמנט: או אמוג'י, או `svg:<גוף ה-SVG>|<צבע>` (ראה RunwayLayer /
@@ -276,13 +277,14 @@ router.post('/api/airfields/:id/duplicate', async (req, res) => {
       const nr = await client.query(
         `INSERT INTO airfield_elements
           (airfield_id,element_type_id,name,status,note,x_pct,y_pct,category,camera_url,
-           display_state,blink_rate,blink_colors,open_icon_key,close_icon_key,rotation,relevant_routes,blocking_statuses)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`,
+           display_state,blink_rate,blink_colors,open_icon_key,close_icon_key,rotation,relevant_routes,blocking_statuses,relevant_for)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING id`,
         [newId, el.element_type_id, el.name, el.status || 'תקין', el.note,
          el.x_pct, el.y_pct, el.category || '', el.camera_url,
          el.display_state || 'normal', el.blink_rate ?? 1.0, el.blink_colors,
          el.open_icon_key, el.close_icon_key, el.rotation ?? 0,
-         JSON.stringify(remappedRoutes), JSON.stringify(blockSt)]
+         JSON.stringify(remappedRoutes), JSON.stringify(blockSt),
+         JSON.stringify(parseRelevantFor(el.relevant_for) ?? DEFAULT_RELEVANT_FOR)]
       );
       elementMap[el.id] = nr.rows[0].id;
     }
@@ -563,7 +565,7 @@ router.get('/api/airfield-elements/by-base/:baseId', driverBaseGuard, async (req
   try {
     const driverOnly = req.query.driver_only === 'true';
     const result = await pool.query(
-      `SELECT ae.id, ae.name, ae.status, ae.note, ae.category, ae.hidden_on_map, ae.show_in_driver,
+      `SELECT ae.id, ae.name, ae.status, ae.note, ae.category, ae.hidden_on_map, ae.show_in_driver, ae.relevant_for,
               ae.display_state, ae.blink_rate, ae.element_type_id, ae.rotation, ae.x_pct, ae.y_pct,
               aet.name as type_name, aet.icon as type_icon, aet.color as type_color,
               aet.can_change_status as type_can_change_status, aet.allowed_statuses as type_allowed_statuses,
@@ -575,7 +577,8 @@ router.get('/api/airfield-elements/by-base/:baseId', driverBaseGuard, async (req
        ORDER BY af.name, ae.category, ae.name`,
       [req.params.baseId]
     );
-    res.json(result.rows);
+    // אפליקציית הנהג: רק אלמנטים שרלוונטיים לרכבים
+    res.json(driverOnly ? onlyRelevantFor(result.rows, 'vehicles') : result.rows);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch airfield elements' });
@@ -583,17 +586,20 @@ router.get('/api/airfield-elements/by-base/:baseId', driverBaseGuard, async (req
 });
 router.post('/api/airfield-elements', async (req, res) => {
   try {
-    const { airfield_id, element_type_id, name, status, note, x_pct, y_pct, category, camera_url } = req.body;
+    const { airfield_id, element_type_id, name, status, note, x_pct, y_pct, category, camera_url, relevant_for } = req.body;
     const r = await pool.query(
-      'INSERT INTO airfield_elements (airfield_id,element_type_id,name,status,note,x_pct,y_pct,category,camera_url) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
-      [airfield_id, element_type_id || null, name, status || 'תקין', note || null, x_pct ?? null, y_pct ?? null, category || '', camera_url || null]
+      'INSERT INTO airfield_elements (airfield_id,element_type_id,name,status,note,x_pct,y_pct,category,camera_url,relevant_for) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *',
+      [airfield_id, element_type_id || null, name, status || 'תקין', note || null, x_pct ?? null, y_pct ?? null, category || '', camera_url || null,
+       JSON.stringify(parseRelevantFor(relevant_for) ?? DEFAULT_RELEVANT_FOR)]
     );
     res.json(r.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
 router.put('/api/airfield-elements/:id', async (req, res) => {
   try {
-    const { element_type_id, name, status, note, x_pct, y_pct, category, display_state, blink_rate, blink_colors, open_icon_key, close_icon_key, rotation, camera_url, relevant_routes, blocking_statuses, hidden_on_map, show_in_driver } = req.body;
+    const { element_type_id, name, status, note, x_pct, y_pct, category, display_state, blink_rate, blink_colors, open_icon_key, close_icon_key, rotation, camera_url, relevant_routes, blocking_statuses, hidden_on_map, show_in_driver, relevant_for } = req.body;
+    // בחירה ריקה או לא תקינה אינה נשמרת - אלמנט שלא רלוונטי לאף אחד אינו אומר כלום
+    const relevantFor = parseRelevantFor(relevant_for);
     const r = await pool.query(
       `UPDATE airfield_elements SET element_type_id=$1,name=$2,status=$3,note=$4,x_pct=$5,y_pct=$6,category=COALESCE(NULLIF($7,''),category),
        display_state=COALESCE($8,display_state),blink_rate=COALESCE($9,blink_rate),blink_colors=COALESCE($10,blink_colors),
@@ -601,7 +607,8 @@ router.put('/api/airfield-elements/:id', async (req, res) => {
        rotation=COALESCE($14,rotation),camera_url=COALESCE($15,camera_url),
        relevant_routes=COALESCE($16::jsonb,relevant_routes),blocking_statuses=COALESCE($17::jsonb,blocking_statuses),
        hidden_on_map=COALESCE($18,hidden_on_map),
-       show_in_driver=COALESCE($19,show_in_driver)
+       show_in_driver=COALESCE($19,show_in_driver),
+       relevant_for=COALESCE($20::jsonb,relevant_for)
        WHERE id=$13 RETURNING *`,
       [element_type_id || null, name, status || 'תקין', note || null, x_pct ?? null, y_pct ?? null, category || '',
        display_state ?? null, blink_rate ?? null, blink_colors ?? null, open_icon_key ?? null, close_icon_key ?? null,
@@ -609,7 +616,8 @@ router.put('/api/airfield-elements/:id', async (req, res) => {
        relevant_routes !== undefined ? JSON.stringify(relevant_routes) : null,
        blocking_statuses !== undefined ? JSON.stringify(blocking_statuses) : null,
        hidden_on_map !== undefined ? hidden_on_map : null,
-       show_in_driver !== undefined ? show_in_driver : null]
+       show_in_driver !== undefined ? show_in_driver : null,
+       relevantFor ? JSON.stringify(relevantFor) : null]
     );
     res.json(r.rows[0] || {});
   } catch (err) { res.status(500).json({ error: 'Failed' }); }

@@ -74,7 +74,8 @@ beforeAll(async () => {
   await pool.query(`CREATE TABLE public.airfield_elements (
     id SERIAL PRIMARY KEY, airfield_id INTEGER REFERENCES airfields(id),
     element_type_id INTEGER REFERENCES airfield_element_types(id),
-    name VARCHAR(200), x_pct REAL, y_pct REAL, status VARCHAR(40))`);
+    name VARCHAR(200), x_pct REAL, y_pct REAL, status VARCHAR(40),
+    relevant_for JSONB DEFAULT '["vehicles","aircraft"]')`);
 
   await pool.query(`INSERT INTO maps (id, anchor1_x_img, anchor1_y_img, anchor1_lat, anchor1_lon,
                                      anchor2_x_img, anchor2_y_img, anchor2_lat, anchor2_lon)

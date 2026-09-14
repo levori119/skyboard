@@ -453,6 +453,13 @@ describe('compactRouteWaypoints - הנתיב לשמירה', () => {
     expect(w).toEqual({ lat: 31.25, lon: 34.65, xPct: 50, yPct: 50, routeType: 'taxiway', isCrossing: true });
   });
 
+  // לג לכל קטע בין תחנות באפליקציית הנהג - הסימון נשמר רק כשהוא אמת, כדי שנתיב בלי תחנות לא ישתנה
+  it('שומר את סימון התחנה (isStop) רק כשהוא אמת', () => {
+    const [a, b] = compactRouteWaypoints([{ lat: 31.2, lon: 34.6, isStop: true, stopName: 'x' }, { lat: 31.3, lon: 34.6, isStop: false }]);
+    expect(a.isStop).toBe(true);
+    expect('isStop' in b).toBe(false);
+  });
+
   it('נקודה בלי נ"צ ובלי אחוזים נזרקת', () => {
     expect(compactRouteWaypoints([{ instruction: 'x' }, { lat: 31.2, lon: 34.6 }])).toHaveLength(1);
   });

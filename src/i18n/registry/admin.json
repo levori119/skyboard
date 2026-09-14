@@ -3797,6 +3797,22 @@
     "secLinksViews": {
       "he": "שאילתא, קישורים ועמדות לצפייה",
       "en": "Query, links and viewed stations"
+    },
+    "elemRelevantFor": {
+      "he": "למי רלוונטי",
+      "en": "Relevant for"
+    },
+    "elemAudienceVehicles": {
+      "he": "🚗 רכבים",
+      "en": "🚗 Vehicles"
+    },
+    "elemAudienceAircraft": {
+      "he": "✈️ מטוסים",
+      "en": "✈️ Aircraft"
+    },
+    "elemRelevantForHint": {
+      "he": "אפליקציית הנהג ונתיב הרכב מתייחסים רק לאלמנטים של רכבים. לפחות אחד.",
+      "en": "The driver app and vehicle routing use only vehicle elements. At least one."
     }
   }
 }

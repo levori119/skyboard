@@ -380,6 +380,7 @@ describe('compactWaypoints - אותה צורה כמו בלקוח', () => {
     [{ instruction: 'x' }, { lat: 31.2, lon: 34.6 }],
     [{ x: 40, y: 50 }],
     [{ lat: 31.2, lng: 34.6 }],
+    [{ lat: 31.2, lon: 34.6, isStop: true, stopName: 'תחנה' }, { lat: 31.3, lon: 34.6, isStop: false }],
     [{ lat: '31.2', lon: '34.6', routeType: '', isCrossing: 'true' }],
     [{ lat: null, lon: 34.6, xPct: 10, yPct: '' }],
     null,

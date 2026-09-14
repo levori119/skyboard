@@ -4,6 +4,7 @@ import { windowFrame } from '../../utils/windowFrame';
 import { usePolling } from '../../hooks/usePollingRegistry';
 import { useDockableWindow } from '../../hooks/useDockableWindow';
 import { PERMIT_STATUS_COLOR, effectivePermitStatus, permitStatusKey } from '../../utils/permitStatus';
+import { onlyRelevantFor } from '../../../shared/elementRelevance';
 
 /**
  * תג אישור הכניסה של מבקש הכניסה - מוצג **לפני** שהפקח מאשר לו מסלול.
@@ -97,7 +98,7 @@ export function GroundVehiclePanel({ lightMode, onClose, onOpenPermits }: { ligh
   React.useEffect(() => {
     if (!planAirfieldId) { setPlanAfRoutes([]); setPlanAfElements([]); setPlanViaRouteIds([]); return; }
     fetch(`/api/airfield-routes?airfield_id=${planAirfieldId}`).then(r => r.ok ? r.json() : []).then(d => setPlanAfRoutes(d)).catch(() => {});
-    fetch(`/api/airfield-elements?airfield_id=${planAirfieldId}`).then(r => r.ok ? r.json() : []).then(d => setPlanAfElements(d)).catch(() => {});
+    fetch(`/api/airfield-elements?airfield_id=${planAirfieldId}`).then(r => r.ok ? r.json() : []).then(d => setPlanAfElements(onlyRelevantFor(d, 'vehicles'))).catch(() => {}); // נתיב לרכב - רק אלמנטים של רכבים
   }, [planAirfieldId]);
 
   const autoSelectAbort = React.useRef<{ cancelled: boolean }>({ cancelled: false });

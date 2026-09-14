@@ -243,3 +243,103 @@ export function startWindowState(scheduledAt, now = Date.now()) {
   if (diffMin < -START_WINDOW_MINUTES) return 'late';
   return 'open';
 }
+
+// ── הנתיב על המפה: לג לכל קטע בין תחנות, וחצי כיוון ─────────────────────────
+
+/**
+ * צבע לכל לג. הראשון הוא צבע הנתיב שהיה עד היום, כך שנסיעה בלי תחנות נראית
+ * בדיוק כמו קודם. הצבעים מתרחקים מאדום/ירוק (חוסם/פתוח) ומתכלת (הרכב עצמו).
+ */
+export const LEG_COLORS = Object.freeze(['#a855f7', '#f59e0b', '#ec4899', '#eab308', '#f97316', '#d946ef']);
+
+export function legColor(index) {
+  return LEG_COLORS[((index % LEG_COLORS.length) + LEG_COLORS.length) % LEG_COLORS.length];
+}
+
+/** תחנה נחשבת "על הנתיב" בנקודה שבמרחק זה ממנה. המתכנן שם צומת בדיוק על התחנה. */
+const STOP_MATCH_M = 60;
+const STOP_MATCH_PCT = 2;
+
+const finiteNum = v => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+/** מרחק תחנה↔נקודה: במטרים כשלשתיהן נ"צ, אחרת באחוזי מפה. null = אי אפשר להשוות */
+function stopDistance(stop, p) {
+  const sLat = finiteNum(stop?.lat), sLon = finiteNum(stop?.lon ?? stop?.lng);
+  const pLat = finiteNum(p?.lat), pLon = finiteNum(p?.lon ?? p?.lng);
+  if (sLat !== null && sLon !== null && pLat !== null && pLon !== null) {
+    return { d: distanceMeters(sLat, sLon, pLat, pLon), max: STOP_MATCH_M };
+  }
+  const sx = finiteNum(stop?.xPct ?? stop?.x_pct), sy = finiteNum(stop?.yPct ?? stop?.y_pct);
+  const px = finiteNum(p?.xPct), py = finiteNum(p?.yPct);
+  if (sx !== null && sy !== null && px !== null && py !== null) {
+    return { d: Math.hypot(sx - px, sy - py), max: STOP_MATCH_PCT };
+  }
+  return null;
+}
+
+/**
+ * חלוקת הנתיב ללגים בתחנות. נקודת התחנה משותפת ללג שנגמר בה ולזה שמתחיל בה,
+ * כך שהקו רציף.
+ *
+ * - נקודות `isStop` (מ-/api/route-plan) קובעות את החיתוך.
+ * - נתיב שנשמר בלי הסימון: כל תחנה חותכת בנקודה הקרובה אליה, **אחרי** התחנה
+ *   הקודמת - בנתיב הלוך-חזור התחנה בדרך חזרה לא נתפסת בדרך הלוך.
+ * - תחנה בלי מיקום (טקסט חופשי), רחוקה מהנתיב, או על המוצא/היעד - לא חותכת.
+ */
+export function splitRouteLegs(route, stops) {
+  if (!Array.isArray(route) || route.length < 2) return [];
+  const last = route.length - 1;
+  let cuts = [];
+  route.forEach((p, i) => { if (p?.isStop && i > 0 && i < last) cuts.push(i); });
+  if (!cuts.length) {
+    let from = 0;
+    for (const stop of stops || []) {
+      let best = -1, bestD = Infinity;
+      for (let i = from; i <= last; i++) {
+        const m = stopDistance(stop, route[i]);
+        if (m && m.d <= m.max && m.d < bestD) { bestD = m.d; best = i; }
+      }
+      if (best < 0) continue;
+      from = best;
+      if (best > 0 && best < last) cuts.push(best);
+    }
+  }
+  cuts = [...new Set(cuts)].sort((a, b) => a - b);
+  const legs = [];
+  let start = 0;
+  for (const c of cuts) { legs.push(route.slice(start, c + 1)); start = c; }
+  legs.push(route.slice(start));
+  return legs;
+}
+
+/**
+ * חצי כיוון לאורך קו בפיקסלים: חץ כל `spacing`, מ-`offset` מההתחלה ועד `offset`
+ * לפני הסוף (לא על סמן התחנה או היעד). קו קצר מדי מקבל חץ אחד באמצע - לכל לג
+ * יש כיוון. angle במעלות, 0 = מזרחה, 90 = מטה במסך.
+ */
+export function routeArrows(points, spacing, offset) {
+  const pts = (points || []).filter(p => Number.isFinite(p?.x) && Number.isFinite(p?.y));
+  const segs = [];
+  let total = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1];
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    if (len === 0) continue;
+    segs.push({ a, b, len, start: total });
+    total += len;
+  }
+  if (!segs.length) return [];
+  const at = d => {
+    const s = segs.find(sg => d <= sg.start + sg.len) || segs[segs.length - 1];
+    const t = (d - s.start) / s.len;
+    return {
+      x: s.a.x + (s.b.x - s.a.x) * t,
+      y: s.a.y + (s.b.y - s.a.y) * t,
+      angle: (Math.atan2(s.b.y - s.a.y, s.b.x - s.a.x) * 180) / Math.PI,
+    };
+  };
+  const out = [];
+  if (spacing > 0) for (let d = offset; d <= total - offset + 1e-9; d += spacing) out.push(at(d));
+  if (!out.length) out.push(at(total / 2));
+  return out;
+}

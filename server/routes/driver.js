@@ -5,6 +5,7 @@ import pool from '../db/pool.js';
 import { DRIVER_CSP } from '../middleware/securityHeaders.js';
 import { driverScopeOf, driverMayUseBase } from '../auth/driverIdentity.js';
 import { metersToPolyline } from '../../shared/tripTracking.js';
+import { onlyRelevantFor } from '../../shared/elementRelevance.js';
 const router = new Router();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -614,12 +615,14 @@ export async function planRoute(body) {
 
   const afRoutes = (await pool.query('SELECT *, is_runway FROM airfield_routes WHERE airfield_id=$1', [airfield_id])).rows;
   let controlElementsRes = null;
+  // נתיב לרכב: רק אלמנטים שרלוונטיים לרכבים (relevant_for) - תאורת מסלול לא עוצרת רכב
   const controlElements = async () => controlElementsRes || (controlElementsRes = await pool.query(
-    `SELECT ae.id, ae.name, ae.x_pct, ae.y_pct, ae.status,
+    `SELECT ae.id, ae.name, ae.x_pct, ae.y_pct, ae.status, ae.relevant_for,
             aet.name as type_name, aet.icon, aet.can_change_status, aet.open_icon, aet.close_icon
      FROM airfield_elements ae
      JOIN airfield_element_types aet ON aet.id = ae.element_type_id
-     WHERE ae.airfield_id = $1 AND aet.can_change_status = true`, [airfield_id]));
+     WHERE ae.airfield_id = $1 AND aet.can_change_status = true`, [airfield_id],
+  ).then(r => ({ rows: onlyRelevantFor(r.rows, 'vehicles') })));
 
   /** נתיב (שרשרת צמתים) -> הוראות, חציות, אלמנטים לתפעול, אורך ותיאור המקטעים */
   const describePath = async (pathIds) => {

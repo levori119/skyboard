@@ -145,6 +145,7 @@ export function compactWaypoints(raw) {
       xPct: hasPct ? xPct : null, yPct: hasPct ? yPct : null,
       routeType: typeof w.routeType === 'string' && w.routeType ? w.routeType : 'vehicle',
       isCrossing: w.isCrossing === true,
+      ...(w.isStop === true ? { isStop: true } : {}),
     });
   }
   return out;

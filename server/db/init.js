@@ -991,6 +991,9 @@ async function applySchemaOnce() {
   await sq(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS blocking_statuses JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS hidden_on_map BOOLEAN DEFAULT false`);
   await sq(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS show_in_driver BOOLEAN DEFAULT false`);
+  // למי האלמנט רלוונטי - 'vehicles' / 'aircraft' (shared/elementRelevance.js). ברירת המחדל
+  // שניהם: אלמנט קיים ממשיך להופיע לנהג ולעצור את נתיב הרכב כמו קודם
+  await sq(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS relevant_for JSONB DEFAULT '["vehicles","aircraft"]'`);
 
   // ── Workstation contacts & session ────────────────────────────────────────
 

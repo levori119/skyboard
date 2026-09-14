@@ -138,7 +138,8 @@ beforeAll(async () => {
     name VARCHAR(200) NOT NULL, status VARCHAR(20) DEFAULT 'שמיש', x_pct FLOAT, y_pct FLOAT,
     category VARCHAR(100) DEFAULT '', display_state VARCHAR(20) DEFAULT 'normal',
     rotation SMALLINT DEFAULT 0, blocking_statuses JSONB DEFAULT '[]', hidden_on_map BOOLEAN DEFAULT false,
-    blink_rate FLOAT DEFAULT 1.0, open_icon_key VARCHAR(200), close_icon_key VARCHAR(200))`);
+    blink_rate FLOAT DEFAULT 1.0, open_icon_key VARCHAR(200), close_icon_key VARCHAR(200),
+    relevant_for JSONB DEFAULT '["vehicles","aircraft"]')`);
   await pool.query(`CREATE TABLE public.airfield_runways (
     id SERIAL PRIMARY KEY, airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
     name VARCHAR(20), start_x_pct FLOAT, start_y_pct FLOAT, end_x_pct FLOAT, end_y_pct FLOAT)`);
@@ -242,6 +243,30 @@ describe('GET /api/driver-trips/:id/live - נתוני המפה לנהג', () => 
       type_icon: 'MAP:barrier', type_open_icon: 'MAP:barrier-open', type_close_icon: 'MAP:barrier',
       type_status_icons: { 'שמיש': 'MAP:barrier' }, open_icon_key: 'MAP:stopbar', blink_rate: 0.5, rotation: 45,
     });
+  });
+
+  // "למי רלוונטי": אלמנט של מטוסים בלבד (תאורת מסלול, סימון הסעה) אינו מעניין את הנהג
+  it('אלמנט שרלוונטי רק למטוסים לא מגיע לנהג', async () => {
+    await pool.query(`UPDATE airfield_elements SET relevant_for='["aircraft"]' WHERE id=31`);
+    await pool.query(`UPDATE airfield_elements SET relevant_for='["vehicles"]' WHERE id=32`);
+    const t = await mkStarted();
+    const d = await (await dget(`/api/driver-trips/${t.id}/live`, MY_TZ)).json();
+    expect(d.elements.map(e => e.id).sort()).toEqual([32, 33]);
+  });
+
+  // לג לכל קטע בין תחנות: הנהג צריך את מיקום התחנות, ואת סימון התחנה בנתיב שנשמר
+  it('התחנות עם מיקום, והנתיב שומר את סימון התחנה', async () => {
+    const withStop = [ROUTE[0], { lat: 31.25, lon: 34.65, xPct: 50, yPct: 50, routeType: 'vehicle', isCrossing: false, isStop: true }, ROUTE[1]];
+    const t = await mkStarted({
+      stops: [{ point_id: 20, text: '' }, { point_id: null, text: 'שער צדדי' }],
+      route_options: [{ key: 'vehicle', route_ids: [5], label: 'כביש היקפי', dist_m: 1900, crossings: 0, waypoints: withStop }],
+    });
+    const d = await (await dget(`/api/driver-trips/${t.id}/live`, MY_TZ)).json();
+    expect(d.route.map(p => !!p.isStop)).toEqual([false, true, false]);
+    expect(d.stops).toHaveLength(2);
+    expect(d.stops[0]).toMatchObject({ name: 'שער ראשי', xPct: 40, yPct: 50 });
+    expect(d.stops[0].lat).toBeCloseTo(31.25, 3);
+    expect(d.stops[1]).toMatchObject({ name: 'שער צדדי', lat: null, lon: null, xPct: null, yPct: null });
   });
 
   it('נסיעה בלי נתיב - האלמנטים עדיין על המפה', async () => {
@@ -429,6 +454,13 @@ describe('POST /api/driver-trips/:id/gps - קריאה מהנהג', () => {
     const t = await mkStarted();
     const r = await (await dpost(`/api/driver-trips/${t.id}/gps`, MY_TZ, { lat: 31.2601, lng: 34.65, accuracy: 8 })).json();
     expect(r.blocking_element).toMatchObject({ id: 33, name: 'מחסום רחוק' });
+  });
+
+  it('מחסום סגור שרלוונטי רק למטוסים - אינו חוסם את הרכב', async () => {
+    await pool.query(`UPDATE airfield_elements SET relevant_for='["aircraft"]' WHERE id=31`);
+    const t = await mkStarted();
+    const r = await (await dpost(`/api/driver-trips/${t.id}/gps`, MY_TZ, ON_ROUTE)).json();
+    expect(r.blocking_element).toBeNull();
   });
 
   it('ליד מחסום פתוח בלבד - אין חסימה', async () => {

@@ -167,6 +167,8 @@ export interface RouteWaypoint {
   yPct: number | null;
   routeType: string;
   isCrossing: boolean;
+  /** תחנה בדרך - קובעת את החלוקה ללגים באפליקציית הנהג. קיים רק כשהוא אמת. */
+  isStop?: true;
 }
 
 export interface RouteOptionLike {
@@ -212,6 +214,7 @@ export function compactRouteWaypoints(raw: unknown): RouteWaypoint[] {
       xPct: hasPct ? xPct : null, yPct: hasPct ? yPct : null,
       routeType: typeof w.routeType === 'string' && w.routeType ? w.routeType : 'vehicle',
       isCrossing: w.isCrossing === true,
+      ...(w.isStop === true ? { isStop: true as const } : {}),
     });
   }
   return out;
