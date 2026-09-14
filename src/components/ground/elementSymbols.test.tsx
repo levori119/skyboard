@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { renderGroundSvgIcon, GROUND_SVG_ICON_KEYS } from './groundShared';
 import {
-  groundSvgIconBody, elementSymbolKey, elementStateColor, elementMarkerSvg, isElementBroken, ELEMENT_BLINK_CSS,
+  groundSvgIconBody, elementSymbolKey, elementStateColor, elementMarkerSvg, isElementBroken, ELEMENT_BLINK_CSS, MARKER_PLATE_FILL,
 } from '../../../shared/elementSymbols';
 
 const STATES: [string | undefined, string | undefined][] = [
@@ -67,6 +67,14 @@ describe('elementMarkerSvg - הסמל השלם לאפליקציית הנהג', (
     expect(svg).toContain(groundSvgIconBody('MAP:traffic-red', 'שמיש', 'stop'));
     expect(svg).toContain('rotate(90 13 13)');
     expect(svg).toContain('width="30"');
+  });
+
+  // "לא רואים טוב את האייקונים": על מפת טלפון כהה הסמל השקוף נבלע
+  it('הסמל על לוחית לבנה, במסגרת עבה בצבע המצב', () => {
+    expect(MARKER_PLATE_FILL).toBe('#ffffff');
+    const svg = elementMarkerSvg({ type_icon: 'MAP:barrier', display_state: 'close' });
+    expect(svg).toContain('fill="#ffffff" stroke="#ef4444" stroke-width="3"');
+    expect(elementMarkerSvg({ type_icon: '🚧' })).toContain('fill="#ffffff"');
   });
 
   it('מהבהב: האנימציה מוטמעת בסמל - כדי שתעבוד גם כתמונה במפת Google', () => {

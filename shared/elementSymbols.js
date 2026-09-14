@@ -167,8 +167,11 @@ export function elementStateColor(el) {
 /** אלמנט שאינו כשיר - מסומן ב-X אדום על הסמל */
 export const isElementBroken = el => el?.status === 'לא תקין' || el?.status === 'לא שמיש';
 
+/** הלוחית שמאחורי הסמל בטלפון - בהירה, כדי שהסמל הכהה (גוף הרמזור, STOP BAR) יבלוט על מפה כהה */
+export const MARKER_PLATE_FILL = '#ffffff';
+
 /**
- * סמל אלמנט שלם כ-SVG עצמאי: מסגרת בצבע המצב, סיבוב, הבהוב ו-X לאלמנט לא כשיר.
+ * סמל אלמנט שלם כ-SVG עצמאי: לוחית בהירה במסגרת בצבע המצב, סיבוב, הבהוב ו-X לאלמנט לא כשיר.
  * לאפליקציית הנהג - אותו מראה כמו במפת המגדל, גם כתמונה (מפת Google) וגם מוטמע.
  * סוג בלי סמל SVG (אימוג'י) - עיגול עם האימוג'י, כמו במגדל.
  */
@@ -184,14 +187,15 @@ export function elementMarkerSvg(el, size = 30) {
   const style = h('style', {}, ELEMENT_BLINK_CSS);
   let inner;
   if (body) {
-    // 28 מתוך 32: המסגרת של המגדל (outline 2px סביב קופסה של 28px)
-    inner = h('rect', { x: '1', y: '1', width: '30', height: '30', rx: '5', fill: `${color}22`, stroke: color, 'stroke-width': '2' }) +
+    // לוחית לבנה במסגרת בצבע המצב (במגדל: שקוף עם outline) - על מפת טלפון כהה
+    // ובשמש הסמל השקוף לא נראה. הסמל עצמו ממלא כמעט את כל הלוחית.
+    inner = h('rect', { x: '1.5', y: '1.5', width: '29', height: '29', rx: '6', fill: MARKER_PLATE_FILL, stroke: color, 'stroke-width': '3' }) +
       h('g', { transform: `translate(3 3) rotate(${rotation} 13 13)` },
         h('svg', { width: '26', height: '26', viewBox: '0 0 24 24' }, body));
   } else {
     const glyph = isOff ? '○' : (broken ? '' : String(el?.type_icon || '🔧'));
     inner = h('g', { class: isBlinking ? 'af-elem-blink' : undefined, opacity: isOff ? '0.5' : undefined },
-      h('circle', { cx: '16', cy: '16', r: '12', fill: broken ? '#ef4444' : '#1e293b', stroke: broken ? '#ef4444' : color, 'stroke-width': '3' }) +
+      h('circle', { cx: '16', cy: '16', r: '13', fill: broken ? '#ef4444' : MARKER_PLATE_FILL, stroke: broken ? '#ef4444' : color, 'stroke-width': '3' }) +
       h('text', { x: '16', y: '16', 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': '13', transform: rotation ? `rotate(${rotation} 16 16)` : undefined }, esc(glyph)));
   }
   if (broken) {

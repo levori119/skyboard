@@ -592,11 +592,11 @@
   #liveTripScreen .lt-tab:disabled{cursor:not-allowed}
   #liveTripScreen .lt-mark{position:absolute;transform:translate(-50%,-50%);pointer-events:none}
   /* הסמל עצמו (SVG) מגיע מ-ElementSymbols.elementMarkerSvg - כמו במפת המגדל */
-  #liveTripScreen .lt-el{line-height:0;filter:drop-shadow(0 1px 3px rgba(0,0,0,.7))}
-  #liveTripScreen .lt-el.block{filter:drop-shadow(0 0 5px #ef4444) drop-shadow(0 1px 3px rgba(0,0,0,.7))}
+  #liveTripScreen .lt-el{line-height:0;filter:drop-shadow(0 2px 4px rgba(0,0,0,.85))}
+  #liveTripScreen .lt-el.block{filter:drop-shadow(0 0 6px #ef4444) drop-shadow(0 2px 4px rgba(0,0,0,.85))}
   /* אלמנט בשדה שאינו על הנתיב: מוצג לתמונת מצב, קטן ושקוף יותר מזה שהנהג עובר בו */
-  #liveTripScreen .lt-el.off{opacity:.6}
-  #liveTripScreen .lt-el-label{position:absolute;top:36px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:10px;font-weight:700;background:#0f172acc;padding:1px 5px;border-radius:5px}
+  #liveTripScreen .lt-el.off{opacity:.85}
+  #liveTripScreen .lt-el-label{position:absolute;top:48px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:10px;font-weight:700;background:#0f172acc;padding:1px 5px;border-radius:5px}
   #liveTripScreen .lt-ep{font-size:20px;filter:drop-shadow(0 1px 3px #000)}
   #liveTripScreen .lt-veh{width:26px;height:26px;border-radius:50%;background:#0ea5e9;border:3px solid #fff;box-shadow:0 0 0 6px #0ea5e944,0 2px 8px #000;display:flex;align-items:center;justify-content:center}
   #liveTripScreen .lt-veh-arrow{color:#fff;font-size:12px;line-height:1}
@@ -2908,6 +2908,10 @@ function liveStateLabel(el) {
   return TripTracking.DISPLAY_STATE_LABEL[el.display_state] || el.status || '';
 }
 
+/** גודל סמל האלמנט במפות הנהג: על הנתיב, ומחוץ לנתיב. גדול מהמגדל - מסך טלפון, ברכב, בשמש */
+const LIVE_ICON_PX = 46;
+const LIVE_ICON_OFF_PX = 34;
+
 /** סוג בלי סמל מוגדר - סמל לפי הקטגוריה, כדי שלא יוצג "🔧" על רמזור */
 const CATEGORY_SYMBOL = { 'מחסומים': 'MAP:barrier', 'רמזורים': 'MAP:traffic-orange', 'STOP BAR': 'MAP:stopbar' };
 
@@ -2960,7 +2964,7 @@ function renderAirfieldMap() {
     const color = el.blocking ? '#ef4444' : '#22c55e';
     const onRoute = el.on_route !== false;
     put(livePct(el),
-      `<div class="lt-el${onRoute ? '' : ' off'}${el.blocking ? ' block' : ''}">${liveElementSvg(el, onRoute ? 34 : 24)}</div>` +
+      `<div class="lt-el${onRoute ? '' : ' off'}${el.blocking ? ' block' : ''}">${liveElementSvg(el, onRoute ? LIVE_ICON_PX : LIVE_ICON_OFF_PX)}</div>` +
       (el.blocking && onRoute ? `<div class="lt-el-label" style="color:${color}">${esc(el.name)} · ${esc(liveStateLabel(el))}</div>` : ''),
       el.blocking ? (onRoute ? 4 : 3) : (onRoute ? 3 : 2));
   }
@@ -3054,9 +3058,9 @@ function renderGoogleMap() {
     map: live.gmap, position: { lat: el.lat, lng: el.lon },
     title: `${el.name} · ${liveStateLabel(el)}`,
     // כמו מפת השדה: אותו סמל של המגדל, ואלמנט שאינו על הנתיב קטן ושקוף
-    opacity: el.on_route === false ? 0.6 : 1,
+    opacity: el.on_route === false ? 0.85 : 1,
     icon: (() => {
-      const px = el.on_route === false ? 24 : 34;
+      const px = el.on_route === false ? LIVE_ICON_OFF_PX : LIVE_ICON_PX;
       return {
         url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(liveElementSvg(el, px)),
         scaledSize: new G.Size(px, px), anchor: new G.Point(px / 2, px / 2),

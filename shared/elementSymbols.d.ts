@@ -15,6 +15,9 @@ export declare function elementSymbolKey(el: ElementLike): string;
 /** צבע המסגרת לפי המצב התפעולי. */
 export declare function elementStateColor(el: ElementLike): string;
 
+/** צבע הלוחית שמאחורי הסמל בטלפון. */
+export declare const MARKER_PLATE_FILL: string;
+
 /** האם האלמנט לא כשיר (X אדום). */
 export declare function isElementBroken(el: ElementLike): boolean;
 

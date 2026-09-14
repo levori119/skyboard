@@ -131,7 +131,7 @@ describe('מסך הנסיעה החי', () => {
     expect(HTML).toMatch(/\.lt-el\.off\{/);
     expect(SCRIPT).toContain("const onRoute = el.on_route !== false;");
     expect(SCRIPT).toContain("el.blocking && onRoute ?");
-    expect(SCRIPT).toMatch(/opacity: el\.on_route === false \? 0\.6 : 1/);
+    expect(SCRIPT).toMatch(/opacity: el\.on_route === false \? 0\.85 : 1/);
   });
 
   // מפתח לא תקין אינו מפיל את הסקריפט - Google מציג מפה אפורה וקורא ל-gm_authFailure
