@@ -505,4 +505,72 @@ router.get('/api/auth/mirage-crew', async (req, res) => {
   res.json({ presetId, presetName: preset.name, byPosition: sorted });
 });
 
+// ── ניהול נהגים: הנהגים המורשים במיראז' לבסיס של השדה ────────────────────────
+// בחלון "ניהול נהגים" המפעיל **בוחר** נהג מהרשימה ולא מקליד שם ות"ז: אישור
+// כניסה לנהג שאין לו הרשאת SKY-KING DRIVER לבסיס הוא אישור לאדם שלא יוכל בכלל
+// להיכנס לאפליקציה ולראות את הנסיעות שלו.
+//
+// כאן **כן** מוחזרת ת"ז (בשונה מ-mirage-crew): היא המזהה שהאישור והנסיעות
+// נרשמים אליו. הנתיב דורש זהות עמדה (ברירת המחדל ב-middleware/auth.js) - נהג
+// אינו יכול לשלוף אותו.
+
+/** רשומת SKY-KING DRIVER של משתמש מיראז': תפקידים ובסיסים */
+const driverAppEntry = (user) => {
+  const entry = (user?.apps || {})[MIRAGE_DRIVER_APP_NAME];
+  if (Array.isArray(entry)) return { roles: entry, bases: [] };
+  if (!entry || typeof entry !== 'object') return { roles: [], bases: [] };
+  return {
+    roles: Array.isArray(entry.roles) ? entry.roles : [],
+    bases: Array.isArray(entry.bases) ? entry.bases : [],
+  };
+};
+
+/**
+ * הנהגים המורשים לבסיס: הרשאת SKY-KING DRIVER עם תפקיד (בלעדיו המיראז' לא
+ * יכניס אותו), הבסיס ברשימה, ות"ז תקינה - מנורמלת כמו בכניסת הנהג, כדי שהאישור
+ * יתאים לזהות שבאסימון. ממוין לפי שם.
+ */
+export function driversForBase(users, baseId) {
+  const out = [];
+  for (const u of Array.isArray(users) ? users : []) {
+    const { roles, bases } = driverAppEntry(u);
+    if (!roles.length || !bases.some(b => Number(b?.id) === Number(baseId))) continue;
+    const nationalId = normalizeNationalId(u.personalNumber);
+    if (!nationalId) continue;
+    const firstName = String(u.firstName ?? '').trim();
+    const lastName = String(u.lastName ?? '').trim();
+    out.push({ nationalId, firstName, lastName, fullName: String(u.fullName || `${firstName} ${lastName}`).trim() });
+  }
+  return out.sort((a, b) => a.fullName.localeCompare(b.fullName, 'he') || a.nationalId.localeCompare(b.nationalId));
+}
+
+router.get('/api/auth/mirage-drivers', async (req, res) => {
+  const airfieldId = Number(req.query.airfield_id);
+  if (!Number.isInteger(airfieldId) || airfieldId <= 0) return res.status(400).json({ error: 'missing_airfield_id' });
+
+  let airfield;
+  try {
+    airfield = (await pool.query('SELECT id, base_id FROM airfields WHERE id = $1', [airfieldId])).rows[0];
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+  if (!airfield) return res.status(404).json({ error: 'airfield_not_found' });
+  // שדה בלי בסיס אינו "אין נהגים": המפעיל צריך לדעת שהבעיה בהגדרת השדה
+  if (airfield.base_id == null) return res.status(409).json({ error: 'airfield_without_base' });
+
+  let users;
+  try {
+    const r = await fetchMirage('/api/users');
+    if (isChannelFailure(r) || !r.ok) {
+      console.error(`[mirage] רשימת הנהגים נכשלה (HTTP ${r.status}, ${r.body?.error || 'לא ידוע'}).`);
+      return res.status(502).json({ error: 'mirage_unavailable', reason: r.body?.error || 'channel' });
+    }
+    users = r.body;
+  } catch (err) {
+    console.error('[mirage] service unavailable (drivers):', err.message);
+    return res.status(502).json({ error: 'mirage_unavailable' });
+  }
+  res.json({ baseId: airfield.base_id, drivers: driversForBase(users, airfield.base_id) });
+});
+
 export default router;

@@ -361,6 +361,46 @@
     "paramRoamPermits": {
       "he": "סוגי אישור הסתובבות בבסיס",
       "en": "On-base movement permit types"
+    },
+    "mirageDriver": {
+      "he": "נהג - מהמורשים במיראז' לבסיס *",
+      "en": "Driver - authorized in MIRAGE for this base *"
+    },
+    "mirageDriverPlaceholder": {
+      "he": "-- בחר נהג --",
+      "en": "-- Select a driver --"
+    },
+    "mirageNotAuthorized": {
+      "he": "{{name}} (לא מורשה במיראז')",
+      "en": "{{name}} (not authorized in MIRAGE)"
+    },
+    "mirageLoading": {
+      "he": "טוען את הנהגים המורשים מהמיראז'...",
+      "en": "Loading authorized drivers from MIRAGE..."
+    },
+    "mirageUnavailable": {
+      "he": "המיראז' אינו זמין - אי אפשר להוסיף או להחליף נהג. פרטי נהג קיים עדיין ניתנים לעדכון",
+      "en": "MIRAGE is unavailable - drivers cannot be added or replaced. An existing driver can still be updated"
+    },
+    "mirageNoBase": {
+      "he": "לשדה לא הוגדר בסיס - אין רשימת נהגים מורשים. יש להגדיר בסיס לשדה בניהול",
+      "en": "No base is set for this airfield - there is no authorized driver list. Set a base in management"
+    },
+    "mirageNoDrivers": {
+      "he": "אין נהגים מורשים לבסיס במיראז' שעוד לא רשומים כאן. הרשאת SKY-KING DRIVER ניתנת במיראז'",
+      "en": "No MIRAGE-authorized drivers for this base who are not already listed. SKY-KING DRIVER permission is granted in MIRAGE"
+    },
+    "mirageCurrentMissing": {
+      "he": "הנהג אינו מורשה במיראז' לבסיס הזה - לא יוכל להיכנס לאפליקציית הנהג",
+      "en": "This driver is not authorized in MIRAGE for this base - they cannot sign in to the driver app"
+    },
+    "errPickDriver": {
+      "he": "יש לבחור נהג מרשימת המורשים במיראז'",
+      "en": "Select a driver from the MIRAGE-authorized list"
+    },
+    "errMirageUnavailable": {
+      "he": "המיראז' אינו זמין - אי אפשר להוסיף או להחליף נהג כרגע",
+      "en": "MIRAGE is unavailable - a driver cannot be added or replaced right now"
     }
   }
 }

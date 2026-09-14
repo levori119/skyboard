@@ -26,6 +26,7 @@ import {
   dateOnly, effectivePermitStatus, isPermitOverridden, permitStatusKey,
   type PermitStatus,
 } from '../../utils/permitStatus';
+import { driverChoices, normalizeNationalId, pickDriverError, type MirageDriver } from '../../utils/mirageDrivers';
 
 export type { ThemeMode };
 
@@ -114,6 +115,9 @@ export const VehiclePermitsWindow: React.FC<VehiclePermitsWindowProps> = ({ airf
   const [tripTab, setTripTab] = useState<'future' | 'history'>('future');
   const [addingTrip, setAddingTrip] = useState(false);
   const [addingVehicle, setAddingVehicle] = useState(false);
+  // הנהגים המורשים במיראז' לבסיס של השדה - הנהג נבחר מהם ולא מוקלד (utils/mirageDrivers.ts)
+  const [mirageDrivers, setMirageDrivers] = useState<MirageDriver[] | null>(null);
+  const [mirageState, setMirageState] = useState<'loading' | 'ok' | 'unavailable' | 'no_base'>('loading');
 
   const zones = useMemo(() => params.filter(p => p.kind === 'zone' && p.active), [params]);
   const roles = useMemo(() => params.filter(p => p.kind === 'transport_role' && p.active), [params]);
@@ -137,6 +141,22 @@ export const VehiclePermitsWindow: React.FC<VehiclePermitsWindowProps> = ({ airf
   }, [airfieldId]);
 
   useEffect(() => { void loadDrivers(); }, [loadDrivers]);
+
+  const loadMirageDrivers = useCallback(async () => {
+    if (!airfieldId) { setMirageDrivers(null); return; }
+    setMirageState('loading');
+    try {
+      const r = await fetch(`${API_URL}/auth/mirage-drivers?airfield_id=${airfieldId}`);
+      if (r.status === 409) { setMirageDrivers(null); setMirageState('no_base'); return; }
+      if (!r.ok) { setMirageDrivers(null); setMirageState('unavailable'); return; }
+      const body = await r.json();
+      setMirageDrivers(Array.isArray(body.drivers) ? body.drivers : []);
+      setMirageState('ok');
+    } catch { setMirageDrivers(null); setMirageState('unavailable'); }
+  }, [airfieldId]);
+
+  // נטען בכל פתיחת "נהג חדש" - הרשאה שניתנה במיראז' לפני דקה כבר מופיעה
+  useEffect(() => { void loadMirageDrivers(); }, [loadMirageDrivers, creating]);
 
   useEffect(() => { if (focusDriverId) { setSelectedId(focusDriverId); setCreating(false); } }, [focusDriverId]);
 
@@ -168,7 +188,12 @@ export const VehiclePermitsWindow: React.FC<VehiclePermitsWindowProps> = ({ airf
 
   // ── שמירה ──────────────────────────────────────────────────────────────────
   const save = async () => {
-    if (!draft.first_name.trim() && !draft.last_name.trim()) { setError(tr('permits.errName')); return; }
+    const pickError = pickDriverError({
+      nationalId: draft.national_id,
+      original: creating || !selected ? null : selected.national_id,
+      mirage: mirageDrivers,
+    });
+    if (pickError) { setError(tr(pickError === 'unavailable' ? 'permits.errMirageUnavailable' : 'permits.errPickDriver')); return; }
     setSaving(true); setError('');
     const body = {
       airfield_id: airfieldId,
@@ -344,17 +369,43 @@ export const VehiclePermitsWindow: React.FC<VehiclePermitsWindowProps> = ({ airf
               <>
                 <div style={{ ...sectionStyle, marginTop: 0 }}>{tr('permits.sectionDriver')}</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 7 }}>
-                  <div>
-                    <label style={labelStyle}>{tr('permits.firstName')}</label>
-                    <input value={draft.first_name} onChange={e => setDraft(d => ({ ...d, first_name: e.target.value }))} style={inputStyle} />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>{tr('permits.lastName')}</label>
-                    <input value={draft.last_name} onChange={e => setDraft(d => ({ ...d, last_name: e.target.value }))} style={inputStyle} />
-                  </div>
+                  {/* הנהג נבחר מהמורשים במיראז' לבסיס - שם ות"ז נגזרים מהבחירה ואינם מוקלדים */}
+                  {(() => {
+                    const current = creating || !selected ? null : selected;
+                    const { choices, currentMissing } = driverChoices(mirageDrivers || [], drivers, current);
+                    const value = normalizeNationalId(draft.national_id);
+                    const draftMissing = !!value && !choices.some(c => c.nationalId === value);
+                    const status = mirageState === 'loading' ? { text: tr('permits.mirageLoading'), color: C.muted }
+                      : mirageState === 'unavailable' ? { text: tr('permits.mirageUnavailable'), color: '#f87171' }
+                      : mirageState === 'no_base' ? { text: tr('permits.mirageNoBase'), color: '#f87171' }
+                      : currentMissing && value === normalizeNationalId(current?.national_id) ? { text: tr('permits.mirageCurrentMissing'), color: '#fbbf24' }
+                      : choices.length === 0 ? { text: tr('permits.mirageNoDrivers'), color: '#fbbf24' }
+                      : null;
+                    return (
+                      <div style={{ gridColumn: 'span 2' }}>
+                        <label style={labelStyle}>{tr('permits.mirageDriver')}</label>
+                        <select
+                          value={value}
+                          disabled={mirageState !== 'ok'}
+                          onChange={e => {
+                            const m = choices.find(c => c.nationalId === e.target.value);
+                            if (m) setDraft(dr => ({ ...dr, first_name: m.firstName, last_name: m.lastName, national_id: m.nationalId }));
+                          }}
+                          style={{ ...inputStyle, border: `1px solid ${value && !draftMissing ? C.border : '#f59e0b'}` }}
+                        >
+                          <option value="">{tr('permits.mirageDriverPlaceholder')}</option>
+                          {draftMissing && (
+                            <option value={value}>{tr('permits.mirageNotAuthorized', { name: `${fullName(draft)} · ${draft.national_id}` })}</option>
+                          )}
+                          {choices.map(c => <option key={c.nationalId} value={c.nationalId}>{`${c.fullName} · ${c.nationalId}`}</option>)}
+                        </select>
+                        {status && <div style={{ fontSize: 10, color: status.color, marginTop: 3 }}>{status.text}</div>}
+                      </div>
+                    );
+                  })()}
                   <div>
                     <label style={labelStyle}>{tr('permits.nationalId')}</label>
-                    <input value={draft.national_id} onChange={e => setDraft(d => ({ ...d, national_id: e.target.value }))} inputMode="numeric" style={inputStyle} />
+                    <input value={draft.national_id} readOnly tabIndex={-1} style={{ ...inputStyle, opacity: 0.75, cursor: 'default' }} />
                   </div>
                   <div>
                     <label style={labelStyle}>{tr('permits.transportRole')}</label>

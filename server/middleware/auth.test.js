@@ -207,6 +207,12 @@ describe('אסימון נהג - מוגבל לנתיבי הנהג בלבד', () =
     }
   });
 
+  // רשימת הנהגים המורשים במיראז' נושאת ת"ז - לעמדה בלבד, לא לנהג אחר
+  it('נהג אינו שולף את רשימת הנהגים של מיראז\'; עמדה כן', async () => {
+    expect((await call('GET', '/api/auth/mirage-drivers', driver())).status).toBe(403);
+    expect((await call('GET', '/api/auth/mirage-drivers', user())).status).toBe(200);
+  });
+
   it('בקר מגיע גם לנתיבי הנהג - זימון רכב הוא זרימה משותפת', async () => {
     expect((await call('POST', '/api/vehicle-requests', user())).status).toBe(200);
   });
