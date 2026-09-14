@@ -8,6 +8,7 @@
 //   • קבוצה יחידה → אין כותרת כלל, הפריטים מוצגים ישירות (אין מה לקבץ).
 //   • כמה קבוצות → כותרת מתקפלת לכל בסיס, **פתוחה כברירת מחדל**: זהו משטח
 //     עבודה של אדמין ולא מסך תפעולי, והסתרה מאחורי קליק רק מאטה עריכה.
+//     `defaultOpen={false}` - כולן מכווצות (הגדרות עמדות: הרשימה ארוכה מדי פתוחה).
 //   • "ללא בסיס אב" תמיד אחרון - סל התוכן המשותף.
 import React, { useState } from 'react';
 import { tr } from '../../i18n/tr';
@@ -37,12 +38,13 @@ export const ParentBaseSelect = ({ value, bases, onChange, compact = false }: {
   </select>
 );
 
-function BaseGroupBox({ group, count, children }: {
+function BaseGroupBox({ group, count, defaultOpen, children }: {
   group: BaseItemGroup<unknown>;
   count: number;
+  defaultOpen: boolean;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <div style={{ marginBottom: '18px' }}>
       <button
@@ -74,9 +76,11 @@ function BaseGroupBox({ group, count, children }: {
  * `renderItems` מקבל את פריטי הקבוצה ומחזיר את גוף הקבוצה - כך אותו רכיב משרת
  * גם רשימה שטוחה (מפות, בלוקים) וגם קיבוץ-משנה בתוך הבסיס (עמדות לפי תפקיד).
  */
-export function BaseGroupList<T>({ groups, renderItems }: {
+export function BaseGroupList<T>({ groups, renderItems, defaultOpen = true }: {
   groups: BaseItemGroup<T>[];
   renderItems: (items: T[], group: BaseItemGroup<T>) => React.ReactNode;
+  /** מצב הפתיחה של כל בסיס בכניסה למסך */
+  defaultOpen?: boolean;
 }) {
   if (groups.length === 0) return null;
   // בסיס אב יחיד - הכותרת לא מוסיפה מידע, רק גובה
@@ -84,7 +88,7 @@ export function BaseGroupList<T>({ groups, renderItems }: {
   return (
     <>
       {groups.map(g => (
-        <BaseGroupBox key={g.key} group={g as BaseItemGroup<unknown>} count={g.items.length}>
+        <BaseGroupBox key={g.key} group={g as BaseItemGroup<unknown>} count={g.items.length} defaultOpen={defaultOpen}>
           {renderItems(g.items, g)}
         </BaseGroupBox>
       ))}

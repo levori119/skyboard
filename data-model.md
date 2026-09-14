@@ -492,6 +492,7 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | `show_data_windows` | BOOLEAN DEFAULT false | האם חלונות הנתונים ("הצג כמות מטוסים") פעילים בעמדה כברירת מחדל. הפקח מדליק/מכבה בסרגל העליון לסשן שלו בלבד |
 | `show_window_container` | BOOLEAN DEFAULT false | **קונטיינר החלונות** — האם הוא **פתוח בעליית העמדה**. היכולת עצמה קיימת בכל עמדה — המתג בתפריט "תצוגה" אינו תלוי בעמודה הזו. סידור החלונות ב-`localStorage` פר-עמדה (לא ב-DB) |
 | `window_container_position` | VARCHAR(20) DEFAULT `'beforeAids'` | **מיקום ברירת המחדל** של הקונטיינר: `left` / `mapRight` / `beforeAids` / `right`. חל כל עוד הפקח לא בחר מיקום בעצמו; בחירתו (localStorage) גוברת |
+| `load_relevant` | BOOLEAN DEFAULT true | **"עומס רלוונטי לעמדה?"** - כבוי: בהגדרות העמדה לא מוצגת הזנת ספי העומס (`partial_load`/`full_load` ומד העומס לפי מצב מז"א), ובעמדה אין תג עומס, אין עומס בתפריטי התצוגה וההגדרות, אין תחזית עומס ואין רישום `overload_reached`. בדש-בורד הניהול הכרטיס מציין שהעומס לא רלוונטי. דולק כברירת מחדל - עמדה ותיקה לא משתנה. מקור אמת: `isLoadRelevant` ב-`src/utils/loadRelevance.ts` (ניהול שדה - כבוי תמיד) |
 
 ---
 
@@ -1773,6 +1774,7 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | `show_data_windows` | BOOLEAN DEFAULT false | האם חלונות הנתונים ("הצג כמות מטוסים") פעילים בעמדה כברירת מחדל. הפקח מדליק/מכבה בסרגל העליון לסשן שלו בלבד |
 | `show_window_container` | BOOLEAN DEFAULT false | **קונטיינר החלונות** — האם הוא **פתוח בעליית העמדה**. היכולת עצמה קיימת בכל עמדה — המתג בתפריט "תצוגה" אינו תלוי בעמודה הזו. סידור החלונות ב-`localStorage` פר-עמדה (לא ב-DB) |
 | `window_container_position` | VARCHAR(20) DEFAULT `'beforeAids'` | **מיקום ברירת המחדל** של הקונטיינר: `left` / `mapRight` / `beforeAids` / `right`. חל כל עוד הפקח לא בחר מיקום בעצמו; בחירתו (localStorage) גוברת |
+| `load_relevant` | BOOLEAN DEFAULT true | **"עומס רלוונטי לעמדה?"** - כבוי: בהגדרות העמדה לא מוצגת הזנת ספי העומס (`partial_load`/`full_load` ומד העומס לפי מצב מז"א), ובעמדה אין תג עומס, אין עומס בתפריטי התצוגה וההגדרות, אין תחזית עומס ואין רישום `overload_reached`. בדש-בורד הניהול הכרטיס מציין שהעומס לא רלוונטי. דולק כברירת מחדל - עמדה ותיקה לא משתנה. מקור אמת: `isLoadRelevant` ב-`src/utils/loadRelevance.ts` (ניהול שדה - כבוי תמיד) |
 
 ---
 

@@ -15,6 +15,8 @@ export type HelpContext = {
   isMissionDeskMode: boolean;
   isGroundMode: boolean;
   isGroundMgmtMode: boolean;
+  /** isLoadRelevant(preset) - דגל "עומס רלוונטי לעמדה?" (כבוי תמיד בניהול שדה) */
+  loadRelevant: boolean;
   isClassicMode: boolean;
   isCivilianMode: boolean;
   isFlightZonesMode: boolean;
@@ -99,8 +101,8 @@ export const HELP_TOPICS: HelpTopic[] = [
   topic('signalBoard', '📡', c => c.hasPresetId),
   topic('pressure', '🌡'),
   topic('mazaa', '🛡'),
-  // loadLevel !== 'none' && !muteLoadAlerts && !isGroundMgmtMode
-  topic('load', '🔴', c => !c.isGroundMgmtMode),
+  // loadLevel !== 'none' && !muteLoadAlerts && loadRelevant (isLoadRelevant - כולל ground_mgmt)
+  topic('load', '🔴', c => c.loadRelevant),
   // myPresetConfig?.show_full_picture && !isMissionDeskMode
   topic('fullPicture', '🌐', c => c.showFullPicture && !c.isMissionDeskMode),
   topic('voice', '🎤', notDesk),
@@ -120,7 +122,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     it('viewMenu', 'map', '🗺', c => c.allowViewSwitching && !c.isMissionDeskMode),
     it('viewMenu', 'table', '📋', c => c.allowViewSwitching && !c.isMissionDeskMode),
     it('viewMenu', 'blockView', '📶', notDesk),
-    it('viewMenu', 'load', '📈', c => !c.isGroundMgmtMode),
+    it('viewMenu', 'load', '📈', c => c.loadRelevant),
     // אין מז"א בעמדת ניהול שדה - הפריט עצמו מוסתר שם, וחלון העזרה חייב לשקף את המסך
     it('viewMenu', 'weather', '🌦', c => !c.isGroundMgmtMode),
     it('viewMenu', 'dualSwap', '🔄', c => c.isDualMapMode),
@@ -134,8 +136,8 @@ export const HELP_TOPICS: HelpTopic[] = [
     it('viewMenu', 'refresh', '🔄'),
   ]),
   topic('settingsMenu', '⚙️', undefined, [
-    it('settingsMenu', 'loadForecast', '📈', c => !c.isGroundMgmtMode),
-    it('settingsMenu', 'muteLoad', '🔕', c => !c.isGroundMgmtMode),
+    it('settingsMenu', 'loadForecast', '📈', c => c.loadRelevant),
+    it('settingsMenu', 'muteLoad', '🔕', c => c.loadRelevant),
     it('settingsMenu', 'muteBlocks', '🟢'),
     it('settingsMenu', 'contacts', '📡'),
     it('settingsMenu', 'altRange', '📐'),

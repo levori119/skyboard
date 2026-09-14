@@ -2002,6 +2002,22 @@
       "he": "⚡ מוד עומס",
       "en": "⚡ Load mode"
     },
+    "loadRelevantQuestion": {
+      "he": "עומס רלוונטי לעמדה?",
+      "en": "Is load relevant to this station?"
+    },
+    "loadRelevantYes": {
+      "he": "✅ כן",
+      "en": "✅ Yes"
+    },
+    "loadRelevantNo": {
+      "he": "🚫 לא",
+      "en": "🚫 No"
+    },
+    "loadNotRelevant": {
+      "he": "עומס לא רלוונטי לעמדה",
+      "en": "Load is not relevant to this station"
+    },
     "mvdAzrchy": {
       "he": "מוד אזרחי",
       "en": "Civilian mode"

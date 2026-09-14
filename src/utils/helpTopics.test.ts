@@ -10,6 +10,7 @@ const FULL: HelpContext = {
   isMissionDeskMode: false,
   isGroundMode: false,
   isGroundMgmtMode: false,
+  loadRelevant: true,
   isClassicMode: false,
   isCivilianMode: false,
   isFlightZonesMode: true,
@@ -120,6 +121,12 @@ describe('עזרה לעמדה — מוצג רק מה שקיים בעמדה', () 
     // מפה עיוורת רק כשיש תמונת רקע, סגירות רק במפה מעוגנת נ"צ
     expect(itemIds({ ...FULL, hasMapImage: false }, 'mapToolbar')).not.toContain('blind');
     expect(itemIds({ ...FULL, hasGeoMap: false }, 'mapToolbar')).not.toContain('closures');
+    // עומס לא רלוונטי לעמדה - אין תג, אין עומס בתפריט התצוגה ובתפריט ההגדרות
+    const noLoad = { ...FULL, loadRelevant: false };
+    expect(ids(noLoad)).not.toContain('load');
+    expect(itemIds(noLoad, 'viewMenu')).not.toContain('load');
+    expect(itemIds(noLoad, 'settingsMenu')).not.toContain('loadForecast');
+    expect(itemIds(noLoad, 'settingsMenu')).not.toContain('muteLoad');
   });
 
   it('כל תפריט מפרט את הכפתורים שבתוכו', () => {

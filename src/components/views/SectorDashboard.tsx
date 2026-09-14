@@ -137,6 +137,7 @@ import ViewTablesSlot from '../missiondesk/ViewTablesSlot';
 import MyScriptTestPanel from '../shared/MyScriptTestPanel';
 import { MapDrawToolbar } from '../map/MapDrawLayer';
 import { isFrac, fracToPx, pxToFrac, drawStrokeFrac, applyStrokeStyle, syncCanvasBitmap, type PenStroke, type MapShape } from '../../utils/mapDrawing';
+import { isLoadRelevant } from '../../utils/loadRelevance';
 import StationPeekBar from '../shared/StationPeekBar';
 import FitScaleBox from '../shared/FitScaleBox';
 import VerticalView from './VerticalView';
@@ -2038,6 +2039,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const isClassicMode = myPresetConfig?.preset_type === 'classic' || myPresetConfig?.display_mode === 'classic';
   const isGroundMode = myPresetConfig?.preset_type === 'ground' || myPresetConfig?.preset_type === 'ground_mgmt';
   const isGroundMgmtMode = myPresetConfig?.preset_type === 'ground_mgmt';
+  const loadRelevant = isLoadRelevant(myPresetConfig as any);
   const isCivilianMode = myPresetConfig?.preset_type === 'civilian';
   // עמדת "דסק משימה כללי" — במקום מפה/טבלה/סטריפים מוצג קנבס הדסק (MissionDeskBody).
   // כל שאר העמדה (עזרים, דש בורד, מצבי בסיס, לחץ/מז"א, עומס, פתקיות) זהה לכל עמדה,
@@ -4820,7 +4822,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     t.status === 'pending' && (t.airborne || isWithin10Min(t.takeoff_time))
   ).length;
   const loadCount = airborneMine + groundSoonMine + relevantIncoming;
-  const loadLevel: 'none' | 'partial' | 'full' =
+  // עומס לא רלוונטי לעמדה (הגדרות עמדה) - אין תג, אין תפריט ואין רישום "עומס מלא"
+  const loadLevel: 'none' | 'partial' | 'full' = !loadRelevant ? 'none' :
     loadCount >= fullLoadThreshold ? 'full' :
     loadCount >= partialLoadThreshold ? 'partial' : 'none';
 
@@ -11408,7 +11411,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           })()}
           </div>{/* /תא מז"א+לחץ */}
           {/* Load badge */}
-          {loadLevel !== 'none' && !muteLoadAlerts && !isGroundMgmtMode && (
+          {loadLevel !== 'none' && !muteLoadAlerts && loadRelevant && (
             <div
               data-help="load"
               className={loadLevel === 'full' ? 'load-badge-full' : 'load-badge-partial'}
@@ -11729,7 +11732,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   </div>
                   )}
                   {/* עומס — הועבר מהסרגל העליון לתפריט התצוגה */}
-                  {!isGroundMgmtMode && (
+                  {loadRelevant && (
                     <div
                       onClick={() => { setShowLoadForecast(v => !v); setShowViewMenu(false); }}
                       title={tr('ctrl.loadForecastHourlyLoad')}
@@ -11892,7 +11895,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', zIndex: 3000, minWidth: '220px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: dir, overflow: 'hidden' }}
                   onClick={e => e.stopPropagation()}>
                   {/* ─── עומס ───────────────────────────────────── */}
-                  {!isGroundMgmtMode && <>
+                  {loadRelevant && <>
                   <div style={{ padding: '6px 12px', fontSize: '10px', color: menuMuted, borderBottom: `1px solid ${menuBorder}` }}>{tr('ctrl.loadAndAlerts')}</div>
                   {/* Load forecast toggle */}
                   <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
@@ -12547,6 +12550,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             isMissionDeskMode,
             isGroundMode,
             isGroundMgmtMode,
+            loadRelevant,
             isClassicMode,
             isCivilianMode,
             isFlightZonesMode,
@@ -19233,7 +19237,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         })()}
 
         {/* ===== Load Forecast Panel ===== */}
-        {showLoadForecast && (() => {
+        {showLoadForecast && loadRelevant && (() => {
           const resMin = loadForecastResolution;
           const slotsPerDay = (24 * 60) / resMin;
           const dayStart = new Date(loadForecastDay + 'T00:00:00');

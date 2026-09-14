@@ -202,6 +202,9 @@ async function applySchemaOnce() {
   await sq(`ALTER TABLE table_modes ADD COLUMN IF NOT EXISTS frozen_columns INTEGER DEFAULT 0`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS partial_load INTEGER DEFAULT 3`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS full_load INTEGER DEFAULT 5`);
+  // "עומס רלוונטי לעמדה?" - כבוי: אין הזנת ספי עומס בהגדרות ואין עומס בעמדה
+  // (src/utils/loadRelevance.ts). דולק כברירת מחדל כדי שעמדה ותיקה לא תשתנה.
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS load_relevant BOOLEAN DEFAULT true`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS filter_query JSONB`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS conflict_alt_delta INTEGER DEFAULT 500`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS relevant_control_stations JSONB`);

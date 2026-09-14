@@ -6,6 +6,7 @@ import { evaluateQuery } from '../../utils/queryBuilder';
 import type { QNode } from '../../types';
 import { getFormationDisplayName, computeBlockDeviation } from '../../utils/strips';
 import { ROUTE_FACTOR, type AutoEta } from '../../utils/eta';
+import { isLoadRelevant } from '../../utils/loadRelevance';
 
 export const TransferFormModal = ({ strip, selectedIndices, onToggleIndex, onCancel, onTransferAll, onSubmit, etaMinutes, onEtaChange, autoEta, receiveConditions, altViolation, altWorkstations }: {
   strip: any;
@@ -385,7 +386,8 @@ export const AdminDashboard: React.FC<{
           const { deviationIds, conflictIds } = getPresetAlerts(preset);
           const hasDeviation = deviationIds.size > 0;
           const hasConflict = conflictIds.size > 0;
-          const level: 'none'|'partial'|'full' = count >= full ? 'full' : count >= partial ? 'partial' : 'none';
+          const loadRelevant = isLoadRelevant(preset);
+          const level: 'none'|'partial'|'full' = !loadRelevant ? 'none' : count >= full ? 'full' : count >= partial ? 'partial' : 'none';
           const borderColor = hasConflict ? '#ef4444' : hasDeviation ? '#f59e0b' : level === 'full' ? '#ef4444' : level === 'partial' ? '#f97316' : '#334155';
           const partialVal = thresholds[preset.id]?.partial ?? (preset.partial_load ?? 3);
           const fullVal = thresholds[preset.id]?.full ?? (preset.full_load ?? 5);
@@ -668,6 +670,11 @@ export const AdminDashboard: React.FC<{
                     </div>
                   );
                 })()
+              ) : !loadRelevant ? (
+                /* עומס לא רלוונטי לעמדה (הגדרות עמדה) - אין מד ואין ספים לערוך */
+                <div data-testid="load-not-relevant" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: lightMode ? '#94a3b8' : '#64748b' }}>
+                  {tr('admin.loadNotRelevant')}
+                </div>
               ) : (
                 /* ── Loads view — donut + thresholds ── */
                 <>
