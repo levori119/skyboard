@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  LIVE_MAP_COLORS, addToLiveMap, fitLiveMap, isInProgressTrip, liveMapColor,
+  LIVE_MAP_COLORS, addToLiveMap, addToOpenLiveMap, fitLiveMap, isInProgressTrip, liveMapColor, liveMapTripsFor,
+  openLiveMap, removeLiveMapTrip, toggleLiveMapHistory,
   removeFromLiveMap, tripTabOf,
 } from './liveMap';
 
@@ -94,5 +95,47 @@ describe('התאמת המפה לרכבים', () => {
     expect(fitLiveMap([], 1000, 750, 600, 400)).toBeNull();
     expect(fitLiveMap([{ x: 1, y: 1 }], 1000, 750, 0, 400)).toBeNull();
     expect(fitLiveMap([{ x: NaN, y: 1 }], 1000, 750, 600, 400)).toBeNull();
+  });
+});
+
+describe('מצב המפה הצפה - שדה אחד למפה', () => {
+  it('"פתח במפה צפה" - מפה לנסיעה הזו בלבד', () => {
+    expect(openLiveMap(1, 7)).toEqual({ airfieldId: 1, tripIds: [7], historyIds: [] });
+  });
+
+  it('"הוסף למפה פתוחה" באותו שדה - מצטרפת לנסיעות הקיימות', () => {
+    const m = { airfieldId: 1, tripIds: [7], historyIds: [7] };
+    expect(addToOpenLiveMap(m, 1, 3)).toEqual({ airfieldId: 1, tripIds: [7, 3], historyIds: [7] });
+  });
+
+  // רכב של שדה אחד על התמונה של שדה אחר נראה במקום שהוא אינו בו
+  it('הוספה משדה אחר מחליפה את המפה ולא מערבבת', () => {
+    const m = { airfieldId: 1, tripIds: [7], historyIds: [7] };
+    expect(addToOpenLiveMap(m, 2, 3)).toEqual({ airfieldId: 2, tripIds: [3], historyIds: [] });
+  });
+
+  it('הוספה כשאין מפה פתוחה - פותחת', () => {
+    expect(addToOpenLiveMap(null, 1, 3)).toEqual({ airfieldId: 1, tripIds: [3], historyIds: [] });
+  });
+
+  it('טבלה של שדה אחר אינה מסמנת נסיעות כ"במפה"', () => {
+    const m = { airfieldId: 1, tripIds: [7], historyIds: [] };
+    expect(liveMapTripsFor(m, 1)).toEqual([7]);
+    expect(liveMapTripsFor(m, 2)).toEqual([]);
+    expect(liveMapTripsFor(null, 1)).toEqual([]);
+    expect(liveMapTripsFor(m, null)).toEqual([]);
+  });
+
+  it('שובל: הדלקה וכיבוי', () => {
+    const m = { airfieldId: 1, tripIds: [7, 3], historyIds: [] };
+    const on = toggleLiveMapHistory(m, 3)!;
+    expect(on.historyIds).toEqual([3]);
+    expect(toggleLiveMapHistory(on, 3)!.historyIds).toEqual([]);
+  });
+
+  it('הסרת נסיעה מורידה גם את השובל שלה, והמפה שהתרוקנה נסגרת', () => {
+    const m = { airfieldId: 1, tripIds: [7, 3], historyIds: [3] };
+    expect(removeLiveMapTrip(m, 3)).toEqual({ airfieldId: 1, tripIds: [7], historyIds: [] });
+    expect(removeLiveMapTrip({ airfieldId: 1, tripIds: [7], historyIds: [] }, 7)).toBeNull();
   });
 });

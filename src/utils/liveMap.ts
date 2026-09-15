@@ -44,6 +44,39 @@ export const addToLiveMap = (ids: number[], id: number): number[] => (ids.includ
 
 export const removeFromLiveMap = (ids: number[], id: number): number[] => ids.filter(x => x !== id);
 
+/**
+ * מצב המפה הצפה: **השדה** שהיא שייכת לו, הנסיעות שבה והנסיעות עם שובל.
+ *
+ * השדה הוא חלק מהמצב כי טבלת הנסיעות מופיעה גם מוטמעת בדסק משימה, ושם היא יכולה
+ * להציג שדה של עמדה אחרת. נסיעות משני שדות אינן נכנסות לאותה מפה - אין להן מפת
+ * בסיס משותפת, ורכב של שדה אחד על התמונה של שדה אחר נראה במקום שהוא אינו בו.
+ */
+export interface LiveMapState { airfieldId: number; tripIds: number[]; historyIds: number[] }
+
+/** "פתח במפה צפה" - מפה לנסיעה הזו בלבד. */
+export const openLiveMap = (airfieldId: number, tripId: number): LiveMapState =>
+  ({ airfieldId, tripIds: [tripId], historyIds: [] });
+
+/** "הוסף למפה פתוחה". מפה פתוחה של **שדה אחר** מוחלפת, ולא מתערבבת. */
+export function addToOpenLiveMap(state: LiveMapState | null, airfieldId: number, tripId: number): LiveMapState {
+  if (!state || state.airfieldId !== airfieldId) return openLiveMap(airfieldId, tripId);
+  return { ...state, tripIds: addToLiveMap(state.tripIds, tripId) };
+}
+
+/** הנסיעות שטבלה של שדה מסוים צריכה לסמן כ"במפה". מפה של שדה אחר - אף אחת. */
+export const liveMapTripsFor = (state: LiveMapState | null, airfieldId: number | null): number[] =>
+  state && airfieldId != null && state.airfieldId === airfieldId ? state.tripIds : [];
+
+export const toggleLiveMapHistory = (state: LiveMapState | null, tripId: number): LiveMapState | null =>
+  state && { ...state, historyIds: state.historyIds.includes(tripId) ? removeFromLiveMap(state.historyIds, tripId) : addToLiveMap(state.historyIds, tripId) };
+
+/** הסרת נסיעה - גם השובל שלה יורד. המפה האחרונה שהתרוקנה נסגרת. */
+export function removeLiveMapTrip(state: LiveMapState | null, tripId: number): LiveMapState | null {
+  if (!state) return null;
+  const tripIds = removeFromLiveMap(state.tripIds, tripId);
+  return tripIds.length ? { ...state, tripIds, historyIds: removeFromLiveMap(state.historyIds, tripId) } : null;
+}
+
 export interface PctPoint { x: number; y: number }
 
 /**

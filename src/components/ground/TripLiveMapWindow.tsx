@@ -21,7 +21,7 @@ import i18n from '../../i18n';
 import { API_URL } from '../../config';
 import { windowFrame } from '../../utils/windowFrame';
 import { windowPalette, type ThemeMode } from '../../utils/windowPalette';
-import { geoToImagePct, type MapGeoAnchor } from '../../utils/geo';
+import { buildGeoAnchor, geoToImagePct, type MapGeoAnchor } from '../../utils/geo';
 import { measureCssZoom } from '../../utils/mapPan';
 import { suggestedVehicleIcon } from '../../utils/trips';
 import { liveVehicleTone, type LiveTrip } from '../../utils/liveTrips';
@@ -43,10 +43,14 @@ const ZOOM_STEP = 1.4;
 export interface TripLiveMapWindowProps {
   airfieldId: number | null;
   themeMode: ThemeMode;
-  /** תמונת מפת השדה. null = אין מפת בסיס, ורק Google זמינה */
-  mapSrc: string | null;
-  /** עוגן הנ"צ של המפה. בלעדיו אין דרך למקם רכב על התמונה */
-  anchor: MapGeoAnchor | null;
+  /**
+   * תמונת מפת השדה ועוגן הנ"צ שלה, כשהעמדה כבר מחזיקה אותם (שדה העמדה עצמה).
+   * **חסרים = החלון טוען אותם בעצמו** לפי `airfieldId`: טבלת הנסיעות מוטמעת גם
+   * בדסק משימה, ושם היא יכולה להציג שדה של עמדה אחרת - והמפה של העמדה הנוכחית
+   * הייתה מציגה את הרכבים על שדה לא נכון.
+   */
+  mapSrc?: string | null;
+  anchor?: MapGeoAnchor | null;
   /** הנסיעות שבמפה, בסדר ההוספה - הסדר קובע את הצבע */
   tripIds: number[];
   /** הנסיעות שמוצג להן שובל היסטוריה */
@@ -60,13 +64,32 @@ const tripName = (t: LiveTrip | undefined, id: number) =>
   (t && (t.vehicle_name || t.vehicle_type_name || t.permit_driver_name || t.driver_name)) || `#${id}`;
 
 export const TripLiveMapWindow: React.FC<TripLiveMapWindowProps> = ({
-  airfieldId, themeMode, mapSrc, anchor, tripIds, historyIds, onToggleHistory, onRemove, onClose,
+  airfieldId, themeMode, mapSrc: mapSrcProp, anchor: anchorProp, tripIds, historyIds, onToggleHistory, onRemove, onClose,
 }) => {
   const C = windowPalette(themeMode);
   const dir = i18n.dir();
   const winRef = useRef<HTMLDivElement | null>(null);
   const drag = useDragPosition(winRef);
   const consumerId = useId();
+
+  // ── מפת השדה: מהעמדה אם נמסרה, אחרת נטענת לפי השדה ─────────────────────
+  const [loadedMap, setLoadedMap] = useState<{ src: string | null; anchor: MapGeoAnchor | null }>({ src: null, anchor: null });
+  const provided = mapSrcProp !== undefined && anchorProp !== undefined;
+  useEffect(() => {
+    if (provided || !airfieldId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const af = await fetch(`${API_URL}/airfields/${airfieldId}`).then(r => (r.ok ? r.json() : null));
+        const m = af?.map_id ? await fetch(`${API_URL}/maps/${af.map_id}`).then(r => (r.ok ? r.json() : null)) : null;
+        // אותו סדר עדיפויות כמו בעמדה: העוגן של המפה, ובהיעדרו העוגן של השדה
+        if (!cancelled) setLoadedMap({ src: m?.image_data || null, anchor: buildGeoAnchor(m) || buildGeoAnchor(af) });
+      } catch { /* נתק - נשאר בלי מפת בסיס, ו-Google עדיין זמינה */ }
+    })();
+    return () => { cancelled = true; };
+  }, [provided, airfieldId]);
+  const mapSrc = provided ? mapSrcProp ?? null : loadedMap.src;
+  const anchor = provided ? anchorProp ?? null : loadedMap.anchor;
 
   // ── הנתונים: מיקום חי (סקר משותף) + שובל לנסיעות שביקשו ──────────────────
   const live = useLiveTrips(airfieldId);

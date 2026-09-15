@@ -125,7 +125,7 @@ import VehiclePermitsWindow from '../ground/VehiclePermitsWindow';
 import TripsManagementWindow from '../ground/TripsManagementWindow';
 import TripAlertsLayer from '../ground/TripAlertsLayer';
 import TripLiveMapWindow from '../ground/TripLiveMapWindow';
-import { addToLiveMap, removeFromLiveMap } from '../../utils/liveMap';
+import { addToOpenLiveMap, liveMapTripsFor, openLiveMap, removeLiveMapTrip, toggleLiveMapHistory, type LiveMapState } from '../../utils/liveMap';
 import GroundView from './GroundView';
 import WindowContainer, { DockPositionPicker } from '../shared/WindowContainer';
 import { setDockDefaultPosition, setDockPreset } from '../../utils/windowDock';
@@ -1343,10 +1343,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [showTripsWindow, setShowTripsWindow] = useState(false);
   // נסיעה לפתוח מיד, כשמגיעים לחלון מהתראה מתפרצת
   const [tripsFocusId, setTripsFocusId] = useState<number | null>(null);
-  // המפה הצפה של נסיעות בביצוע: הנסיעות שבה (בסדר ההוספה - הסדר קובע את הצבע),
-  // ואלה שמוצג להן שובל היסטוריה. רשימה ריקה = המפה סגורה.
-  const [liveMapTripIds, setLiveMapTripIds] = useState<number[]>([]);
-  const [liveMapHistoryIds, setLiveMapHistoryIds] = useState<number[]>([]);
+  // המפה הצפה של נסיעות בביצוע: **השדה** שהיא שייכת לו, הנסיעות שבה (בסדר ההוספה -
+  // הסדר קובע את הצבע), ואלה שמוצג להן שובל. null = המפה סגורה.
+  //
+  // השדה נשמר כי טבלת הנסיעות מופיעה בשני מקומות - חלון "ניהול נסיעות" וטבלה
+  // מוטמעת בדסק משימה, שיכולה להציג שדה של עמדה **אחרת**. נסיעות משני שדות לא
+  // נכנסות לאותה מפה: אין להן מפת בסיס משותפת.
+  const [liveMap, setLiveMap] = useState<LiveMapState | null>(null);
+  /** המאפיינים שכל טבלת נסיעות מקבלת, לפי השדה שהיא מציגה (utils/liveMap.ts) */
+  const liveMapPropsFor = (airfieldId: number | null) => ({
+    liveMapTripIds: liveMapTripsFor(liveMap, airfieldId),
+    onOpenLiveMap: airfieldId ? (id: number) => setLiveMap(openLiveMap(airfieldId, id)) : undefined,
+    onAddToLiveMap: airfieldId ? (id: number) => setLiveMap(m => addToOpenLiveMap(m, airfieldId, id)) : undefined,
+  });
   const [showAppCameraWall, setShowAppCameraWall] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   // עדכון חברי העמדה + תחקיר (תפריט המשתמש). התחקיר מצלם את העמדה **לפני**
@@ -11005,7 +11014,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           // key לפי עמדת המקור: החלפת עמדה בהגדרה מרכיבה את החלון מחדש ולא
           // משאירה בו רשימה ומצב עריכה של השדה הקודם
           case 'trips':
-            return <TripsManagementWindow key={`trips-${src.presetId}`} airfieldId={src.airfieldId} themeMode={themeMode} onClose={noop} />;
+            return <TripsManagementWindow key={`trips-${src.presetId}`} airfieldId={src.airfieldId} themeMode={themeMode} onClose={noop} {...liveMapPropsFor(src.airfieldId)} />;
           case 'drivers':
             return <VehiclePermitsWindow key={`drivers-${src.presetId}`} airfieldId={src.airfieldId} themeMode={themeMode} onClose={noop} />;
           case 'quantities':
@@ -12040,29 +12049,26 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               themeMode={themeMode}
               focusTripId={tripsFocusId}
               onClose={() => setShowTripsWindow(false)}
-              liveMapTripIds={liveMapTripIds}
               // "פתח במפה צפה" פותח מפה לנסיעה הזו; "הוסף" מצרף אותה למפה הפתוחה
-              onOpenLiveMap={id => { setLiveMapTripIds([id]); setLiveMapHistoryIds([]); }}
-              onAddToLiveMap={id => setLiveMapTripIds(ids => addToLiveMap(ids, id))}
+              {...liveMapPropsFor(myPresetConfig?.airfield_id ?? null)}
             />
           )}
 
           {/* המפה הצפה של נסיעות בביצוע - נשארת פתוחה גם כשחלון הנסיעות נסגר:
               הפקח עוקב אחרי הרכבים בזמן שהוא עובד בחלונות אחרים */}
-          {isGroundMgmtMode && liveMapTripIds.length > 0 && (
+          {/* בכל סוג עמדה: הטבלה מוטמעת גם בדסק משימה. מפת השדה נמסרת רק כשזה שדה
+              העמדה עצמה - אחרת החלון טוען את מפת השדה של הטבלה בעצמו */}
+          {liveMap && liveMap.tripIds.length > 0 && (
             <TripLiveMapWindow
-              airfieldId={myPresetConfig?.airfield_id ?? null}
+              key={`live-map-${liveMap.airfieldId}`}
+              airfieldId={liveMap.airfieldId}
               themeMode={themeMode}
-              mapSrc={groundMapSrc}
-              anchor={groundAnchor}
-              tripIds={liveMapTripIds}
-              historyIds={liveMapHistoryIds}
-              onToggleHistory={id => setLiveMapHistoryIds(ids => (ids.includes(id) ? removeFromLiveMap(ids, id) : addToLiveMap(ids, id)))}
-              onRemove={id => {
-                setLiveMapTripIds(ids => removeFromLiveMap(ids, id));
-                setLiveMapHistoryIds(ids => removeFromLiveMap(ids, id));
-              }}
-              onClose={() => { setLiveMapTripIds([]); setLiveMapHistoryIds([]); }}
+              {...(liveMap.airfieldId === activeAirfield?.id ? { mapSrc: groundMapSrc, anchor: groundAnchor } : {})}
+              tripIds={liveMap.tripIds}
+              historyIds={liveMap.historyIds}
+              onToggleHistory={id => setLiveMap(m => toggleLiveMapHistory(m, id))}
+              onRemove={id => setLiveMap(m => removeLiveMapTrip(m, id))}
+              onClose={() => setLiveMap(null)}
             />
           )}
 
