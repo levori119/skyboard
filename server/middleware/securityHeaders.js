@@ -86,6 +86,15 @@ const GOOGLE_MAPS = {
 
 export const DRIVER_CSP = csp(`script-src 'self' 'unsafe-inline' ${GOOGLE_MAPS.script}`, GOOGLE_MAPS);
 
+// חריג מתועד שני: **המפה הצפה של נסיעות בביצוע** במגדל (public/liveMap.html),
+// כשהפקח בוחר בה Google. הדף מוטבע בעמדה כ-iframe מאותו מקור (frame-src 'self'),
+// ולכן **ה-CSP של העמדה עצמה אינו משתנה**: 'unsafe-eval' ומקורות הסקריפט של
+// Google נשארים תחומים לדף הזה בלבד, והדף אינו מקבל אסימון ואינו קורא API -
+// העמדה מעבירה לו את מה שיצויר ב-postMessage. ההשלכה זהה לזו של הנהג: כל עוד
+// מפת Google פתוחה, טעינת האריחים חושפת לספק חיצוני את אזור הרכבים.
+// **בלי 'unsafe-inline'** - הסקריפט שלו בקובץ נפרד (public/liveMap.js).
+export const LIVE_MAP_CSP = csp(`script-src 'self' ${GOOGLE_MAPS.script}`, GOOGLE_MAPS);
+
 export function securityHeaders(req, res, next) {
   res.setHeader('Content-Security-Policy', CSP);
   res.setHeader('X-Content-Type-Options', 'nosniff');

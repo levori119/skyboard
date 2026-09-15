@@ -2,7 +2,7 @@ import { Router } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pool from '../db/pool.js';
-import { DRIVER_CSP } from '../middleware/securityHeaders.js';
+import { DRIVER_CSP, LIVE_MAP_CSP } from '../middleware/securityHeaders.js';
 import { driverScopeOf, driverMayUseBase } from '../auth/driverIdentity.js';
 import { metersToPolyline } from '../../shared/tripTracking.js';
 import { onlyRelevantFor } from '../../shared/elementRelevance.js';
@@ -39,6 +39,17 @@ router.get('/driver/symbols.js', (req, res) => {
 router.get('/driver/tracking.js', (req, res) => {
   res.type('application/javascript');
   res.sendFile(path.join(__dirname, '../../shared', 'tripTracking.js'));
+});
+
+// המפה הצפה של נסיעות בביצוע, במצב Google - דף נפרד עם CSP משלו, כדי שה-CSP של
+// העמדה לא ייפתח ל-Google. ראה LIVE_MAP_CSP.
+router.get('/live-map', (req, res) => {
+  res.setHeader('Content-Security-Policy', LIVE_MAP_CSP);
+  res.sendFile(path.join(__dirname, '../../public', 'liveMap.html'));
+});
+router.get('/live-map/app.js', (req, res) => {
+  res.type('application/javascript');
+  res.sendFile(path.join(__dirname, '../../public', 'liveMap.js'));
 });
 
 // --- Preset Links API ---

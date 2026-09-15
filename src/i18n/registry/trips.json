@@ -669,6 +669,90 @@
     "alertLiveStale": {
       "he": "אות אבד - זהו המיקום האחרון שהתקבל",
       "en": "Signal lost - this is the last known location"
+    },
+    "tabActive": {
+      "he": "בביצוע",
+      "en": "In progress"
+    },
+    "liveMapOpen": {
+      "he": "פתח במפה צפה",
+      "en": "Open in floating map"
+    },
+    "liveMapAdd": {
+      "he": "הוסף למפה פתוחה",
+      "en": "Add to open map"
+    },
+    "liveMapIncluded": {
+      "he": "במפה",
+      "en": "On map"
+    },
+    "liveMapTitle": {
+      "he": "נסיעות בביצוע - מפה",
+      "en": "Trips in progress - map"
+    },
+    "liveMapCount": {
+      "he": "{{count}} נסיעות",
+      "en": "{{count}} trips"
+    },
+    "liveMapBase": {
+      "he": "מפת הבסיס",
+      "en": "Base map"
+    },
+    "liveMapBaseUnavailable": {
+      "he": "לשדה אין מפה מעוגנת",
+      "en": "The airfield has no anchored map"
+    },
+    "liveMapGoogleNoKey": {
+      "he": "אין מפתח Google מוגדר בשרת - מפת Google אינה זמינה",
+      "en": "No Google key configured on the server - Google map unavailable"
+    },
+    "liveMapGoogleBadKey": {
+      "he": "מפתח Google בשרת אינו תקין - מפת Google אינה זמינה",
+      "en": "The Google key on the server is invalid - Google map unavailable"
+    },
+    "liveMapGoogleLoadFailed": {
+      "he": "מפת Google לא נטענה - אין חיבור לשירות",
+      "en": "Google map failed to load - no connection to the service"
+    },
+    "liveMapFit": {
+      "he": "התאם לרכבים",
+      "en": "Fit vehicles"
+    },
+    "liveMapFitHint": {
+      "he": "ממרכז ומגדיל כך שכל הרכבים שבמפה נראים. גרירה או זום ידני מכבים",
+      "en": "Centers and zooms so all vehicles on the map are visible. Dragging or manual zoom turns it off"
+    },
+    "liveMapShowHistory": {
+      "he": "הראה היסטוריה",
+      "en": "Show history"
+    },
+    "liveMapHideHistory": {
+      "he": "הסתר היסטוריה",
+      "en": "Hide history"
+    },
+    "liveMapHistoryHint": {
+      "he": "שובל הקליטות האחרונות של הנסיעה, בצבע שלה",
+      "en": "A trail of the trip's latest fixes, in its color"
+    },
+    "liveMapRemove": {
+      "he": "הסר מהמפה",
+      "en": "Remove from map"
+    },
+    "liveMapEnded": {
+      "he": "הנסיעה הסתיימה",
+      "en": "Trip ended"
+    },
+    "liveMapNoMap": {
+      "he": "אין מפה להצגה - לשדה אין מפה מעוגנת ואין מפתח Google",
+      "en": "No map to show - the airfield has no anchored map and there is no Google key"
+    },
+    "liveMapZoomIn": {
+      "he": "הגדל",
+      "en": "Zoom in"
+    },
+    "liveMapZoomOut": {
+      "he": "הקטן",
+      "en": "Zoom out"
     }
   }
 }

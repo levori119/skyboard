@@ -558,3 +558,34 @@ describe('GET /api/trips/live - המגדל', () => {
     expect(await (await get('/api/trips/live')).json()).toEqual([]);
   });
 });
+
+describe('GET /api/entry-permit-trips/:id/gps - שובל ההיסטוריה במגדל', () => {
+  const fix = i => ({ lat: 31.25, lng: 34.64 + i * 0.001, accuracy: 8 });
+
+  it('הקליטות מהישנה לחדשה', async () => {
+    const t = await mkStarted();
+    for (let i = 0; i < 4; i++) await dpost(`/api/driver-trips/${t.id}/gps`, MY_TZ, fix(i));
+    const rows = await (await get(`/api/entry-permit-trips/${t.id}/gps`)).json();
+    expect(rows.map(r => Number(r.lng.toFixed(3)))).toEqual([34.64, 34.641, 34.642, 34.643]);
+  });
+
+  // השובל הוא הקליטות **האחרונות** - לא הראשונות של הנסיעה
+  it('limit מחזיר את האחרונות, עדיין מהישנה לחדשה', async () => {
+    const t = await mkStarted();
+    for (let i = 0; i < 5; i++) await dpost(`/api/driver-trips/${t.id}/gps`, MY_TZ, fix(i));
+    const rows = await (await get(`/api/entry-permit-trips/${t.id}/gps?limit=2`)).json();
+    expect(rows.map(r => Number(r.lng.toFixed(3)))).toEqual([34.643, 34.644]);
+  });
+
+  it('נסיעה בלי קליטות - מערך ריק', async () => {
+    const t = await mkStarted();
+    expect(await (await get(`/api/entry-permit-trips/${t.id}/gps`)).json()).toEqual([]);
+  });
+
+  it('limit לא תקין נופל לברירת המחדל ולא מפיל', async () => {
+    const t = await mkStarted();
+    await dpost(`/api/driver-trips/${t.id}/gps`, MY_TZ, fix(0));
+    expect((await get(`/api/entry-permit-trips/${t.id}/gps?limit=abc`)).status).toBe(200);
+    expect((await get(`/api/entry-permit-trips/${t.id}/gps?limit=-5`)).status).toBe(200);
+  });
+});

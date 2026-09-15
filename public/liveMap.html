@@ -1,0 +1,24 @@
+<!doctype html>
+<!--
+  המפה הצפה של נסיעות בביצוע, במצב Google (TripLiveMapWindow).
+
+  למה דף נפרד ולא רכיב בעמדה: Maps JS דורש 'unsafe-eval' ומקורות סקריפט של Google,
+  וה-CSP של העמדה נעול להם בכוונה. הדף הזה מקבל CSP משלו (LIVE_MAP_CSP) ומוטבע
+  בעמדה כ-iframe מאותו מקור. **אין בו אסימון ואין בו קריאות API**: העמדה מעבירה לו
+  את המפתח ואת מה שיצויר ב-postMessage, ולכן גם אם Google נפרץ - אין ממנו גישה
+  למידע העמדה. הסקריפט בקובץ נפרד, בלי 'unsafe-inline'.
+-->
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>live map</title>
+<style>
+  html, body, #map { margin: 0; height: 100%; width: 100%; background: #0b1220; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script src="/live-map/app.js"></script>
+</body>
+</html>

@@ -20,6 +20,11 @@ export default defineConfig({
       '/driver': {
         target: API_TARGET,
         changeOrigin: true,
+      },
+      // המפה הצפה במצב Google - מוגשת מהשרת עם CSP משלה
+      '/live-map': {
+        target: API_TARGET,
+        changeOrigin: true,
       }
     }
   },

@@ -124,6 +124,8 @@ import GroundVehiclePanel from '../ground/GroundVehiclePanel';
 import VehiclePermitsWindow from '../ground/VehiclePermitsWindow';
 import TripsManagementWindow from '../ground/TripsManagementWindow';
 import TripAlertsLayer from '../ground/TripAlertsLayer';
+import TripLiveMapWindow from '../ground/TripLiveMapWindow';
+import { addToLiveMap, removeFromLiveMap } from '../../utils/liveMap';
 import GroundView from './GroundView';
 import WindowContainer, { DockPositionPicker } from '../shared/WindowContainer';
 import { setDockDefaultPosition, setDockPreset } from '../../utils/windowDock';
@@ -1341,6 +1343,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [showTripsWindow, setShowTripsWindow] = useState(false);
   // נסיעה לפתוח מיד, כשמגיעים לחלון מהתראה מתפרצת
   const [tripsFocusId, setTripsFocusId] = useState<number | null>(null);
+  // המפה הצפה של נסיעות בביצוע: הנסיעות שבה (בסדר ההוספה - הסדר קובע את הצבע),
+  // ואלה שמוצג להן שובל היסטוריה. רשימה ריקה = המפה סגורה.
+  const [liveMapTripIds, setLiveMapTripIds] = useState<number[]>([]);
+  const [liveMapHistoryIds, setLiveMapHistoryIds] = useState<number[]>([]);
   const [showAppCameraWall, setShowAppCameraWall] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   // עדכון חברי העמדה + תחקיר (תפריט המשתמש). התחקיר מצלם את העמדה **לפני**
@@ -12034,6 +12040,29 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               themeMode={themeMode}
               focusTripId={tripsFocusId}
               onClose={() => setShowTripsWindow(false)}
+              liveMapTripIds={liveMapTripIds}
+              // "פתח במפה צפה" פותח מפה לנסיעה הזו; "הוסף" מצרף אותה למפה הפתוחה
+              onOpenLiveMap={id => { setLiveMapTripIds([id]); setLiveMapHistoryIds([]); }}
+              onAddToLiveMap={id => setLiveMapTripIds(ids => addToLiveMap(ids, id))}
+            />
+          )}
+
+          {/* המפה הצפה של נסיעות בביצוע - נשארת פתוחה גם כשחלון הנסיעות נסגר:
+              הפקח עוקב אחרי הרכבים בזמן שהוא עובד בחלונות אחרים */}
+          {isGroundMgmtMode && liveMapTripIds.length > 0 && (
+            <TripLiveMapWindow
+              airfieldId={myPresetConfig?.airfield_id ?? null}
+              themeMode={themeMode}
+              mapSrc={groundMapSrc}
+              anchor={groundAnchor}
+              tripIds={liveMapTripIds}
+              historyIds={liveMapHistoryIds}
+              onToggleHistory={id => setLiveMapHistoryIds(ids => (ids.includes(id) ? removeFromLiveMap(ids, id) : addToLiveMap(ids, id)))}
+              onRemove={id => {
+                setLiveMapTripIds(ids => removeFromLiveMap(ids, id));
+                setLiveMapHistoryIds(ids => removeFromLiveMap(ids, id));
+              }}
+              onClose={() => { setLiveMapTripIds([]); setLiveMapHistoryIds([]); }}
             />
           )}
 

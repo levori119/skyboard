@@ -66,8 +66,8 @@ function routePct(t: LiveTrip, anchor: MapGeoAnchor | null): { x: number; y: num
   return out.length >= 2 ? out : [];
 }
 
-/** השורה שמתחת לשם - מה שהפקח צריך לדעת עכשיו על הרכב */
-function detailText(t: LiveTrip, tone: LiveTone, anchored: boolean): string {
+/** השורה שמתחת לשם - מה שהפקח צריך לדעת עכשיו על הרכב. מיוצא: גם המפה הצפה מציגה אותה */
+export function detailText(t: LiveTrip, tone: LiveTone, anchored: boolean): string {
   if (!anchored) return tr('trips.liveNoAnchor');
   switch (tone) {
     case 'waiting': return tr('trips.liveWaiting');

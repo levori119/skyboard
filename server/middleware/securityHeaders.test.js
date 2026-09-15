@@ -6,7 +6,7 @@
 // מפה שנשמרת כ-data URL, keyframes ב-<style>, עמדה נצפית ב-iframe, ובילד
 // שאין בו סקריפט מוטבע. מי שמצמצם הנחיה - יראה כאן איזה מסך הוא מכבה.
 import { describe, it, expect } from 'vitest';
-import { securityHeaders, DRIVER_CSP } from './securityHeaders.js';
+import { securityHeaders, DRIVER_CSP, LIVE_MAP_CSP, CSP } from './securityHeaders.js';
 
 const headers = ({ secure = false, proto = 'http' } = {}) => {
   const set = {};
@@ -108,6 +108,31 @@ describe('CSP של אפליקציית הנהג', () => {
     for (const name of ['frame-src', 'object-src', 'form-action', 'base-uri', 'frame-ancestors']) {
       expect(driver[name], name).toEqual(app[name]);
     }
+  });
+
+  // המפה הצפה של נסיעות בביצוע במגדל, במצב Google. ה-CSP של העמדה עצמה אינו
+  // משתנה - Google ו-'unsafe-eval' תחומים לדף הזה, שמוטבע כ-iframe מאותו מקור.
+  describe('המפה הצפה (liveMap.html)', () => {
+    it('שאר ההנחיות = מדיניות העמדה + מקורות Google בלבד', () => {
+      const live = directives(LIVE_MAP_CSP);
+      const app = appCsp();
+      for (const name of Object.keys(app)) {
+        if (name === 'script-src') continue;
+        expect(live[name], name).toEqual([...app[name], ...(GOOGLE_EXTRA[name] || [])]);
+      }
+    });
+
+    // הסקריפט בקובץ נפרד - אין סיבה לתת לדף הזה את החריג של דף הנהג
+    it("script-src = self + Google, **בלי 'unsafe-inline'**", () => {
+      expect(directives(LIVE_MAP_CSP)['script-src']).toEqual([
+        "'self'", 'https://maps.googleapis.com', 'https://*.googleapis.com', 'https://*.gstatic.com', "'unsafe-eval'", 'blob:',
+      ]);
+    });
+
+    it('ה-CSP של העמדה לא נפתח ל-Google ולא ל-unsafe-eval', () => {
+      expect(CSP).not.toContain('googleapis');
+      expect(directives(CSP)['script-src']).not.toContain("'unsafe-eval'");
+    });
   });
 });
 

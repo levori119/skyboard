@@ -1428,4 +1428,23 @@ router.get('/api/trips/live', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+/**
+ * הקליטות האחרונות של נסיעה, **מהישנה לחדשה** - לשובל ההיסטוריה במפה הצפה.
+ *
+ * `limit` נחסם ל-GPS_HISTORY_LIMIT: זה כל מה שנשמר ממילא, ובקשה ל-100,000
+ * נקודות היא טעות שלא צריכה לרוץ מול ה-DB. ברירת המחדל - 120 (~10 דק').
+ */
+router.get('/api/entry-permit-trips/:id/gps', async (req, res) => {
+  try {
+    const limit = Math.max(1, Math.min(GPS_HISTORY_LIMIT, Number(req.query.limit) || 120));
+    const r = await pool.query(
+      `SELECT lat, lng, accuracy_m, heading, speed_kmh, recorded_at FROM (
+         SELECT * FROM entry_permit_trip_gps WHERE trip_id = $1
+          ORDER BY recorded_at DESC, id DESC LIMIT $2
+       ) recent ORDER BY recorded_at, id`,
+      [req.params.id, limit]);
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 export default router;

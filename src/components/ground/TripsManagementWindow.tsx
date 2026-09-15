@@ -30,6 +30,7 @@ import { CTRL_H, WINDOW_SIZE, formStyles } from '../../utils/windowForm';
 import useDragPosition from '../../hooks/useDragPosition';
 import { useDockableWindow } from '../../hooks/useDockableWindow';
 import useAirfieldTrips from '../../hooks/useAirfieldTrips';
+import { isInProgressTrip, tripTabOf, type TripTab } from '../../utils/liveMap';
 import { customConfirm } from '../shared/ConfirmModal';
 import { PERMIT_STATUS_COLOR, effectivePermitStatus, permitStatusKey } from '../../utils/permitStatus';
 import {
@@ -350,10 +351,17 @@ export interface TripsManagementWindowProps {
   onClose: () => void;
   /** נסיעה לפתוח מיד לעריכה - כשמגיעים לכאן מהתראה מתפרצת */
   focusTripId?: number | null;
+  /**
+   * המפה הצפה של נסיעות בביצוע. אופציונלי: החלון מוטמע גם בדסק משימה, ושם אין
+   * מפה צפה - ואז הכפתורים פשוט אינם מוצגים, במקום להידלק בלי שקורה דבר.
+   */
+  liveMapTripIds?: number[];
+  onOpenLiveMap?: (tripId: number) => void;
+  onAddToLiveMap?: (tripId: number) => void;
 }
 
 export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
-  airfieldId, themeMode, onClose, focusTripId,
+  airfieldId, themeMode, onClose, focusTripId, liveMapTripIds = [], onOpenLiveMap, onAddToLiveMap,
 }) => {
   const C = windowPalette(themeMode);
   const dir = i18n.dir();
@@ -380,7 +388,7 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState<TripDraft>(EMPTY_DRAFT);
   const [search, setSearch] = useState('');
-  const [tab, setTab] = useState<'upcoming' | 'history'>('upcoming');
+  const [tab, setTab] = useState<TripTab>('upcoming');
   /** קיבוץ הרשימה - ברירת מחדל סטטוס, ובתוך כל קבוצה לפי זמן */
   const [groupBy, setGroupBy] = useState<TripGroupKey>(readGroupBy);
   /** קבוצות מקופלות, לפי ערך הקבוצה */
@@ -668,15 +676,16 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return trips
-      .filter(t => {
-        const past = isPastTrip(t, now);
-        return tab === 'history' ? past : !past;
-      })
+      // "בביצוע" גובר: נסיעה שהופעלה ומועדה עבר הייתה נופלת להיסטוריה - בדיוק
+      // כשהרכב נוסע עכשיו בשטח
+      .filter(t => tripTabOf(t, isPastTrip(t, now)) === tab)
       .filter(t => !q || [
         t.vehicle_name, t.vehicle_type_name, t.permit_driver_name, t.driver_name,
         t.from_point_name, t.from_text, t.to_point_name, t.to_text, t.trip_type_name,
       ].some(v => String(v ?? '').toLowerCase().includes(q)));
   }, [trips, search, tab, now]);
+
+  const activeCount = useMemo(() => trips.filter(t => isInProgressTrip(t)).length, [trips]);
 
   const groups = useMemo(
     () => groupTrips(filtered, groupBy, tab === 'history' ? 'desc' : 'asc'),
@@ -736,7 +745,7 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
   });
 
   // ── פריטי עזר לעיצוב ───────────────────────────────────────────────────────
-  const tabBtn = (key: 'upcoming' | 'history'): React.CSSProperties => ({
+  const tabBtn = (key: TripTab): React.CSSProperties => ({
     height: CTRL_H, padding: '0 14px', fontSize: 11, borderRadius: 9, cursor: 'pointer',
     border: `1px solid ${tab === key ? '#0284c7' : C.border}`,
     background: tab === key ? '#0284c733' : 'transparent',
@@ -773,6 +782,12 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
           style={{ ...inputStyle, width: 260 }}
         />
         <button onClick={() => setTab('upcoming')} style={tabBtn('upcoming')}>{tr('trips.tabUpcoming')}</button>
+        <button onClick={() => setTab('active')} style={tabBtn('active')}>
+          {tr('trips.tabActive')}
+          {activeCount > 0 && (
+            <span style={{ marginInlineStart: 5, padding: '0 6px', borderRadius: 8, background: '#22d3ee', color: '#0f172a', fontSize: 10, fontWeight: 'bold' }}>{activeCount}</span>
+          )}
+        </button>
         <button onClick={() => setTab('history')} style={tabBtn('history')}>{tr('trips.tabHistory')}</button>
         <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: C.muted, marginInlineStart: 6 }}>
           {tr('trips.groupBy')}
@@ -951,6 +966,27 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
                             {st === 'pending' && (
                               <button disabled={busy} onClick={() => void setTripStatusQuick(t, 'not_approved')}
                                 style={{ ...btn('#ef4444'), ...quick }}>✕ {tr('trips.quickReject')}</button>
+                            )}
+                          </>
+                        );
+                      })()}
+                      {onOpenLiveMap && isInProgressTrip(t) && (() => {
+                        const onMap = liveMapTripIds.includes(t.id);
+                        const mapOpen = liveMapTripIds.length > 0; const quick = { height: 22, padding: '0 9px', marginInlineEnd: 4 };
+                        return (
+                          <>
+                            {onMap ? (
+                              <span style={{ fontSize: 10, color: '#22d3ee', marginInlineEnd: 4, whiteSpace: 'nowrap' }}>✓ {tr('trips.liveMapIncluded')}</span>
+                            ) : (
+                              <>
+                                <button onClick={() => onOpenLiveMap(t.id)}
+                                  style={{ ...btn('#0e7490'), ...quick }}>🗺 {tr('trips.liveMapOpen')}</button>
+                                {/* "הוסף" רק כשיש מפה פתוחה - אחרת אין לאן להוסיף */}
+                                {mapOpen && onAddToLiveMap && (
+                                  <button onClick={() => onAddToLiveMap(t.id)}
+                                    style={{ ...btn('#155e75'), ...quick }}>➕ {tr('trips.liveMapAdd')}</button>
+                                )}
+                              </>
                             )}
                           </>
                         );
