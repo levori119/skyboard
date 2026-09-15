@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import i18n from '../../i18n';
 import { tr } from '../../i18n/tr';
 import { DRAG_HANDLE_STYLE, startPointerDrag } from '../../utils/pointerDrag';
 import {
@@ -234,7 +235,10 @@ export const WindowContainer: React.FC<WindowContainerProps> = ({ themeMode = 'd
                         style={{ background: 'transparent', border: 'none', color: C.dim, cursor: 'pointer', fontSize: '11px', padding: '0 3px', lineHeight: 1 }}
                       >↗</button>
                     </div>
-                    <div style={{ overflow: 'hidden' }}>
+                    {/* הרשת LTR, והחלון שנשלח לכאן ב-portal יורש את הכיוון מה-DOM.
+                        חלון שלא מגדיר כיוון בעצמו (נקודת הצטרפות, בהקפה) היה
+                        נכתב הפוך - ולכן גוף המשבצת מחזיר את כיוון השפה */}
+                    <div data-dock-body style={{ overflow: 'hidden', direction: i18n.dir() }}>
                       <FitScaleBox mode="width" maxScale={2.5} minScale={0.18}>
                         <div data-dock-portal={id} />
                       </FitScaleBox>
