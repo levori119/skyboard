@@ -113,6 +113,10 @@
     "winPatternTraffic": {
       "he": "בהקפה",
       "en": "In pattern"
+    },
+    "winJoiningPoint": {
+      "he": "נקודת הצטרפות {{name}}",
+      "en": "Joining point {{name}}"
     }
   }
 }

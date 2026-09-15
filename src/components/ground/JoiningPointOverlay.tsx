@@ -1,5 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
+import { useDockableWindow } from '../../hooks/useDockableWindow';
 
 // ─── חלון טבלת נקודת ההצטרפות ─────────────────────────────────────────────────
 //
@@ -9,6 +10,8 @@ import { createPortal } from 'react-dom';
 //   1. **נפתחת מעל העוגן אם יש מקום, אחרת מתחתיו** - ולא גולשת מהמסך.
 //   2. **מוצמדת לגבולות המסך גם בצדדים** - החלון תמיד נראה במלואו.
 //   3. **נגררת** בכותרת - בעט, באצבע ובעכבר.
+//   4. **ניתנת לעגינה** בקונטיינר החלונות (CLAUDE.md §קונטיינר החלונות): גרירת
+//      הכותרת אל הקונטיינר מוציאה את הטבלה מעל המפה למשבצת קבועה.
 //
 // ⚠️ Portal ל-`body` = **מחוץ ל-`#root`**, ולכן אינו מקבל את `zoom: var(--s)`
 // אוטומטית: הוא מוחל כאן ידנית, וכל קואורדינטת מצביע מחולקת ב---s לפני שהיא
@@ -22,18 +25,31 @@ const scaleOf = () =>
 interface Props {
   /** בורר ה-DOM של הסמן שאליו החלון נפתח (הנקודה על המפה). */
   anchorSel: string;
+  /** מזהה החלון בקונטיינר - אחד לכל נקודה, כדי שכל נקודה תחזור למשבצת שלה. */
+  dockId: string;
+  /** השם שמוצג בקונטיינר. */
+  dockTitle: string;
   children: (headerProps: { onPointerDown: (e: React.PointerEvent) => void }) => React.ReactNode;
 }
 
-export default function JoiningPointOverlay({ anchorSel, children }: Props) {
+export default function JoiningPointOverlay({ anchorSel, dockId, dockTitle, children }: Props) {
   const ref = React.useRef<HTMLDivElement | null>(null);
   const posRef = React.useRef<{ x: number; y: number } | null>(null);
   const [pos, setPos] = React.useState<{ x: number; y: number } | null>(null);
+  const dock = useDockableWindow(dockId, dockTitle, {
+    setFloatingPos: (x, y) => { posRef.current = { x, y }; setPos({ x, y }); },
+    floatingPos: () => posRef.current ?? { x: MARGIN, y: MARGIN },
+  });
+  // נקרא מתוך place (ResizeObserver) - ref ולא ה-state, כדי שהמדידה לא תיסגר על ערך ישן
+  const dockedRef = React.useRef(dock.docked);
+  dockedRef.current = dock.docked;
 
   /** ממקם בפעם הראשונה לפי העוגן, ובכל שינוי גודל **מצמיד** למסך. */
   const place = React.useCallback(() => {
     const el = ref.current;
-    if (!el) return;
+    // מעוגן - המיקום נקבע בקונטיינר. מדידה כאן הייתה דורסת את המיקום הצף
+    // במשבצת, והטבלה הייתה "נוחתת" בתוך הקונטיינר כשמשחררים אותה.
+    if (!el || dockedRef.current) return;
     const s = scaleOf();
     const box = el.getBoundingClientRect();
     const vw = window.innerWidth, vh = window.innerHeight;
@@ -64,7 +80,7 @@ export default function JoiningPointOverlay({ anchorSel, children }: Props) {
     }
   }, [anchorSel]);
 
-  React.useLayoutEffect(() => { place(); }, [place]);
+  React.useLayoutEffect(() => { place(); }, [place, dock.docked]);
 
   React.useEffect(() => {
     const el = ref.current;
@@ -78,6 +94,7 @@ export default function JoiningPointOverlay({ anchorSel, children }: Props) {
   }, [place]);
 
   const onPointerDown = (e: React.PointerEvent) => {
+    dock.onHeaderPointerDown(e);
     if (e.button > 0) return;
     const el = ref.current;
     if (!el) return;
@@ -112,18 +129,21 @@ export default function JoiningPointOverlay({ anchorSel, children }: Props) {
     <div
       ref={ref}
       data-testid="joining-point-overlay"
+      data-docked={dock.docked ? '1' : '0'}
       style={{
         position: 'fixed',
         left: pos ? pos.x : 0,
         top: pos ? pos.y : 0,
         // לפני המדידה הראשונה החלון קיים אך אינו נראה - אחרת הוא מהבהב בפינה
-        visibility: pos ? 'visible' : 'hidden',
-        zoom: 'var(--s)' as never,
+        visibility: pos || dock.docked ? 'visible' : 'hidden',
+        // במשבצת הקונטיינר מקטין לרוחב העמודה - zoom נוסף היה מכפיל את הסקייל
+        zoom: (dock.docked ? 1 : 'var(--s)') as never,
         zIndex: 8800,
+        ...dock.rootStyle,
       }}
     >
       {children({ onPointerDown })}
     </div>,
-    document.body,
+    dock.slotEl ?? document.body,
   );
 }

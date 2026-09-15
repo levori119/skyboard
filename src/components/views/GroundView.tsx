@@ -4357,6 +4357,8 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 {open && (
                   <JoiningPointOverlay
                     anchorSel={`[data-testid="joining-point-pin"][data-point-id="${jp.id}"]`}
+                    dockId={`joiningPoint:${jp.id}`}
+                    dockTitle={tr('dock.winJoiningPoint', { name: jp.name })}
                   >
                     {(headerProps) => (
                       <JoiningPointPanel
