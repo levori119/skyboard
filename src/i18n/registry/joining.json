@@ -303,8 +303,8 @@
       "en": "Select altitude"
     },
     "pickRunway": {
-      "he": "בחר מסלול",
-      "en": "Select runway"
+      "he": "מסלול",
+      "en": "Runway"
     },
     "place": {
       "he": "מקם על המפה",
@@ -375,8 +375,8 @@
       "en": "Landed"
     },
     "statusAtPoint": {
-      "he": "בנקודת הצטרפות",
-      "en": "At joining point"
+      "he": "הצטרפות",
+      "en": "Joining"
     },
     "stepFt": {
       "he": "הפרש",

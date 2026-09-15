@@ -71,11 +71,25 @@ describe('JoiningPointPanel - מטוסים בלבד (expand_aircraft)', () => {
 });
 
 describe('JoiningPointPanel - תפריט המצב במקום "שים בהקפה"', () => {
-  it('אין כפתור "שים בהקפה" - התפריט מחזיק את "בנקודת הצטרפות" כברירת מחדל', () => {
+  it('אין כפתור "שים בהקפה" - התפריט מחזיק את "הצטרפות" כברירת מחדל', () => {
     const html = render(point({ expand_aircraft: true }));
     expect(html.includes('שים בהקפה')).toBe(false);
     expect(count(html, 'flight-leg')).toBe(2);
-    expect(html).toMatch(/<option value="none" selected="">בנקודת הצטרפות<\/option>/);
+    // תווית קצרה: השורה צפופה, והבורר צריך להיות צר
+    expect(html).toMatch(/<option value="none" selected="">הצטרפות<\/option>/);
+  });
+
+  it('בורר המסלול: "מסלול" ולא "בחר מסלול" - תווית קצרה לשדה צר', () => {
+    const html = renderToStaticMarkup(
+      <JoiningPointPanel
+        point={point({ expand_aircraft: true })} incoming={[]} assigned={assigned as any} aircraft={[]}
+        landingRunways={[{ ident: '36' }]}
+        onAcceptIncoming={noop} onAssign={noop} onRemoveStrip={noop} onCoordinate={noop}
+        onUpdateAircraft={noop} onFlightStatus={noop} onCollapse={noop}
+      />,
+    );
+    expect(html).toMatch(/<option value=""[^>]*>מסלול<\/option>/);
+    expect(html).not.toMatch(/<option value=""[^>]*>בחר מסלול<\/option>/);
   });
 
   it('בלי מסלול - צלעות ההקפה נעולות, "נחת" לא', () => {
