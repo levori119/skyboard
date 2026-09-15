@@ -3214,3 +3214,36 @@ REFACTOR_LOG #045.
 ש-`route_ids` שלה שווה (כקבוצה) ל-`selected_route_ids`. **הסטייה נמדדת מולו,
 לא מול חישוב מחדש** - רשת הדרכים עלולה להשתנות בין האישור ליציאה. נסיעה שאושרה
 לפני השינוי - בלי `waypoints` - מקבלת `has_route=false` וזיהוי הסטייה כבוי.
+
+---
+
+## FLOW של פ"מ — `strip_flow_events`
+
+יומן השלבים של כל פ"מ: יצא מהדת"ק, הסיע, המריא, נשלח לנקודת העברה, **התקבל בעמדה**, נחת.
+**תפעולית** (משוכפלת פר-סביבת תרגול) וב-`UNDO_DENYLIST` - מה שקרה למטוס קרה, גם אם הפעולה
+בוטלה אחר כך. אפיון: [STRIP_FLOW_SPEC.md](STRIP_FLOW_SPEC.md).
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `id` | BIGSERIAL PK | |
+| `strip_id` | INTEGER NOT NULL | הפ"מ. **בלי FK בכוונה** - מיזוג מוחק את החלק שמוזג, ו-CASCADE היה מוחק את ההיסטוריה שלו |
+| `kind` | VARCHAR(32) | `taxi` · `lineup` · `takeoff` · `ground_point` · `transfer_sent` · `accepted` · `rejected` · `cancelled` · `airborne` · `landed` · `split` · `merged` |
+| `callsign` | VARCHAR(64) | או"ק ברגע האירוע (נגזר מ-`strips` כשלא נמסר) |
+| `preset_id` / `preset_name` | INTEGER / VARCHAR(128) | העמדה שבה קרה השלב. **בקבלה - העמדה שקיבלה בפועל**; בשליחה - המוסרת; בקרקע - המחזיקה בפ"מ |
+| `point_label` | VARCHAR(128) | נקודת העברה (`sub_sector_label`, ואם אין - שם הסקטור) / נקודה בשדה / מסלול ההמראה |
+| `crew_member_id` / `crew_member_name` | INTEGER / VARCHAR(128) | מ-`req.user` (SK-18). ריק בקבלה אוטומטית |
+| `details` | JSONB | `aircraft` (מערך idx), `runway`, `mode` (`manual`/`map`/`auto`), `fromPresetName`, `toPresetName`, `fromPointName`/`fromPointType`, `note`, `moved`, `airborne`, `fromStripId` (פיצול), `sourceStripId` (מיזוג), `transferId` |
+| `occurred_at` | TIMESTAMPTZ DEFAULT NOW() | |
+
+**אינדקס:** `(strip_id, occurred_at)`.
+
+**"נוצר" אינו שורה:** נגזר בקריאה מ-`strips.created_at` + `creator_preset_name`, כך שגם פ"מ
+שנוצר לפני הטבלה מקבל נקודת התחלה.
+
+**ירושה:** אירוע `split` על החלק החדש (`fromStripId`) - ה-FLOW שלו כולל את אירועי המקור **עד
+רגע הפיצול**. אירוע `merged` על הפ"מ שנשאר (`sourceStripId`) - כולל את **כל** אירועי החלק
+שמוזג. `loadFlows` טוען את השרשרת בשכבות (עד 6) ומסיר כפילויות.
+
+**"נמצא עכשיו"** (`flowCurrent`, מחושב בשרת): נחת · בנקודת העברה (העברה `pending`/`acknowledged`)
+· בעמדה = **הקבלה האחרונה** (ולא `strip_table_assignments`, שם עמדה יכולה לגרור פ"מ בלי לקבל
+אותו), ואם לא התקבל - העמדה שיצרה אותו.

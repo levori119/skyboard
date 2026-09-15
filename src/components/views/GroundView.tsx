@@ -6,6 +6,7 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { API_URL } from '../../config';
 import { sc } from '../../utils/scale';
 import { getFormationDisplayName } from '../../utils/strips';
+import { openStripFlow } from '../../utils/stripFlow';
 import { VKTrigger } from '../../VirtualKeyboard';
 import Strip from '../strips/Strip';
 import { CollapsedStripsBadge } from '../shared/CollapsedStripsBadge';
@@ -4519,6 +4520,10 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                       <div style={{ position: 'absolute', ...(groundQuickMenu && groundQuickMenu.y < window.innerHeight / 2 ? { top: 'calc(100% + 4px)' } : { bottom: 'calc(100% + 4px)' }), left: '50%', transform: 'translateX(-50%)', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '6px', zIndex: 100, minWidth: '160px', boxShadow: '0 4px 20px rgba(0,0,0,0.7)' }}
                         onClick={e => e.stopPropagation()}>
                         <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold', marginBottom: '5px', textAlign: 'center' }}>{tr('ground.changeStatusForThe')}</div>
+                        <button data-testid="ground-quick-flow" onClick={() => { openStripFlow(strip.id); setGroundQuickMenu(null); }}
+                          style={{ display: 'block', width: '100%', padding: '4px 8px', marginBottom: '5px', background: 'transparent', color: '#38bdf8', border: '1px solid #1e3a5f', borderRadius: '5px', cursor: 'pointer', fontSize: '11px', textAlign: 'start', fontWeight: 'bold' }}>
+                          {tr('flow.stripMenuItem')}
+                        </button>
                         {GROUND_STATUSES.map(s => (
                           <button key={s.key} onClick={() => {
                             if (s.key === 'takeoff') { setGroundQuickMenu(null); setSidModal({ strip, idx: -1 }); return; }
@@ -4586,6 +4591,10 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                       <div style={{ position: 'absolute', ...(groundQuickMenu && groundQuickMenu.y < window.innerHeight / 2 ? { top: 'calc(100% + 4px)' } : { bottom: 'calc(100% + 4px)' }), left: '50%', transform: 'translateX(-50%)', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '6px', zIndex: 100, minWidth: '140px', boxShadow: '0 4px 20px rgba(0,0,0,0.7)' }}
                         onClick={e => e.stopPropagation()}>
                         <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold', marginBottom: '5px', textAlign: 'center' }}>{tr('ground.changeStatus')}</div>
+                        <button data-testid="ground-quick-flow" onClick={() => { openStripFlow(strip.id); setGroundQuickMenu(null); }}
+                          style={{ display: 'block', width: '100%', padding: '4px 8px', marginBottom: '5px', background: 'transparent', color: '#38bdf8', border: '1px solid #1e3a5f', borderRadius: '5px', cursor: 'pointer', fontSize: '11px', textAlign: 'start', fontWeight: 'bold' }}>
+                          {tr('flow.stripMenuItem')}
+                        </button>
                         {GROUND_STATUSES.map(s => (
                           <button key={s.key} onClick={() => {
                             if (s.key === 'takeoff') { setGroundQuickMenu(null); setSidModal({ strip, idx: ac.idx }); return; }

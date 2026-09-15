@@ -6,6 +6,49 @@
 
 ---
 
+## 2026-09-15 - FLOW של פ"מ: רצף השלבים ו"נמצא עכשיו" בכל עמדה
+
+**הבקשה:** בכל עמדה לראות את ה-FLOW ואיפה נמצא עכשיו כל פ"מ - בפירוט טבלאי (יצא מהדת"ק ->
+הסיע -> המריא על 33 -> נקודת העברה פלמח -> עמדה 305 -> בת"ק עזה -> 306). "נמצא בעמדה" = **קיבל**,
+לא גרר. FLOW של פ"מ בקליק, ו-FLOW מרוכז בשאילתא.
+
+**מה נמצא בחקירה:** אין היסטוריה אמינה. הסעה/המראה/יציאה מדת"ק דורסות JSONB בלי שעה; הקבלה
+נרשמת ל-`activity_log` רק מהלקוח (fire-and-forget) ובלי להבחין בין קבל לגרירה; קבלה אוטומטית
+לא נרשמת ביומן של הלקוח; שורות `strip_transfers` נמחקות ב-CASCADE במיזוג ובמחיקה.
+
+**DB:** `strip_flow_events` (חדשה, תפעולית, בלי FK, ב-`UNDO_DENYLIST`). ראה data-model.md.
+
+**שרת:** `server/db/stripFlowEvents.js` + `server/utils/stripFlow.js` (טהור) + `server/routes/stripFlow.js`.
+הקבלה נרשמת ב-`acceptTransferTx` (הליבה האחת) וב-`accept-to-map`, **לפני** המיזוג (שמוחק את
+הנכנס), בתוך SAVEPOINT. שלבי הקרקע נגזרים מהפרש מצב המיקום ב-`PUT /api/strips/:id/aircraft`
+(המצב הקודם נקרא באותה פקודה ב-CTE).
+
+**תיקון אגב:** `runAutoAcceptOnce` כתב ל-`activity_log` דרך `pool.query` בזמן שה-client מוחזק -
+מול PGlite הסבב נתקע (אותו דפוס כמו בפיצול בנקודת הצטרפות). נמצא בבדיקת האינטגרציה.
+
+**לקוח:** `StripFlowWindow` (חלון צפייה יחיד, עגינה לקונטיינר) · `utils/stripFlow.ts` · פריט
+"FLOW של הפ"מ" ב-`ContextMenu` המשותף (prop אופציונלי `onFlow`), בתפריט שורת הטבלה, בתפריט המהיר
+של המגדל ובכרטיס העברה בקלאסי · "FLOW פ"מים" בתפריט "תצוגה" · registry `flow` (עברית/אנגלית).
+
+**קבצים:** `server/db/stripFlowEvents.js`, `server/utils/stripFlow.js` (+test), `server/routes/stripFlow.js`
+(+test), `server/routes/transfers.js`, `server/routes/strips.js`, `server/routes/joiningPoints.js`,
+`server/app.js`, `server/db/init.js`, `server/db/env-tables.js`, `server/db/undoJournal.js`,
+`src/utils/stripFlow.ts` (+test), `src/components/strips/StripFlowWindow.tsx` (+test),
+`src/components/shared/ContextMenu.tsx`, `src/components/strips/Strip.tsx`,
+`src/components/views/SectorDashboard.tsx`, `src/components/views/GroundView.tsx`,
+`src/components/classic/ClassicViews.tsx`, `src/i18n/registry/flow.json`, `src/i18n/registry.ts`,
+`STRIP_FLOW_SPEC.md`.
+
+**QA:** tsc נקי · vitest 3486 ירוקות (177 קבצים) · build עובר · 13 בדיקות נתיב מול PGlite (הסעה
+והמראה, אין כפילות, שליחה לנקודה, קבל/למפה/אוטומטית עם העמדה שקיבלה, דחייה וביטול, כשל רישום
+לא מפיל קבלה, 404, בקשה מרוכזת, נחיתה, ירושה במיזוג בקבלה).
+`env-isolation.integration.test.js` (מול Neon) נכשל עד שהשרת יעלה עם הטבלה - צפוי.
+
+**לא נבדק:** החלון לא נלחץ בדפדפן - הרצת השרת מקומית הייתה יוצרת את הטבלה ב-DB המשותף לפני
+שהסיווג שלה נפרס (#045).
+
+---
+
 ## 2026-09-15 - נקודת הצטרפות: מאפייני הנקודה בעמדה ("מטוסים בלבד" לעמדה)
 
 **הבקשה:** לעדכן את "מטוסים בלבד" מתוך העמדה, בלי ללכת לניהול.

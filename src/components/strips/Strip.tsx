@@ -13,6 +13,7 @@ import { AircraftFaultFields, useFaultTypes, faultRedFor, type AircraftFaultValu
 import { formatFaultsText, formatFaultsHint } from '../../utils/faults';
 import { AimPointsSummary, AimPointsWindow } from './AimPointsTable';
 import { toAimPoints, type AimPoint } from '../../types/aimPoints';
+import { openStripFlow } from '../../utils/stripFlow';
 
 // Module-level singleton: only one strip details panel open at a time
 let _activeStripDetailsCloser: (() => void) | null = null;
@@ -895,6 +896,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onProvTransfer, onT
             setContextMenu(null);
           }}
           onClose={() => setContextMenu(null)}
+          onFlow={() => openStripFlow(s.id)}
           extraActions={(() => {
             const mySelections = serialSelections.filter((sel: any) => sel.strip_id === s.id && !sel.dismissed);
             const alertSelections = mySelections.filter((sel: any) => {

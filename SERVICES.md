@@ -126,6 +126,16 @@
 **ליבת הקבלה:** `acceptTransferTx(client, transferId, receivingPresetId)` — מיזוג אחים אחרי פיצול, שיוך לעמדה, סטטוס ההעברה ורישום לטבלה. חולצה מה-route כדי שגם הקבלה האוטומטית תרוץ באותו קוד. המיזוג עצמו הוא `mergeWithSiblingIfAny(client, stripId, presetId)` — **עותק אחד** שמשרת גם את קבלה-למפה (טרנזקציונית מאז 2026-08-18), כדי ששני מסלולי הקבלה לא יסטו זה מזה בשקט. שתי הפונקציות מיוצאות ומכוסות ב-[`transfers.test.js`](server/routes/transfers.test.js) — 10 בדיקות, ובהן נעילה על כך שהמיזוג רץ **פעם אחת**.
 **קבלה אוטומטית בנקודת מעבר:** `runAutoAcceptOnce()` (מיוצא, נקרא במחזור מ-`server.js` פר-סביבה) מקבל בעצמו העברות שיעדן נקודה עם `sectors.auto_accept_mode` ≠ `off`. ההחלטה "מתי הבשילה" ב-[`server/utils/autoAccept.js`](server/utils/autoAccept.js) (טהור + בדיקות). נועד לשלב ה-MVP שבו אין עמדה מקבלת. ראה [data-model.md](data-model.md).
 
+**FLOW של פ"מ:** `acceptTransferTx(client, transferId, receivingPresetId, flow)` רושם אירוע `accepted` עם **העמדה שקיבלה בפועל** ואופן הקבלה (`manual`/`map`/`auto`) - בליבה, כדי שכל מסלולי הקבלה ייספרו ורק הם. גם שליחה, שינוי יעד, דחייה וביטול נרשמים. הרישום עטוף ב-SAVEPOINT - כשל בו לא מבטל קבלה. ראה `server/routes/stripFlow.js`.
+**תיקון דדלוק:** `runAutoAcceptOnce` כתב ל-`activity_log` דרך `pool` לפני שחרור ה-client - מול המאגר המקומי (PGlite, חיבור יחיד) הסבב נתקע לנצח. הרישום עבר לאחר השחרור.
+
+### `server/routes/stripFlow.js` — 2 routes
+**תפקיד:** **FLOW של פ"מ** - מגיש את רצף השלבים ו"נמצא עכשיו". אפיון: [STRIP_FLOW_SPEC.md](STRIP_FLOW_SPEC.md).
+**Endpoints:** `GET /api/strips/:id/flow` (404 לפ"מ שאינו קיים), `GET /api/strip-flows?ids=1,s2,...` (עד 500).
+**הרישום אינו כאן:** הוא יושב בנתיבים התפעוליים דרך [`server/db/stripFlowEvents.js`](server/db/stripFlowEvents.js) - `recordFlowEvent` (לעולם אינו זורק; `inTx` = SAVEPOINT), `recordAcceptedFlow`, `recordMergedFlow`, `loadFlows`. נקודות הרישום: `transfers.js` (שליחה/קבלה/קבלה למפה/קבלה אוטומטית/דחייה/ביטול/שינוי יעד), `strips.js` (`PUT /aircraft` - הסעה/התיישרות/המראה/מעבר נקודה, `PUT /:id` - באוויר, פיצול ומיזוג), `joiningPoints.js` (נחיתה).
+**הלוגיקה הטהורה:** [`server/utils/stripFlow.js`](server/utils/stripFlow.js) - `diffAircraftPositions` (שלבי קרקע מתוך שני מצבי מיקום), `flowCurrent` ("נמצא בעמדה" = הקבלה האחרונה, לא `strip_table_assignments`), `mergeLineageEvents` (ירושה בפיצול/מיזוג, בלי כפילויות ובלי מעגלים).
+**מאומת:** `server/routes/stripFlow.test.js` (13 בדיקות מול PGlite) + `server/utils/stripFlow.test.js` (20).
+
 ### `server/routes/sectors.js` — 17 routes
 **תפקיד:** ניהול סקטורים (נקודות העברה), קשרי שכנות, sub-sectors, תצורת נקודות העברה.
 **קבלה אוטומטית:** `POST`/`PUT /api/sectors` מקבלים `auto_accept_mode` (`off`/`immediate`/`eta`), מנורמל ב-`normalizeAutoAcceptMode` (ערך לא מוכר → `off`).
@@ -764,6 +774,9 @@ DB מנוהל היה נופל יחד עם העמדה.
 ### `src/utils/queryBuilder.ts` (כולל רישום פקדים גלובליים)
 **תפקיד:** מנוע סינון (Query DSL) — AND/OR/NOT עם השוואות, כולל **שדות זמן** (`takeoff_time`, `planned_landing_time`) שההשוואה עליהם היא **בדקות מעכשיו** (`lt`/`gt`/`eq`/`neq`/`passed`) ו-"אצלי" לפי בסיס העמדה. **מייצא:** `Q_FIELDS`, `Q_TEXT_OPS`, `Q_BOOL_OPS`, `Q_TIME_OPS`, `Q_PRESET_OPS`, `Q_TIME_FIELDS`, `Q_OPERATOR_LABELS`, `qGenId`, `qMinutesFromNow`, `emptyQGroup`, `hasConditions`, `clampMenuPos`, `getQFieldValue`, `evalQLeaf`, `evaluateQuery`.
 
+### `src/utils/stripFlow.ts`
+**תפקיד:** FLOW של פ"מ בלקוח - שרשרת השלבים המרוכזת (`flowChain`), מתארי תרגום לאירוע ול"נמצא עכשיו" (`flowEventDescriptor`, `flowCurrentDescriptor` - מפתח + פרמטרים, המשפט השלם ב-registry `flow`), ופתיחת החלון היחיד מכל מקום (`openStripFlow(id?)` / `subscribeStripFlow` - אירוע DOM). **מייצא:** `flowChain`, `flowEventDescriptor`, `flowCurrentDescriptor`, `formatAircraft`, `flowStripId`, `flowTime`, `openStripFlow`, `subscribeStripFlow`, טיפוסי `FlowEvent`/`FlowCurrent`/`StripFlow`/`FlowChainStep`.
+
 ### `src/utils/dataWindows.ts`
 **תפקיד:** חלונות נתונים בעמדה — מונים מוגדרי-שאילתא (הגדרה, ניקוי JSONB, הרצה על הפ"מים, מיזוג הגדרת העמדה עם שינויי הסשן כולל דריסת שאילתא מוצהרת). שלושה מצבי תצוגה: מספר · מספר+או"קים · מספר+שורות פ"מ. **מייצא:** `DW_MODES`, `DW_COUNT_BY`, `DW_DEFAULT_COLOR`, `dwDefault`, `dwNormalize`, `dwEvaluate`, `dwNextMode`, `dwStripLabel`, `dwMergeSession`, `dwSessionKey`, `dwLoadSession`, `dwSaveSession`, `dwSubscribe`, טיפוסי `DataWindowDef`/`DataWindowResult`.
 
@@ -1137,6 +1150,9 @@ DB מנוהל היה נופל יחד עם העמדה.
 ### `src/components/shared/WindowContainer.tsx`
 **תפקיד:** העמודה עצמה — בין הפ"מים (order 4) לעזרים (order 6). כל חלון מוקטן/מוגדל כיחידה אחת ל**רוחב** הקונטיינר (`FitScaleBox mode="width"`) והגובה נגזר; המשבצות נארזות מלמעלה ולא נמתחות, והעמודה נגללת כשהכל לא נכנס. חלון חדש שמשוחרר בשטח הריק נכנס לראש הרשימה. מעל `DOCK_COL_WIDTH` לעמודה הפריסה הופכת ל**רשת** (CSS Grid) והחלונות עומדים אחד ליד השני. מיקום העמודה נבחר ב-`DockPositionPicker`. **מייצא גם:** `DockPositionPicker`. סידור מחדש בגרירת כותרת המשבצת, שחרור בגרירה החוצה או ב-↗, ורוחב נגרר בספליטר. **אין כאן `windowFrame`** וזה מכוון: זו עמודת פריסה ולא חלון צף, וקוד הצבע ממשיך לחיות על החלונות שבתוך המשבצות.
 **מייצא:** `WindowContainer` (default), `DockPositionPicker`.
+
+### `src/components/strips/StripFlowWindow.tsx`
+**תפקיד:** חלון **FLOW פ"מים** (צפייה - מסגרת תורכיז, עגינה לקונטיינר, גרירה ב-`useDragPosition`). שני מצבים: טבלה מרוכזת (נמצא עכשיו · שרשרת · עדכון אחרון; חיפוש או"ק, שאילתא משלו ב-`QueryBuilder` במודל עריכה כתום, "לפי השאילתא של העמדה", הסתר שנחתו) ופירוט פ"מ (שורה לכל שלב: שעה, שלב, מקום/עמדה, מטוסים, ע"י, הערה; שלב שירש מסומן "מהמקור"). polling כל 5 שניות כשפתוח. מופע יחיד ב-`SectorDashboard`. **מייצא:** `StripFlowWindow` (default), `StripFlowList`, `StripFlowDetail`, `FlowChainView`, `FlowNowView`, `flowPalette`.
 
 ### `src/components/dataWindows/DataWindowLayer.tsx`
 **תפקיד:** שכבת החלונות הצפים מעל מפת השדה — מונה לכל חלון, גרירה בעט/מגע, דפדוף בין מספר/או"קים/שורות פ"מ, עריכת השאילתא לסשן (מודל `QueryBuilder`) והסתרה. **מייצא:** `DataWindowLayer` (default), `DataWindowRestoreBar`.
@@ -1844,6 +1860,10 @@ DELETE /api/suggestions/:id
 GET /api/suggestions
 PATCH /api/suggestions/:id
 POST /api/suggestions
+
+#### stripFlow.js
+GET /api/strip-flows
+GET /api/strips/:id/flow
 
 #### transfers.js
 GET /api/presets/:presetId/classic-incoming

@@ -3,6 +3,8 @@ import pool from '../db/pool.js';
 import { captureChange, bodyTouchesOperational, SORTIE_OP_FIELDS } from '../gapi/hooks.js';
 import { AIRCRAFT_FIELDS } from '../gapi/entities.js';
 import { aircraftFaultsSubquery, belongsToStrip } from '../db/aircraftFaults.js';
+import { recordFlowEvent, recordMergedFlow } from '../db/stripFlowEvents.js';
+import { diffAircraftPositions } from '../utils/stripFlow.js';
 const router = new Router();
 
 // עמודות טבלת המטוסים הניתנות לעריכה מהעמדה - נגזרות מרשימת שדות המטוס של
@@ -471,7 +473,18 @@ router.put('/api/strips/:id', async (req, res) => {
 
     if (updates.length > 0) {
       values.push(id);
+      // "באוויר" הוא שלב ב-FLOW - רק כשהערך באמת השתנה
+      const prev = req.body.airborne !== undefined
+        ? (await pool.query('SELECT airborne, workstation_preset_id FROM strips WHERE id = $1', [id])).rows[0]
+        : undefined;
       await pool.query(`UPDATE strips SET ${updates.join(', ')} WHERE id = $${paramIndex}`, values);
+      if (prev && !!prev.airborne !== !!req.body.airborne) {
+        // העמדה - זו שמחזיקה בפ"מ: הלקוח אינו שולח עמדה בעדכון הזה
+        await recordFlowEvent(pool, {
+          strip_id: id, kind: 'airborne', preset_id: prev.workstation_preset_id,
+          details: { airborne: !!req.body.airborne },
+        }, { user: req.user });
+      }
       // GAPI outbound — רק כשנגעו בשדה תפעולי (מדלג על עדכוני מיקום/דסק פנימיים)
       if (bodyTouchesOperational(req.body, SORTIE_OP_FIELDS)) captureChange('sortie', 'upsert', id);
     }
@@ -1116,6 +1129,39 @@ router.delete('/api/strip-table-assignments/:stripId/:presetId', async (req, res
   } catch (err) { console.error(err); res.status(500).json({ error: 'Failed' }); }
 });
 
+// FLOW: שלבי הקרקע שקרו בעדכון הזה. העמדה היא זו שמחזיקה בפ"מ (המגדל) - הנתיב
+// אינו מקבל עמדה מהלקוח, והוא נקרא רק מתצוגת השדה של העמדה שמחזיקה בו.
+async function recordGroundFlow(row, user) {
+  const changes = diffAircraftPositions(row.prev_aircraft_positions, row.aircraft_positions);
+  if (changes.length === 0) return;
+  const pointIds = [...new Set(changes.flatMap(c => (c.kind === 'ground_point' ? [c.pointId, c.fromPointId] : [])).filter(v => v != null))];
+  let points = new Map();
+  if (pointIds.length) {
+    try {
+      const r = await pool.query('SELECT id, name, point_type FROM airfield_points WHERE id = ANY($1::int[])', [pointIds]);
+      points = new Map(r.rows.map(p => [Number(p.id), p]));
+    } catch (err) { console.error('[strip-flow] airfield_points:', err.message); }
+  }
+  for (const c of changes) {
+    const base = { strip_id: row.id, callsign: row.callsign, preset_id: row.workstation_preset_id, kind: c.kind };
+    if (c.kind === 'ground_point') {
+      const to = points.get(c.pointId);
+      const from = c.fromPointId != null ? points.get(c.fromPointId) : null;
+      await recordFlowEvent(pool, {
+        ...base,
+        point_label: to?.name || null,
+        details: { aircraft: c.aircraft, fromPointName: from?.name || null, fromPointType: from?.point_type || null, toPointType: to?.point_type || null },
+      }, { user });
+    } else {
+      await recordFlowEvent(pool, {
+        ...base,
+        point_label: c.runway || null,
+        details: { aircraft: c.aircraft, ...(c.runway ? { runway: c.runway } : {}) },
+      }, { user });
+    }
+  }
+}
+
 // Update strip aircraft positions and ground_status
 router.put('/api/strips/:id/aircraft', async (req, res) => {
   try {
@@ -1128,8 +1174,17 @@ router.put('/api/strips/:id/aircraft', async (req, res) => {
     if (ground_status !== undefined) { fields.push(`ground_status=$${idx++}`); vals.push(ground_status); }
     if (fields.length === 0) return res.status(400).json({ error: 'Nothing to update' });
     vals.push(stripId);
-    const result = await pool.query(`UPDATE strips SET ${fields.join(', ')} WHERE id=$${idx} RETURNING *`, vals);
-    res.json(result.rows[0]);
+    // המצב הקודם נקרא באותה פקודה - ממנו נגזרים שלבי הקרקע ל-FLOW (הסעה/המראה/יציאה מדת"ק)
+    const result = await pool.query(
+      `WITH prev AS (SELECT aircraft_positions FROM strips WHERE id=$${idx})
+       UPDATE strips SET ${fields.join(', ')} WHERE id=$${idx}
+       RETURNING *, (SELECT aircraft_positions FROM prev) AS prev_aircraft_positions`,
+      vals,
+    );
+    const row = result.rows[0];
+    if (row && aircraft_positions !== undefined) await recordGroundFlow(row, req.user);
+    if (row) delete row.prev_aircraft_positions;
+    res.json(row);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to update strip aircraft data' });
@@ -1214,6 +1269,11 @@ router.post('/api/strips/ground-single-transfer', async (req, res) => {
         [String(newCount), JSON.stringify(remainingIndices), JSON.stringify(remainingPositions), rootParentId, origCount, rawId]
       );
     }
+
+    await recordFlowEvent(client, {
+      strip_id: newStripId, kind: 'split', callsign: src.callsign, preset_id: src.workstation_preset_id,
+      details: { fromStripId: rawId, aircraft: [originalIndex] },
+    }, { inTx: true, user: req.user });
 
     await client.query('COMMIT');
     res.json({ newStripId: 's' + newStripId, remaining: newCount, sourceDeleted });
@@ -1450,6 +1510,13 @@ router.post('/api/strips/partial-create', async (req, res) => {
       );
     }
 
+    // FLOW: החלק החדש יורש את ההיסטוריה של המקור עד הרגע הזה
+    await recordFlowEvent(client, {
+      strip_id: partialStripId, kind: 'split', callsign: src.callsign,
+      preset_id: workstation_preset_id || src.workstation_preset_id,
+      details: { fromStripId: rawId, aircraft: [...validIndices].sort((a, b) => a - b) },
+    }, { inTx: true, user: req.user });
+
     await client.query('COMMIT');
     res.json({ partialStripId: 's' + partialStripId, sourceDeleted: remainingIndices.length === 0 });
   } catch (err) {
@@ -1540,6 +1607,7 @@ router.post('/api/strips/:id/merge-partial', async (req, res) => {
       );
     }
 
+    await recordMergedFlow(client, targetId, rawSourceId, target.workstation_preset_id, { user: req.user });
     await client.query('DELETE FROM strips WHERE id=$1', [rawSourceId]);
 
     await client.query('COMMIT');

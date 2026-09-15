@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import { tr } from '../../i18n/tr';
 
 interface ContextMenuProps {
   x: number;
@@ -9,9 +10,11 @@ interface ContextMenuProps {
   onSelect: (sectorId: number) => void;
   onClose: () => void;
   extraActions?: { label: string; onClick: () => void }[];
+  /** FLOW של הפ"מ - פריט ראשון בתפריט. בלי prop - התפריט כמו שהיה */
+  onFlow?: () => void;
 }
 
-const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, neighbors, onSelect, onClose, extraActions = [] }) => {
+const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, neighbors, onSelect, onClose, extraActions = [], onFlow }) => {
   const { t, i18n } = useTranslation();
   useEffect(() => {
     const handleClick = () => onClose();
@@ -37,6 +40,17 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, neighbors, onSelect, on
       }}
       onClick={(e) => e.stopPropagation()}
     >
+      {onFlow && (
+        <button
+          data-testid="strip-ctx-flow"
+          onClick={() => { onFlow(); onClose(); }}
+          style={{ width: '100%', padding: '10px 12px', border: 'none', borderBottom: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', textAlign: 'start', fontSize: '13px', fontWeight: 'bold', color: '#0369a1' }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = '#e0f2fe'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'white'; }}
+        >
+          {tr('flow.stripMenuItem')}
+        </button>
+      )}
       <div style={{ padding: '8px 12px', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>
         {t('contextMenu.transferTo')}
       </div>

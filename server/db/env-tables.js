@@ -60,6 +60,8 @@ export const OPERATIONAL_TABLES = [
   'joining_point_aircraft',
   // היסטוריה, הודעות ומצב תפעולי בין עמדות
   'activity_log',
+  // FLOW של פ"מ - יומן השלבים. תרגול חייב להישאר בתרגול, כמו הפ"מ עצמו
+  'strip_flow_events',
   'workstation_messages',
   'workstation_signals',
   'bdh_alerts',

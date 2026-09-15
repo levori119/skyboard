@@ -2,6 +2,7 @@ import { Router } from 'express';
 import pool from '../db/pool.js';
 import { isAutoAcceptDue } from '../utils/autoAccept.js';
 import { aircraftFaultsSubquery } from '../db/aircraftFaults.js';
+import { recordFlowEvent, recordAcceptedFlow, recordMergedFlow, transferNames } from '../db/stripFlowEvents.js';
 const router = new Router();
 
 // ─── Shared transfer read query (DRY) ──────────────────────────────────────────
@@ -60,6 +61,37 @@ export async function mergeWithSiblingIfAny(client, stripId, assignedPresetId) {
   );
   await client.query('DELETE FROM strips WHERE id=$1', [stripId]);
   return { mergedIntoId: 's' + sibId, sibId };
+}
+
+// FLOW: שליחה - הפ"מ נכנס לנקודת העברה (או יוצא להעברה ישירה לעמדה). העמדה
+// של האירוע היא המוסרת; "נמצא בעמדה" ייקבע רק כשמישהו יקבל.
+async function recordTransferSentFlow(t, user, extraDetails = {}) {
+  await recordFlowEvent(pool, {
+    strip_id: t.strip_id, kind: 'transfer_sent', preset_id: t.from_preset_id ?? t.from_workstation_id,
+  }, {
+    user,
+    prepare: async () => {
+      const n = await transferNames(pool, t);
+      return {
+        point_label: t.to_preset_id ? null : n.pointLabel,
+        details: { toPresetName: n.toName, etaMinutes: t.eta_minutes ?? null, transferId: t.id, ...extraDetails },
+      };
+    },
+  });
+}
+
+// FLOW: דחייה / ביטול - לא שלב בשרשרת, אבל חלק מהסיפור ("למה חזר אלינו").
+async function recordTransferClosedFlow(t, kind, user, details = {}) {
+  await recordFlowEvent(pool, {
+    strip_id: t.strip_id, kind,
+    preset_id: kind === 'rejected' ? (t.to_preset_id ?? t.to_workstation_id) : (t.from_preset_id ?? t.from_workstation_id),
+  }, {
+    user,
+    prepare: async () => {
+      const n = await transferNames(pool, t);
+      return { point_label: t.to_preset_id ? null : n.pointLabel, details: { toPresetName: n.toName, fromPresetName: n.fromName, transferId: t.id, ...details } };
+    },
+  });
 }
 
 // שחזור סטריפ למוסר (משותף ל-reject ו-cancel). SQL זהה בשני הנתיבים.
@@ -131,6 +163,7 @@ router.post('/api/strips/:id/transfer', async (req, res) => {
       [stripId, fromSectorId, toSectorId, workstationId, targetX || 0, targetY || 0, subSectorLabel || null, fromWorkstationId || null, resolvedToWorkstationId || null, etaMinutes || null, etaSetAt]
     );
 
+    await recordTransferSentFlow(result.rows[0], req.user);
     res.json({ transfer: result.rows[0] });
   } catch (err) {
     console.error('Error initiating transfer:', err);
@@ -234,6 +267,7 @@ router.post('/api/strips/:id/transfer-to-preset', async (req, res) => {
        VALUES ($1, $2, $3, 'pending') RETURNING *`,
       [stripId, fromPresetId, toPresetId]
     );
+    await recordTransferSentFlow(result.rows[0], req.user);
     res.json({ transfer: result.rows[0] });
   } catch (err) {
     console.error('Error initiating classic transfer:', err);
@@ -304,17 +338,24 @@ router.get('/api/presets/:presetId/classic-outgoing', async (req, res) => {
 // **באותו קוד בדיוק**: מיזוג אחים אחרי פיצול, שיוך לעמדה, סטטוס ההעברה ורישום
 // לטבלה. שכפול הלוגיקה היה יוצר שני מסלולי קבלה שמתפצלים בשקט.
 // מניחה שטרנזקציה כבר פתוחה על ה-client שנמסר.
-export async function acceptTransferTx(client, transferId, receivingPresetId) {
+//
+// `flow.mode` - איך התקבל (manual / auto) לרישום ה-FLOW. הקבלה נרשמת **כאן**, בליבה,
+// כדי שכל מסלולי הקבלה ייספרו כ"נמצא בעמדה" - ורק הם.
+export async function acceptTransferTx(client, transferId, receivingPresetId, flow = {}) {
   const transfer = await client.query('SELECT * FROM strip_transfers WHERE id = $1', [transferId]);
   if (transfer.rows.length === 0) return { notFound: true, mergedIntoId: null };
 
   const { strip_id, to_sector_id, to_workstation_id, target_x, target_y, to_preset_id } = transfer.rows[0];
   const assignedPresetId = receivingPresetId || to_preset_id || to_workstation_id || null;
 
+  // לפני המיזוג: המיזוג מוחק את הפ"מ הנכנס
+  await recordAcceptedFlow(client, transfer.rows[0], assignedPresetId, { mode: flow.mode || 'manual', user: flow.user || null });
+
   // אותו מיזוג-אחים בדיוק שמריצה קבלה-למפה. עותק אחד, כדי ששני מסלולי הקבלה
   // לא יסטו זה מזה בשקט (זו הייתה כוונת הקומיט "share sibling-merge").
   const merged = await mergeWithSiblingIfAny(client, strip_id, assignedPresetId);
   const mergedIntoId = merged ? merged.mergedIntoId : null;
+  if (merged) await recordMergedFlow(client, merged.sibId, strip_id, assignedPresetId, { user: flow.user || null });
 
   if (!mergedIntoId) {
     if (to_preset_id) {
@@ -342,7 +383,7 @@ router.post('/api/transfers/:id/accept', async (req, res) => {
   try {
     await client.query('BEGIN');
     const { receivingPresetId } = req.body || {};
-    const result = await acceptTransferTx(client, req.params.id, receivingPresetId);
+    const result = await acceptTransferTx(client, req.params.id, receivingPresetId, { mode: 'manual', user: req.user });
     if (result.notFound) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Transfer not found' });
@@ -378,9 +419,12 @@ router.post('/api/transfers/:id/accept-to-map', async (req, res) => {
     const mapLat = req.body.map_lat ?? null;
     const mapLon = req.body.map_lon ?? null;
 
+    await recordAcceptedFlow(client, transfer.rows[0], assignedPresetId, { mode: 'map', user: req.user });
+
     // פ"מ מפוצל שאחיו כבר בעמדה המקבלת — ממוזג; הפ"מ המאוחד הוא זה שמונח על המפה.
     const merged = await mergeWithSiblingIfAny(client, strip_id, assignedPresetId);
     const mergedIntoId = merged ? merged.mergedIntoId : null;
+    if (merged) await recordMergedFlow(client, merged.sibId, strip_id, assignedPresetId, { user: req.user });
     const placedStripId = merged ? merged.sibId : strip_id;
 
     await client.query(
@@ -448,6 +492,7 @@ router.post('/api/transfers/:id/reject', async (req, res) => {
       "UPDATE strip_transfers SET status = 'rejected', reject_note = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
       [rejectNote || null, transferId]
     );
+    await recordTransferClosedFlow(transfer.rows[0], 'rejected', req.user, { note: rejectNote || null });
 
     res.json({ success: true });
   } catch (err) {
@@ -522,6 +567,9 @@ router.post('/api/transfers/:id/move', async (req, res) => {
         [Number(to_sector_id), resolvedToWorkstationId, etaMinutes || null, etaSetAt, transferId]
       );
     }
+    // FLOW: יעד ההעברה שונה - השלב הקודם נשאר בהיסטוריה, ונקודת היעד החדשה נרשמת
+    const moved = (await pool.query('SELECT * FROM strip_transfers WHERE id = $1', [transferId])).rows[0];
+    if (moved) await recordTransferSentFlow(moved, req.user, { moved: true });
     res.json({ success: true });
   } catch (err) {
     console.error('Error moving transfer:', err);
@@ -576,6 +624,7 @@ router.post('/api/transfers/:id/cancel', async (req, res) => {
       'UPDATE strip_transfers SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
       ['cancelled', transferId]
     );
+    await recordTransferClosedFlow(transfer.rows[0], 'cancelled', req.user);
 
     res.json({ success: true });
   } catch (err) {
@@ -651,6 +700,7 @@ export async function runAutoAcceptOnce() {
   let accepted = 0;
 
   for (const t of due) {
+    let committed = false;
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -668,20 +718,23 @@ export async function runAutoAcceptOnce() {
       // receivingPresetId = null בכוונה: אין עמדה מקבלת. הליבה נופלת ל-
       // to_preset_id / to_workstation_id, וכשגם הם ריקים הפ"מ פשוט עוזב את
       // העמדה המוסרת - בדיוק כמו מסירה אמיתית לצד שאינו במערכת.
-      const result = await acceptTransferTx(client, t.id, null);
+      const result = await acceptTransferTx(client, t.id, null, { mode: 'auto' });
       if (result.notFound) {
         await client.query('ROLLBACK');
         continue;
       }
       await client.query('COMMIT');
       accepted++;
-      await logAutoAccept(t);
+      committed = true;
     } catch (err) {
       try { await client.query('ROLLBACK'); } catch { /* connection כנראה מת */ }
       console.error(`[auto-accept] קבלה אוטומטית נכשלה (העברה ${t.id}):`, err.message);
     } finally {
       client.release();
     }
+    // **אחרי** השחרור: logAutoAccept כותב דרך pool.query, ובמאגר המקומי (חיבור
+    // יחיד תחת נעילה) קריאה כזו בזמן שה-client מוחזק ממתינה לעצמה לנצח.
+    if (committed) await logAutoAccept(t);
   }
 
   return accepted;

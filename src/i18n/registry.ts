@@ -18,6 +18,7 @@ import dashboard from './registry/dashboard.json';
 import dataWindows from './registry/dataWindows.json';
 import dock from './registry/dock.json';
 import env from './registry/env.json';
+import flow from './registry/flow.json';
 import ground from './registry/ground.json';
 import help from './registry/help.json';
 import joining from './registry/joining.json';
@@ -44,7 +45,7 @@ export type RegistryEntry = { he: string; en: string };
 export type RegistryGroup = { _group: string; _note?: string; keys: Record<string, RegistryEntry> };
 
 export const REGISTRY: Record<string, RegistryGroup> = {
-  admin, airDefense, airPicture, blocks, classic, crew, ctrl, dashboard, dataWindows, dock, env,
+  admin, airDefense, airPicture, blocks, classic, crew, ctrl, dashboard, dataWindows, dock, env, flow,
   ground, help, joining, links, map, misc, missiondesk, offline, pattern, pattern3d, permits, query, seizure, shared, strips, suggest, transfers, trips, undo, vertical, weather, zoneWatch,
 } as unknown as Record<string, RegistryGroup>;
 

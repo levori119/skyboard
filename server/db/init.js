@@ -4,6 +4,7 @@ import { resyncSequences } from './sequences.js';
 import { syncAllRunwayRoutes } from '../utils/runwayRoute.js';
 import { VERSIONED_TABLES, triggerDdl, touchFunctionDdl } from './versionedTables.js';
 import { journalTablesDdl, journalFunctionDdl, installTriggersDdl } from './undoJournal.js';
+import { STRIP_FLOW_EVENTS_DDL } from './stripFlowEvents.js';
 
 /**
  * כשלי DDL שנבלעו במעבר הנוכחי, **בלי** רעש ה-"already exists" הצפוי.
@@ -850,6 +851,11 @@ async function applySchemaOnce() {
     related_preset_id INTEGER,
     related_preset_name VARCHAR(255)
   )`);
+
+  // ── FLOW של פ"מ ────────────────────────────────────────────────────────────
+  // יומן השלבים של כל פ"מ (הסעה, המראה, נקודת העברה, קבלה בעמדה, נחיתה). בלי FK
+  // ל-strips בכוונה - ההיסטוריה שורדת מיזוג ומחיקה. ראה STRIP_FLOW_SPEC.md.
+  for (const ddl of STRIP_FLOW_EVENTS_DDL) await sq(ddl);
 
   // ── Base statuses ─────────────────────────────────────────────────────────
 

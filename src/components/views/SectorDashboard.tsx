@@ -133,6 +133,8 @@ import WindowContainer, { DockPositionPicker } from '../shared/WindowContainer';
 import { setDockDefaultPosition, setDockPreset } from '../../utils/windowDock';
 import { useDockableWindow } from '../../hooks/useDockableWindow';
 import ElementsTableWindow from '../ground/ElementsTableWindow';
+import StripFlowWindow from '../strips/StripFlowWindow';
+import { openStripFlow, subscribeStripFlow } from '../../utils/stripFlow';
 import DataWindowLayer from '../dataWindows/DataWindowLayer';
 import MissionDeskBody, { useMissionDeskName } from '../missiondesk/MissionDeskBody';
 import type { MissionDeskService, MDPresetMapConfig, MDPresetMapSettings, MDNode, MDPresetViewTablesConfig, MDViewTableKey } from '../../types/missionDesk';
@@ -1538,6 +1540,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [sdElemDsMenu, setSdElemDsMenu] = useState<{ id: number; x: number; y: number } | null>(null);
   // טבלת האלמנטים - חוצה את כל שדות בסיס האב, ולכן רשימה משלה ולא airfieldElements
   const [showElementsTable, setShowElementsTable] = useState(false);
+  // FLOW של פ"מ - חלון יחיד לכל העמדה; נפתח מתפריט "תצוגה" ומכל תפריט פ"מ (openStripFlow)
+  const [stripFlowOpen, setStripFlowOpen] = useState(false);
+  const [stripFlowId, setStripFlowId] = useState<number | null>(null);
+  useEffect(() => subscribeStripFlow(id => { setStripFlowId(id); setStripFlowOpen(true); }), []);
   /** טבלת "בהקפה" - מטוסים שעזבו את נקודת ההצטרפות (PATTERN_AUTOTRACK_SPEC §7). */
   const [showPatternTraffic, setShowPatternTraffic] = useState(false);
   const [baseElements, setBaseElements] = useState<any[]>([]);
@@ -11890,6 +11896,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <span style={{ fontSize: '10px', color: menuMuted }}>{airfieldElements.filter((e: any) => e.camera_url).length} {tr('shared.cameras')}</span>
                     </div>
                   )}
+                  {/* FLOW פ"מים - בכל עמדה */}
+                  <div
+                    data-testid="view-menu-strip-flow"
+                    onClick={() => { if (stripFlowOpen) setStripFlowOpen(false); else openStripFlow(null); setShowViewMenu(false); }}
+                    style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: stripFlowOpen ? '#93c5fd' : '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #1e3a5f' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
+                    onMouseLeave={e => (e.currentTarget.style.background = '')}
+                  >
+                    <span>{tr('flow.menuItem')}</span>
+                    <span style={{ fontSize: '10px', color: stripFlowOpen ? '#60a5fa' : '#94a3b8' }}>{stripFlowOpen ? '✓' : ''}</span>
+                  </div>
                   {/* טבלת האלמנטים - בכל עמדות המגדל של הבסיס */}
                   {isGroundMode && (
                     <div
@@ -16573,6 +16590,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               style={{ position: 'fixed', ...clampMenuPos(tableRowCtxMenu.x, tableRowCtxMenu.y, 180, 260), background: '#1e293b', border: '1px solid #3b82f6', borderRadius: '6px', zIndex: 9999, minWidth: '160px', boxShadow: '0 4px 16px rgba(0,0,0,0.6)', padding: '4px', direction: dir }}
               onClick={e => e.stopPropagation()}
             >
+              <button
+                data-testid="table-row-ctx-flow"
+                onClick={() => { openStripFlow(tableRowCtxMenu.stripId); setTableRowCtxMenu(null); }}
+                style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#38bdf8', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
+              >{tr('flow.stripMenuItem')}</button>
               {(() => {
                 const _activeMode = availableTableModes.find((tm: any) => tm.id === selectedTableModeId);
                 const _columns: any[] = _activeMode?.columns?.length > 0 ? _activeMode.columns : [{ key: 'notes', editable: 'handwriting' }];
@@ -17286,6 +17308,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
         </div>
 
+        {stripFlowOpen && (
+          <StripFlowWindow
+            strips={strips}
+            stationFilter={effectiveFilter}
+            qCtx={_qCtx}
+            themeMode={themeMode}
+            stripId={stripFlowId}
+            onSelectStrip={setStripFlowId}
+            onClose={() => setStripFlowOpen(false)}
+          />
+        )}
         {showElementsTable && (
           <ElementsTableWindow
             rows={baseElements}

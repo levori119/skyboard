@@ -4,6 +4,7 @@ import { API_URL } from '../../config';
 import Strip from '../strips/Strip';
 import { getFormationDisplayName } from '../../utils/strips';
 import { evaluateQuery, clampMenuPos } from '../../utils/queryBuilder';
+import { openStripFlow } from '../../utils/stripFlow';
 import type { SGNode, SGCell, SGSplit, SGCondition } from '../../types/stripGrid';
 import { classicFieldLabelByKey } from '../../types/stripGrid';
 import { AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY, aimFieldText, formatAimPointSummary, toAimPoints } from '../../types/aimPoints';
@@ -1313,7 +1314,7 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
   // For dragging an already-transferred outgoing strip between transfer points / partner stations.
   const [draggingTransferMoveId, setDraggingTransferMoveId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<'mine' | number | string | null>(null);
-  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; transferId: string } | null>(null);
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; transferId: string; stripId?: string } | null>(null);
   const [showHelp, setShowHelp] = useState(false);
 
   // Section reorder (drag the section header ≡): persisted per-crew-member to the server,
@@ -1474,9 +1475,16 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
       {/* Context menu for cancel transfer */}
       {ctxMenu && (
         <div
-          style={{ position: 'fixed', ...clampMenuPos(ctxMenu.x, ctxMenu.y, 140, 60), background: lightMode ? '#fff' : '#1e293b', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '6px', padding: '4px', zIndex: 9999, boxShadow: '0 4px 12px rgba(0,0,0,0.3)', minWidth: '120px' }}
+          style={{ position: 'fixed', ...clampMenuPos(ctxMenu.x, ctxMenu.y, 160, 96), background: lightMode ? '#fff' : '#1e293b', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '6px', padding: '4px', zIndex: 9999, boxShadow: '0 4px 12px rgba(0,0,0,0.3)', minWidth: '120px' }}
           onClick={e => e.stopPropagation()}
         >
+          {ctxMenu.stripId && (
+            <button
+              data-testid="classic-ctx-flow"
+              style={{ display: 'block', width: '100%', background: 'none', border: 'none', color: lightMode ? '#0369a1' : '#38bdf8', cursor: 'pointer', padding: '6px 10px', textAlign: 'start', fontSize: '13px', borderRadius: '4px' }}
+              onClick={() => { openStripFlow(ctxMenu.stripId); setCtxMenu(null); }}
+            >{tr('flow.stripMenuItem')}</button>
+          )}
           <button
             style={{ display: 'block', width: '100%', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '6px 10px', textAlign: 'right', fontSize: '13px', borderRadius: '4px' }}
             onMouseEnter={e => (e.currentTarget.style.background = lightMode ? '#fee2e2' : '#450a0a')}
@@ -1559,7 +1567,7 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
                                   draggable
                                   onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDraggingTransferMoveId(String(t.id)); }}
                                   onDragEnd={() => { setDraggingTransferMoveId(null); setDropTarget(null); }}
-                                  onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, transferId: String(t.id) }); }}>
+                                  onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, transferId: String(t.id), stripId: String(t.strip_id) }); }}>
                                   <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} singleClickEdit aviationBases={aviationBases} allSectors={allSectors} layoutJson={sgLayoutJson} conditionsJson={sgConditionsJson}
                                     onUpdateField={(field, val) => onUpdateStripField(String(t.strip_id), field, val)} />
                                   <button onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} draggable={false}
@@ -1637,7 +1645,7 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
                                   draggable
                                   onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDraggingTransferMoveId(String(t.id)); }}
                                   onDragEnd={() => { setDraggingTransferMoveId(null); setDropTarget(null); }}
-                                  onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, transferId: String(t.id) }); }}>
+                                  onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, transferId: String(t.id), stripId: String(t.strip_id) }); }}>
                                   <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} singleClickEdit aviationBases={aviationBases} allSectors={allSectors} layoutJson={sgLayoutJson} conditionsJson={sgConditionsJson}
                                     onUpdateField={(field, val) => onUpdateStripField(String(t.strip_id), field, val)} />
                                   <button onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} draggable={false}

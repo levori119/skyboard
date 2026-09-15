@@ -16,6 +16,7 @@ import { Router } from 'express';
 import pool from '../db/pool.js';
 import { aircraftFaultsSubquery } from '../db/aircraftFaults.js';
 import { captureChange } from '../gapi/hooks.js';
+import { recordFlowEvent } from '../db/stripFlowEvents.js';
 import { expectedFormationCount } from '../../shared/formationCount.js';
 import { planLandingRunways } from '../../shared/landingPriority.js';
 import { resolveEndUse } from '../utils/runwayState.js';
@@ -739,6 +740,11 @@ router.put('/api/strip-aircraft/:stripId/:idx/flight-status', async (req, res) =
     if (statusGiven && !FLIGHT_STATUSES.has(status)) return res.status(400).json({ error: 'סטטוס לא מוכר' });
     const greens = greensGiven ? b.greens === true : null;
 
+    // הסטטוס הקודם - "נחת" נרשם ב-FLOW רק במעבר אליו, לא בכל שליחה חוזרת
+    const prevStatus = statusGiven
+      ? (await pool.query('SELECT flight_status FROM strip_aircraft WHERE strip_id=$1 AND idx=$2', [sid, idx])).rows[0]?.flight_status ?? 'none'
+      : null;
+
     const { rows } = await pool.query(
       `INSERT INTO strip_aircraft (strip_id, idx, flight_status, greens)
        VALUES ($1, $2, COALESCE($3, 'none'), COALESCE($4, FALSE))
@@ -766,6 +772,13 @@ router.put('/api/strip-aircraft/:stripId/:idx/flight-status', async (req, res) =
     // ⚠ בלי זה "נחת" נכתב ל-DB ו**לא יוצא** ל-GAPI: אין טריגר, והיציאה נשענת
     // על captureChange מה-route. no-op כש-GAPI כבוי.
     if (flip.rowCount) captureChange('sortie', 'upsert', sid);
+
+    if (statusGiven && status === 'landed' && prevStatus !== 'landed') {
+      await recordFlowEvent(pool, {
+        strip_id: sid, kind: 'landed', callsign: b.callsign || null, preset_id: int(b.preset_id), preset_name: b.preset_name || null,
+        details: { aircraft: [idx], formationLanded: allLanded },
+      }, { user: req.user });
+    }
 
     await logActivity(req, {
       event_type: 'aircraft_flight_status', preset_id: int(b.preset_id), preset_name: b.preset_name,

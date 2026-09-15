@@ -48,7 +48,7 @@ beforeAll(async () => {
     original_formation_count INTEGER, notes TEXT, landed BOOLEAN DEFAULT false,
     airborne BOOLEAN DEFAULT false, aircraft_positions JSONB DEFAULT '[]', ground_status VARCHAR(20),
     map_lat DOUBLE PRECISION, map_lon DOUBLE PRECISION,
-    creator_preset_id INTEGER, creator_preset_name VARCHAR(100),
+    creator_preset_id INTEGER, creator_preset_name VARCHAR(100), creator_crew_name VARCHAR(100),
     created_at TIMESTAMPTZ DEFAULT NOW())`);
   await pool.query(`CREATE TABLE public.strip_transfers (
     id VARCHAR(36) PRIMARY KEY DEFAULT gen_random_uuid()::text,
