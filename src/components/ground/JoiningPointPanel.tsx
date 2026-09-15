@@ -9,7 +9,8 @@ import { aircraftKey } from '../../airPicture/patternTrack';
 import {
   acceptAltitudeLimit, altitudeGroups, distributeAltitudes, occupiedBlocks, toggleAcceptAltitude,
   altToDisplay, altMismatch, buildBlocks, conflictBlocks, displayToAlt, formationAircraft, formationsInBlocks,
-  normalizeLeg, greensAlert, FLIGHT_LEGS, DEFAULT_LEG, dropIndices, stripAircraftAlts, isFormationOpen,
+  greensAlert, FLIGHT_LEGS, dropIndices, stripAircraftAlts, isFormationOpen,
+  displayLeg, legChange, JOINING_LEG,
   type JoiningPoint, type JoiningPointStripRow, type JoiningAircraftRow, type FormationAircraftRow,
 } from '../../utils/joiningPoints';
 
@@ -154,10 +155,10 @@ export default function JoiningPointPanel({
   // ocean היא תמה **כהה** - גזירת "כל מה שאינו dark הוא בהיר" מוציאה את הפאנל
   // בלתי-נראה בחדר הבקרה (ראה /ui-adapt).
   const C = themeMode === 'light'
-    ? { panel: '#f8fafc', head: '#e2e8f0', border: '#94a3b8', text: '#0f172a', dim: '#475569', row: '#eef2f7', rowAlt: '#e2e8f0', chip: '#ffffff' }
+    ? { panel: '#f8fafc', head: '#e2e8f0', border: '#94a3b8', text: '#0f172a', dim: '#475569', row: '#eef2f7', rowAlt: '#e2e8f0', chip: '#ffffff', blockSep: '#475569' }
     : themeMode === 'ocean'
-      ? { panel: '#05404e', head: '#0a5768', border: '#0e7490', text: '#cffafe', dim: '#7dd3fc', row: '#064a5a', rowAlt: '#053e4c', chip: '#0a5768' }
-      : { panel: '#0f172a', head: '#1e293b', border: '#334155', text: '#e2e8f0', dim: '#94a3b8', row: '#111d33', rowAlt: '#0d1729', chip: '#1e293b' };
+      ? { panel: '#05404e', head: '#0a5768', border: '#0e7490', text: '#cffafe', dim: '#7dd3fc', row: '#064a5a', rowAlt: '#053e4c', chip: '#0a5768', blockSep: '#67e8f9' }
+      : { panel: '#0f172a', head: '#1e293b', border: '#334155', text: '#e2e8f0', dim: '#94a3b8', row: '#111d33', rowAlt: '#0d1729', chip: '#1e293b', blockSep: '#64748b' };
 
   // **חריג מתועד לקוד צבע המסגרות** (CLAUDE.md §מסגרת חלון): כאן הצבע מזהה
   // *איזו* נקודה זו, ולא *סוג* חלון, ולכן הוא נשאר צבע הנקודה ולא windowFrame.
@@ -404,64 +405,47 @@ export default function JoiningPointPanel({
           <option value="">{landingRunways.length ? tr('joining.pickRunway') : tr('joining.noActiveRunways')}</option>
           {landingRunways.map(r => <option key={r.ident} value={r.ident}>{r.ident}</option>)}
         </select>
-        {/* "שים בהקפה" נעול עד שנבחר מסלול: הקפה משויכת לקצה
-            מסלול אחד, ומטוס בהקפה בלי מסלול הוא סימון על
-            המפה שאינו אומר לאן הוא נכנס. הוצאה מהקפה תמיד
-            זמינה - אחרת מטוס שאיבד את המסלול היה נתקע שם. */}
         {(() => {
+          const inPattern = !!st?.in_pattern;
           const hasRunway = !!String(st?.runway_ident ?? '').trim();
-          const locked = !st?.in_pattern && !hasRunway;
-          return (
-            <button
-              type="button"
-              disabled={locked}
-              title={locked ? tr('joining.needRunwayFirst') : undefined}
-              onClick={() => {
-                if (locked) return;
-                const entering = !st?.in_pattern;
-                onUpdateAircraft(sid, ac.idx, { in_pattern: entering });
-                // מטוס שנכנס להקפה מתחיל ב**עה"ר** - זו הצלע
-                // שבה הוא ממתין. בלי זה הוא נכנס בלי מצב,
-                // והתפריט הראה "ללא" על מטוס שכבר בהקפה.
-                if (entering && normalizeLeg(ac.flight_status) === 'none') {
-                  onFlightStatus(sid, ac.idx, DEFAULT_LEG);
-                }
-              }}
-              style={{
-                ...btn(locked ? '#475569' : st?.in_pattern ? '#7c3aed' : '#1d4ed8'),
-                opacity: locked ? 0.5 : 1,
-                cursor: locked ? 'not-allowed' : 'pointer',
-              }}
-            >{st?.in_pattern ? tr('joining.removeFromPattern') : tr('joining.toPattern')}</button>
-          );
-        })()}
-        {(() => {
-          const leg = normalizeLeg(ac.flight_status);
+          const leg = displayLeg(ac.flight_status, inPattern);
           const blinking = landingIdx?.sid === sid && landingIdx?.idx === ac.idx;
           const alert = greensAlert(ac.flight_status, ac.greens);
+          // צלעות ההקפה נעולות עד שנבחר מסלול - ו**התפריט אומר למה** (title),
+          // כדי שאפשרות אפורה לא תיראה כתקלה.
+          const legsLocked = !inPattern && !hasRunway;
           return (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
-              {/* איפה המטוס - תפריט לפי **סדר הטיסה**, ולא רשת
-                  כפתורים: המצבים בלעדיים וסדרם הוא המידע עצמו. */}
+            // `flex: 1 0 auto` ולא `minWidth: 0`: קבוצה שמתכווצת מתחת לתוכן שלה
+            // גלשה החוצה, ופעולות הפ"מ (⋯, ✕) נכתבו מעל כפתור "ירוקים".
+            // עכשיו כשאין מקום השורה נשברת, ושום פקד לא עולה על אחר.
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: '1 0 auto' }}>
+              {/* איפה המטוס - תפריט לפי **סדר הטיסה**, והוא גם מה שמכניס
+                  ומוציא מההקפה: צלע הקפה = בהקפה, "בנקודת הצטרפות" = מחוץ לה. */}
               <select
                 data-testid="flight-leg"
                 value={leg}
+                title={legsLocked ? tr('joining.needRunwayFirst') : undefined}
                 onChange={e => {
                   const v = e.target.value;
-                  if (v === 'landed') startLanded(sid, ac.idx);
-                  else onFlightStatus(sid, ac.idx, v);
+                  if (v === 'landed') { startLanded(sid, ac.idx); return; }
+                  const change = legChange({ inPattern, hasRunway }, v);
+                  if (!change) return;
+                  // קודם ההקפה ואז הצלע - כמו שהכפתור עשה, כדי ששכבת ההקפה
+                  // לא תצייר רגע מטוס עם צלע אבל בלי שיוך להקפה.
+                  if (change.inPattern !== undefined) onUpdateAircraft(sid, ac.idx, { in_pattern: change.inPattern });
+                  onFlightStatus(sid, ac.idx, change.status);
                 }}
                 style={{
-                  background: blinking ? '#dc2626' : leg === 'none' ? C.panel : FLIGHT_ACTIVE_BG,
-                  color: leg === 'none' && !blinking ? C.dim : '#ffffff',
+                  background: blinking ? '#dc2626' : leg === JOINING_LEG ? C.panel : FLIGHT_ACTIVE_BG,
+                  color: leg === JOINING_LEG && !blinking ? C.text : '#ffffff',
                   border: `1px solid ${C.border}`, borderRadius: '4px',
                   fontSize: '11px', fontWeight: 'bold', padding: '1px 3px',
                   animation: blinking ? 'skyking-landed-blink 0.5s steps(1) infinite' : undefined,
                 }}
               >
-                <option value="none">{tr('joining.statusNone')}</option>
+                <option value={JOINING_LEG}>{tr('joining.statusAtPoint')}</option>
                 {FLIGHT_LEGS.map(k => (
-                  <option key={k} value={k}>{tr(LEG_LABELS[k])}</option>
+                  <option key={k} value={k} disabled={legsLocked && k !== 'landed'}>{tr(LEG_LABELS[k])}</option>
                 ))}
               </select>
 
@@ -601,7 +585,9 @@ export default function JoiningPointPanel({
                 display: 'flex', alignItems: 'stretch',
                 // צבעי סטטוס נשארים קבועים בכל תמה - הם נושאים משמעות
                 background: isConflict ? '#dc2626' : isDropTarget ? '#0369a1' : (i % 2 ? C.rowAlt : C.row),
-                borderBottom: `1px solid ${C.border}`,
+                // קו עבה ובהיר בין בלוקים: מבנה פרוס תופס כמה שורות, ובקו דק בצבע
+                // המסגרת לא היה ברור איפה נגמר גובה אחד ומתחיל הבא.
+                borderBottom: `2px solid ${C.blockSep}`,
                 minHeight: '22px',
               }}
             >

@@ -69,3 +69,22 @@ describe('JoiningPointPanel - מטוסים בלבד (expand_aircraft)', () => {
     expect(count(html, 'joining-formation-handle')).toBe(1);
   });
 });
+
+describe('JoiningPointPanel - תפריט המצב במקום "שים בהקפה"', () => {
+  it('אין כפתור "שים בהקפה" - התפריט מחזיק את "בנקודת הצטרפות" כברירת מחדל', () => {
+    const html = render(point({ expand_aircraft: true }));
+    expect(html.includes('שים בהקפה')).toBe(false);
+    expect(count(html, 'flight-leg')).toBe(2);
+    expect(html).toMatch(/<option value="none" selected="">בנקודת הצטרפות<\/option>/);
+  });
+
+  it('בלי מסלול - צלעות ההקפה נעולות, "נחת" לא', () => {
+    const html = render(point({ expand_aircraft: true }));
+    expect(html).toMatch(/<option value="downwind" disabled="">/);
+    expect(html).not.toMatch(/<option value="landed" disabled="">/);
+  });
+
+  it('קו מפריד עבה בין בלוקים', () => {
+    expect(render(point())).toContain('border-bottom:2px solid #64748b');
+  });
+});

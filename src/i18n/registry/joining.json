@@ -243,8 +243,8 @@
       "en": "Point name is required"
     },
     "needRunwayFirst": {
-      "he": "בחר מסלול לנחיתה לפני שמשימים את המטוס בהקפה",
-      "en": "Select a landing runway before putting the aircraft in the pattern"
+      "he": "בחר מסלול לנחיתה לפני שמכניסים את המטוס להקפה (עה\"ר / בסיס / פיינל)",
+      "en": "Select a landing runway before putting the aircraft in the pattern (downwind / base / final)"
     },
     "noActiveRunways": {
       "he": "אין מסלולים פעילים לנחיתות",
@@ -306,10 +306,6 @@
       "he": "גובה 'עד' חייב להיות גבוה מגובה 'מ'",
       "en": "Altitude 'to' must be higher than 'from'"
     },
-    "removeFromPattern": {
-      "he": "הוצא מהקפה",
-      "en": "Remove from pattern"
-    },
     "removeFromPoint": {
       "he": "הסר מהנקודה",
       "en": "Remove from point"
@@ -354,9 +350,9 @@
       "he": "נחת",
       "en": "Landed"
     },
-    "statusNone": {
-      "he": "ללא",
-      "en": "None"
+    "statusAtPoint": {
+      "he": "בנקודת הצטרפות",
+      "en": "At joining point"
     },
     "stepFt": {
       "he": "הפרש",
@@ -369,10 +365,6 @@
     "title": {
       "he": "נקודות הצטרפות",
       "en": "Joining points"
-    },
-    "toPattern": {
-      "he": "שים בהקפה",
-      "en": "Put in pattern"
     },
     "ptColAircraft": {
       "he": "מטוס",

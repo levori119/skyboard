@@ -491,6 +491,38 @@ export function normalizeLeg(status: unknown): FlightLeg | 'none' {
   return (FLIGHT_LEGS as readonly string[]).includes(s) ? (s as FlightLeg) : 'none';
 }
 
+// ─── תפריט המצב במקום "שים בהקפה" ─────────────────────────────────────────────
+//
+// כפתור "שים בהקפה / הוצא מההקפה" לצד תפריט שבו כבר יש עה"ר אמר את אותו דבר
+// פעמיים - ויכול היה לסתור: "בהקפה" עם "ללא", או עה"ר בלי הקפה. עכשיו **התפריט
+// הוא מקור ההחלטה**: צלע הקפה = בהקפה, "בנקודת הצטרפות" = מחוץ לה.
+
+/** ערך ה"ללא" של `flight_status` - בתפריט הוא מוצג "בנקודת הצטרפות" (ברירת המחדל). */
+export const JOINING_LEG = 'none' as const;
+const PATTERN_LEGS = new Set<string>(['downwind', 'base', 'final']);
+
+/** מה התפריט מציג: מטוס בהקפה בלי צלע (רשומה ישנה) הוא בעה"ר ולא "בנקודה". */
+export function displayLeg(status: unknown, inPattern: boolean): FlightLeg | typeof JOINING_LEG {
+  const leg = normalizeLeg(status);
+  return leg === 'none' && inPattern ? DEFAULT_LEG : leg;
+}
+
+/**
+ * בחירה בתפריט -> מה לכתוב. `inPattern` מופיע רק כשהוא **משתנה**.
+ * צלע הקפה בלי מסלול חסומה (`null`): הקפה משויכת לקצה מסלול, ומטוס בהקפה בלי
+ * מסלול הוא סימון על המפה שאינו אומר לאן הוא נכנס.
+ */
+export function legChange(
+  cur: { inPattern: boolean; hasRunway: boolean }, leg: string,
+): { status: string; inPattern?: boolean } | null {
+  if (PATTERN_LEGS.has(leg)) {
+    if (cur.inPattern) return { status: leg };
+    return cur.hasRunway ? { status: leg, inPattern: true } : null;
+  }
+  if (leg === JOINING_LEG) return cur.inPattern ? { status: JOINING_LEG, inPattern: false } : { status: JOINING_LEG };
+  return { status: leg };
+}
+
 /**
  * **מטוס בדרך לנחיתה ולא דיווח ירוקים.**
  * דיווח הירוקים (גלגלים) הוא התנאי לנחיתה בטוחה, והפקח חייב לתפוס את החסר
