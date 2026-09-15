@@ -1622,6 +1622,18 @@ async function applySchemaOnce() {
   // מכייל אותה בפרמטרי השדה. NULL = ברירת המחדל בקוד: 0.5 מייל, ובגובה - לא נבדק.
   await sq(`ALTER TABLE airfield_patterns ADD COLUMN IF NOT EXISTS leg_tolerance_nm NUMERIC(4,2)`);
   await sq(`ALTER TABLE airfield_patterns ADD COLUMN IF NOT EXISTS alt_tolerance_ft INTEGER`);
+  // הגובה מותר **מעל ומתחת בנפרד** (הכרעת הפקח): מטוס מגיע גבוה ויורד אל ההקפה,
+  // אבל נמוך מהפרופיל הוא חריגה. NULL = ברירת המחדל בקוד - 1500 מעל, 500 מתחת.
+  // `alt_tolerance_ft` (הסימטרית) הוחלפה בהן: ערך שנשמר בה **מועבר** לשתיהן ונמחק
+  // ממנה באותה פקודה - כך ההעברה חד-פעמית, ופקח שמנקה אחר כך את השדות לא יקבל
+  // אותו בחזרה בעלייה הבאה.
+  await sq(`ALTER TABLE airfield_patterns ADD COLUMN IF NOT EXISTS alt_tol_above_ft INTEGER`);
+  await sq(`ALTER TABLE airfield_patterns ADD COLUMN IF NOT EXISTS alt_tol_below_ft INTEGER`);
+  await sq(`UPDATE airfield_patterns
+              SET alt_tol_above_ft = COALESCE(alt_tol_above_ft, alt_tolerance_ft),
+                  alt_tol_below_ft = COALESCE(alt_tol_below_ft, alt_tolerance_ft),
+                  alt_tolerance_ft = NULL
+            WHERE alt_tolerance_ft IS NOT NULL`);
 
   // אלמנט של הקפה שייך **רק** להקפה הספציפית (ולכן למסלול הספציפי) - לא לשדה.
   await sq(`CREATE TABLE IF NOT EXISTS airfield_pattern_elements (

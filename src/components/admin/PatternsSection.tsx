@@ -74,7 +74,8 @@ export default function PatternsSection({
     downwind_alt_ft: p.downwind_alt_ft ?? null,
     base_alt_ft: p.base_alt_ft ?? null,
     leg_tolerance_nm: p.leg_tolerance_nm ?? null,
-    alt_tolerance_ft: p.alt_tolerance_ft ?? null,
+    alt_tol_above_ft: p.alt_tol_above_ft ?? null,
+    alt_tol_below_ft: p.alt_tol_below_ft ?? null,
     points: patternPoints(g, aspect),
     ...extra,
   });
@@ -114,11 +115,13 @@ export default function PatternsSection({
 
   // ── סטייה מותרת - מעקב הקפה אוטומטי (PATTERN_AUTOTRACK_SPEC §4) ─────────────
   // לכל הקפה רוחב משלה: הקפת קרב צפופה מול הקפה רחבה של מטוס תובלה. ריק = ברירת
-  // המחדל שב-placeholder, ובגובה ריק = הגובה אינו נבדק כלל (ולא "0").
-  type TolField = 'leg_tolerance_nm' | 'alt_tolerance_ft';
+  // המחדל שב-placeholder (0.5 מייל; 1500 מעל; 500 מתחת). הגובה **מעל ומתחת בנפרד**:
+  // מטוס מגיע גבוה ויורד אל ההקפה, אבל נמוך מהפרופיל הוא חריגה.
+  type TolField = 'leg_tolerance_nm' | 'alt_tol_above_ft' | 'alt_tol_below_ft';
   const TOL: Record<TolField, { max: number; step: number; decimals: number }> = {
     leg_tolerance_nm: { max: 5, step: 0.1, decimals: 2 },
-    alt_tolerance_ft: { max: 10000, step: 100, decimals: 0 },
+    alt_tol_above_ft: { max: 10000, step: 100, decimals: 0 },
+    alt_tol_below_ft: { max: 10000, step: 100, decimals: 0 },
   };
   const commitTol = async (p: PatternRow, field: TolField, raw: string) => {
     setAltDraft(d => { const n = { ...d }; delete n[`${p.id}:${field}`]; return n; });
@@ -319,7 +322,7 @@ export default function PatternsSection({
               <div title={tr('pattern.tolHint')}
                 style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '4px', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '10px', color: '#64748b' }}>{tr('pattern.tolTitle')}:</span>
-                {([['leg_tolerance_nm', 'pattern.tolLeg', '0.5', 'pattern.unitNm'], ['alt_tolerance_ft', 'pattern.tolAlt', '-', 'pattern.unitFt']] as const).map(([field, label, ph, unit]) => (
+                {([['leg_tolerance_nm', 'pattern.tolLeg', '0.5', 'pattern.unitNm'], ['alt_tol_above_ft', 'pattern.tolAbove', '1500', 'pattern.unitFt'], ['alt_tol_below_ft', 'pattern.tolBelow', '500', 'pattern.unitFt']] as const).map(([field, label, ph, unit]) => (
                   <label key={field} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: '#64748b' }}>
                     {tr(label)}
                     <input

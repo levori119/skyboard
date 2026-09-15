@@ -143,16 +143,12 @@
       "en": "Auto-tracking tolerance"
     },
     "tolHint": {
-      "he": "כמה רחוק מהצלע ומהגובה המתוכנן מטוס עדיין נחשב עליה. ריק = ברירת מחדל (0.5 מייל; גובה לא נבדק)",
-      "en": "How far from the leg and the planned altitude an aircraft still counts as on it. Empty = default (0.5 NM; altitude not checked)"
+      "he": "כמה רחוק מהצלע, וכמה מעל ומתחת לגובה המתוכנן, מטוס עדיין נחשב עליה. ריק = ברירת מחדל (0.5 מייל; 1500 מעל; 500 מתחת)",
+      "en": "How far from the leg, and how far above and below the planned altitude, an aircraft still counts as on it. Empty = default (0.5 NM; 1500 above; 500 below)"
     },
     "tolLeg": {
       "he": "מהצלע",
       "en": "Lateral"
-    },
-    "tolAlt": {
-      "he": "מהגובה",
-      "en": "Altitude"
     },
     "unitNm": {
       "he": "מייל",
@@ -161,6 +157,14 @@
     "unitFt": {
       "he": "רגל",
       "en": "ft"
+    },
+    "tolAbove": {
+      "he": "מעל הגובה",
+      "en": "Above"
+    },
+    "tolBelow": {
+      "he": "מתחת לגובה",
+      "en": "Below"
     }
   }
 }

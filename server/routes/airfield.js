@@ -402,11 +402,12 @@ router.post('/api/airfields/:id/duplicate', async (req, res) => {
     for (const pat of oldPatterns) {
       const np = await client.query(
         `INSERT INTO airfield_patterns (airfield_id,runway_id,runway_ident,color,geometry,points,sort_order,
-                                        downwind_alt_ft,base_alt_ft,leg_tolerance_nm,alt_tolerance_ft)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+                                        downwind_alt_ft,base_alt_ft,leg_tolerance_nm,alt_tol_above_ft,alt_tol_below_ft)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
         [newId, pat.runway_id != null ? (runwayMap[pat.runway_id] ?? null) : null, pat.runway_ident || '',
          pat.color || '#38bdf8', asJson(pat.geometry, {}), asJson(pat.points), pat.sort_order ?? 0,
-         pat.downwind_alt_ft ?? null, pat.base_alt_ft ?? null, pat.leg_tolerance_nm ?? null, pat.alt_tolerance_ft ?? null]
+         pat.downwind_alt_ft ?? null, pat.base_alt_ft ?? null, pat.leg_tolerance_nm ?? null,
+         pat.alt_tol_above_ft ?? null, pat.alt_tol_below_ft ?? null]
       );
       const els = (await client.query('SELECT * FROM airfield_pattern_elements WHERE pattern_id=$1 ORDER BY sort_order, id', [pat.id])).rows;
       for (const pe of els) {
@@ -808,12 +809,13 @@ router.post('/api/airfield-patterns', async (req, res) => {
     const { airfield_id, runway_id, runway_ident, color, geometry, points, sort_order } = req.body;
     const { rows } = await pool.query(
       `INSERT INTO airfield_patterns (airfield_id, runway_id, runway_ident, color, geometry, points, sort_order,
-                                      downwind_alt_ft, base_alt_ft, leg_tolerance_nm, alt_tolerance_ft)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+                                      downwind_alt_ft, base_alt_ft, leg_tolerance_nm, alt_tol_above_ft, alt_tol_below_ft)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
       [airfield_id, runway_id ?? null, runway_ident || '', color || '#38bdf8',
        JSON.stringify(geometry || {}), JSON.stringify(points || []), sort_order ?? 0,
        altFtOrNull(req.body.downwind_alt_ft), altFtOrNull(req.body.base_alt_ft),
-       legTolOrNull(req.body.leg_tolerance_nm), altTolOrNull(req.body.alt_tolerance_ft)],
+       legTolOrNull(req.body.leg_tolerance_nm),
+       altTolOrNull(req.body.alt_tol_above_ft), altTolOrNull(req.body.alt_tol_below_ft)],
     );
     res.json({ ...rows[0], elements: [] });
   } catch (err) { res.status(500).json({ error: 'Failed to create airfield pattern' }); }
@@ -830,7 +832,8 @@ router.put('/api/airfield-patterns/:id', async (req, res) => {
               downwind_alt_ft = CASE WHEN $7::boolean THEN $8::int ELSE downwind_alt_ft END,
               base_alt_ft     = CASE WHEN $9::boolean THEN $10::int ELSE base_alt_ft END,
               leg_tolerance_nm = CASE WHEN $12::boolean THEN $13::numeric ELSE leg_tolerance_nm END,
-              alt_tolerance_ft = CASE WHEN $14::boolean THEN $15::int ELSE alt_tolerance_ft END
+              alt_tol_above_ft = CASE WHEN $14::boolean THEN $15::int ELSE alt_tol_above_ft END,
+              alt_tol_below_ft = CASE WHEN $16::boolean THEN $17::int ELSE alt_tol_below_ft END
        WHERE id=$11 RETURNING *`,
       [runway_id ?? null, runway_ident || '', color || '#38bdf8',
        JSON.stringify(geometry || {}), JSON.stringify(points || []), sort_order ?? 0,
@@ -839,7 +842,8 @@ router.put('/api/airfield-patterns/:id', async (req, res) => {
        req.params.id,
        // אותו כלל של הגבהים: מתעדכן רק כשנשלח, כדי ששמירה ממסך אחר לא תאפס
        has(req.body, 'leg_tolerance_nm'), legTolOrNull(req.body.leg_tolerance_nm),
-       has(req.body, 'alt_tolerance_ft'), altTolOrNull(req.body.alt_tolerance_ft)],
+       has(req.body, 'alt_tol_above_ft'), altTolOrNull(req.body.alt_tol_above_ft),
+       has(req.body, 'alt_tol_below_ft'), altTolOrNull(req.body.alt_tol_below_ft)],
     );
     if (!rows[0]) return res.status(404).json({ error: 'Pattern not found' });
     res.json(rows[0]);
@@ -865,8 +869,8 @@ router.post('/api/airfield-patterns/:id/duplicate', async (req, res) => {
     if (!p) return res.status(404).json({ error: 'Pattern not found' });
     const { rows } = await pool.query(
       `INSERT INTO airfield_patterns (airfield_id, runway_id, runway_ident, color, geometry, points, sort_order,
-                                      downwind_alt_ft, base_alt_ft, leg_tolerance_nm, alt_tolerance_ft)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+                                      downwind_alt_ft, base_alt_ft, leg_tolerance_nm, alt_tol_above_ft, alt_tol_below_ft)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
       [p.airfield_id,
        runway_id !== undefined ? runway_id : p.runway_id,
        runway_ident ?? '',
@@ -878,7 +882,7 @@ router.post('/api/airfield-patterns/:id/duplicate', async (req, res) => {
        has(req.body, 'downwind_alt_ft') ? altFtOrNull(req.body.downwind_alt_ft) : (p.downwind_alt_ft ?? null),
        has(req.body, 'base_alt_ft') ? altFtOrNull(req.body.base_alt_ft) : (p.base_alt_ft ?? null),
        // העותק יורש גם את הסטיות - אותה הקפה, אותו כיול
-       p.leg_tolerance_nm ?? null, p.alt_tolerance_ft ?? null],
+       p.leg_tolerance_nm ?? null, p.alt_tol_above_ft ?? null, p.alt_tol_below_ft ?? null],
     );
     res.json({ ...rows[0], elements: [] });
   } catch (err) { res.status(500).json({ error: 'Failed to duplicate airfield pattern' }); }

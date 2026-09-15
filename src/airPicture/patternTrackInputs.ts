@@ -8,7 +8,7 @@ import { imagePctToGeo, type MapGeoAnchor } from '../utils/geo';
 import { normalizeGeometry, patternLegs } from '../utils/trafficPattern';
 import { normalizeLeg } from '../utils/joiningPoints';
 import { altOnLeg, altProfileOf } from '../utils/pattern3d';
-import type { AutoAircraft, AutoFlightStatus, AutoStrip, GeoPt, PatternGeo } from './patternTrack';
+import { ALT_ABOVE_FT, ALT_BELOW_FT, type AutoAircraft, type AutoFlightStatus, type AutoStrip, type GeoPt, type PatternGeo } from './patternTrack';
 
 type Row = Record<string, any>;
 
@@ -48,7 +48,9 @@ export function patternGeoOf(row: Row, aspect: number, anchor: MapGeoAnchor | nu
     // תחילת "אחרי המראה" היא הקצה הרחוק של המסלול
     runway: [final[1], upwind[0]],
     legTolNm: num(row.leg_tolerance_nm),
-    altTolFt: num(row.alt_tolerance_ft),
+    // לא רשום = ברירת המחדל (1500 מעל, 500 מתחת) - הגובה **תמיד** נבדק
+    altAboveFt: num(row.alt_tol_above_ft) ?? ALT_ABOVE_FT,
+    altBelowFt: num(row.alt_tol_below_ft) ?? ALT_BELOW_FT,
     plannedAltFt: (leg, frac) => Math.round(altOnLeg(geometry, prof, leg, frac) + elev),
   };
 }

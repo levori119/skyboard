@@ -146,17 +146,24 @@ describe('סטייה מותרת מהצלע ומהגובה - מוגדרת לכל 
     expect(detectLeg(nm(0.5, 1), [wide])?.leg).toBe('downwind');      // 1.0 מייל
   });
 
-  it('סטייה מהגובה: מחוץ לטווח - לא על הצלע; בלי הגדרה - הגובה לא נבדק', () => {
-    const alt: PatternGeo = { ...PAT, altTolFt: 300, plannedAltFt: () => 3000 };
-    expect(detectLeg(nm(1.5, 1), [alt], null, { altFt: 3250 })?.leg).toBe('downwind');
-    expect(detectLeg(nm(1.5, 1), [alt], null, { altFt: 3400 })).toBeNull();
-    expect(detectLeg(nm(1.5, 1), [alt], null, { altFt: 2650 })).toBeNull();
-    expect(detectLeg(nm(1.5, 1), [{ ...alt, altTolFt: null }], null, { altFt: 9000 })?.leg).toBe('downwind');
+  // "מהגובה כמה מעל וכמה מתחת מותר" (2026-09-15) - שני גבולות נפרדים
+  it('סטייה מהגובה: גבול מעל וגבול מתחת, כל אחד לעצמו', () => {
+    const alt: PatternGeo = { ...PAT, altAboveFt: 1500, altBelowFt: 500, plannedAltFt: () => 3000 };
+    expect(detectLeg(nm(1.5, 1), [alt], null, { altFt: 4400 })?.leg).toBe('downwind');   // +1400
+    expect(detectLeg(nm(1.5, 1), [alt], null, { altFt: 4600 })).toBeNull();              // +1600
+    expect(detectLeg(nm(1.5, 1), [alt], null, { altFt: 2600 })?.leg).toBe('downwind');   // -400
+    expect(detectLeg(nm(1.5, 1), [alt], null, { altFt: 2400 })).toBeNull();              // -600
+  });
+
+  it('גבול שלא נמסר - אינו נבדק באותו כיוון', () => {
+    const onlyBelow: PatternGeo = { ...PAT, altBelowFt: 500, plannedAltFt: () => 3000 };
+    expect(detectLeg(nm(1.5, 1), [onlyBelow], null, { altFt: 9000 })?.leg).toBe('downwind');
+    expect(detectLeg(nm(1.5, 1), [onlyBelow], null, { altFt: 2000 })).toBeNull();
   });
 
   it('הגובה המתוכנן נמדד בנקודה שלאורך הצלע', () => {
     const seen: [string, number][] = [];
-    const alt: PatternGeo = { ...PAT, altTolFt: 5000, plannedAltFt: (leg, frac) => { seen.push([leg, frac]); return 0; } };
+    const alt: PatternGeo = { ...PAT, altAboveFt: 5000, altBelowFt: 5000, plannedAltFt: (leg, frac) => { seen.push([leg, frac]); return 0; } };
     detectLeg(nm(1.5, 1), [alt], null, { altFt: 100 });
     const dw = seen.find(([l]) => l === 'downwind')!;
     expect(dw[1]).toBeCloseTo(0.5, 2);   // (1.5,3)→(1.5,-1): y=1 הוא האמצע

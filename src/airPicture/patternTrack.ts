@@ -31,6 +31,13 @@ export const LEG_NM = 0.5;
  */
 export const HDG_MATCH_DEG = 45;
 /**
+ * סטייה מותרת מהגובה המתוכנן כשלא נרשם בהקפה - **לא סימטרית**, הכרעת הפקח
+ * (2026-09-15). מעל: מטוס מגיע מנקודת ההצטרפות גבוה ויורד אל ההקפה, ולכן 1500.
+ * מתחת: מטוס נמוך מהפרופיל הוא חריגה בטיחותית, ולכן רק 500.
+ */
+export const ALT_ABOVE_FT = 1500;
+export const ALT_BELOW_FT = 500;
+/**
  * "על המסלול" - המרחק מ**קטע המסלול** (סף → הקצה הרחוק) שבו מהירות נמוכה או
  * היעלמות נחשבות נחיתה. נמדד מהמסלול ולא מנקודת הסף: בסימולטור (ATSIM) המטוס
  * מתגלגל 1.4 מייל לאורך המסלול ורק אז נעלם, ומדידה מול הסף פספסה כל נחיתה.
@@ -93,8 +100,10 @@ export interface PatternGeo {
   runway: [GeoPt, GeoPt];
   /** סטייה מותרת מהצלע, מייל ימי (פרמטרי השדה). חסר = `LEG_NM`. */
   legTolNm?: number | null;
-  /** סטייה מותרת מהגובה המתוכנן, רגל (פרמטרי השדה). חסר = הגובה אינו נבדק. */
-  altTolFt?: number | null;
+  /** כמה **מעל** הגובה המתוכנן מותר, רגל (פרמטרי השדה). חסר = לא נבדק בכיוון הזה. */
+  altAboveFt?: number | null;
+  /** כמה **מתחת** לגובה המתוכנן מותר, רגל (פרמטרי השדה). חסר = לא נבדק בכיוון הזה. */
+  altBelowFt?: number | null;
   /** הגובה המתוכנן (מוחלט) בנקודה שבשבר `frac` של הצלע - מפרופיל ההקפה. */
   plannedAltFt?: ((leg: AutoLeg, frac: number) => number) | null;
 }
@@ -224,7 +233,8 @@ function nearestLeg(p: GeoPt, patterns: PatternGeo[]): { pattern: PatternGeo; le
  * הצלע שהמטוס עליה, הקרובה מביניהן בפינה. שלושה תנאים, וכולם של **ההקפה**:
  *
  *  1. מרחק מהצלע עד `legTolNm` (פרמטרי השדה; ברירת מחדל `LEG_NM`).
- *  2. גובה עד `altTolFt` מהגובה המתוכנן **באותה נקודה לאורך הצלע** - אם הוגדר.
+ *  2. גובה בין `altBelowFt` מתחת ל-`altAboveFt` מעל הגובה המתוכנן **באותה נקודה לאורך
+ *     הצלע**. כל גבול לעצמו - גבול שלא נמסר אינו נבדק באותו כיוון.
  *  3. כיוון טיסה עד `HDG_MATCH_DEG` מכיוון הצלע - אם ידוע. זה מה שהופך את הפנייה
  *     לבסיס למיידית: בפינה המטוס עדיין **על** קו עם הרוח, אבל כבר טס בכיוון הבסיס.
  *
@@ -244,9 +254,12 @@ export function detectLeg(
       const { d, u } = projectOnSegment(p, a, b);
       if (d > tol || (best && d >= best.d)) continue;
       if (opts.hdg != null && Number.isFinite(opts.hdg) && angleDiff(opts.hdg, bearingOf(a, b)) > HDG_MATCH_DEG) continue;
-      const altTol = pattern.altTolFt;
-      if (altTol != null && Number.isFinite(altTol) && pattern.plannedAltFt && opts.altFt != null && Number.isFinite(opts.altFt)
-        && Math.abs(opts.altFt - pattern.plannedAltFt(leg, u)) > altTol) continue;
+      if (pattern.plannedAltFt && opts.altFt != null && Number.isFinite(opts.altFt)) {
+        const diff = opts.altFt - pattern.plannedAltFt(leg, u);   // חיובי = מעל
+        const above = pattern.altAboveFt, below = pattern.altBelowFt;
+        if (above != null && Number.isFinite(above) && diff > above) continue;
+        if (below != null && Number.isFinite(below) && -diff > below) continue;
+      }
       best = { patternId: pattern.id, leg, d };
     }
   }

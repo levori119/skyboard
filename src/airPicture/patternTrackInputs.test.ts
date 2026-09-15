@@ -99,12 +99,17 @@ describe('patternGeoOf - הקפה בנ"צ', () => {
   it('בלי עוגן - אין', () => expect(patternGeoOf(row, 1, null)).toBeNull());
 
   it('הסטייה המותרת מפרמטרי ההקפה; NUMERIC מגיע מ-pg כמחרוזת', () => {
-    const g = patternGeoOf({ ...row, leg_tolerance_nm: '0.30', alt_tolerance_ft: 400 }, 1, ANCHOR)!;
+    const g = patternGeoOf({ ...row, leg_tolerance_nm: '0.30', alt_tol_above_ft: 800, alt_tol_below_ft: '300' }, 1, ANCHOR)!;
     expect(g.legTolNm).toBe(0.3);
-    expect(g.altTolFt).toBe(400);
+    expect(g.altAboveFt).toBe(800);
+    expect(g.altBelowFt).toBe(300);
+  });
+
+  it('לא רשום - ברירת מחדל: 0.5 מייל, 1500 מעל, 500 מתחת', () => {
     const none = patternGeoOf(row, 1, ANCHOR)!;
-    expect(none.legTolNm).toBeNull();
-    expect(none.altTolFt).toBeNull();
+    expect(none.legTolNm).toBeNull();          // המנוע נופל ל-LEG_NM
+    expect(none.altAboveFt).toBe(1500);
+    expect(none.altBelowFt).toBe(500);
   });
 
   it('הגובה המתוכנן = פרופיל ההקפה (מעל השדה) + גובה השדה', () => {
