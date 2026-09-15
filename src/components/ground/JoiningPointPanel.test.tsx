@@ -36,9 +36,36 @@ describe('JoiningPointPanel - פריסת מטוסים כברירת מחדל', ()
 });
 
 describe('JoiningPointPanel - ידיות הגרירה', () => {
-  it('לשורת הפ"מ יש ידית נפרדת מהמטוסים, ואין HTML5 draggable', () => {
-    const html = render(point({ expand_aircraft: true }));
+  it('במצב רגיל לשורת הפ"מ יש ידית נפרדת מהמטוסים, ואין HTML5 draggable', () => {
+    const html = render(point());
     expect(count(html, 'joining-formation-handle')).toBe(1);
     expect(html.includes('draggable="true"')).toBe(false);
+  });
+});
+
+describe('JoiningPointPanel - מטוסים בלבד (expand_aircraft)', () => {
+  it('אין שורת פ"מ - רק שורות המטוסים', () => {
+    const html = render(point({ expand_aircraft: true }));
+    expect(count(html, 'joining-formation-handle')).toBe(0);
+    expect(count(html, 'joining-aircraft')).toBe(2);
+    expect(count(html, 'joining-expand-toggle')).toBe(0);
+  });
+
+  it('פעולות הפ"מ (תפריט והסרה) נשארות זמינות - פעם אחת למבנה', () => {
+    const html = render(point({ expand_aircraft: true }));
+    expect(count(html, 'joining-formation-menu')).toBe(1);
+    expect(count(html, 'joining-formation-remove')).toBe(1);
+  });
+
+  it('פ"מ בלי מספר מטוסים ידוע לא נעלם - נשארת שורת הפ"מ', () => {
+    const html = renderToStaticMarkup(
+      <JoiningPointPanel
+        point={point({ expand_aircraft: true })} incoming={[]} aircraft={[]} landingRunways={[]}
+        assigned={[{ strip_id: 9, alt: '050', planned_alt: '050', callsign: 'X', number_of_formation: null }] as any}
+        onAcceptIncoming={noop} onAssign={noop} onRemoveStrip={noop} onCoordinate={noop}
+        onUpdateAircraft={noop} onFlightStatus={noop} onCollapse={noop}
+      />,
+    );
+    expect(count(html, 'joining-formation-handle')).toBe(1);
   });
 });

@@ -29,7 +29,7 @@ import { loadStripFieldCatalog, useStripFieldCatalog } from '../../utils/stripFi
 import { stripInCombined, resolveTransferFromPreset, type CombinedPosition } from '../../utils/unifiedStrips';
 import { getFormationDisplayName, getTransferLabel, getTransferSq, normalizeAlt, parseAltToFeet, computeBlockDeviation, parseAltRange, altRangeGap, mergeStripsWithPending } from '../../utils/strips';
 import { compareAirborneThenTakeoff } from '../../utils/stripOrder';
-import { altToDisplay, applyJoiningMove, patchJoiningAircraft } from '../../utils/joiningPoints';
+import { altToDisplay, applyJoiningAccept, applyJoiningMove, createJoiningSyncGate, patchJoiningAircraft } from '../../utils/joiningPoints';
 import { parseNoteValue, serializeNoteValue } from '../../utils/notes';
 import { bidiAuto } from '../../utils/bidi';
 import { filterDocsByKind, isChecklistDoc, DOC_KIND_BDH, DOC_KIND_CHECKLIST } from '../../utils/bdhDocs';
@@ -586,6 +586,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [joiningPoints, setJoiningPoints] = useState<any[]>([]);
   const [joiningPointStrips, setJoiningPointStrips] = useState<any[]>([]);
   const [joiningPointAircraft, setJoiningPointAircraft] = useState<any[]>([]);
+  // תמונת פולינג שיצאה לפני פעולה בנקודה (או חזרה באמצעה) לא דורסת את העדכון המיידי
+  const joiningSync = useRef(createJoiningSyncGate()).current;
   const [airfieldRunwayNotams, setAirfieldRunwayNotams] = useState<any[]>([]);
   // NOTAMים שמוקרנים על **מסלול** של השדה מתוך מסלול המראה מקושר בשדה אחר -
   // המקרה של שדה קרקעי שבו האספלט משורטט כמסלול רגיל ולא כמסלול המראה.
@@ -5569,10 +5571,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   useEffect(() => {
     if (!joiningAirfieldId) { setJoiningPointStrips([]); setJoiningPointAircraft([]); return; }
     const load = () => {
+      const stamp = joiningSync.stamp();
       fetch(`${API_URL}/joining-point-strips?airfield_id=${joiningAirfieldId}`)
         .then(r => r.ok ? r.json() : null)
         .then(d => {
-          if (!d) return;
+          if (!d || !joiningSync.canApply(stamp)) return;
           setJoiningPointStrips(Array.isArray(d.strips) ? d.strips : []);
           setJoiningPointAircraft(Array.isArray(d.aircraft) ? d.aircraft : []);
         })
@@ -5587,10 +5590,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // שמוגדר בהמשך הרכיב, ומזכור היה מקפיא גרסה ישנה שלו יחד עם ה-state שבתוכה.
   const reloadJoiningState = async () => {
     if (!joiningAirfieldId) return;
+    const stamp = joiningSync.stamp();
     try {
       const r = await fetch(`${API_URL}/joining-point-strips?airfield_id=${joiningAirfieldId}`);
       if (!r.ok) return;
       const d = await r.json();
+      // פעולה חדשה התחילה בינתיים - הטעינה שלה היא שתביא את התמונה הנכונה
+      if (!joiningSync.canApply(stamp)) return;
       setJoiningPointStrips(Array.isArray(d.strips) ? d.strips : []);
       setJoiningPointAircraft(Array.isArray(d.aircraft) ? d.aircraft : []);
     } catch { /* נתק */ }
@@ -5611,16 +5617,29 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     } catch { /* נתק - הפולינג יסנכרן */ }
   };
 
-  const assignJoiningStrip = async (pointId: number, sid: string, altFt: number) => {
+  /** בקשות השיבוץ והפיצול בלבד - בלי עדכון מיידי ובלי טעינה, כדי שאפשר לשרשר אותן. */
+  const sendJoiningAssign = (pointId: number, sid: string, altFt: number) => {
     const point = joiningPoints.find((p: any) => Number(p.id) === Number(pointId));
     const strip = strips.find((s: any) => String(s.id) === String(sid));
-    await fetch(`${API_URL}/joining-point-strips`, {
+    return fetch(`${API_URL}/joining-point-strips`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         joining_point_id: pointId, strip_id: sid, alt: altToDisplay(altFt),
         callsign: strip?.callsign || '', point_name: point?.name || '', ...joiningAudit(),
       }),
     }).catch(() => {});
+  };
+  const sendJoiningSplit = (pointId: number, sid: string, indices: number[], altFt: number) => {
+    const strip = strips.find((s: any) => String(s.id) === String(sid));
+    return fetch(`${API_URL}/joining-point-strips/${pointId}/${sid}/split`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ alt: altToDisplay(altFt), indices, callsign: strip?.callsign || '', ...joiningAudit() }),
+    }).catch(() => {});
+  };
+
+  const assignJoiningStrip = async (pointId: number, sid: string, altFt: number) => {
+    const end = joiningSync.begin();
+    try { await sendJoiningAssign(pointId, sid, altFt); } finally { end(); }
     await reloadJoiningState();
     loadData();
   };
@@ -5630,17 +5649,41 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
    * `groups` (רק כשהמבנה חולק בטופס לכמה גבהים): כל קבוצה נרשמת כגובה של
    * המטוסים שלה דרך מנגנון הפיצול הקיים - כולל קבוצת המוביל, כדי שגובה חריג
    * ישן של מטוס מהמבנה לא ישאיר אותו בבלוק שכבר אינו שלו.
+   *
+   * ⚠ המסך מתעדכן **פעם אחת, מיד**, למצב הסופי. קודם כל שלב (שיבוץ, ואז פיצול
+   * לכל קבוצה) טען מחדש והחיל עדכון מיידי משלו על תמונה ישנה - הפ"מ נעלם וחזר
+   * כמה פעמים, והחלוקה לגבהים נראתה איטית מאוד. הבקשות רצות ברצף אחד מתחת
+   * לשער הסנכרון, והטעינה היחידה היא בסוף.
    */
   const acceptToJoiningPoint = async (pointId: number, transferId: string, altFt: number, groups?: { ft: number; indices: number[] }[]) => {
     const t = incomingTransfers.find((x: any) => String(x.id) === String(transferId));
-    await handleAcceptTransfer(transferId);
-    if (t?.strip_id == null) return;
-    await assignJoiningStrip(pointId, String(t.strip_id), altFt);
-    if (groups && groups.length > 1) {
-      for (const g of groups) {
-        if (g.indices.length) await splitJoiningStrip(pointId, String(t.strip_id), g.indices, g.ft);
-      }
-    }
+    if (t?.strip_id == null) { await handleAcceptTransfer(transferId); return; }
+    const sid = String(t.strip_id);
+    const splits = (groups || []).filter(g => g.indices.length);
+    const multi = splits.length > 1;
+    // גובה אחד למבנה שיש לו גבהים חריגים ישנים: פיצול "כל המבנה" מאפס אותם בשרת,
+    // כמו שהעדכון המיידי מאפס אותם במסך - אחרת הטעינה הייתה מחזירה אותם
+    const staleOverrides = !multi && joiningPointAircraft.some((a: any) => String(a.strip_id) === sid && a.alt);
+    const optimisticGroups = multi ? splits.map(g => ({ alt: altToDisplay(g.ft), indices: g.indices })) : undefined;
+
+    const end = joiningSync.begin();
+    // הכרטיס יורד מהשורה העליונה עם הלחיצה: אחרת הוא נשאר שם עם "אשר העברה"
+    // לאורך סבב ה-accept בזמן שהפ"מ כבר בבלוק - ומזמין לחיצה כפולה
+    setIncomingTransfers((prev: any[]) => prev.filter((x: any) => String(x.id) !== String(transferId)));
+    setJoiningPointStrips(prev => applyJoiningAccept(prev, [], pointId, t, altToDisplay(altFt), optimisticGroups).strips);
+    setJoiningPointAircraft(prev => applyJoiningAccept([], prev, pointId, t, altToDisplay(altFt), optimisticGroups).aircraft);
+    try {
+      await handleAcceptTransfer(transferId);
+      // אחרי ה-accept הפ"מ שלי, ולכן השיבוץ כותב את הגובה. הפיצולים נוגעים
+      // במטוסים שונים ואינם תלויים זה בזה - רצים במקביל לשיבוץ.
+      await Promise.all([
+        sendJoiningAssign(pointId, sid, altFt),
+        ...(multi ? splits.map(g => sendJoiningSplit(pointId, sid, g.indices, g.ft)) : []),
+        ...(staleOverrides ? [sendJoiningSplit(pointId, sid, [], altFt)] : []),
+      ]);
+    } finally { end(); }
+    await reloadJoiningState();
+    loadData();
   };
 
   /**
@@ -5649,16 +5692,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
    * גובה חריג משלהם, והפ"מ מופיע בשני הבלוקים.
    */
   const splitJoiningStrip = async (pointId: number, sid: string, indices: number[], altFt: number) => {
-    const strip = strips.find((s: any) => String(s.id) === String(sid));
     // המסך מתעדכן **ברגע השחרור**: בלי זה הפ"מ נשאר בבלוק הישן עד שהשרת עונה
     // והפולינג מרענן, והגרירה נראתה כאילו "לא תפסה" ונוסתה שוב.
-    const optimistic = applyJoiningMove(joiningPointStrips, joiningPointAircraft, pointId, sid, indices, altToDisplay(altFt));
-    setJoiningPointStrips(optimistic.strips);
-    setJoiningPointAircraft(optimistic.aircraft);
-    await fetch(`${API_URL}/joining-point-strips/${pointId}/${sid}/split`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ alt: altToDisplay(altFt), indices, callsign: strip?.callsign || '', ...joiningAudit() }),
-    }).catch(() => {});
+    // עדכון **פונקציונלי** ולא מה-state שנלכד ברינדור: שתי גרירות רצופות (או
+    // גרירה אחרי קבלה) החילו קודם את השנייה על תמונה ישנה ומחקו את הראשונה.
+    const alt = altToDisplay(altFt);
+    const end = joiningSync.begin();
+    setJoiningPointStrips(prev => applyJoiningMove(prev, [], pointId, sid, indices, alt).strips);
+    setJoiningPointAircraft(prev => applyJoiningMove([], prev, pointId, sid, indices, alt).aircraft);
+    try { await sendJoiningSplit(pointId, sid, indices, altFt); } finally { end(); }
     await reloadJoiningState();
     loadData();
   };

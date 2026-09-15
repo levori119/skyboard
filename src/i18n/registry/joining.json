@@ -167,8 +167,12 @@
       "en": "Expand aircraft"
     },
     "expandByDefault": {
-      "he": "הצג מטוסים פרוסים (ולא רק פ\"ממים)",
-      "en": "Show aircraft expanded (not just strips)"
+      "he": "מטוסים בלבד - בלי שורת הפ\"מ (כאילו תמיד פרוס)",
+      "en": "Aircraft only - no strip row (always expanded)"
+    },
+    "aircraftOnlyBadge": {
+      "he": "מטוסים בלבד",
+      "en": "Aircraft only"
     },
     "dragFormationTitle": {
       "he": "גרור לבלוק גובה - כל המבנה עובר",

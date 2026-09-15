@@ -287,6 +287,71 @@ export function applyJoiningMove<S extends Record<string, any>, A extends Record
 }
 
 /**
+ * המצב **הסופי** של "קבל" לנקודה - מוחל על המסך לפני שהשרת עונה.
+ *
+ * הקבלה היא כמה בקשות ברצף (accept -> שיבוץ -> פיצול לכל קבוצת גובה), וכל שלב
+ * החיל קודם עדכון מיידי משלו על **תמונה ישנה** של הנקודה, מלפני שהפ"מ שובץ בה.
+ * התוצאה: הפ"מ הופיע, נעלם, חזר ונעלם שוב בין השלבים. כאן מחושבת התוצאה
+ * שהשרת יגיע אליה בסוף, פעם אחת, כך שהפ"מ נוחת בבלוקים שלו ברגע הלחיצה.
+ *
+ * `groups` - רק כשהמבנה חולק בטופס לכמה גבהים; קבוצת המוביל ראשונה.
+ * פונקציה טהורה: שורות שאינן הפ"מ הזה חוזרות כמות שהן.
+ */
+export function applyJoiningAccept<S extends Record<string, any>, A extends Record<string, any>>(
+  strips: S[], aircraft: A[], pointId: number, transfer: Record<string, any>, alt: string,
+  groups?: { alt: string; indices: number[] }[],
+): { strips: S[]; aircraft: A[] } {
+  const sid = String(transfer?.strip_id ?? '').replace(/^s/, '');
+  const same = (v: unknown) => String(v) === sid;
+  const prev = strips.find(s => same(s.strip_id) && Number(s.joining_point_id) === Number(pointId));
+  const row = {
+    ...(prev || {}),
+    joining_point_id: pointId,
+    strip_id: prev?.strip_id ?? (Number.isFinite(Number(sid)) ? Number(sid) : sid),
+    planned_alt: alt,
+    alt,
+    callsign: transfer?.callsign ?? prev?.callsign,
+    sq: transfer?.sq ?? prev?.sq,
+    squadron: transfer?.squadron ?? prev?.squadron,
+    number_of_formation: transfer?.number_of_formation ?? prev?.number_of_formation,
+    notes: transfer?.notes ?? prev?.notes,
+  } as unknown as S;
+  // פ"מ מצטרף דרך נקודה אחת בלבד - שיבוץ כאן מוריד אותו מכל נקודה אחרת (כמו בשרת)
+  const nextStrips = [...strips.filter(s => !same(s.strip_id)), row];
+
+  const split = (groups || []).filter(g => g.indices?.length);
+  if (split.length <= 1) {
+    return { strips: nextStrips, aircraft: aircraft.map(a => (same(a.strip_id) && a.alt != null ? { ...a, alt: null } : a)) };
+  }
+  let next = aircraft;
+  for (const g of split) next = applyJoiningMove([], next, pointId, sid, g.indices, g.alt).aircraft;
+  return { strips: nextStrips, aircraft: next };
+}
+
+/**
+ * שער סנכרון בין הפולינג לבין פעולות הפקח בנקודה.
+ *
+ * הפולינג (5 שניות) שולף תמונה מלאה. תמונה שיצאה **לפני** פעולה וחזרה **אחריה**,
+ * או כזו שחוזרת באמצע פעולה רב-שלבית, מחזירה את המצב הישן על המסך - והפ"מ
+ * "קופץ אחורה" לרגע. `begin` פותח פעולה ומחזיר את סגירתה; `canApply` מקבל את
+ * החותמת מרגע יציאת הבקשה.
+ */
+export function createJoiningSyncGate() {
+  let gen = 0;
+  let busy = 0;
+  return {
+    begin(): () => void {
+      gen++;
+      busy++;
+      let open = true;
+      return () => { if (open) { open = false; busy--; } };
+    },
+    stamp: () => gen,
+    canApply: (stamp: number) => busy === 0 && stamp === gen,
+  };
+}
+
+/**
  * האם מטוסי הפ"מ פרוסים. `toggled` מחזיק את מה שהפקח **שינה** מברירת המחדל,
  * כך שהגדרת הנקודה ("פרוס כברירת מחדל") והלחיצה על +/− לא מתנגשות.
  */

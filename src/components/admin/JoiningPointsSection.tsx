@@ -185,7 +185,7 @@ export default function JoiningPointsSection({
               </label>
             </div>
 
-            {/* איך הטבלה נפתחת בעמדה: פ"ממים מכווצים, או כל המטוסים פרוסים */}
+            {/* איך הטבלה נפתחת בעמדה: פ"ממים מכווצים, או מטוסים בלבד בלי שורת הפ"מ */}
             <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#cbd5e1', cursor: 'pointer' }}>
               <input
                 type="checkbox"
@@ -237,6 +237,10 @@ export default function JoiningPointsSection({
             </span>
             {p.sector_id ? (
               <span style={{ color: '#86efac', fontSize: '10px' }}>🔀 {sectors.find(s => s.id === Number(p.sector_id))?.name || p.sector_id}</span>
+            ) : null}
+            {/* ההגדרה חבויה בטופס העריכה - הסימון בשורה אומר מיד איך הטבלה תיפתח בעמדה */}
+            {p.expand_aircraft ? (
+              <span data-testid="admin-joining-aircraft-only" style={{ color: '#c4b5fd', fontSize: '10px' }}>✈ {tr('joining.aircraftOnlyBadge')}</span>
             ) : null}
             {p.x_pct == null || p.y_pct == null
               ? <span style={{ color: '#fbbf24', fontSize: '10px' }}>⚠ {tr('joining.notPlaced')}</span>

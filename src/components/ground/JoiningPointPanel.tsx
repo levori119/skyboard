@@ -348,6 +348,148 @@ export default function JoiningPointPanel({
     catch { setDragBlock(null); /* גרירה שאינה פ"מ - מתעלמים */ }
   };
 
+  /**
+   * שורת מטוס בודד: או"ק ומספר במבנה, דת"ק, מסלול, הקפה, סטטוס.
+   * `extra` - פעולות הפ"מ, שבמצב "מטוסים בלבד" יושבות על המטוס הראשון במבנה.
+   */
+  const aircraftRow = (sid: string, row: Record<string, any>, ac: FormationAircraftRow, extra: React.ReactNode) => {
+    const st = acOf(sid, ac.idx);
+    const acKey = `a:${sid}:${ac.idx}`;
+    return (
+      <div
+        key={ac.idx}
+        data-testid="joining-aircraft"
+        data-aircraft-idx={ac.idx}
+        data-approaching={approaching(sid, [ac.idx]) ? '1' : '0'}
+        title={tr('joining.dragAircraftTitle')}
+        onPointerDown={e => startDrag(e, {
+          key: acKey,
+          label: `${getFormationDisplayName(row)}${ac.idx}`,
+          // על בלוק - רק המטוס הזה עובר; מחוץ לטבלה - אל ההקפה במפה
+          onBlock: target => moveToBlock(sid, row, [ac.idx], target),
+          onOutside: (x, y) => onAircraftDropOnMap?.(sid, ac.idx, x, y),
+        })}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap',
+          background: C.chip, borderRadius: '4px', padding: '1px 4px',
+          border: st?.in_pattern ? `1px solid ${accent}` : `1px dashed ${st?.pattern_id ? accent : 'transparent'}`,
+          cursor: 'grab', touchAction: 'none', userSelect: 'none',
+          opacity: drag?.key === acKey ? 0.4 : 1,
+          animation: approaching(sid, [ac.idx]) ? APPROACH_BLINK : undefined,
+        }}
+      >
+        {/* ידית הגרירה - שטח לחיצה מפורש ומסומן. בלעדיה
+            האזור הגריר היה הרווחים שבין הכפתורים, וכל
+            ניסיון גרירה נחת על בורר המסלול או על כפתור. */}
+        <span
+          data-testid="joining-aircraft-grip"
+          title={tr('joining.dragAircraftTitle')}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: '3px',
+            padding: '2px 6px', margin: '-1px 0', borderRadius: '3px',
+            background: themeMode === 'light' ? '#dbeafe' : '#1d4ed833',
+            border: `1px solid ${accent}66`, fontWeight: 'bold', cursor: 'grab',
+          }}
+        >
+          <span style={{ opacity: 0.7 }}>⠿</span>
+          {bidiAuto(`${getFormationDisplayName(row)}${ac.idx}`)}
+        </span>
+        {ac.datk != null && <span style={{ color: C.dim }}>{tr('joining.datk')} {ac.datk}</span>}
+        <select
+          value={st?.runway_ident || ''}
+          onChange={e => onUpdateAircraft(sid, ac.idx, { runway_ident: e.target.value, pattern_id: landingRunways.find(r => r.ident === e.target.value)?.pattern_id ?? null })}
+          title={tr('joining.pickRunway')}
+          style={{ background: C.panel, color: C.text, border: `1px solid ${C.border}`, borderRadius: '3px', fontSize: '11px', padding: '0 3px' }}
+        >
+          <option value="">{landingRunways.length ? tr('joining.pickRunway') : tr('joining.noActiveRunways')}</option>
+          {landingRunways.map(r => <option key={r.ident} value={r.ident}>{r.ident}</option>)}
+        </select>
+        {/* "שים בהקפה" נעול עד שנבחר מסלול: הקפה משויכת לקצה
+            מסלול אחד, ומטוס בהקפה בלי מסלול הוא סימון על
+            המפה שאינו אומר לאן הוא נכנס. הוצאה מהקפה תמיד
+            זמינה - אחרת מטוס שאיבד את המסלול היה נתקע שם. */}
+        {(() => {
+          const hasRunway = !!String(st?.runway_ident ?? '').trim();
+          const locked = !st?.in_pattern && !hasRunway;
+          return (
+            <button
+              type="button"
+              disabled={locked}
+              title={locked ? tr('joining.needRunwayFirst') : undefined}
+              onClick={() => {
+                if (locked) return;
+                const entering = !st?.in_pattern;
+                onUpdateAircraft(sid, ac.idx, { in_pattern: entering });
+                // מטוס שנכנס להקפה מתחיל ב**עה"ר** - זו הצלע
+                // שבה הוא ממתין. בלי זה הוא נכנס בלי מצב,
+                // והתפריט הראה "ללא" על מטוס שכבר בהקפה.
+                if (entering && normalizeLeg(ac.flight_status) === 'none') {
+                  onFlightStatus(sid, ac.idx, DEFAULT_LEG);
+                }
+              }}
+              style={{
+                ...btn(locked ? '#475569' : st?.in_pattern ? '#7c3aed' : '#1d4ed8'),
+                opacity: locked ? 0.5 : 1,
+                cursor: locked ? 'not-allowed' : 'pointer',
+              }}
+            >{st?.in_pattern ? tr('joining.removeFromPattern') : tr('joining.toPattern')}</button>
+          );
+        })()}
+        {(() => {
+          const leg = normalizeLeg(ac.flight_status);
+          const blinking = landingIdx?.sid === sid && landingIdx?.idx === ac.idx;
+          const alert = greensAlert(ac.flight_status, ac.greens);
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
+              {/* איפה המטוס - תפריט לפי **סדר הטיסה**, ולא רשת
+                  כפתורים: המצבים בלעדיים וסדרם הוא המידע עצמו. */}
+              <select
+                data-testid="flight-leg"
+                value={leg}
+                onChange={e => {
+                  const v = e.target.value;
+                  if (v === 'landed') startLanded(sid, ac.idx);
+                  else onFlightStatus(sid, ac.idx, v);
+                }}
+                style={{
+                  background: blinking ? '#dc2626' : leg === 'none' ? C.panel : FLIGHT_ACTIVE_BG,
+                  color: leg === 'none' && !blinking ? C.dim : '#ffffff',
+                  border: `1px solid ${C.border}`, borderRadius: '4px',
+                  fontSize: '11px', fontWeight: 'bold', padding: '1px 3px',
+                  animation: blinking ? 'skyking-landed-blink 0.5s steps(1) infinite' : undefined,
+                }}
+              >
+                <option value="none">{tr('joining.statusNone')}</option>
+                {FLIGHT_LEGS.map(k => (
+                  <option key={k} value={k}>{tr(LEG_LABELS[k])}</option>
+                ))}
+              </select>
+
+              {/* ירוקים - **דגל**, לא שלב. ירוק = דיווח. */}
+              <button
+                type="button"
+                data-testid="flight-greens"
+                data-on={ac.greens ? '1' : '0'}
+                data-alert={alert ? '1' : '0'}
+                title={alert ? tr('joining.greensAlert') : undefined}
+                onClick={() => onGreens?.(sid, ac.idx, !ac.greens)}
+                style={{
+                  ...btn(ac.greens ? '#16a34a' : 'transparent', ac.greens || alert ? '#ffffff' : C.dim),
+                  // ההתראה היא **הנקודה עצמה מהבהבת באדום** ולא תווית לצדה:
+                  // תווית נוספת מוסיפה רעש לשורה צפופה, וההבהוב מושך את העין
+                  // בדיוק למקום שבו צריך ללחוץ.
+                  animation: alert ? 'skyking-landed-blink 0.5s steps(1) infinite' : undefined,
+                }}
+              >{ac.greens ? '✓ ' : ''}{tr('joining.statusGreens')}</button>
+
+            </div>
+          );
+        })()}
+        {extra}
+      </div>
+    );
+  };
+
   const headerRange = `${altToDisplay(Math.min(point.alt_min_ft, point.alt_max_ft))}-${altToDisplay(Math.max(point.alt_min_ft, point.alt_max_ft))}`;
 
   const btn = (bg: string, fg = '#fff'): React.CSSProperties => ({
@@ -487,6 +629,63 @@ export default function JoiningPointPanel({
                   // העמדה המוסרת שלחה גובה אחר ממה שתוכנן כאן - שני אנשים
                   // מחזיקים תמונה שונה על אותו מטוס, וזו התראה ולא תיקון שקט.
                   const mismatch = altMismatch(row.planned_alt, row.alt);
+                  // פעולות הפ"מ - אותן בשני המצבים. במצב "מטוסים בלבד" אין שורת
+                  // פ"מ, והן יושבות על שורת המטוס הראשון במבנה (פעם אחת למבנה).
+                  const formationActions = (
+                    <>
+                      <FaultBadge faults={row.aircraft_faults} size={9} />
+                      {mismatch && (
+                        <span
+                          data-testid="joining-alt-mismatch"
+                          title={tr('joining.altMismatchTitle', { sent: String(row.alt ?? ''), planned: String(row.planned_alt ?? '') })}
+                          style={{ background: '#f59e0b', color: '#1c1400', borderRadius: '3px', padding: '0 4px', fontSize: '10px', fontWeight: 'bold' }}
+                        >⚠ {tr('joining.altMismatch', { sent: String(row.alt ?? '') })}</span>
+                      )}
+                      <button
+                        type="button"
+                        data-testid="joining-formation-menu"
+                        title={tr('joining.moveTitle')}
+                        onClick={() => openMoveForm(sid, row, entry.indices, ft)}
+                        style={btn('#334155')}
+                      >⋯</button>
+                    </>
+                  );
+                  const formationTail = (
+                    <>
+                      {row.notes ? (
+                        <span title={tr('joining.faultNote')} style={{ color: '#fbbf24' }}>⚠ {bidiAuto(String(row.notes))}</span>
+                      ) : null}
+                      {row.is_coordinated ? (
+                        <span style={{ color: '#86efac', fontSize: '10px' }}>✓ {tr('joining.coordinated')}</span>
+                      ) : null}
+                      {isConflict && (
+                        <button type="button" onClick={() => { setCoordFor({ stripId: sid, label: getFormationDisplayName(row) }); setCoordNote(String(row.coordination_note || '')); }} style={btn('#facc15', '#000')}>
+                          {tr('joining.markCoordinated')}
+                        </button>
+                      )}
+                      {/* הסרה מהנקודה אינה שקטה: זו הוצאת פ"מ מתמונת ההצטרפות */}
+                      <button
+                        type="button"
+                        data-testid="joining-formation-remove"
+                        title={tr('joining.removeFromPoint')}
+                        onClick={async () => { if (await customConfirm(tr('joining.confirmRemove'))) onRemoveStrip(sid); }}
+                        style={btn('transparent', isConflict ? '#fecaca' : C.dim)}
+                      >✕</button>
+                    </>
+                  );
+
+                  // **מטוסים בלבד** (הגדרת הנקודה): בלי שורת הפ"מ - כל מטוס שורה משלו,
+                  // כאילו המבנה תמיד פרוס. פ"מ בלי מספר מטוסים ידוע נשאר בשורת פ"מ,
+                  // אחרת לא היה לו שום ייצוג בטבלה.
+                  if (point.expand_aircraft && acList.length > 0) {
+                    return (
+                      <div key={`${sid}@${ft}`} data-testid="joining-formation" data-strip-id={sid} data-partial={entry.partial ? '1' : '0'} data-aircraft-only="1"
+                        style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        {acList.map((ac, i) => aircraftRow(sid, row, ac, i === 0 ? <>{formationActions}{formationTail}</> : null))}
+                      </div>
+                    );
+                  }
+
                   return (
                     <div key={`${sid}@${ft}`} data-testid="joining-formation" data-strip-id={sid} data-partial={entry.partial ? '1' : '0'}>
                       {/* תצוגה מצומצמת: או"ק / טייסת (מספר מטוסים) + הערת תקלה.
@@ -515,6 +714,7 @@ export default function JoiningPointPanel({
                       >
                         <button
                           type="button"
+                          data-testid="joining-expand-toggle"
                           title={isOpen ? tr('joining.collapseAircraft') : tr('joining.expandAircraft')}
                           onClick={() => toggleExpand(`${sid}@${ft}`)}
                           style={btn(isOpen ? '#7c3aed' : '#334155')}
@@ -527,182 +727,16 @@ export default function JoiningPointPanel({
                             בלי לפרוס את המבנה. בפ"מ מפוצל השרת כבר סינן לפי
                             aircraft_indices, ולכן היא מופיעה רק אצל מי שהמטוס
                             נמצא אצלו. */}
-                        <FaultBadge faults={row.aircraft_faults} size={9} />
-                        {mismatch && (
-                          <span
-                            data-testid="joining-alt-mismatch"
-                            title={tr('joining.altMismatchTitle', { sent: String(row.alt ?? ''), planned: String(row.planned_alt ?? '') })}
-                            style={{ background: '#f59e0b', color: '#1c1400', borderRadius: '3px', padding: '0 4px', fontSize: '10px', fontWeight: 'bold' }}
-                          >⚠ {tr('joining.altMismatch', { sent: String(row.alt ?? '') })}</span>
-                        )}
-                        <button
-                          type="button"
-                          data-testid="joining-formation-menu"
-                          title={tr('joining.moveTitle')}
-                          onClick={() => openMoveForm(sid, row, entry.indices, ft)}
-                          style={btn('#334155')}
-                        >⋯</button>
+                        {formationActions}
                         {row.squadron ? <span style={{ color: isConflict ? '#fee2e2' : C.dim }}>/ {bidiAuto(String(row.squadron))}</span> : null}
                         {count > 0 && <span style={{ color: isConflict ? '#fee2e2' : C.dim }}>({count})</span>}
-                        {row.notes ? (
-                          <span title={tr('joining.faultNote')} style={{ color: '#fbbf24' }}>⚠ {bidiAuto(String(row.notes))}</span>
-                        ) : null}
-                        {row.is_coordinated ? (
-                          <span style={{ color: '#86efac', fontSize: '10px' }}>✓ {tr('joining.coordinated')}</span>
-                        ) : null}
-                        {isConflict && (
-                          <button type="button" onClick={() => { setCoordFor({ stripId: sid, label: getFormationDisplayName(row) }); setCoordNote(String(row.coordination_note || '')); }} style={btn('#facc15', '#000')}>
-                            {tr('joining.markCoordinated')}
-                          </button>
-                        )}
-                        {/* הסרה מהנקודה אינה שקטה: זו הוצאת פ"מ מתמונת ההצטרפות */}
-                        <button
-                          type="button"
-                          title={tr('joining.removeFromPoint')}
-                          onClick={async () => { if (await customConfirm(tr('joining.confirmRemove'))) onRemoveStrip(sid); }}
-                          style={btn('transparent', isConflict ? '#fecaca' : C.dim)}
-                        >✕</button>
+                        {formationTail}
                       </div>
 
                       {/* פריסת המטוסים: או"ק ומספר במבנה, דת"ק, מסלול, הקפה, סטטוס */}
                       {isOpen && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '2px', paddingInlineStart: '10px' }}>
-                          {acList.map(ac => {
-                            const st = acOf(sid, ac.idx);
-                            const acKey = `a:${sid}:${ac.idx}`;
-                            return (
-                              <div
-                                key={ac.idx}
-                                data-testid="joining-aircraft"
-                                data-aircraft-idx={ac.idx}
-                                data-approaching={approaching(sid, [ac.idx]) ? '1' : '0'}
-                                title={tr('joining.dragAircraftTitle')}
-                                onPointerDown={e => startDrag(e, {
-                                  key: acKey,
-                                  label: `${getFormationDisplayName(row)}${ac.idx}`,
-                                  // על בלוק - רק המטוס הזה עובר; מחוץ לטבלה - אל ההקפה במפה
-                                  onBlock: target => moveToBlock(sid, row, [ac.idx], target),
-                                  onOutside: (x, y) => onAircraftDropOnMap?.(sid, ac.idx, x, y),
-                                })}
-                                style={{
-                                  display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap',
-                                  background: C.chip, borderRadius: '4px', padding: '1px 4px',
-                                  border: st?.in_pattern ? `1px solid ${accent}` : `1px dashed ${st?.pattern_id ? accent : 'transparent'}`,
-                                  cursor: 'grab', touchAction: 'none', userSelect: 'none',
-                                  opacity: drag?.key === acKey ? 0.4 : 1,
-                                  animation: approaching(sid, [ac.idx]) ? APPROACH_BLINK : undefined,
-                                }}
-                              >
-                                {/* ידית הגרירה - שטח לחיצה מפורש ומסומן. בלעדיה
-                                    האזור הגריר היה הרווחים שבין הכפתורים, וכל
-                                    ניסיון גרירה נחת על בורר המסלול או על כפתור. */}
-                                <span
-                                  data-testid="joining-aircraft-grip"
-                                  title={tr('joining.dragAircraftTitle')}
-                                  style={{
-                                    display: 'inline-flex', alignItems: 'center', gap: '3px',
-                                    padding: '2px 6px', margin: '-1px 0', borderRadius: '3px',
-                                    background: themeMode === 'light' ? '#dbeafe' : '#1d4ed833',
-                                    border: `1px solid ${accent}66`, fontWeight: 'bold', cursor: 'grab',
-                                  }}
-                                >
-                                  <span style={{ opacity: 0.7 }}>⠿</span>
-                                  {bidiAuto(`${getFormationDisplayName(row)}${ac.idx}`)}
-                                </span>
-                                {ac.datk != null && <span style={{ color: C.dim }}>{tr('joining.datk')} {ac.datk}</span>}
-                                <select
-                                  value={st?.runway_ident || ''}
-                                  onChange={e => onUpdateAircraft(sid, ac.idx, { runway_ident: e.target.value, pattern_id: landingRunways.find(r => r.ident === e.target.value)?.pattern_id ?? null })}
-                                  title={tr('joining.pickRunway')}
-                                  style={{ background: C.panel, color: C.text, border: `1px solid ${C.border}`, borderRadius: '3px', fontSize: '11px', padding: '0 3px' }}
-                                >
-                                  <option value="">{landingRunways.length ? tr('joining.pickRunway') : tr('joining.noActiveRunways')}</option>
-                                  {landingRunways.map(r => <option key={r.ident} value={r.ident}>{r.ident}</option>)}
-                                </select>
-                                {/* "שים בהקפה" נעול עד שנבחר מסלול: הקפה משויכת לקצה
-                                    מסלול אחד, ומטוס בהקפה בלי מסלול הוא סימון על
-                                    המפה שאינו אומר לאן הוא נכנס. הוצאה מהקפה תמיד
-                                    זמינה - אחרת מטוס שאיבד את המסלול היה נתקע שם. */}
-                                {(() => {
-                                  const hasRunway = !!String(st?.runway_ident ?? '').trim();
-                                  const locked = !st?.in_pattern && !hasRunway;
-                                  return (
-                                    <button
-                                      type="button"
-                                      disabled={locked}
-                                      title={locked ? tr('joining.needRunwayFirst') : undefined}
-                                      onClick={() => {
-                                        if (locked) return;
-                                        const entering = !st?.in_pattern;
-                                        onUpdateAircraft(sid, ac.idx, { in_pattern: entering });
-                                        // מטוס שנכנס להקפה מתחיל ב**עה"ר** - זו הצלע
-                                        // שבה הוא ממתין. בלי זה הוא נכנס בלי מצב,
-                                        // והתפריט הראה "ללא" על מטוס שכבר בהקפה.
-                                        if (entering && normalizeLeg(ac.flight_status) === 'none') {
-                                          onFlightStatus(sid, ac.idx, DEFAULT_LEG);
-                                        }
-                                      }}
-                                      style={{
-                                        ...btn(locked ? '#475569' : st?.in_pattern ? '#7c3aed' : '#1d4ed8'),
-                                        opacity: locked ? 0.5 : 1,
-                                        cursor: locked ? 'not-allowed' : 'pointer',
-                                      }}
-                                    >{st?.in_pattern ? tr('joining.removeFromPattern') : tr('joining.toPattern')}</button>
-                                  );
-                                })()}
-                                {(() => {
-                                  const leg = normalizeLeg(ac.flight_status);
-                                  const blinking = landingIdx?.sid === sid && landingIdx?.idx === ac.idx;
-                                  const alert = greensAlert(ac.flight_status, ac.greens);
-                                  return (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
-                                      {/* איפה המטוס - תפריט לפי **סדר הטיסה**, ולא רשת
-                                          כפתורים: המצבים בלעדיים וסדרם הוא המידע עצמו. */}
-                                      <select
-                                        data-testid="flight-leg"
-                                        value={leg}
-                                        onChange={e => {
-                                          const v = e.target.value;
-                                          if (v === 'landed') startLanded(sid, ac.idx);
-                                          else onFlightStatus(sid, ac.idx, v);
-                                        }}
-                                        style={{
-                                          background: blinking ? '#dc2626' : leg === 'none' ? C.panel : FLIGHT_ACTIVE_BG,
-                                          color: leg === 'none' && !blinking ? C.dim : '#ffffff',
-                                          border: `1px solid ${C.border}`, borderRadius: '4px',
-                                          fontSize: '11px', fontWeight: 'bold', padding: '1px 3px',
-                                          animation: blinking ? 'skyking-landed-blink 0.5s steps(1) infinite' : undefined,
-                                        }}
-                                      >
-                                        <option value="none">{tr('joining.statusNone')}</option>
-                                        {FLIGHT_LEGS.map(k => (
-                                          <option key={k} value={k}>{tr(LEG_LABELS[k])}</option>
-                                        ))}
-                                      </select>
-
-                                      {/* ירוקים - **דגל**, לא שלב. ירוק = דיווח. */}
-                                      <button
-                                        type="button"
-                                        data-testid="flight-greens"
-                                        data-on={ac.greens ? '1' : '0'}
-                                        data-alert={alert ? '1' : '0'}
-                                        title={alert ? tr('joining.greensAlert') : undefined}
-                                        onClick={() => onGreens?.(sid, ac.idx, !ac.greens)}
-                                        style={{
-                                          ...btn(ac.greens ? '#16a34a' : 'transparent', ac.greens || alert ? '#ffffff' : C.dim),
-                                          // ההתראה היא **הנקודה עצמה מהבהבת באדום** ולא תווית לצדה:
-                                          // תווית נוספת מוסיפה רעש לשורה צפופה, וההבהוב מושך את העין
-                                          // בדיוק למקום שבו צריך ללחוץ.
-                                          animation: alert ? 'skyking-landed-blink 0.5s steps(1) infinite' : undefined,
-                                        }}
-                                      >{ac.greens ? '✓ ' : ''}{tr('joining.statusGreens')}</button>
-
-                                    </div>
-                                  );
-                                })()}
-                              </div>
-                            );
-                          })}
+                          {acList.map(ac => aircraftRow(sid, row, ac, null))}
                         </div>
                       )}
                     </div>
