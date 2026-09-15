@@ -84,3 +84,40 @@ export function patternTrafficGroups(p: {
       rows: rows.sort((x, y) => (y.altFt ?? -Infinity) - (x.altFt ?? -Infinity) || x.label.localeCompare(y.label)),
     }));
 }
+
+// ─── פתיחה אוטומטית של "בהקפה" ───────────────────────────────────────────────
+//
+// מטוס שיצא מנקודת ההצטרפות להקפה (עבר לעם הרוח, "שים בהקפה", גרירה אל ההקפה)
+// יוצא מהטבלה של הנקודה - ואם חלון "בהקפה" סגור, הוא נעלם מהעין בדיוק ברגע
+// שמתחיל להתקרב לנחיתה. לכן היציאה פותחת את החלון.
+//
+// "כניסה" = **מעבר** מהנקודה להקפה בין שתי תמונות, לא "יש מטוס בהקפה": טעינה
+// ראשונה ורענון אינם פותחים את החלון שוב אחרי שהפקח סגר אותו, ומטוס שהגיע
+// מהפולינג כבר בהקפה (בלי שישב בנקודה) אינו כניסה.
+
+export interface PatternEntrySnapshot {
+  /** `strip|idx` של מטוסים בהקפה שטרם נחתו. */
+  inPattern: Set<string>;
+  /** פ"מים שיושבים בנקודה (כולו, או חלק ממטוסיו). */
+  atPointStrips: Set<string>;
+}
+
+export function patternEntrySnapshot(pointStrips: Row[], aircraft: Row[]): PatternEntrySnapshot {
+  const inPattern = new Set<string>();
+  const atPointStrips = new Set<string>((pointStrips || []).map(r => String(r.strip_id)));
+  for (const a of aircraft || []) {
+    if (a.in_pattern === true) {
+      if (normalizeLeg(a.flight_status) !== 'landed') inPattern.add(`${a.strip_id}|${Number(a.aircraft_idx)}`);
+    } else if (a.joining_point_id != null) {
+      atPointStrips.add(String(a.strip_id));
+    }
+  }
+  return { inPattern, atPointStrips };
+}
+
+/** המטוסים שעברו מהנקודה להקפה בין `prev` ל-`next`. `prev=null` = תמונה ראשונה. */
+export function leftPointToPattern(prev: PatternEntrySnapshot | null, next: PatternEntrySnapshot): string[] {
+  if (!prev) return [];
+  return [...next.inPattern].filter(key =>
+    !prev.inPattern.has(key) && prev.atPointStrips.has(key.slice(0, key.lastIndexOf('|'))));
+}

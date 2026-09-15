@@ -34,6 +34,7 @@ import { DEFAULT_CAMERA, shouldRenderPattern3D, shouldShowPatternLabels, type Ca
 import { altToDisplay, collectGreensAlerts, greensAlert, greensPoint, greensPopupQueue, type GreensAlertRow } from '../../utils/joiningPoints';
 import { usePatternAutotrack } from '../../airPicture/usePatternAutotrack';
 import PatternTrafficWindow from '../ground/PatternTrafficWindow';
+import { leftPointToPattern, patternEntrySnapshot, type PatternEntrySnapshot } from '../../utils/patternTraffic';
 import GreensAlertPopup from '../ground/GreensAlertPopup';
 import { bidiAuto } from '../../utils/bidi';
 import { ELEMENT_NEUTRAL_FILL, canChangeElementStatus, displayStateOptions, nextServiceability, serviceabilityStyle } from '../../utils/elementStatus';
@@ -73,7 +74,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   joiningPoints = [], joiningPointStrips = [], joiningPointAircraft = [], landingRunways = [],
   onAssignJoiningStrip, onRemoveJoiningAircraft, onAcceptToJoiningPoint, onRemoveJoiningStrip, onCoordinateJoiningStrip, onSplitJoiningStrip,
   onUpdateJoiningAircraft, onSetFlightStatus, onSetGreens, onMoveJoiningPoint, onResetJoiningPoint,
-  airPicture, weather, geoAnchor = null, showPatternTraffic = false, onClosePatternTraffic }: {
+  airPicture, weather, geoAnchor = null, showPatternTraffic = false, onClosePatternTraffic, onOpenPatternTraffic }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -180,6 +181,8 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   /** חלון "בהקפה" פתוח (מתפריט תצוגה) - PATTERN_AUTOTRACK_SPEC §7. */
   showPatternTraffic?: boolean;
   onClosePatternTraffic?: () => void;
+  /** מטוס יצא מנקודת ההצטרפות להקפה - לפתוח את "בהקפה" (leftPointToPattern). */
+  onOpenPatternTraffic?: () => void;
   onDeleteElement?: (elementId: number) => Promise<void>;
   hideStrips?: boolean;
   hideElementPanel?: boolean;
@@ -1369,6 +1372,16 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
     // מטוס שיצא מהמצב לפני שאושר - ההתראה שלו כבר אינה נכונה
     setGreensPopups(prev => [...prev.filter(r => seen.has(`${r.stripId}|${r.idx}`)), ...fresh]);
   }, [greensAlertAll]);
+
+  // מטוס שיצא מהנקודה להקפה (עם הרוח, "שים בהקפה", גרירה) - פותח את "בהקפה",
+  // אחרת הוא נעלם מהעין בדיוק כשהוא יוצא מטבלת הנקודה. רק במעבר, לא בכל רענון.
+  const patternEntryRef = useRef<PatternEntrySnapshot | null>(null);
+  React.useEffect(() => {
+    const snap = patternEntrySnapshot(joiningPointStrips, joiningPointAircraft);
+    const entered = leftPointToPattern(patternEntryRef.current, snap);
+    patternEntryRef.current = snap;
+    if (entered.length && !hidePatternControls && !showPatternTraffic) onOpenPatternTraffic?.();
+  }, [joiningPointStrips, joiningPointAircraft]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const ptPos = (x_pct: number, y_pct: number) => imgBounds
     ? { left: `${imgBounds.left + (x_pct / 100) * imgBounds.width}px`, top: `${imgBounds.top + (y_pct / 100) * imgBounds.height}px` }

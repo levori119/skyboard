@@ -14097,6 +14097,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 geoAnchor={groundAnchor}
                 showPatternTraffic={showPatternTraffic}
                 onClosePatternTraffic={() => setShowPatternTraffic(false)}
+                onOpenPatternTraffic={() => setShowPatternTraffic(true)}
                 lightMode={lightMode}
                 themeMode={themeMode}
                 allSectors={allSectors}
