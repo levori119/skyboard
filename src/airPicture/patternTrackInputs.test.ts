@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { autotrackInputs, patternGeoOf } from './patternTrackInputs';
+import { autotrackInputs, fieldTraffic, patternGeoOf } from './patternTrackInputs';
 import type { MapGeoAnchor } from '../utils/geo';
 
 // עוגן לינארי: 0% = (32,35), 100% = (32.1,35.1)
@@ -117,5 +117,20 @@ describe('patternGeoOf - הקפה בנ"צ', () => {
     expect(g.plannedAltFt!('downwind', 0)).toBe(2800);
     expect(g.plannedAltFt!('final', 1)).toBe(300);
     expect(g.plannedAltFt!('final', 0)).toBe(1500);
+  });
+});
+
+describe('fieldTraffic - תנועת השדה כולה, לזיהוי רכיב זר', () => {
+  it('פ"מים מכל העמדות, ומטוסי כל הקפה שלא נחתו', () => {
+    const r = fieldTraffic({
+      joiningPointStrips: [{ strip_id: 10, joining_point_id: 3, callsign: 'בננה', number_of_formation: '2', workstation_preset_id: 5 }],
+      joiningPointAircraft: [
+        { strip_id: 20, aircraft_idx: 1, in_pattern: true, pattern_id: 7, flight_status: 'final', callsign: 'תפוח', number_of_formation: '2', workstation_preset_id: 9 },
+        { strip_id: 20, aircraft_idx: 2, in_pattern: true, pattern_id: 7, flight_status: 'landed', callsign: 'תפוח', number_of_formation: '2', workstation_preset_id: 9 },
+        { strip_id: 10, aircraft_idx: 1, in_pattern: false, pattern_id: 7, callsign: 'בננה', number_of_formation: '2', workstation_preset_id: 5 },
+      ],
+    });
+    expect(r.strips.map(s => s.callSign).sort()).toEqual(['בננה', 'תפוח']);
+    expect([...r.occupants.entries()]).toEqual([[7, ['20|1']]]);
   });
 });

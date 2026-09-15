@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { allAircraftInPattern, altMismatch, altToDisplay, blockOf, buildBlocks, conflictBlocks, findStepOverlaps, formationAircraft, formationsInBlocks, collectGreensAlerts, greensAlert, greensPopupQueue, patchJoiningAircraft, greensPoint, isAltInPoint, normalizeLeg, FLIGHT_LEGS, DEFAULT_LEG, nearestBlock, type AltStep, type JoiningPoint } from './joiningPoints';
+import { allAircraftInPattern, altMismatch, altToDisplay, blockOf, buildBlocks, conflictBlocks, findStepOverlaps, formationAircraft, formationsInBlocks, collectGreensAlerts, greensAlert, greensPopupQueue, freshEntries, patchJoiningAircraft, greensPoint, isAltInPoint, normalizeLeg, FLIGHT_LEGS, DEFAULT_LEG, nearestBlock, type AltStep, type JoiningPoint } from './joiningPoints';
 
 // נקודת הצטרפות נפרסת לטבלת בלוקי גבהים. הגובה נשמר **ברגל** (4000) ומוצג
 // **במאות** (040), כמו על הסדק. ההפרש בין בלוקים אינו קבוע: אפשר 1000 רגל
@@ -338,6 +338,17 @@ describe('patchJoiningAircraft - עדכון מיידי של שורת ההקפה'
 
   it('אין שורה - אין שינוי (המטוס אינו בהקפה)', () => {
     expect(patchJoiningAircraft(rows, '99', 1, { greens: true })).toEqual(rows);
+  });
+});
+
+describe('freshEntries - תור כללי לכל התראה מתפרצת (ירוקים, קונפליקט בהקפה)', () => {
+  it('לפי מפתח שהקורא מגדיר: חדש נכנס, קיים לא, ומי שיצא נשכח', () => {
+    const k = (x: { id: string }) => x.id;
+    const one = freshEntries(new Set(), [{ id: '7|x1' }], k);
+    expect(one.fresh.map(k)).toEqual(['7|x1']);
+    expect(freshEntries(one.seen, [{ id: '7|x1' }], k).fresh).toEqual([]);
+    const gone = freshEntries(one.seen, [], k);
+    expect(freshEntries(gone.seen, [{ id: '7|x1' }], k).fresh).toHaveLength(1);
   });
 });
 

@@ -32,6 +32,8 @@ const GREENS_ALERT_COLOR = '#dc2626';
 interface Props {
   patterns: PatternRow[];
   aircraft: PatternAircraftRow[];
+  /** `strip|idx` של מטוסים בקונפליקט עם רכיב זר בהקפה (§10) - מהבהבים כמו בלי ירוקים. */
+  conflictKeys?: Set<string>;
   aspect: number;
   sz: number;
 }
@@ -156,7 +158,7 @@ export function placePatternAircraft(aircraft: PatternAircraftRow[]): PlacedAirc
   return placed;
 }
 
-export default function PatternAircraftLayer({ patterns, aircraft, aspect, sz }: Props) {
+export default function PatternAircraftLayer({ patterns, aircraft, conflictKeys, aspect, sz }: Props) {
   const byId = new Map(patterns.map(p => [Number(p.id), p]));
   const placed = placePatternAircraft(aircraft);
 
@@ -177,7 +179,8 @@ export default function PatternAircraftLayer({ patterns, aircraft, aspect, sz }:
         const h = 2.3 * sz;
         // בבסיס/פיינל בלי ירוקים - מסגרת אדומה עבה שמהבהבת. ההבהוב הוא ב-SVG
         // (`animate`) ולא ב-CSS, כי השכבה חיה בתוך ה-SVG של המפה.
-        const alert = greensAlert(ac.flight_status, ac.greens);
+        const alert = greensAlert(ac.flight_status, ac.greens)
+          || !!conflictKeys?.has(`${ac.strip_id}|${ac.aircraft_idx}`);
         return (
           <g key={`${ac.strip_id}-${ac.aircraft_idx}`} data-testid="pattern-aircraft"
             data-strip-id={String(ac.strip_id)} data-aircraft-idx={ac.aircraft_idx}

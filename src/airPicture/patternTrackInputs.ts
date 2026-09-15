@@ -121,3 +121,34 @@ export function autotrackInputs(p: {
   }
   return { strips, aircraft };
 }
+
+/**
+ * תנועת השדה **כולה**, בלי סינון עמדה - לזיהוי רכיב זר בהקפה (§10).
+ * מעקב ההקפה כותב רק לפ"מים של העמדה, אבל "זר" נמדד מול כל מה שבשדה: מטוס של
+ * עמדת המגדל השנייה שבהקפה אינו פולש, והקפה שיש בה רק מטוס שלה - תפוסה.
+ */
+export function fieldTraffic(p: { joiningPointStrips: Row[]; joiningPointAircraft: Row[] }): {
+  strips: AutoStrip[];
+  /** מטוסים בהקפה שלא נחתו, לפי הקפה. */
+  occupants: Map<number, string[]>;
+} {
+  const seen = new Set<string>();
+  const strips: AutoStrip[] = [];
+  for (const r of [...(p.joiningPointStrips || []), ...(p.joiningPointAircraft || [])]) {
+    if (r?.strip_id == null) continue;
+    const sid = String(r.strip_id);
+    if (seen.has(sid)) continue;
+    seen.add(sid);
+    const count = num(r.number_of_formation) ?? 1;
+    strips.push({ stripId: sid, callSign: String(r.callsign || ''), formationSize: num(r.original_formation_count) ?? count, indices: indicesOf(r.aircraft_indices) });
+  }
+  const occupants = new Map<number, string[]>();
+  for (const a of p.joiningPointAircraft || []) {
+    const pid = num(a.pattern_id);
+    if (a.in_pattern !== true || pid == null || normalizeLeg(a.flight_status) === 'landed') continue;
+    const list = occupants.get(pid) ?? [];
+    list.push(`${a.strip_id}|${Number(a.aircraft_idx)}`);
+    occupants.set(pid, list);
+  }
+  return { strips, occupants };
+}

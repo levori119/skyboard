@@ -421,6 +421,14 @@
     "greensPopupMore": {
       "he": "ועוד {{count}} ממתינות",
       "en": "{{count}} more waiting"
+    },
+    "conflictPopupTitle": {
+      "he": "קונפליקט בהקפה {{runway}}",
+      "en": "Pattern conflict {{runway}}"
+    },
+    "conflictPopupBody": {
+      "he": "רכיב אווירי {{cs}} בגובה {{alt}} בטווח ההקפה. בהקפה: {{aircraft}}",
+      "en": "Air track {{cs}} at {{alt}} is inside the pattern. In pattern: {{aircraft}}"
     }
   }
 }

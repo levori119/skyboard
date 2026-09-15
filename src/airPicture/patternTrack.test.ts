@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   formationIndexOf, matchFormationTracks, distToSegmentNm, detectLeg, expectedFormationCount,
   tickPatternAutotrack, emptyPatternTrackState, aircraftKey,
+  tickPatternIntrusions, emptyIntrusionState, fieldTrackIds,
   JOIN_ENTER_NM, JOIN_EXIT_NM, LEG_NM, LANDED_HOLD_MS, DWELL_MS,
   type AutoStrip, type AutoAircraft, type AutoTrack, type PatternGeo, type PatternTrackState, type GeoPt,
 } from './patternTrack';
@@ -413,5 +414,100 @@ describe('שיוך הרכיב המשודך לתצוגה', () => {
   it('trackIdByKey - כדי להבהב את הרכיב האווירי של מטוס בלי ירוקים', () => {
     const { last } = run([{ aircraft: [ac()], tracks: [trk(nm(30, 30))], at: 0 }]);
     expect(last.trackIdByKey.get(aircraftKey('10', 1))).toBe('t1');
+  });
+});
+
+// ── §10 קונפליקט: רכיב אווירי זר בטווח ההקפה (2026-09-15) ────────────────────
+describe('tickPatternIntrusions - רכיב זר בטווח ההקפה כשיש בה מטוס', () => {
+  // הקפה עם פרופיל גובה: 3000 לאורך כל הצלעות, 1500 מעל / 500 מתחת
+  const P: PatternGeo = { ...PAT, altAboveFt: 1500, altBelowFt: 500, plannedAltFt: () => 3000 };
+  const occ = new Map([[7, ['10|1']]]);
+  const foreign = (at: GeoPt, over: Partial<AutoTrack> = {}) => trk(at, { id: 'x1', cs: 'אפיק 21', alt: 3200, ...over });
+
+  const runI = (frames: { tracks: AutoTrack[]; at: number; occupants?: Map<number, string[]>; known?: Set<string> }[]) => {
+    let s = emptyIntrusionState();
+    let last: ReturnType<typeof tickPatternIntrusions> | null = null;
+    for (const f of frames) {
+      last = tickPatternIntrusions(s, {
+        patterns: [P], occupants: f.occupants ?? occ, tracks: f.tracks, knownTrackIds: f.known ?? new Set(), now: f.at,
+      });
+      s = last.state;
+    }
+    return last!;
+  };
+
+  it('על עם הרוח ובגובה ההקפה, אחרי השהיה - קונפליקט עם מי שבהקפה', () => {
+    const r = runI([
+      { tracks: [foreign(nm(1.5, 1))], at: 0 },
+      { tracks: [foreign(nm(1.5, 1))], at: DWELL_MS + 10 },
+    ]);
+    expect(r.conflicts).toEqual([{ patternId: 7, trackId: 'x1', cs: 'אפיק 21', alt: 3200, aircraftKeys: ['10|1'] }]);
+  });
+
+  it('לפני תום ההשהיה - עוד לא', () => {
+    const r = runI([
+      { tracks: [foreign(nm(1.5, 1))], at: 0 },
+      { tracks: [foreign(nm(1.5, 1))], at: DWELL_MS - 500 },
+    ]);
+    expect(r.conflicts).toEqual([]);
+  });
+
+  it('רכיב של השדה (משודך לפ"מ) - לא זר', () => {
+    const r = runI([
+      { tracks: [foreign(nm(1.5, 1))], at: 0, known: new Set(['x1']) },
+      { tracks: [foreign(nm(1.5, 1))], at: DWELL_MS + 10, known: new Set(['x1']) },
+    ]);
+    expect(r.conflicts).toEqual([]);
+  });
+
+  it('אין מטוס בהקפה - אין קונפליקט', () => {
+    const r = runI([
+      { tracks: [foreign(nm(1.5, 1))], at: 0, occupants: new Map() },
+      { tracks: [foreign(nm(1.5, 1))], at: DWELL_MS + 10, occupants: new Map() },
+    ]);
+    expect(r.conflicts).toEqual([]);
+  });
+
+  it('מחוץ לטווח הגובה (מעל ומתחת לפי ההקפה) - לא', () => {
+    for (const alt of [4600, 2400]) {
+      const r = runI([
+        { tracks: [foreign(nm(1.5, 1), { alt })], at: 0 },
+        { tracks: [foreign(nm(1.5, 1), { alt })], at: DWELL_MS + 10 },
+      ]);
+      expect(r.conflicts).toEqual([]);
+    }
+  });
+
+  it('רחוק מהצלעות - לא', () => {
+    const r = runI([
+      { tracks: [foreign(nm(5, 1))], at: 0 },
+      { tracks: [foreign(nm(5, 1))], at: DWELL_MS + 10 },
+    ]);
+    expect(r.conflicts).toEqual([]);
+  });
+
+  it('כיוון טיסה אינו מבטל - פולש חוצה את ההקפה בניצב', () => {
+    const r = runI([
+      { tracks: [foreign(nm(1.5, 1), { hdg: 90 })], at: 0 },
+      { tracks: [foreign(nm(1.5, 1), { hdg: 90 })], at: DWELL_MS + 10 },
+    ]);
+    expect(r.conflicts).toHaveLength(1);
+  });
+
+  it('יצא מהטווח - הקונפליקט נשאר עד תום השהיה, ואז יורד', () => {
+    const frames = [
+      { tracks: [foreign(nm(1.5, 1))], at: 0 },
+      { tracks: [foreign(nm(1.5, 1))], at: DWELL_MS + 10 },
+      { tracks: [foreign(nm(6, 1))], at: DWELL_MS + 1000 },
+    ];
+    expect(runI(frames).conflicts).toHaveLength(1);
+    expect(runI([...frames, { tracks: [foreign(nm(6, 1))], at: 2 * DWELL_MS + 2000 }]).conflicts).toEqual([]);
+  });
+});
+
+describe('fieldTrackIds - רכיבים ששייכים לתנועת השדה', () => {
+  it('דומה בשם לפ"מ כלשהו בשדה - שייך, גם בלי מספר תקין במבנה', () => {
+    const ids = fieldTrackIds([strip()], [{ id: 'a', cs: 'בננה 1' }, { id: 'b', cs: 'בננה 9' }, { id: 'c', cs: 'אפיק 21' }]);
+    expect([...ids].sort()).toEqual(['a', 'b']);
   });
 });

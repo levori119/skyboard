@@ -12,9 +12,10 @@ import { airPictureStore, pictureFresh } from './store';
 import { joinAirPicture } from './poller';
 import {
   tickPatternAutotrack, emptyPatternTrackState, aircraftKey,
-  type AutoAction, type AutoAircraft, type PatternTrackState,
+  tickPatternIntrusions, emptyIntrusionState, fieldTrackIds, matchFormationTracks,
+  type AutoAction, type AutoAircraft, type PatternTrackState, type IntrusionState, type PatternConflict,
 } from './patternTrack';
-import { autotrackInputs, patternGeoOf } from './patternTrackInputs';
+import { autotrackInputs, fieldTraffic, patternGeoOf } from './patternTrackInputs';
 import type { MapGeoAnchor } from '../utils/geo';
 
 const TICK_MS = 1000;
@@ -50,18 +51,27 @@ export interface UsePatternAutotrackOptions {
 export interface UsePatternAutotrackResult {
   /** `aircraftKey` של מטוסים שממתינים בנקודה ורכיב שלהם עד 3 מייל ממנה - הבהוב ירוק. */
   nearPoint: Set<string>;
-  /** `aircraftKey` → מזהה הרכיב האווירי המשודך - להבהוב הרכיב ולגובה בטבלה. */
+  /**
+   * `aircraftKey` → מזהה הרכיב האווירי המשודך - להבהוב הרכיב ולגובה בטבלה.
+   * **כל** תנועת השדה (לא רק הפ"מים של העמדה): התצוגה מהבהבת גם מטוס של עמדה
+   * אחרת שבקונפליקט, והכתיבה - רק לשלי.
+   */
   trackIdByKey: Map<string, string>;
+  /** רכיבים זרים בטווח הקפה שיש בה מטוס (§10). */
+  conflicts: PatternConflict[];
 }
 
 const EMPTY_SET: Set<string> = new Set();
 const EMPTY_MAP: Map<string, string> = new Map();
+const EMPTY_CONFLICTS: PatternConflict[] = [];
+const EMPTY_VIEW: UsePatternAutotrackResult = { nearPoint: EMPTY_SET, trackIdByKey: EMPTY_MAP, conflicts: EMPTY_CONFLICTS };
 
 export function usePatternAutotrack(o: UsePatternAutotrackOptions): UsePatternAutotrackResult {
   // הקלט נקרא מתוך הטיימר ולא נסגר עליו - אחרת כל רינדור מקים טיימר חדש
   const optsRef = useRef(o);
   optsRef.current = o;
   const stateRef = useRef<PatternTrackState>(emptyPatternTrackState());
+  const intrusionRef = useRef<IntrusionState>(emptyIntrusionState());
   /**
    * תור כתיבות **לכל מטוס**. המנוע מוציא כל פעולה פעם אחת בלבד (מבוסס מעברים),
    * ולכן אסור לזרוק פעולה כשקודמת עוד בדרך - "יצא מהנקודה" ומיד "עם הרוח" חייבים
@@ -69,7 +79,7 @@ export function usePatternAutotrack(o: UsePatternAutotrackOptions): UsePatternAu
    */
   const queueRef = useRef<Map<string, Promise<void>>>(new Map());
   const sigRef = useRef('');
-  const [view, setView] = useState<UsePatternAutotrackResult>({ nearPoint: EMPTY_SET, trackIdByKey: EMPTY_MAP });
+  const [view, setView] = useState<UsePatternAutotrackResult>(EMPTY_VIEW);
 
   useEffect(() => {
     if (!o.enabled) return;
@@ -79,7 +89,8 @@ export function usePatternAutotrack(o: UsePatternAutotrackOptions): UsePatternAu
   useEffect(() => {
     if (!o.enabled) {
       stateRef.current = emptyPatternTrackState();
-      if (sigRef.current !== '') { sigRef.current = ''; setView({ nearPoint: EMPTY_SET, trackIdByKey: EMPTY_MAP }); }
+      intrusionRef.current = emptyIntrusionState();
+      if (sigRef.current !== '') { sigRef.current = ''; setView(EMPTY_VIEW); }
       return;
     }
 
@@ -124,20 +135,27 @@ export function usePatternAutotrack(o: UsePatternAutotrackOptions): UsePatternAu
         presetId: cur.presetId, anchor: cur.anchor,
       });
       const patterns = cur.patterns.map(p => patternGeoOf(p, cur.aspect, cur.anchor, cur.elevFt)).filter(Boolean) as NonNullable<ReturnType<typeof patternGeoOf>>[];
-      const r = tickPatternAutotrack(stateRef.current, {
-        strips, aircraft, patterns, now,
-        tracks: snap.tracks.map(t => ({ id: t.id, cs: t.cs, lat: t.lat, lon: t.lon, alt: t.alt, spd: t.spd, hdg: t.hdg })),
-      });
+      const tracks = snap.tracks.map(t => ({ id: t.id, cs: t.cs, lat: t.lat, lon: t.lon, alt: t.alt, spd: t.spd, hdg: t.hdg }));
+      const r = tickPatternAutotrack(stateRef.current, { strips, aircraft, patterns, now, tracks });
       stateRef.current = r.state;
+
+      // ── קונפליקט: רכיב זר בטווח הקפה תפוסה (§10) - מול תנועת השדה כולה ──
+      const field = fieldTraffic({ joiningPointStrips: cur.joiningPointStrips, joiningPointAircraft: cur.joiningPointAircraft });
+      const intr = tickPatternIntrusions(intrusionRef.current, {
+        patterns, occupants: field.occupants, tracks, knownTrackIds: fieldTrackIds(field.strips, tracks), now,
+      });
+      intrusionRef.current = intr.state;
+      const trackIdByKey = matchFormationTracks(field.strips, tracks).byKey;
 
       for (const a of r.actions) {
         run(a, aircraft.find(x => x.stripId === a.stripId && x.idx === a.idx));
       }
 
-      const sig = `${[...r.nearPoint].sort().join(',')}#${[...r.trackIdByKey].map(([k, v]) => `${k}=${v}`).sort().join(',')}`;
+      const sig = `${[...r.nearPoint].sort().join(',')}#${[...trackIdByKey].map(([k, v]) => `${k}=${v}`).sort().join(',')}`
+        + `#${intr.conflicts.map(c => `${c.patternId}|${c.trackId}|${Math.round(c.alt / 100)}|${c.aircraftKeys.join('+')}`).sort().join(',')}`;
       if (sig !== sigRef.current) {
         sigRef.current = sig;
-        setView({ nearPoint: r.nearPoint, trackIdByKey: r.trackIdByKey });
+        setView({ nearPoint: r.nearPoint, trackIdByKey, conflicts: intr.conflicts });
       }
     };
 

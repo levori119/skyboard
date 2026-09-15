@@ -375,3 +375,84 @@ export function tickPatternAutotrack(
 
   return { state: { keys, lastTick: now }, actions, nearPoint, trackIdByKey };
 }
+
+// ── §10 קונפליקט: רכיב אווירי זר בטווח ההקפה ────────────────────────────────
+//
+// "אם מטוס נמצא בהקפה ורכיב אווירי אחר נכנס לטווח הגבהים של ההקפה (לפי פרמטרי
+// השדה) - להקפיץ התראה ולהבהב את מי שבקונפליקט" (2026-09-15).
+//
+// **טווח ההקפה = אותה הגדרה שבה מטוס נחשב על הצלע** (`detectLeg`): הסטייה מהצלע
+// והסטייה מעל/מתחת לגובה המתוכנן של ההקפה. **בלי** תנאי כיוון טיסה - פולש שחוצה
+// את ההקפה בניצב נמצא בה בדיוק כמו מי שטס לאורכה.
+//
+// **"זר"** = רכיב שאינו שייך לתנועת השדה (`fieldTrackIds`). בלי זה מטוס מבנה
+// שמצטרף מהנקודה לעם הרוח היה מתריע על עצמו ב-3 השניות שלפני שהמנוע מעביר אותו.
+
+/** מפתח קונפליקט: הקפה + רכיב. */
+const conflictKey = (patternId: number, trackId: string) => `${patternId}|${trackId}`;
+
+export interface PatternConflict {
+  patternId: number;
+  trackId: string;
+  cs: string;
+  alt: number;
+  /** `aircraftKey` של המטוסים שבהקפה - מי שמהבהב יחד עם הפולש. */
+  aircraftKeys: string[];
+}
+
+export interface IntrusionState {
+  /** מתי הרכיב נכנס לטווח (ממתין להשהיה). */
+  cand: Record<string, number>;
+  /** קונפליקט פעיל: מתי הרכיב נראה בטווח לאחרונה. */
+  active: Record<string, number>;
+}
+
+export const emptyIntrusionState = (): IntrusionState => ({ cand: {}, active: {} });
+
+/**
+ * הרכיבים ששייכים לתנועת השדה: שמם דומה לפ"מ כלשהו בנקודות או בהקפה, **מכל
+ * עמדה**. במכוון לפי שם בלבד ולא לפי שידוך מלא - רכיב "בננה 9" ברביעייה אינו
+ * משודך למטוס, אבל הוא בוודאות לא זר להקפה של בננה.
+ */
+export function fieldTrackIds(strips: AutoStrip[], tracks: { id: string; cs: string }[]): Set<string> {
+  const out = new Set<string>();
+  for (const t of tracks) {
+    if (strips.some(s => callsignSimilarity(s.callSign, t.cs) >= CALLSIGN_MATCH_MIN)) out.add(t.id);
+  }
+  return out;
+}
+
+export function tickPatternIntrusions(
+  prev: IntrusionState,
+  input: {
+    patterns: PatternGeo[];
+    /** מטוסים בהקפה (לא נחתו), לפי הקפה. הקפה ריקה אינה נבדקת. */
+    occupants: Map<number, string[]>;
+    tracks: AutoTrack[];
+    knownTrackIds: Set<string>;
+    now: number;
+  },
+): { state: IntrusionState; conflicts: PatternConflict[] } {
+  const { patterns, occupants, tracks, knownTrackIds, now } = input;
+  const cand: Record<string, number> = {};
+  const active: Record<string, number> = {};
+  const conflicts: PatternConflict[] = [];
+
+  for (const pattern of patterns) {
+    const aircraftKeys = occupants.get(Number(pattern.id)) || [];
+    if (!aircraftKeys.length) continue;
+    for (const t of tracks) {
+      if (knownTrackIds.has(t.id)) continue;
+      const key = conflictKey(pattern.id, t.id);
+      const inside = !!detectLeg({ lat: t.lat, lon: t.lon }, [pattern], pattern.id, { altFt: t.alt });
+      if (inside) {
+        cand[key] = prev.cand[key] ?? now;
+        if (prev.active[key] != null || now - cand[key] >= DWELL_MS) active[key] = now;
+      } else if (prev.active[key] != null && now - prev.active[key] < DWELL_MS) {
+        active[key] = prev.active[key];   // יצא - נשאר עד תום ההשהיה, בלי ריצוד בגבול
+      }
+      if (active[key] != null) conflicts.push({ patternId: pattern.id, trackId: t.id, cs: t.cs, alt: t.alt, aircraftKeys });
+    }
+  }
+  return { state: { cand, active }, conflicts };
+}

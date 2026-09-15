@@ -583,10 +583,21 @@ export function patchJoiningAircraft<A extends Record<string, any>>(
 export function greensPopupQueue(
   seen: Set<string>, current: GreensAlertRow[],
 ): { fresh: GreensAlertRow[]; seen: Set<string> } {
+  return freshEntries(seen, current, r => `${r.stripId}|${r.idx}`);
+}
+
+/**
+ * אותו כלל לכל התראה מתפרצת (ירוקים, קונפליקט בהקפה): **פעם אחת לכל כניסה
+ * למצב**, לפי מפתח שהקורא מגדיר. מי שיצא מהמצב נשכח, ולכן כניסה חוזרת מתריעה.
+ */
+export function freshEntries<T>(
+  seen: Set<string>, current: T[], keyOf: (item: T) => string,
+): { fresh: T[]; seen: Set<string> } {
   const next = new Set<string>();
-  const fresh: GreensAlertRow[] = [];
+  const fresh: T[] = [];
   for (const r of current) {
-    const key = `${r.stripId}|${r.idx}`;
+    const key = keyOf(r);
+    if (next.has(key)) continue;
     next.add(key);
     if (!seen.has(key)) fresh.push(r);
   }

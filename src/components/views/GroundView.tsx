@@ -32,11 +32,11 @@ import {
   loadPattern3DPrefs, savePattern3DPrefs, smallWinInArea, type Pattern3DPrefs,
 } from '../ground/pattern3dPrefs';
 import { DEFAULT_CAMERA, shouldRenderPattern3D, shouldShowPatternLabels, type Camera3D } from '../../utils/pattern3d';
-import { altToDisplay, collectGreensAlerts, greensAlert, greensPoint, greensPopupQueue, type GreensAlertRow } from '../../utils/joiningPoints';
+import { altToDisplay, collectGreensAlerts, freshEntries, greensAlert, greensPoint, type GreensAlertRow } from '../../utils/joiningPoints';
 import { usePatternAutotrack } from '../../airPicture/usePatternAutotrack';
 import PatternTrafficWindow from '../ground/PatternTrafficWindow';
 import { leftPointToPattern, patternEntrySnapshot, type PatternEntrySnapshot } from '../../utils/patternTraffic';
-import GreensAlertPopup from '../ground/GreensAlertPopup';
+import PatternAlertPopup, { type PatternAlertItem } from '../ground/PatternAlertPopup';
 import { bidiAuto } from '../../utils/bidi';
 import { ELEMENT_NEUTRAL_FILL, canChangeElementStatus, displayStateOptions, nextServiceability, serviceabilityStyle } from '../../utils/elementStatus';
 import { activePatterns, boundsAspect } from '../../utils/trafficPattern';
@@ -1354,25 +1354,54 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
     return [...out.values()];
   }, [greensAlertRows, patternAircraftRows]);
 
-  /** הרכיבים האוויריים של אותם מטוסים - הטבעת האדומה בתמונ"א. */
-  const greensAlertTrackIds = React.useMemo(() => {
-    const ids = new Set<string>();
-    for (const r of greensAlertAll) {
-      const tid = autotrack.trackIdByKey.get(`${r.stripId}|${r.idx}`);
+  /**
+   * קונפליקט בהקפה (PATTERN_AUTOTRACK_SPEC §10): רכיב אווירי זר בטווח הקפה שיש בה
+   * מטוס. **מי שבקונפליקט** = הפולש וכל מטוסי אותה הקפה - שניהם מהבהבים.
+   */
+  const conflictKeys = React.useMemo(
+    () => new Set(autotrack.conflicts.flatMap(c => c.aircraftKeys)), [autotrack.conflicts]);
+
+  /**
+   * הרכיבים האוויריים בהתראה - הטבעת האדומה בתמונ"א (שטוח ותלת מימד):
+   * מטוסים בלי ירוקים, הפולשים, והמטוסים שבהקפה איתם.
+   */
+  const patternAlertTrackIds = React.useMemo(() => {
+    const ids = new Set<string>(autotrack.conflicts.map(c => c.trackId));
+    for (const key of [...greensAlertAll.map(r => `${r.stripId}|${r.idx}`), ...conflictKeys]) {
+      const tid = autotrack.trackIdByKey.get(key);
       if (tid) ids.add(tid);
     }
     return ids;
-  }, [greensAlertAll, autotrack.trackIdByKey]);
+  }, [greensAlertAll, conflictKeys, autotrack.conflicts, autotrack.trackIdByKey]);
 
-  // ההתראה המתפרצת - פעם אחת לכל כניסה למצב (greensPopupQueue)
-  const greensSeenRef = useRef<Set<string>>(new Set());
-  const [greensPopups, setGreensPopups] = React.useState<GreensAlertRow[]>([]);
+  // ── התראות מתפרצות של ההקפה - תור אחד, פעם אחת לכל כניסה למצב (freshEntries) ──
+  const labelOfKey = React.useCallback((key: string) =>
+    (patternAircraftRows as any[]).find(a => `${a.strip_id}|${a.aircraft_idx}` === key)?.label || key,
+  [patternAircraftRows]);
+  const patternAlertItems = React.useMemo<PatternAlertItem[]>(() => [
+    ...greensAlertAll.map(r => ({
+      key: `g:${r.stripId}|${r.idx}`,
+      title: tr('joining.greensPopupTitle'),
+      body: tr('joining.greensPopupBody', { label: r.label }),
+    })),
+    ...autotrack.conflicts.map(c => ({
+      key: `c:${c.patternId}|${c.trackId}`,
+      title: tr('joining.conflictPopupTitle', {
+        runway: String((shownPatterns as any[]).find(p => Number(p.id) === c.patternId)?.runway_ident || '').trim(),
+      }),
+      body: tr('joining.conflictPopupBody', {
+        cs: c.cs, alt: altToDisplay(c.alt), aircraft: c.aircraftKeys.map(labelOfKey).join(', '),
+      }),
+    })),
+  ], [greensAlertAll, autotrack.conflicts, shownPatterns, labelOfKey]);
+  const alertSeenRef = useRef<Set<string>>(new Set());
+  const [alertPopups, setAlertPopups] = React.useState<PatternAlertItem[]>([]);
   React.useEffect(() => {
-    const { fresh, seen } = greensPopupQueue(greensSeenRef.current, greensAlertAll);
-    greensSeenRef.current = seen;
-    // מטוס שיצא מהמצב לפני שאושר - ההתראה שלו כבר אינה נכונה
-    setGreensPopups(prev => [...prev.filter(r => seen.has(`${r.stripId}|${r.idx}`)), ...fresh]);
-  }, [greensAlertAll]);
+    const { fresh, seen } = freshEntries(alertSeenRef.current, patternAlertItems, i => i.key);
+    alertSeenRef.current = seen;
+    // מצב שהסתיים לפני שאושר (דווחו ירוקים, הפולש יצא) - ההתראה שלו כבר אינה נכונה
+    setAlertPopups(prev => [...prev.filter(i => seen.has(i.key)), ...fresh]);
+  }, [patternAlertItems]);
 
   // מטוס שיצא מהנקודה להקפה (עם הרוח, "שים בהקפה", גרירה) - פותח את "בהקפה",
   // אחרת הוא נעלם מהעין בדיוק כשהוא יוצא מטבלת הנקודה. רק במעבר, לא בכל רענון.
@@ -3000,6 +3029,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               aircraft={patternAircraftRows as any[]}
               patterns={shownPatterns}
               trackIdByKey={autotrack.trackIdByKey}
+              conflictKeys={conflictKeys}
               elevFt={airfield?.elev_ft ?? null}
               themeMode={themeMode}
               onClose={() => onClosePatternTraffic?.()}
@@ -3008,10 +3038,10 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             />
           )}
           {!hidePatternControls && (
-            <GreensAlertPopup
-              queue={greensPopups}
+            <PatternAlertPopup
+              queue={alertPopups}
               themeMode={themeMode}
-              onAck={() => setGreensPopups(q => q.slice(1))}
+              onAck={() => setAlertPopups(q => q.slice(1))}
             />
           )}
 
@@ -3060,7 +3090,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 display={mapDisplaySettings}
                 /* תמונ"א: העוגן וההעדפות בלבד - המטוסים נקראים מה-store בתוך
                    הסצנה, כמו בשכבה השטוחה, ולכן דגימה אינה מרנדרת את העמדה. */
-                airPicture={airPicture?.active ? { anchor: airPicture.anchor, prefs: airPicture.prefs, alertIds: greensAlertTrackIds } : null}
+                airPicture={airPicture?.active ? { anchor: airPicture.anchor, prefs: airPicture.prefs, alertIds: patternAlertTrackIds } : null}
               />
             );
             type ControlsProps = React.ComponentProps<typeof Pattern3DControls>;
@@ -3330,7 +3360,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               pollMs={airPicture.pollMs}
               zIndex={0}
               onVisibleCount={airPicture.onVisibleCount}
-              alertTrackIds={greensAlertTrackIds}
+              alertTrackIds={patternAlertTrackIds}
             />
           )}
 
@@ -3529,6 +3559,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               <PatternAircraftLayer
                 patterns={airfieldPatterns || []}
                 aircraft={patternAircraftRows}
+                conflictKeys={conflictKeys}
                 aspect={boundsAspect(imgBounds)}
                 sz={1 / (effectiveMapScale || 1)}
               />
