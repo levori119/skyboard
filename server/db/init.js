@@ -1617,6 +1617,11 @@ async function applySchemaOnce() {
   // מיגרציה ושיישאר מובחן בין "לא הוגדר" ל"הוגדר במקרה לאותו ערך".
   await sq(`ALTER TABLE airfield_patterns ADD COLUMN IF NOT EXISTS downwind_alt_ft INTEGER`);
   await sq(`ALTER TABLE airfield_patterns ADD COLUMN IF NOT EXISTS base_alt_ft INTEGER`);
+  // מעקב הקפה אוטומטי (PATTERN_AUTOTRACK_SPEC.md): הסטייה המותרת שבה מטוס עדיין
+  // נחשב **על** הצלע. על ההקפה ולא בקוד - לכל הקפה רוחב ופרופיל משלה, והפקח
+  // מכייל אותה בפרמטרי השדה. NULL = ברירת המחדל בקוד: 0.5 מייל, ובגובה - לא נבדק.
+  await sq(`ALTER TABLE airfield_patterns ADD COLUMN IF NOT EXISTS leg_tolerance_nm NUMERIC(4,2)`);
+  await sq(`ALTER TABLE airfield_patterns ADD COLUMN IF NOT EXISTS alt_tolerance_ft INTEGER`);
 
   // אלמנט של הקפה שייך **רק** להקפה הספציפית (ולכן למסלול הספציפי) - לא לשדה.
   await sq(`CREATE TABLE IF NOT EXISTS airfield_pattern_elements (

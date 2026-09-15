@@ -137,6 +137,30 @@
     "unnamed": {
       "he": "ללא שם",
       "en": "Unnamed"
+    },
+    "tolTitle": {
+      "he": "מעקב אוטומטי - סטייה מותרת",
+      "en": "Auto-tracking tolerance"
+    },
+    "tolHint": {
+      "he": "כמה רחוק מהצלע ומהגובה המתוכנן מטוס עדיין נחשב עליה. ריק = ברירת מחדל (0.5 מייל; גובה לא נבדק)",
+      "en": "How far from the leg and the planned altitude an aircraft still counts as on it. Empty = default (0.5 NM; altitude not checked)"
+    },
+    "tolLeg": {
+      "he": "מהצלע",
+      "en": "Lateral"
+    },
+    "tolAlt": {
+      "he": "מהגובה",
+      "en": "Altitude"
+    },
+    "unitNm": {
+      "he": "מייל",
+      "en": "NM"
+    },
+    "unitFt": {
+      "he": "רגל",
+      "en": "ft"
     }
   }
 }

@@ -23,8 +23,13 @@ import { expectedFormationCount } from '../../shared/formationCount.js';
 export const JOIN_ENTER_NM = 3;
 /** יציאה ממנו. הפער מהכניסה הוא היסטרזיס: בלי ריצוד כשהמטוס טס על הגבול. */
 export const JOIN_EXIT_NM = 3.2;
-/** מרחק מצלע ההקפה שבו המטוס נחשב עליה. */
+/** מרחק מצלע ההקפה שבו המטוס נחשב עליה - **ברירת מחדל**. לכל הקפה `leg_tolerance_nm` משלה. */
 export const LEG_NM = 0.5;
+/**
+ * כיוון הטיסה מול כיוון הצלע. מטוס שחוצה את קו עם הרוח בניצב (בדרך מהנקודה, או
+ * בפינה אחרי שכבר פנה לבסיס) נמצא **על** הקו אבל אינו **טס** אותו.
+ */
+export const HDG_MATCH_DEG = 45;
 /**
  * "על המסלול" - המרחק מ**קטע המסלול** (סף → הקצה הרחוק) שבו מהירות נמוכה או
  * היעלמות נחשבות נחיתה. נמדד מהמסלול ולא מנקודת הסף: בסימולטור (ATSIM) המטוס
@@ -72,7 +77,11 @@ export interface AutoAircraft {
   flightStatus: AutoFlightStatus;
 }
 
-export interface AutoTrack extends GeoPt { id: string; cs: string; alt: number; spd: number }
+export interface AutoTrack extends GeoPt {
+  id: string; cs: string; alt: number; spd: number;
+  /** כיוון טיסה במעלות. חסר = הכיוון אינו נבדק. */
+  hdg?: number;
+}
 
 export interface PatternGeo {
   id: number;
@@ -82,6 +91,12 @@ export interface PatternGeo {
   threshold: GeoPt;
   /** המסלול: מהסף אל הקצה הרחוק (תחילת "אחרי המראה"). */
   runway: [GeoPt, GeoPt];
+  /** סטייה מותרת מהצלע, מייל ימי (פרמטרי השדה). חסר = `LEG_NM`. */
+  legTolNm?: number | null;
+  /** סטייה מותרת מהגובה המתוכנן, רגל (פרמטרי השדה). חסר = הגובה אינו נבדק. */
+  altTolFt?: number | null;
+  /** הגובה המתוכנן (מוחלט) בנקודה שבשבר `frac` של הצלע - מפרופיל ההקפה. */
+  plannedAltFt?: ((leg: AutoLeg, frac: number) => number) | null;
 }
 
 export type AutoAction =
@@ -165,20 +180,35 @@ export { expectedFormationCount };
 
 // ── §4 גאומטריה ──────────────────────────────────────────────────────────────
 
-/** מרחק מנקודה לקטע, במייל ימי. היטל מקומי שטוח - שגיאה זניחה במרחקי הקפה. */
-export function distToSegmentNm(p: GeoPt, a: GeoPt, b: GeoPt): number {
+/** היטל על קטע: המרחק במייל ימי, והשבר לאורכו (0 = תחילת הקטע). היטל מקומי שטוח. */
+function projectOnSegment(p: GeoPt, a: GeoPt, b: GeoPt): { d: number; u: number } {
   const kx = 60 * Math.cos(p.lat * Math.PI / 180);
   const ax = (a.lon - p.lon) * kx, ay = (a.lat - p.lat) * 60;
   const bx = (b.lon - p.lon) * kx, by = (b.lat - p.lat) * 60;
   const dx = bx - ax, dy = by - ay;
   const len2 = dx * dx + dy * dy;
   const u = len2 > 0 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / len2)) : 0;
-  return Math.hypot(ax + u * dx, ay + u * dy);
+  return { d: Math.hypot(ax + u * dx, ay + u * dy), u };
 }
+
+/** מרחק מנקודה לקטע, במייל ימי. היטל מקומי שטוח - שגיאה זניחה במרחקי הקפה. */
+export function distToSegmentNm(p: GeoPt, a: GeoPt, b: GeoPt): number {
+  return projectOnSegment(p, a, b).d;
+}
+
+/** כיוון מ-a ל-b במעלות (0 = צפון), בהיטל המקומי. */
+function bearingOf(a: GeoPt, b: GeoPt): number {
+  const kx = Math.cos(a.lat * Math.PI / 180);
+  const deg = Math.atan2((b.lon - a.lon) * kx, b.lat - a.lat) * 180 / Math.PI;
+  return (deg + 360) % 360;
+}
+
+const angleDiff = (x: number, y: number) => { const d = Math.abs(((x - y) % 360 + 360) % 360); return d > 180 ? 360 - d : d; };
 
 const nmBetween = (a: GeoPt, b: GeoPt) => haversineNm(a.lat, a.lon, b.lat, b.lon);
 
 function nearestLeg(p: GeoPt, patterns: PatternGeo[]): { pattern: PatternGeo; leg: AutoLeg; d: number } | null {
+  // "הקרובה ביותר" - לבחירת הקפה ליציאה מהנקודה, בלי סף
   let best: { pattern: PatternGeo; leg: AutoLeg; d: number } | null = null;
   for (const pattern of patterns) {
     for (const leg of LEGS) {
@@ -191,16 +221,36 @@ function nearestLeg(p: GeoPt, patterns: PatternGeo[]): { pattern: PatternGeo; le
 }
 
 /**
- * הצלע שהמטוס עליה (עד `LEG_NM`), הקרובה מביניהן בפינה.
+ * הצלע שהמטוס עליה, הקרובה מביניהן בפינה. שלושה תנאים, וכולם של **ההקפה**:
+ *
+ *  1. מרחק מהצלע עד `legTolNm` (פרמטרי השדה; ברירת מחדל `LEG_NM`).
+ *  2. גובה עד `altTolFt` מהגובה המתוכנן **באותה נקודה לאורך הצלע** - אם הוגדר.
+ *  3. כיוון טיסה עד `HDG_MATCH_DEG` מכיוון הצלע - אם ידוע. זה מה שהופך את הפנייה
+ *     לבסיס למיידית: בפינה המטוס עדיין **על** קו עם הרוח, אבל כבר טס בכיוון הבסיס.
+ *
  * `preferId` - ההקפה שכבר נקבעה למטוס: אז **רק** היא נבדקת, כדי שהקפה של
  * מסלול סמוך לא "תחטוף" את המטוס בחצייה.
  */
 export function detectLeg(
   p: GeoPt, patterns: PatternGeo[], preferId?: number | null,
+  opts: { altFt?: number | null; hdg?: number | null } = {},
 ): { patternId: number; leg: AutoLeg } | null {
   const pool = preferId != null ? patterns.filter(x => Number(x.id) === Number(preferId)) : patterns;
-  const n = nearestLeg(p, pool);
-  return n && n.d <= LEG_NM ? { patternId: n.pattern.id, leg: n.leg } : null;
+  let best: { patternId: number; leg: AutoLeg; d: number } | null = null;
+  for (const pattern of pool) {
+    const tol = Number(pattern.legTolNm) > 0 ? Number(pattern.legTolNm) : LEG_NM;
+    for (const leg of LEGS) {
+      const [a, b] = pattern.legs[leg];
+      const { d, u } = projectOnSegment(p, a, b);
+      if (d > tol || (best && d >= best.d)) continue;
+      if (opts.hdg != null && Number.isFinite(opts.hdg) && angleDiff(opts.hdg, bearingOf(a, b)) > HDG_MATCH_DEG) continue;
+      const altTol = pattern.altTolFt;
+      if (altTol != null && Number.isFinite(altTol) && pattern.plannedAltFt && opts.altFt != null && Number.isFinite(opts.altFt)
+        && Math.abs(opts.altFt - pattern.plannedAltFt(leg, u)) > altTol) continue;
+      best = { patternId: pattern.id, leg, d };
+    }
+  }
+  return best ? { patternId: best.patternId, leg: best.leg } : null;
 }
 
 /** ההקפה של מטוס שיוצא מהנקודה: שלו, של המסלול שלו, או הקרובה. */
@@ -276,10 +326,14 @@ export function tickPatternAutotrack(
 
     // ── צלעות ──
     if (p) {
-      const det = detectLeg(p, patterns, a.patternId);
+      const det = detectLeg(p, patterns, a.patternId, { altFt: t?.alt, hdg: t?.hdg });
       const leg = det?.leg ?? null;
       if (leg !== ks.cand) { ks.cand = leg; ks.candSince = now; }
-      if (det && ks.cand && now - ks.candSince >= DWELL_MS && ks.cand !== ks.leg) {
+      // "כשפונה לבסיס - מיד לבסיס": ההשהיה נועדה נגד ריצוד בגבול, ובבסיס הכיוון
+      // כבר מבטל אותו (מטוס שפנה אינו טס את קו עם הרוח). כל שנייה שם היא שנייה
+      // שבה הבאנר, הטבלה וההתראה על ירוקים עוד לא יודעים שהוא בבסיס.
+      const dwell = ks.cand === 'base' ? 0 : DWELL_MS;
+      if (det && ks.cand && now - ks.candSince >= dwell && ks.cand !== ks.leg) {
         ks.leg = ks.cand;
         if (a.flightStatus !== ks.leg || !a.inPattern) {
           const pat = patterns.find(x => x.id === det.patternId)!;

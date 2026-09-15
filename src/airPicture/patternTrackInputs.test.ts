@@ -97,4 +97,20 @@ describe('patternGeoOf - הקפה בנ"צ', () => {
   });
 
   it('בלי עוגן - אין', () => expect(patternGeoOf(row, 1, null)).toBeNull());
+
+  it('הסטייה המותרת מפרמטרי ההקפה; NUMERIC מגיע מ-pg כמחרוזת', () => {
+    const g = patternGeoOf({ ...row, leg_tolerance_nm: '0.30', alt_tolerance_ft: 400 }, 1, ANCHOR)!;
+    expect(g.legTolNm).toBe(0.3);
+    expect(g.altTolFt).toBe(400);
+    const none = patternGeoOf(row, 1, ANCHOR)!;
+    expect(none.legTolNm).toBeNull();
+    expect(none.altTolFt).toBeNull();
+  });
+
+  it('הגובה המתוכנן = פרופיל ההקפה (מעל השדה) + גובה השדה', () => {
+    const g = patternGeoOf({ ...row, downwind_alt_ft: 2500, base_alt_ft: 1200 }, 1, ANCHOR, 300)!;
+    expect(g.plannedAltFt!('downwind', 0)).toBe(2800);
+    expect(g.plannedAltFt!('final', 1)).toBe(300);
+    expect(g.plannedAltFt!('final', 0)).toBe(1500);
+  });
 });

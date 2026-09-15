@@ -462,6 +462,21 @@ export function collectGreensAlerts(
 }
 
 /**
+ * עדכון מיידי של שורת מטוס בהקפה (`joining_point_aircraft`) - ירוקים או סטטוס.
+ *
+ * טבלת "בהקפה", שכבת ההקפה והבאנר קוראים את השורות האלה, והן מתרעננות רק בפולינג
+ * של 5 שניות. העדכון המקומי של `strip_aircraft` לא הגיע אליהן, ולכן לחיצה על
+ * ירוקים בטבלה נראתה "לוקחת הרבה זמן" - הדיווח נשמר, והמסך חיכה לסבב הבא.
+ * פונקציה טהורה: שורה שאינה המטוס הזה חוזרת **כמות שהיא** (אותו אובייקט).
+ */
+export function patchJoiningAircraft<A extends Record<string, any>>(
+  rows: A[], stripId: string | number, idx: number, patch: Partial<A>,
+): A[] {
+  const sid = String(stripId).replace(/^s/, '');
+  return rows.map(r => (String(r.strip_id) === sid && Number(r.aircraft_idx) === Number(idx) ? { ...r, ...patch } : r));
+}
+
+/**
  * התור של ההתראה המתפרצת: מי **נכנס** למצב מאז הטיק הקודם.
  *
  * פעם אחת לכל כניסה, לא בכל רענון - התראה מתפרצת שקופצת שוב כל 5 שניות על אותו

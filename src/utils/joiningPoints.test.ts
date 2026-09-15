@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { allAircraftInPattern, altMismatch, altToDisplay, blockOf, buildBlocks, conflictBlocks, findStepOverlaps, formationAircraft, formationsInBlocks, collectGreensAlerts, greensAlert, greensPopupQueue, greensPoint, isAltInPoint, normalizeLeg, FLIGHT_LEGS, DEFAULT_LEG, nearestBlock, type AltStep, type JoiningPoint } from './joiningPoints';
+import { allAircraftInPattern, altMismatch, altToDisplay, blockOf, buildBlocks, conflictBlocks, findStepOverlaps, formationAircraft, formationsInBlocks, collectGreensAlerts, greensAlert, greensPopupQueue, patchJoiningAircraft, greensPoint, isAltInPoint, normalizeLeg, FLIGHT_LEGS, DEFAULT_LEG, nearestBlock, type AltStep, type JoiningPoint } from './joiningPoints';
 
 // נקודת הצטרפות נפרסת לטבלת בלוקי גבהים. הגובה נשמר **ברגל** (4000) ומוצג
 // **במאות** (040), כמו על הסדק. ההפרש בין בלוקים אינו קבוע: אפשר 1000 רגל
@@ -316,6 +316,28 @@ describe('greensAlert - מטוס נוחת ולא דיווח ירוקים', () =>
 
   it('גם השם ההיסטורי של פיינל מתריע', () => {
     expect(greensAlert('cleared_to_land', false)).toBe(true);
+  });
+});
+
+// טבלת "בהקפה" קוראת את שורות ההקפה, שמתרעננות בפולינג של 5 שניות - ולכן לחיצה
+// על ירוקים נראתה "לוקחת הרבה זמן". העדכון המקומי חל גם עליהן.
+describe('patchJoiningAircraft - עדכון מיידי של שורת ההקפה', () => {
+  const rows = [{ strip_id: 10, aircraft_idx: 1, greens: false, flight_status: 'base' }, { strip_id: 10, aircraft_idx: 2, greens: false }];
+
+  it('רק המטוס הזה, רק השדות שנשלחו', () => {
+    const next = patchJoiningAircraft(rows, '10', 1, { greens: true });
+    expect(next[0]).toEqual({ strip_id: 10, aircraft_idx: 1, greens: true, flight_status: 'base' });
+    expect(next[1]).toBe(rows[1]);
+  });
+
+  it('מזהה פ"מ עם קידומת s, ואינו נוגע בקלט', () => {
+    const next = patchJoiningAircraft(rows, 's10', 2, { flight_status: 'final' });
+    expect(next[1].flight_status).toBe('final');
+    expect(rows[1]).not.toHaveProperty('flight_status');
+  });
+
+  it('אין שורה - אין שינוי (המטוס אינו בהקפה)', () => {
+    expect(patchJoiningAircraft(rows, '99', 1, { greens: true })).toEqual(rows);
   });
 });
 

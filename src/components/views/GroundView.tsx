@@ -1320,6 +1320,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
     joiningPoints, joiningPointStrips, joiningPointAircraft,
     stripAircraft: stripAircraftData as any,
     presetId: currentPresetId,
+    elevFt: airfield?.elev_ft ?? null,
     pollMs: airPicture?.pollMs,
     handlers: {
       updateJoiningAircraft: (pid, sid, idx, patch) => onUpdateJoiningAircraft?.(pid, sid, idx, patch),

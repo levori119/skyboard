@@ -73,6 +73,8 @@ export default function PatternsSection({
     // גבהי ההקפה נשלחים בכל שמירה, אחרת שמירת צבע הייתה מאפסת אותם
     downwind_alt_ft: p.downwind_alt_ft ?? null,
     base_alt_ft: p.base_alt_ft ?? null,
+    leg_tolerance_nm: p.leg_tolerance_nm ?? null,
+    alt_tolerance_ft: p.alt_tolerance_ft ?? null,
     points: patternPoints(g, aspect),
     ...extra,
   });
@@ -108,6 +110,31 @@ export default function PatternsSection({
     const cur = p[field] == null ? null : Number(p[field]);
     if (cur === next) return;
     await savePattern(p, geometryOf(p), { [field]: next });
+  };
+
+  // ── סטייה מותרת - מעקב הקפה אוטומטי (PATTERN_AUTOTRACK_SPEC §4) ─────────────
+  // לכל הקפה רוחב משלה: הקפת קרב צפופה מול הקפה רחבה של מטוס תובלה. ריק = ברירת
+  // המחדל שב-placeholder, ובגובה ריק = הגובה אינו נבדק כלל (ולא "0").
+  type TolField = 'leg_tolerance_nm' | 'alt_tolerance_ft';
+  const TOL: Record<TolField, { max: number; step: number; decimals: number }> = {
+    leg_tolerance_nm: { max: 5, step: 0.1, decimals: 2 },
+    alt_tolerance_ft: { max: 10000, step: 100, decimals: 0 },
+  };
+  const commitTol = async (p: PatternRow, field: TolField, raw: string) => {
+    setAltDraft(d => { const n = { ...d }; delete n[`${p.id}:${field}`]; return n; });
+    const t = String(raw ?? '').trim();
+    const f = 10 ** TOL[field].decimals;
+    const next = t === '' ? null : Math.round(Number(t) * f) / f;
+    // אפס או ערך לא חוקי אינם נשמרים - אפס היה מבטל כל זיהוי בשקט
+    if (next !== null && !(Number.isFinite(next) && next > 0 && next <= TOL[field].max)) return;
+    const cur = p[field] == null ? null : Number(p[field]);
+    if (cur === next) return;
+    await savePattern(p, geometryOf(p), { [field]: next });
+  };
+  const tolValue = (p: PatternRow, field: TolField): string => {
+    const draft = altDraft[`${p.id}:${field}`];
+    if (draft !== undefined) return draft;
+    return p[field] == null ? '' : String(Number(p[field]));
   };
 
   const addPattern = async () => {
@@ -286,6 +313,27 @@ export default function PatternsSection({
                   </label>
                 ))}
                 <span style={{ fontSize: '9px', color: '#475569' }}>{tr('pattern3d.agl')}</span>
+              </div>
+
+              {/* סטייה מותרת - לפיה מעקב ההקפה האוטומטי מחליט שמטוס **על** הצלע */}
+              <div title={tr('pattern.tolHint')}
+                style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '4px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '10px', color: '#64748b' }}>{tr('pattern.tolTitle')}:</span>
+                {([['leg_tolerance_nm', 'pattern.tolLeg', '0.5', 'pattern.unitNm'], ['alt_tolerance_ft', 'pattern.tolAlt', '-', 'pattern.unitFt']] as const).map(([field, label, ph, unit]) => (
+                  <label key={field} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: '#64748b' }}>
+                    {tr(label)}
+                    <input
+                      data-testid={`pattern-${field}`}
+                      type="number" min={0} max={TOL[field].max} step={TOL[field].step} inputMode="decimal"
+                      placeholder={ph}
+                      value={tolValue(p, field)}
+                      onChange={e => setAltDraft(d => ({ ...d, [`${p.id}:${field}`]: e.target.value }))}
+                      onBlur={e => commitTol(p, field, e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                      style={{ width: '56px', padding: '2px 5px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#e2e8f0', fontSize: '10px', fontFamily: 'monospace' }} />
+                    <span style={{ fontSize: '9px', color: '#475569' }}>{tr(unit)}</span>
+                  </label>
+                ))}
               </div>
 
               {editing && (

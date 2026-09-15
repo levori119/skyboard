@@ -888,6 +888,8 @@ COALESCE(last_seen, entered_at) > NOW() - INTERVAL '240 seconds'
 | `points` | JSONB | שש הנקודות הנגזרות באחוזי תמונה — כדי ששכבת תצוגה תצייר בלי לחשב יחס תמונה |
 | `downwind_alt_ft` | INT | גובה צלע "עם הרוח", רגל **מעל פני השדה**. NULL = לא הוגדר |
 | `base_alt_ft` | INT | גובה צלע הבסיס, רגל **מעל פני השדה**. NULL = לא הוגדר |
+| `leg_tolerance_nm` | NUMERIC(4,2) | מעקב הקפה אוטומטי: סטייה מותרת מהצלע, מייל ימי. NULL = 0.5 (בקוד) |
+| `alt_tolerance_ft` | INT | מעקב הקפה אוטומטי: סטייה מותרת מהגובה המתוכנן על הצלע, רגל. NULL = הגובה אינו נבדק |
 | `sort_order` | INT | סדר בטבלה |
 | `created_at` | TIMESTAMPTZ | חותמת |
 
@@ -2170,6 +2172,8 @@ COALESCE(last_seen, entered_at) > NOW() - INTERVAL '240 seconds'
 | `points` | JSONB | שש הנקודות הנגזרות באחוזי תמונה — כדי ששכבת תצוגה תצייר בלי לחשב יחס תמונה |
 | `downwind_alt_ft` | INT | גובה צלע "עם הרוח", רגל **מעל פני השדה**. NULL = לא הוגדר |
 | `base_alt_ft` | INT | גובה צלע הבסיס, רגל **מעל פני השדה**. NULL = לא הוגדר |
+| `leg_tolerance_nm` | NUMERIC(4,2) | מעקב הקפה אוטומטי: סטייה מותרת מהצלע, מייל ימי. NULL = 0.5 (בקוד) |
+| `alt_tolerance_ft` | INT | מעקב הקפה אוטומטי: סטייה מותרת מהגובה המתוכנן על הצלע, רגל. NULL = הגובה אינו נבדק |
 | `sort_order` | INT | סדר בטבלה |
 | `created_at` | TIMESTAMPTZ | חותמת |
 

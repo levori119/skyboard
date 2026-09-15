@@ -7,6 +7,7 @@
 import { imagePctToGeo, type MapGeoAnchor } from '../utils/geo';
 import { normalizeGeometry, patternLegs } from '../utils/trafficPattern';
 import { normalizeLeg } from '../utils/joiningPoints';
+import { altOnLeg, altProfileOf } from '../utils/pattern3d';
 import type { AutoAircraft, AutoFlightStatus, AutoStrip, GeoPt, PatternGeo } from './patternTrack';
 
 type Row = Record<string, any>;
@@ -19,10 +20,20 @@ const num = (v: unknown): number | null => {
 const indicesOf = (v: unknown): number[] | null =>
   Array.isArray(v) && v.length ? v.map(Number).filter(Number.isFinite) : null;
 
-/** הקפה מה-DB → צלעות בנ"צ. בלי עוגן אין נ"צ, ואז אין הקפה למנוע. */
-export function patternGeoOf(row: Row, aspect: number, anchor: MapGeoAnchor | null): PatternGeo | null {
+/**
+ * הקפה מה-DB → צלעות בנ"צ, הסטייה המותרת שלה, והגובה המתוכנן לאורך כל צלע.
+ * בלי עוגן אין נ"צ, ואז אין הקפה למנוע.
+ *
+ * הגובה המתוכנן הוא **אותו פרופיל** שהתלת מימד מצייר (`altOnLeg`), מעל השדה ועוד
+ * `elevFt` - כי הרכיב האווירי מדווח גובה מוחלט. שני פרופילים שונים היו מסמנים
+ * מטוס כ"חורג מהגובה" בדיוק כשהוא טס על הקו המצויר.
+ */
+export function patternGeoOf(row: Row, aspect: number, anchor: MapGeoAnchor | null, elevFt?: number | null): PatternGeo | null {
   if (!anchor || row?.id == null) return null;
-  const legs = patternLegs(normalizeGeometry(row.geometry), Number(aspect) || 1);
+  const geometry = normalizeGeometry(row.geometry);
+  const legs = patternLegs(geometry, Number(aspect) || 1);
+  const prof = altProfileOf(row);
+  const elev = Number(elevFt) || 0;
   const seg = (key: string): [GeoPt, GeoPt] | null => {
     const l = legs.find(x => x.key === key);
     return l ? [imagePctToGeo(l.from.x, l.from.y, anchor), imagePctToGeo(l.to.x, l.to.y, anchor)] : null;
@@ -36,6 +47,9 @@ export function patternGeoOf(row: Row, aspect: number, anchor: MapGeoAnchor | nu
     threshold: final[1],
     // תחילת "אחרי המראה" היא הקצה הרחוק של המסלול
     runway: [final[1], upwind[0]],
+    legTolNm: num(row.leg_tolerance_nm),
+    altTolFt: num(row.alt_tolerance_ft),
+    plannedAltFt: (leg, frac) => Math.round(altOnLeg(geometry, prof, leg, frac) + elev),
   };
 }
 

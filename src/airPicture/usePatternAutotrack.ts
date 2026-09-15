@@ -42,6 +42,8 @@ export interface UsePatternAutotrackOptions {
   joiningPointAircraft: Row[];
   stripAircraft: Record<string, Row[]> | null | undefined;
   presetId: number | string | null | undefined;
+  /** גובה השדה - לגובה המתוכנן המוחלט על הצלע (סטייה מותרת מהגובה). */
+  elevFt?: number | null;
   pollMs?: number;
   handlers: PatternAutotrackHandlers;
 }
@@ -121,10 +123,10 @@ export function usePatternAutotrack(o: UsePatternAutotrackOptions): UsePatternAu
         joiningPointAircraft: cur.joiningPointAircraft, stripAircraft: cur.stripAircraft,
         presetId: cur.presetId, anchor: cur.anchor,
       });
-      const patterns = cur.patterns.map(p => patternGeoOf(p, cur.aspect, cur.anchor)).filter(Boolean) as NonNullable<ReturnType<typeof patternGeoOf>>[];
+      const patterns = cur.patterns.map(p => patternGeoOf(p, cur.aspect, cur.anchor, cur.elevFt)).filter(Boolean) as NonNullable<ReturnType<typeof patternGeoOf>>[];
       const r = tickPatternAutotrack(stateRef.current, {
         strips, aircraft, patterns, now,
-        tracks: snap.tracks.map(t => ({ id: t.id, cs: t.cs, lat: t.lat, lon: t.lon, alt: t.alt, spd: t.spd })),
+        tracks: snap.tracks.map(t => ({ id: t.id, cs: t.cs, lat: t.lat, lon: t.lon, alt: t.alt, spd: t.spd, hdg: t.hdg })),
       });
       stateRef.current = r.state;
 

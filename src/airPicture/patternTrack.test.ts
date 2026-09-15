@@ -135,6 +135,39 @@ describe('גאומטריה במייל ימי', () => {
   });
 });
 
+// ── סטייה מותרת לכל הקפה (פרמטרי השדה) ─────────────────────────────────────
+describe('סטייה מותרת מהצלע ומהגובה - מוגדרת לכל הקפה', () => {
+  it('סטייה מהצלע לפי ההקפה, ובלי הגדרה - ברירת המחדל', () => {
+    const tight: PatternGeo = { ...PAT, legTolNm: 0.2 };
+    expect(detectLeg(nm(1.4, 1), [tight])?.leg).toBe('downwind');     // 0.1 מייל
+    expect(detectLeg(nm(1.2, 1), [tight])).toBeNull();                // 0.3 מייל
+    expect(detectLeg(nm(1.2, 1), [PAT])?.leg).toBe('downwind');       // ברירת מחדל 0.5
+    const wide: PatternGeo = { ...PAT, legTolNm: 1.2 };
+    expect(detectLeg(nm(0.5, 1), [wide])?.leg).toBe('downwind');      // 1.0 מייל
+  });
+
+  it('סטייה מהגובה: מחוץ לטווח - לא על הצלע; בלי הגדרה - הגובה לא נבדק', () => {
+    const alt: PatternGeo = { ...PAT, altTolFt: 300, plannedAltFt: () => 3000 };
+    expect(detectLeg(nm(1.5, 1), [alt], null, { altFt: 3250 })?.leg).toBe('downwind');
+    expect(detectLeg(nm(1.5, 1), [alt], null, { altFt: 3400 })).toBeNull();
+    expect(detectLeg(nm(1.5, 1), [alt], null, { altFt: 2650 })).toBeNull();
+    expect(detectLeg(nm(1.5, 1), [{ ...alt, altTolFt: null }], null, { altFt: 9000 })?.leg).toBe('downwind');
+  });
+
+  it('הגובה המתוכנן נמדד בנקודה שלאורך הצלע', () => {
+    const seen: [string, number][] = [];
+    const alt: PatternGeo = { ...PAT, altTolFt: 5000, plannedAltFt: (leg, frac) => { seen.push([leg, frac]); return 0; } };
+    detectLeg(nm(1.5, 1), [alt], null, { altFt: 100 });
+    const dw = seen.find(([l]) => l === 'downwind')!;
+    expect(dw[1]).toBeCloseTo(0.5, 2);   // (1.5,3)→(1.5,-1): y=1 הוא האמצע
+  });
+
+  it('כיוון טיסה: חוצה את קו עם הרוח בניצב - אינו עליו', () => {
+    expect(detectLeg(nm(1.5, 1), [PAT], null, { hdg: 90 })).toBeNull();
+    expect(detectLeg(nm(1.5, 1), [PAT], null, { hdg: 175 })?.leg).toBe('downwind');
+  });
+});
+
 describe('expectedFormationCount - כמה מטוסים צפויים בפ"מ', () => {
   it('פ"מ מפוצל - מספר המטוסים שהוא מחזיק', () => {
     expect(expectedFormationCount({ rows: 1, formation: '4', indices: [3, 4] })).toBe(2);
@@ -239,6 +272,28 @@ describe('צלעות ההקפה', () => {
     ];
     const legs = run(frames).actions.filter(x => x.kind === 'set-leg').map(x => (x as { leg: string }).leg);
     expect(legs).toEqual(['base', 'final']);
+  });
+
+  // "כשפונה לבסיס - מיד להעביר לסטטוס בסיס" (2026-09-15)
+  it('פנייה לבסיס: באותו טיק, בלי השהיה', () => {
+    const a = ac({ inPattern: true, patternId: 7, runwayIdent: '36', flightStatus: 'downwind' });
+    const { all } = run([
+      { aircraft: [a], tracks: [trk(nm(1.5, 0), { hdg: 180 })], at: 0 },
+      { aircraft: [a], tracks: [trk(nm(1.45, -0.95), { hdg: 268 })], at: 1000 },
+    ]);
+    expect(all[1].actions).toEqual([{ kind: 'set-leg', stripId: '10', idx: 1, leg: 'base', patternId: 7, runwayIdent: '36', inPattern: true }]);
+  });
+
+  it('אחרי הפנייה, עדיין בפינה ליד קו עם הרוח - לא חוזר לעם הרוח', () => {
+    const a = ac({ inPattern: true, patternId: 7, runwayIdent: '36', flightStatus: 'downwind' });
+    const inBase = { ...a, flightStatus: 'base' as const };
+    const { actions } = run([
+      { aircraft: [a], tracks: [trk(nm(1.5, -0.8), { hdg: 180 })], at: 0 },
+      { aircraft: [a], tracks: [trk(nm(1.5, -0.98), { hdg: 270 })], at: 1000 },
+      { aircraft: [inBase], tracks: [trk(nm(1.4, -1), { hdg: 270 })], at: 2000 },
+      { aircraft: [inBase], tracks: [trk(nm(1.3, -1), { hdg: 270 })], at: 6000 },
+    ]);
+    expect(actions.map(x => (x as { leg?: string }).leg)).toEqual(['base']);
   });
 
   it('תיקון ידני גובר: הפקח החזיר לעם הרוח והמטוס עדיין בבסיס - לא נדרס', () => {

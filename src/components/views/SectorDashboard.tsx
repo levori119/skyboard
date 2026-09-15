@@ -28,7 +28,7 @@ import { loadStripFieldCatalog, useStripFieldCatalog } from '../../utils/stripFi
 import { stripInCombined, resolveTransferFromPreset, type CombinedPosition } from '../../utils/unifiedStrips';
 import { getFormationDisplayName, getTransferLabel, getTransferSq, normalizeAlt, parseAltToFeet, computeBlockDeviation, parseAltRange, altRangeGap, mergeStripsWithPending } from '../../utils/strips';
 import { compareAirborneThenTakeoff } from '../../utils/stripOrder';
-import { altToDisplay, applyJoiningMove } from '../../utils/joiningPoints';
+import { altToDisplay, applyJoiningMove, patchJoiningAircraft } from '../../utils/joiningPoints';
 import { parseNoteValue, serializeNoteValue } from '../../utils/notes';
 import { bidiAuto } from '../../utils/bidi';
 import { filterDocsByKind, isChecklistDoc, DOC_KIND_BDH, DOC_KIND_CHECKLIST } from '../../utils/bdhDocs';
@@ -5707,12 +5707,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         : [...rows, { idx, datk: null, kipa: null, flight_status: status }].sort((a, b) => a.idx - b.idx);
       return { ...prev, [key]: next };
     });
+    // גם שורת ההקפה - ממנה קוראות טבלת "בהקפה" ושכבת ההקפה (patchJoiningAircraft)
+    const prevStatus = joiningPointAircraft.find((a: any) => String(a.strip_id) === String(sid) && Number(a.aircraft_idx) === idx)?.flight_status;
+    setJoiningPointAircraft(rows => patchJoiningAircraft(rows, sid, idx, { flight_status: status }));
     const res = await fetch(`${API_URL}/strip-aircraft/${sid}/${idx}/flight-status`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ flight_status: status, callsign: strip?.callsign || '', ...joiningAudit() }),
     }).catch(() => null);
     // כשל אינו נשאר על המסך כאילו הצליח - הסטטוס הזה נאמר לטייס
     if (!res || !res.ok) {
+      setJoiningPointAircraft(rows => patchJoiningAircraft(rows, sid, idx, { flight_status: prevStatus ?? 'none' }));
       setGroundStripAircraft(prev => {
         const key = String(sid);
         const rows = prev[key];
@@ -5737,12 +5741,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         : [...rows, { idx, datk: null, kipa: null, greens }].sort((a, b) => a.idx - b.idx);
       return { ...prev, [key]: next };
     });
+    // גם שורת ההקפה: טבלת "בהקפה" קוראת ממנה, ובלי זה הלחיצה חיכתה לפולינג (5 ש')
+    setJoiningPointAircraft(rows => patchJoiningAircraft(rows, sid, idx, { greens }));
     const res = await fetch(`${API_URL}/strip-aircraft/${sid}/${idx}/flight-status`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ greens, callsign: strip?.callsign || '', ...joiningAudit() }),
     }).catch(() => null);
     // כשל אינו נשאר על המסך כאילו הצליח - זה דיווח שנאמר לטייס
     if (!res || !res.ok) {
+      setJoiningPointAircraft(rows => patchJoiningAircraft(rows, sid, idx, { greens: !greens }));
       setGroundStripAircraft(prev => {
         const key = String(sid);
         const rows = prev[key];

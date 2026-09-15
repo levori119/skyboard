@@ -34,6 +34,12 @@ export interface PatternRow {
    */
   downwind_alt_ft?: number | string | null;
   base_alt_ft?: number | string | null;
+  /**
+   * מעקב הקפה אוטומטי: הסטייה המותרת מהצלע (מייל ימי) ומהגובה המתוכנן (רגל).
+   * `null` = ברירת המחדל בקוד (0.5 מייל; הגובה אינו נבדק). NUMERIC מגיע מ-pg כמחרוזת.
+   */
+  leg_tolerance_nm?: number | string | null;
+  alt_tolerance_ft?: number | string | null;
 }
 
 export interface PatternElementRow {
