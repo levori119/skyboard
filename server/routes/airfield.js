@@ -8,7 +8,8 @@ import {
   resolveLinkedRouteNotams, resolveNotams,
 } from '../utils/runwayState.js';
 import { parseRelevantFor, onlyRelevantFor, DEFAULT_RELEVANT_FOR } from '../../shared/elementRelevance.js';
-import { parseLandingPriority } from '../../shared/landingPriority.js';
+import { parseLandingPriority, effectiveLandingPriority } from '../../shared/landingPriority.js';
+import { baseDatkPoints, syncBaseLandingPriority } from '../utils/baseDatkPoints.js';
 const router = new Router();
 
 // אייקון סוג אלמנט: או אמוג'י, או `svg:<גוף ה-SVG>|<צבע>` (ראה RunwayLayer /
@@ -208,7 +209,11 @@ router.get('/api/airfields/:id', async (req, res) => {
 router.get('/api/airfields/:id/points', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM airfield_points WHERE airfield_id=$1 ORDER BY display_order, id', [req.params.id]);
-    res.json(result.rows);
+    // נקודת דת"ק מוצגת עם סדר העדיפויות של **הבסיס**: בלי זה שדה שבו הרשימה לא
+    // הוגדרה מציג ריק, ושמירה מהטופס שלו הייתה מוחקת את הרשימה לכל הבסיס.
+    if (!result.rows.some(p => p.point_type === 'datk')) return res.json(result.rows);
+    const basePts = await baseDatkPoints(pool, req.params.id);
+    res.json(result.rows.map(p => (p.point_type === 'datk' ? { ...p, landing_priority: effectiveLandingPriority(p, basePts) } : p)));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch airfield points' });
@@ -220,10 +225,18 @@ router.post('/api/airfields/:id/points', async (req, res) => {
     const { name, x_pct, y_pct, display_order } = req.body;
     const lat = req.body.lat != null ? parseFloat(req.body.lat) : null;
     const lng = req.body.lng != null ? parseFloat(req.body.lng) : null;
+    // דת"ק חדש בלי רשימה יורש את זו של אותו דת"ק בשדה אחר של הבסיס; רשימה שנשלחה
+    // נכתבת לכל הבסיס (הדת"קים משותפים לבסיס האב).
+    let priority = parseLandingPriority(req.body.landing_priority);
+    const given = priority.length > 0;
+    if (!given && req.body.point_type === 'datk') {
+      priority = effectiveLandingPriority({ name, point_type: 'datk', landing_priority: [] }, await baseDatkPoints(pool, req.params.id));
+    }
     const result = await pool.query(
       'INSERT INTO airfield_points (airfield_id, name, x_pct, y_pct, display_order, color, marker, density_warn, point_type, lat, lng, landing_priority) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *',
-      [req.params.id, name, x_pct ?? 50, y_pct ?? 50, display_order ?? 0, req.body.color || '#3b82f6', req.body.marker || 'circle', req.body.density_warn ?? 3, req.body.point_type || null, lat, lng, JSON.stringify(parseLandingPriority(req.body.landing_priority))]
+      [req.params.id, name, x_pct ?? 50, y_pct ?? 50, display_order ?? 0, req.body.color || '#3b82f6', req.body.marker || 'circle', req.body.density_warn ?? 3, req.body.point_type || null, lat, lng, JSON.stringify(priority)]
     );
+    if (given) await syncBaseLandingPriority(pool, result.rows[0], priority);
     res.json(result.rows[0]);
   } catch (err) {
     console.error(err);
@@ -524,6 +537,10 @@ router.put('/api/airfield-points/:id', async (req, res) => {
       'UPDATE airfield_points SET name=$1, x_pct=$2, y_pct=$3, display_order=$4, color=$5, marker=$6, density_warn=$7, point_type=$8, lat=$9, lng=$10, show_in_driver=COALESCE($12,show_in_driver), landing_priority=COALESCE($13::jsonb,landing_priority) WHERE id=$11 RETURNING *',
       [name, x_pct ?? 50, y_pct ?? 50, display_order ?? 0, req.body.color || '#3b82f6', req.body.marker || 'circle', req.body.density_warn ?? 3, req.body.point_type || null, lat, lng, req.params.id, show_in_driver, landing_priority]
     );
+    // הגדרה בשדה אחד = הגדרה לכל השדות של אותו בסיס אב
+    if (landing_priority != null && result.rows[0]) {
+      await syncBaseLandingPriority(pool, result.rows[0], JSON.parse(landing_priority));
+    }
     res.json(result.rows[0]);
   } catch (err) {
     console.error(err);

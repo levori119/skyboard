@@ -18,3 +18,8 @@ export declare function planLandingRunways(p: {
   points: { name?: string | null; point_type?: string | null; landing_priority?: unknown }[];
   landingRunways: string[];
 }): { idx: number; runway_ident: string }[];
+
+type DatkPointLike = { airfield_id?: unknown; name?: string | null; point_type?: string | null; landing_priority?: unknown };
+
+/** סדר העדיפויות האפקטיבי: של הנקודה, ואם ריק - של אותו דת"ק בשדה אחר בבסיס האב. */
+export declare function effectiveLandingPriority(point: DatkPointLike, basePoints: DatkPointLike[]): string[];

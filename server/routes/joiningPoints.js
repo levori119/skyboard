@@ -20,6 +20,7 @@ import { recordFlowEvent } from '../db/stripFlowEvents.js';
 import { expectedFormationCount } from '../../shared/formationCount.js';
 import { planLandingRunways } from '../../shared/landingPriority.js';
 import { resolveEndUse } from '../utils/runwayState.js';
+import { baseDatkPoints } from '../utils/baseDatkPoints.js';
 import { resolveAircraftOnly } from '../../shared/joiningPointProps.js';
 
 const router = new Router();
@@ -87,7 +88,7 @@ async function logActivity(req, fields) {
  * סדר עדיפויות לנחיתה לדת"ק - חלוקת מבנה **שהגיע עכשיו** לנקודה למסלולים.
  *
  * כל מטוס מקבל את המסלול הראשון ברשימת העדיפויות של הדת"ק שלו
- * (`airfield_points.landing_priority`, נקודה מסוג `datk` בשדה של הנקודה) **שפתוח
+ * (`airfield_points.landing_priority`, נקודה מסוג `datk` בשדות של בסיס האב) **שפתוח
  * כרגע לנחיתות** (`runway_end_use` אחרי מיזוג המסלולים המקושרים - אותו מקור
  * כמו פאנל "מסלולים בשימוש"). ההקפה של המסלול נרשמת איתו, כמו בבחירה ידנית.
  *
@@ -110,11 +111,10 @@ async function autoAssignLandingRunways(q, pointId, sid, { reorder = false } = {
   const pt = await q.query('SELECT airfield_id FROM airfield_joining_points WHERE id = $1', [pointId]);
   const airfieldId = pt.rows[0]?.airfield_id;
   if (!airfieldId) return [];
-  const { rows: points } = await q.query(
-    `SELECT name, point_type, landing_priority FROM airfield_points
-      WHERE airfield_id = $1 AND point_type = 'datk' AND jsonb_array_length(landing_priority) > 0`,
-    [airfieldId],
-  );
+  // הדת"קים של **בסיס האב** ולא רק של השדה של הנקודה: בבחא 8 סדר העדיפויות מוגדר
+  // בשדה האווירי ונקודות ההצטרפות בשדה ההקפה. השדה של הנקודה ראשון - הגדרה שלו גוברת.
+  const points = (await baseDatkPoints(q, airfieldId))
+    .filter(p => Array.isArray(p.landing_priority) && p.landing_priority.length > 0);
   if (!points.length) return [];
   const landingRunways = (await resolveEndUse((sql, params) => q.query(sql, params), airfieldId))
     .filter(r => r.in_landing).map(r => String(r.end_name));

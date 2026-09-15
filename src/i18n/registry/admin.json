@@ -3835,8 +3835,8 @@
       "en": "Landing priority"
     },
     "landingPriorityHint": {
-      "he": "מבנה שמגיע לנקודת הצטרפות מחולק למסלול הראשון ברשימה שפתוח לנחיתות",
-      "en": "A formation arriving at a joining point is assigned the first runway on the list that is open for landing"
+      "he": "משותף לכל השדות של אותו בסיס אב. מבנה שמגיע לנקודת הצטרפות מחולק למסלול הראשון ברשימה שפתוח לנחיתות",
+      "en": "Shared by all airfields of the same parent base. A formation arriving at a joining point is assigned the first runway on the list that is open for landing"
     },
     "landingPriorityEmpty": {
       "he": "לא הוגדר - המסלול ייבחר ידנית",

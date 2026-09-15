@@ -142,8 +142,15 @@ describe('JoiningPointPanel - מסלול אוטומטי מול ידני, וסי�
       { strip_id: 7, aircraft_idx: 2, runway_ident: '33', runway_auto: false },
     ]);
     expect([...html.matchAll(/data-runway-source="([a-z]+)"/g)].map(m => m[1])).toEqual(['auto', 'manual']);
-    expect(count(html, 'joining-runway-auto')).toBe(1);
-    expect(count(html, 'joining-runway-manual')).toBe(1);
+    // צבע בלבד - בלי אייקון ובלי תווית ליד הבורר
+    expect(count(html, 'joining-runway-auto')).toBe(0);
+    expect(count(html, 'joining-runway-manual')).toBe(0);
+    expect(html.includes('⚡')).toBe(false);
+    expect(html.includes('✋')).toBe(false);
+    // שני הבוררים צבועים, ובצבעים שונים
+    const bgs = [...html.matchAll(/data-runway-source="[a-z]+" style="background:([^;]+)/g)].map(m => m[1]);
+    expect(bgs).toHaveLength(2);
+    expect(bgs[0]).not.toBe(bgs[1]);
   });
 
   it('מטוס בלי מסלול - אין תג', () => {

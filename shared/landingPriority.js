@@ -95,3 +95,26 @@ export function planLandingRunways({ aircraft, points, landingRunways }) {
   }
   return plan;
 }
+
+/**
+ * סדר העדיפויות **האפקטיבי** של נקודת דת"ק. הדת"קים שייכים ל**בסיס האב** ולא לשדה:
+ * "דת"ק 1" בשדה הקרקעי, באווירי ובהקפה של אותו בסיס הוא אותו דת"ק. לכן נקודה בלי
+ * רשימה משלה מקבלת את זו של אותו מספר דת"ק בשדה אחר של הבסיס - כך הטופס לא
+ * מציג ריק (ושמירה ממנו לא מוחקת את הרשימה לכל הבסיס).
+ * @param {{ airfield_id?: unknown, name?: string | null, point_type?: string | null, landing_priority?: unknown }} point
+ * @param {{ airfield_id?: unknown, name?: string | null, point_type?: string | null, landing_priority?: unknown }[]} basePoints
+ *   נקודות הדת"ק של כל השדות בבסיס (כולל השדה של הנקודה)
+ * @returns {string[]}
+ */
+export function effectiveLandingPriority(point, basePoints) {
+  const own = parseLandingPriority(point?.landing_priority);
+  if (own.length || String(point?.point_type ?? '').trim() !== 'datk') return own;
+  const n = datkNumberOf(point?.name);
+  if (n == null) return own;
+  for (const p of basePoints || []) {
+    if (String(p?.point_type ?? '').trim() !== 'datk' || datkNumberOf(p?.name) !== n) continue;
+    const list = parseLandingPriority(p.landing_priority);
+    if (list.length) return list;
+  }
+  return own;
+}

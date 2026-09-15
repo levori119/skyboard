@@ -454,17 +454,9 @@
       "he": "רכיב אווירי {{cs}} בגובה {{alt}} בטווח ההקפה. בהקפה: {{aircraft}}",
       "en": "Air track {{cs}} at {{alt}} is inside the pattern. In pattern: {{aircraft}}"
     },
-    "runwayAuto": {
-      "he": "אוטו'",
-      "en": "AUTO"
-    },
     "runwayAutoTitle": {
       "he": "המסלול נקבע אוטומטית לפי סדר העדיפויות של הדת\"ק",
       "en": "Runway set automatically by the parking landing priority"
-    },
-    "runwayManual": {
-      "he": "ידני",
-      "en": "MAN"
     },
     "runwayManualTitle": {
       "he": "המסלול נבחר ידנית",

@@ -32,7 +32,7 @@ beforeAll(async () => {
 
   // זהה ל-init.js בעמודות שהנתיבים נוגעים בהן
   for (const sql of [
-    `CREATE TABLE airfields (id SERIAL PRIMARY KEY, name VARCHAR(100))`,
+    `CREATE TABLE airfields (id SERIAL PRIMARY KEY, name VARCHAR(100), base_id INTEGER)`,
     `CREATE TABLE airfield_runways (id SERIAL PRIMARY KEY, airfield_id INTEGER, name VARCHAR(20), heading_a VARCHAR(4), heading_b VARCHAR(4))`,
     `CREATE TABLE airfield_routes (id SERIAL PRIMARY KEY, source_runway_id INTEGER)`,
     `CREATE TABLE route_link_members (id SERIAL PRIMARY KEY, group_id INTEGER, route_id INTEGER)`,
@@ -194,5 +194,34 @@ describe('סדר מחדש מסלולים לפי דת"קים - פעולה על ה
 
   it('נקודה לא קיימת - 404', async () => {
     expect((await req('POST', '/api/joining-points/999/reorder-runways', {})).status).toBe(404);
+  });
+});
+
+describe('הדת"קים שייכים לבסיס האב ולא לשדה של הנקודה', () => {
+  beforeAll(async () => {
+    // בחא 8: הדת"קים מוגדרים בשדה "אווירי" (3), נקודת ההצטרפות בשדה "הקפה" (4)
+    await pool.query(`INSERT INTO airfields (id, name) VALUES (3, 'אווירי'), (4, 'הקפה')`);
+    await pool.query(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS base_id INTEGER`);
+    await pool.query(`UPDATE airfields SET base_id = 8 WHERE id IN (3, 4)`);
+    await pool.query(`INSERT INTO airfield_runways (id, airfield_id, name, heading_a, heading_b) VALUES (4, 4, '27/09', '27', '09'), (5, 4, '33L/15R', '33L', '15R')`);
+    await pool.query(`INSERT INTO airfield_joining_points (id, airfield_id, name) VALUES (4, 4, 'שמשון')`);
+    await pool.query(`INSERT INTO airfield_points (airfield_id, name, point_type, landing_priority) VALUES
+      (3, 'דת"ק 1', 'datk', '["36","27"]'), (3, 'דת"ק 2', 'datk', '["33L","27"]'),
+      (4, 'דת"ק 2', 'datk', '[]')`);
+  });
+  beforeEach(async () => {
+    await pool.query(`INSERT INTO runway_end_use (runway_id, end_name, in_landing) VALUES (4, '27', TRUE), (5, '33L', TRUE)`);
+  });
+
+  it('מבנה שמגיע לנקודה בשדה ההקפה מחולק לפי הדת"קים שהוגדרו בשדה האווירי של אותו בסיס', async () => {
+    await req('POST', '/api/joining-point-strips', { joining_point_id: 4, strip_id: 10, alt: '050' });
+    expect((await runwaysOf(10)).map(a => [a.idx, a.runway])).toEqual([[1, '27'], [2, '27'], [3, '33L']]);
+  });
+
+  it('שדה בלי בסיס לא רואה דת"קים של שדות אחרים', async () => {
+    await pool.query(`INSERT INTO airfield_joining_points (id, airfield_id, name) VALUES (9, 2, 'בודד') ON CONFLICT DO NOTHING`);
+    await pool.query(`UPDATE airfields SET base_id = NULL WHERE id = 2`);
+    await req('POST', '/api/joining-point-strips', { joining_point_id: 9, strip_id: 10, alt: '050' });
+    expect(await runwaysOf(10)).toEqual([]);
   });
 });

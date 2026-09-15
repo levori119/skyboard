@@ -176,13 +176,18 @@ export default function JoiningPointPanel({
     : themeMode === 'ocean'
       ? { panel: '#05404e', head: '#0a5768', border: '#0e7490', text: '#cffafe', dim: '#7dd3fc', row: '#064a5a', rowAlt: '#053e4c', chip: '#0a5768', blockSep: '#67e8f9' }
       : { panel: '#0f172a', head: '#1e293b', border: '#334155', text: '#e2e8f0', dim: '#94a3b8', row: '#111d33', rowAlt: '#0d1729', chip: '#1e293b', blockSep: '#64748b' };
-  // מסלול שנקבע **אוטומטית** מודגש (מסגרת ורקע), וידני מקבל תווית שקטה - הפקח
-  // צריך לראות מיד מה המערכת בחרה בשבילו, בלי שהידני ייראה כמו אזהרה.
+  // מקור המסלול נקרא מ**צבע** הבורר בלבד - בלי אייקון ובלי תווית שתופסים מקום
+  // בשורת המטוס: סגול = נקבע אוטומטית לפי הדת"ק, טורקיז = הפקח בחר ידנית.
   const AUTO = themeMode === 'light'
     ? { fg: '#6d28d9', bg: '#ede9fe' }
     : themeMode === 'ocean'
       ? { fg: '#ddd6fe', bg: '#5b21b6' }
       : { fg: '#c4b5fd', bg: '#4c1d95' };
+  const MANUAL = themeMode === 'light'
+    ? { fg: '#0f766e', bg: '#ccfbf1' }
+    : themeMode === 'ocean'
+      ? { fg: '#ccfbf1', bg: '#0f766e' }
+      : { fg: '#5eead4', bg: '#134e4a' };
 
   // **חריג מתועד לקוד צבע המסגרות** (CLAUDE.md §מסגרת חלון): כאן הצבע מזהה
   // *איזו* נקודה זו, ולא *סוג* חלון, ולכן הוא נשאר צבע הנקודה ולא windowFrame.
@@ -422,36 +427,22 @@ export default function JoiningPointPanel({
         {ac.datk != null && <span style={{ color: C.dim }}>{tr('joining.datk')} {ac.datk}</span>}
         {(() => {
           const source = runwaySource(st);
-          const auto = source === 'auto';
+          const tone = source === 'auto' ? AUTO : source === 'manual' ? MANUAL : null;
           return (
-            <>
-              <select
-                value={st?.runway_ident || ''}
-                onChange={e => onUpdateAircraft(sid, ac.idx, { runway_ident: e.target.value, pattern_id: landingRunways.find(r => r.ident === e.target.value)?.pattern_id ?? null })}
-                title={auto ? tr('joining.runwayAutoTitle') : source === 'manual' ? tr('joining.runwayManualTitle') : tr('joining.pickRunway')}
-                data-runway-source={source ?? undefined}
-                style={{
-                  background: auto ? AUTO.bg : C.panel, color: auto ? AUTO.fg : C.text,
-                  border: auto ? `2px solid ${AUTO.fg}` : `1px solid ${C.border}`,
-                  borderRadius: '3px', fontSize: '11px', padding: '0 3px', fontWeight: auto ? 'bold' : 'normal',
-                }}
-              >
-                <option value="">{landingRunways.length ? tr('joining.pickRunway') : tr('joining.noActiveRunways')}</option>
-                {landingRunways.map(r => <option key={r.ident} value={r.ident}>{r.ident}</option>)}
-              </select>
-              {auto && (
-                <span data-testid="joining-runway-auto" title={tr('joining.runwayAutoTitle')}
-                  style={{ fontSize: '9px', fontWeight: 'bold', color: AUTO.fg, background: AUTO.bg, borderRadius: '3px', padding: '0 4px' }}>
-                  ⚡ {tr('joining.runwayAuto')}
-                </span>
-              )}
-              {source === 'manual' && (
-                <span data-testid="joining-runway-manual" title={tr('joining.runwayManualTitle')}
-                  style={{ fontSize: '9px', color: C.dim, border: `1px solid ${C.border}`, borderRadius: '3px', padding: '0 4px' }}>
-                  ✋ {tr('joining.runwayManual')}
-                </span>
-              )}
-            </>
+            <select
+              value={st?.runway_ident || ''}
+              onChange={e => onUpdateAircraft(sid, ac.idx, { runway_ident: e.target.value, pattern_id: landingRunways.find(r => r.ident === e.target.value)?.pattern_id ?? null })}
+              title={source === 'auto' ? tr('joining.runwayAutoTitle') : source === 'manual' ? tr('joining.runwayManualTitle') : tr('joining.pickRunway')}
+              data-runway-source={source ?? undefined}
+              style={{
+                background: tone ? tone.bg : C.panel, color: tone ? tone.fg : C.text,
+                border: tone ? `2px solid ${tone.fg}` : `1px solid ${C.border}`,
+                borderRadius: '3px', fontSize: '11px', padding: '0 3px', fontWeight: tone ? 'bold' : 'normal',
+              }}
+            >
+              <option value="">{landingRunways.length ? tr('joining.pickRunway') : tr('joining.noActiveRunways')}</option>
+              {landingRunways.map(r => <option key={r.ident} value={r.ident}>{r.ident}</option>)}
+            </select>
           );
         })()}
         {(() => {

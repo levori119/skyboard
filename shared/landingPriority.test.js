@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  datkNumberOf, parseLandingPriority, sameRunway, pickLandingRunway, planLandingRunways,
+  datkNumberOf, parseLandingPriority, sameRunway, pickLandingRunway, planLandingRunways, effectiveLandingPriority,
 } from './landingPriority.js';
 
 describe('datkNumberOf - מספר הדת"ק מתוך שם הנקודה', () => {
@@ -106,5 +106,35 @@ describe('planLandingRunways - חלוקת מבנה למסלולים', () => {
       landingRunways: ['26'],
     });
     expect(plan).toEqual([{ idx: 1, runway_ident: '26' }]);
+  });
+});
+
+describe('effectiveLandingPriority - סדר העדיפויות משותף לבסיס האב', () => {
+  const base = [
+    { id: 1, airfield_id: 16, name: 'דת"ק 1', point_type: 'datk', landing_priority: ['36', '09'] },
+    { id: 2, airfield_id: 81, name: 'דת"ק 1', point_type: 'datk', landing_priority: [] },
+    { id: 3, airfield_id: 81, name: 'דת"ק 2', point_type: 'datk', landing_priority: ['27'] },
+    { id: 4, airfield_id: 16, name: 'דת"ק 2', point_type: 'datk', landing_priority: ['18'] },
+  ];
+  it('לנקודה יש רשימה משלה - היא הקובעת', () => {
+    expect(effectiveLandingPriority(base[2], base)).toEqual(['27']);
+  });
+  it('בלי רשימה משלה - הרשימה של אותו דת"ק בשדה אחר באותו בסיס', () => {
+    expect(effectiveLandingPriority(base[1], base)).toEqual(['36', '09']);
+  });
+  it('נקודה שאינה דת"ק או בלי מספר - רק מה שעליה', () => {
+    expect(effectiveLandingPriority({ airfield_id: 81, name: 'חניה', point_type: 'datk', landing_priority: [] }, base)).toEqual([]);
+    expect(effectiveLandingPriority({ airfield_id: 81, name: 'דת"ק 1', point_type: 'general', landing_priority: [] }, base)).toEqual([]);
+  });
+});
+
+describe('planLandingRunways - נקודות מכל הבסיס', () => {
+  it('הדת"ק מוגדר רק בשדה אחר של הבסיס - המטוס עדיין מחולק', () => {
+    const plan = planLandingRunways({
+      aircraft: [{ idx: 1, datk: 1 }],
+      points: [{ name: 'דת"ק 1', point_type: 'datk', landing_priority: [] }, { name: 'דת"ק 1', point_type: 'datk', landing_priority: ['27', '33L'] }],
+      landingRunways: ['33L', '27'],
+    });
+    expect(plan).toEqual([{ idx: 1, runway_ident: '27' }]);
   });
 });
