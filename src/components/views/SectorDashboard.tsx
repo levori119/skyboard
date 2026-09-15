@@ -5619,11 +5619,22 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     loadData();
   };
 
-  /** קבלה מהשורה העליונה: **אותו** accept של מנגנון ההעברות, ואז שיבוץ לגובה. */
-  const acceptToJoiningPoint = async (pointId: number, transferId: string, altFt: number) => {
+  /**
+   * קבלה מהשורה העליונה: **אותו** accept של מנגנון ההעברות, ואז שיבוץ לגובה.
+   * `groups` (רק כשהמבנה חולק בטופס לכמה גבהים): כל קבוצה נרשמת כגובה של
+   * המטוסים שלה דרך מנגנון הפיצול הקיים - כולל קבוצת המוביל, כדי שגובה חריג
+   * ישן של מטוס מהמבנה לא ישאיר אותו בבלוק שכבר אינו שלו.
+   */
+  const acceptToJoiningPoint = async (pointId: number, transferId: string, altFt: number, groups?: { ft: number; indices: number[] }[]) => {
     const t = incomingTransfers.find((x: any) => String(x.id) === String(transferId));
     await handleAcceptTransfer(transferId);
-    if (t?.strip_id != null) await assignJoiningStrip(pointId, String(t.strip_id), altFt);
+    if (t?.strip_id == null) return;
+    await assignJoiningStrip(pointId, String(t.strip_id), altFt);
+    if (groups && groups.length > 1) {
+      for (const g of groups) {
+        if (g.indices.length) await splitJoiningStrip(pointId, String(t.strip_id), g.indices, g.ft);
+      }
+    }
   };
 
   /**

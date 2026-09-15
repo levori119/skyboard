@@ -239,6 +239,82 @@ export function conflictBlocks(map: Map<number, BlockEntry[]>): Set<number> {
   return out;
 }
 
+// ─── קבלה לנקודה: גובה לכל מספר במבנה ────────────────────────────────────────
+//
+// לפני הקבלה הפקח בוחר גבהים - אחד או יותר - ומשייך לכל מטוס במבנה את הגובה
+// שלו. גובה אחד = כל המבנה. אין יותר גבהים ממטוסים: בודד מקבל גובה אחד, זוג
+// עד שניים. אחרי הקבלה המבנה נפרס בטבלה לפי השיוך, דרך מנגנון הפיצול הקיים.
+
+/** כמה גבהים מותר לבחור לפ"מ - כמספר המטוסים במבנה (לפחות 1, חסם 16). */
+export function acceptAltitudeLimit(numberOfFormation: unknown): number {
+  const n = Math.floor(num(numberOfFormation)) || 0;
+  return Math.max(1, Math.min(n, 16));
+}
+
+/**
+ * לחיצה על גובה בטופס הקבלה. בודד מתנהג כרדיו (בחירה אחרת מחליפה), ובמבנה
+ * שהגיע לתקרה גובה נוסף אינו נכנס - הטופס מציג אותו כנעול, לא כלחיצה שלא עשתה כלום.
+ */
+export function toggleAcceptAltitude(selected: number[], ft: number, limit: number): number[] {
+  const cur = selected || [];
+  if (cur.includes(ft)) return cur.filter(a => a !== ft);
+  if (limit <= 1) return [ft];
+  if (cur.length >= limit) return cur;
+  return [...cur, ft];
+}
+
+/**
+ * שיוך ברירת המחדל של מטוסים לגבהים: המוביל (#1) בנמוך ומשם כלפי מעלה, וכשיש
+ * פחות גבהים ממטוסים - קבוצות רצופות ("1,2" בנמוך, "3,4" בגבוה). כל גובה שנבחר
+ * מקבל לפחות מטוס אחד, כי k ≤ n.
+ */
+export function distributeAltitudes(indices: number[], altsFt: number[]): Record<number, number> {
+  const alts = [...new Set(altsFt || [])].sort((a, b) => a - b);
+  const list = [...(indices || [])].sort((a, b) => a - b);
+  const out: Record<number, number> = {};
+  if (!alts.length || !list.length) return out;
+  list.forEach((idx, pos) => {
+    out[idx] = alts[Math.min(alts.length - 1, Math.floor((pos * alts.length) / list.length))];
+  });
+  return out;
+}
+
+/**
+ * השיוך כקבוצות לשליחה. **קבוצת המוביל ראשונה** - הגובה שלה הוא גובה הפ"מ
+ * (`strips.alt`), והשאר נרשמות כגובה חריג למטוסים שלהן.
+ */
+export function altitudeGroups(mapping: Record<number, number>): { ft: number; indices: number[] }[] {
+  const groups = new Map<number, number[]>();
+  const entries = Object.entries(mapping || {})
+    .map(([k, v]) => [Number(k), num(v)] as const)
+    .sort((a, b) => a[0] - b[0]);
+  for (const [idx, ft] of entries) {
+    if (!groups.has(ft)) groups.set(ft, []);
+    groups.get(ft)!.push(idx);
+  }
+  return [...groups].map(([ft, indices]) => ({ ft, indices }));
+}
+
+/**
+ * בלוקים שכבר יושב בהם פ"מ **אחר** - בטופס הקבלה הם כתומים. הבחירה בהם
+ * **מותרת** ורק מתריעה: ההכרעה נשארת אצל הפקח.
+ */
+export function occupiedBlocks<T extends JoiningPointStripRow>(
+  map: Map<number, BlockEntry<T>[]>, exceptStripId?: string | number | null,
+): Map<number, T[]> {
+  const out = new Map<number, T[]>();
+  for (const [block, entries] of map || []) {
+    const strips = new Map<string, T>();
+    for (const e of entries) {
+      const sid = String(e.strip.strip_id);
+      if (exceptStripId != null && sid === String(exceptStripId)) continue;
+      strips.set(sid, e.strip);
+    }
+    if (strips.size) out.set(block, [...strips.values()]);
+  }
+  return out;
+}
+
 /**
  * האם הגובה שהעמדה המוסרת שלחה שונה מהגובה שתוכנן בבלוק.
  *

@@ -6,9 +6,37 @@
       "he": "קבל",
       "en": "Accept"
     },
+    "acceptAlts": {
+      "he": "גבהים",
+      "en": "Altitudes"
+    },
+    "acceptAltsHint": {
+      "he": "עד {{max}} - גובה אחד = כל המבנה",
+      "en": "Up to {{max}} - one altitude = whole formation"
+    },
+    "acceptLimitReached": {
+      "he": "נבחרו {{max}} גבהים - הסר גובה כדי לבחור אחר",
+      "en": "{{max}} altitudes picked - remove one to pick another"
+    },
+    "acceptOccupiedTitle": {
+      "he": "גובה תפוס: {{list}}",
+      "en": "Occupied altitude: {{list}}"
+    },
+    "acceptOccupiedWarn": {
+      "he": "גובה תפוס - הקבלה תיצור קונפליקט",
+      "en": "Occupied altitude - accepting will create a conflict"
+    },
+    "acceptPerAircraft": {
+      "he": "גובה לכל מטוס",
+      "en": "Altitude per aircraft"
+    },
     "acceptTitle": {
       "he": "קבלה לנקודת הצטרפות",
       "en": "Accept into joining point"
+    },
+    "acceptWholeTo": {
+      "he": "כל המבנה ל-{{alt}}",
+      "en": "Whole formation to {{alt}}"
     },
     "addPoint": {
       "he": "+ נקודת הצטרפות",

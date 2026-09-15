@@ -222,7 +222,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   landingRunways?: LandingRunway[];
   onAssignJoiningStrip?: (pointId: number, stripId: string, altFt: number) => void;
   onRemoveJoiningAircraft?: (stripId: string, idx: number) => void;
-  onAcceptToJoiningPoint?: (pointId: number, transferId: string, altFt: number) => void;
+  onAcceptToJoiningPoint?: (pointId: number, transferId: string, altFt: number, groups?: { ft: number; indices: number[] }[]) => void;
   onRemoveJoiningStrip?: (pointId: number, stripId: string) => void;
   onCoordinateJoiningStrip?: (pointId: number, stripId: string, coordinated: boolean, note: string) => void;
   onSplitJoiningStrip?: (pointId: number, stripId: string, indices: number[], altFt: number) => void;
@@ -4264,7 +4264,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                         aircraft={joiningPointAircraft}
                         stripAircraftData={stripAircraftData as any}
                         landingRunways={landingRunways}
-                        onAcceptIncoming={(tid, ft) => onAcceptToJoiningPoint?.(jp.id, tid, ft)}
+                        onAcceptIncoming={(tid, ft, groups) => onAcceptToJoiningPoint?.(jp.id, tid, ft, groups)}
                         onAssign={(sid, ft) => onAssignJoiningStrip?.(jp.id, sid, ft)}
                         onRemoveStrip={sid => onRemoveJoiningStrip?.(jp.id, sid)}
                         onCoordinate={(sid, c, note) => onCoordinateJoiningStrip?.(jp.id, sid, c, note)}

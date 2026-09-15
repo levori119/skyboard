@@ -6,6 +6,7 @@ import { getFormationDisplayName } from '../../utils/strips';
 import { customConfirm } from '../shared/ConfirmModal';
 import { FaultBadge } from '../shared/FaultBadge';
 import {
+  acceptAltitudeLimit, altitudeGroups, distributeAltitudes, occupiedBlocks, toggleAcceptAltitude,
   altToDisplay, altMismatch, buildBlocks, conflictBlocks, displayToAlt, formationAircraft, formationsInBlocks,
   normalizeLeg, greensAlert, FLIGHT_LEGS, DEFAULT_LEG,
   type JoiningPoint, type JoiningPointStripRow, type JoiningAircraftRow, type FormationAircraftRow,
@@ -48,7 +49,11 @@ interface Props {
   /** `strip_aircraft` לפי מזהה פ"מ - משם מגיע הדת"ק. */
   stripAircraftData?: Record<string, FormationAircraftRow[]>;
   landingRunways: LandingRunway[];
-  onAcceptIncoming: (transferId: string, altFt: number) => void;
+  /**
+   * קבלה מהשורה העליונה. `altFt` הוא גובה הפ"מ (גובה המוביל). `groups` נשלח רק
+   * כשהמבנה פוצל בטופס לכמה גבהים - קבוצת המוביל ראשונה, והשאר גובה חריג.
+   */
+  onAcceptIncoming: (transferId: string, altFt: number, groups?: { ft: number; indices: number[] }[]) => void;
   onAssign: (stripId: string, altFt: number) => void;
   onRemoveStrip: (stripId: string) => void;
   onCoordinate: (stripId: string, coordinated: boolean, note: string) => void;
@@ -100,7 +105,14 @@ export default function JoiningPointPanel({
 }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [dragBlock, setDragBlock] = useState<number | null>(null);
-  const [altPicker, setAltPicker] = useState<{ transferId: string; label: string } | null>(null);
+  /**
+   * טופס הקבלה: אילו גבהים, ואיזה מספר במבנה לאיזה גובה.
+   * `selected` - הגבהים שנבחרו (עד `limit` = מספר המטוסים); `mapping` - מטוס -> גובה.
+   */
+  const [acceptForm, setAcceptForm] = useState<{
+    transferId: string; sid: string; label: string; indices: number[]; limit: number;
+    selected: number[]; mapping: Record<number, number>;
+  } | null>(null);
   const [coordFor, setCoordFor] = useState<{ stripId: string; label: string } | null>(null);
   const [coordNote, setCoordNote] = useState('');
   /** המטוס שנגרר כרגע אל המפה, עם מיקום המצביע לצל הגרירה. */
@@ -367,7 +379,13 @@ export default function JoiningPointPanel({
                   onClick={() => {
                     const ft = displayToAlt(plannedAlt);
                     if (ft != null) onAcceptIncoming(String(t.id), ft);
-                    else setAltPicker({ transferId: String(t.id), label: getFormationDisplayName(t) });
+                    else {
+                      const limit = acceptAltitudeLimit(t.number_of_formation);
+                      setAcceptForm({
+                        transferId: String(t.id), sid: String(t.strip_id ?? ''), label: getFormationDisplayName(t),
+                        indices: Array.from({ length: limit }, (_, i) => i + 1), limit, selected: [], mapping: {},
+                      });
+                    }
                   }}
                   style={btn(mismatch ? '#b45309' : '#059669')}
                 >{plannedAlt ? tr('joining.approveTransfer') : tr('joining.accept')}</button>
@@ -623,26 +641,120 @@ export default function JoiningPointPanel({
         })}
       </div>
 
-      {/* טופס גובה - מציע **רק** גבהים מטווח הנקודה, ולכן אי אפשר לשבץ מחוץ לטווח */}
-      {altPicker && (
-        <div style={{ padding: '6px 8px', borderTop: `2px solid ${accent}`, background: C.head }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-            <span style={{ fontWeight: 'bold' }}>{tr('joining.acceptTitle')}</span>
-            <span style={{ color: accent }}>{bidiAuto(altPicker.label)}</span>
-            <button type="button" onClick={() => setAltPicker(null)} style={{ ...btn('transparent', C.dim), marginInlineStart: 'auto' }}>✕</button>
+      {/* טופס הקבלה - מציע **רק** גבהים מטווח הנקודה. בוחרים גובה אחד (כל המבנה)
+          או כמה - עד מספר המטוסים - ומשייכים לכל מספר במבנה את הגובה שלו.
+          גובה תפוס כתום ו**ניתן לבחירה**: זו התראה, וההכרעה אצל הפקח. */}
+      {acceptForm && (() => {
+        const f = acceptForm;
+        const occupied = occupiedBlocks(byBlock, f.sid);
+        const atLimit = f.limit > 1 && f.selected.length >= f.limit;
+        const groups = altitudeGroups(f.mapping);
+        const occupiedPicked = [...new Set(Object.values(f.mapping))].filter(ft => occupied.has(ft)).sort((a, b) => b - a);
+        const labelsAt = (ft: number) => (occupied.get(ft) || []).map(r => getFormationDisplayName(r)).join(', ');
+        const pick = (ft: number) => setAcceptForm(prev => {
+          if (!prev) return prev;
+          const selected = toggleAcceptAltitude(prev.selected, ft, prev.limit);
+          return { ...prev, selected, mapping: distributeAltitudes(prev.indices, selected) };
+        });
+        const submit = () => {
+          if (!groups.length) return;
+          onAcceptIncoming(f.transferId, groups[0].ft, groups.length > 1 ? groups : undefined);
+          setAcceptForm(null);
+        };
+        return (
+          <div data-testid="joining-accept-form" style={{ padding: '6px 8px', borderTop: `2px solid ${accent}`, background: C.head }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+              <span style={{ fontWeight: 'bold' }}>{tr('joining.acceptTitle')}</span>
+              <span style={{ color: accent }}>{bidiAuto(f.label)}</span>
+              {f.limit > 1 && <span style={{ color: C.dim }}>({f.limit})</span>}
+              <button type="button" onClick={() => setAcceptForm(null)} style={{ ...btn('transparent', C.dim), marginInlineStart: 'auto' }}>✕</button>
+            </div>
+
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'baseline', marginBottom: '3px' }}>
+              <span style={{ fontWeight: 'bold', fontSize: '11px' }}>{tr('joining.acceptAlts')}</span>
+              <span style={{ color: C.dim, fontSize: '10px' }}>
+                {atLimit ? tr('joining.acceptLimitReached', { max: String(f.limit) }) : tr('joining.acceptAltsHint', { max: String(f.limit) })}
+              </span>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '5px' }}>
+              {blocks.map(ft => {
+                const on = f.selected.includes(ft);
+                const occ = occupied.has(ft);
+                const locked = atLimit && !on;
+                return (
+                  <button
+                    key={ft}
+                    type="button"
+                    data-testid="joining-accept-alt"
+                    data-occupied={occ ? '1' : '0'}
+                    data-selected={on ? '1' : '0'}
+                    disabled={locked}
+                    title={occ ? tr('joining.acceptOccupiedTitle', { list: labelsAt(ft) }) : undefined}
+                    onClick={() => pick(ft)}
+                    style={{
+                      // צבעי סטטוס קבועים בכל תמה: כתום = תפוס, כחול = נבחר. הבחירה
+                      // מסומנת גם ב-✓ והתפוס גם ב-⚠ - צבע אינו הערוץ היחיד.
+                      ...btn(occ ? '#f59e0b' : on ? '#0284c7' : '#334155', occ ? '#1c1400' : '#fff'),
+                      fontFamily: 'monospace',
+                      outline: on ? `2px solid ${occ ? '#0284c7' : '#e0f2fe'}` : 'none',
+                      outlineOffset: '-2px',
+                      opacity: locked ? 0.4 : 1,
+                      cursor: locked ? 'not-allowed' : 'pointer',
+                    }}
+                  >{on ? '✓ ' : ''}{occ ? '⚠ ' : ''}{altToDisplay(ft)}</button>
+                );
+              })}
+            </div>
+
+            {/* שיוך מטוס -> גובה. מופיע רק כשנבחר יותר מגובה אחד; בגובה אחד
+                אין מה לשייך - כל המבנה הולך אליו. */}
+            {f.selected.length === 1 && f.limit > 1 && (
+              <div style={{ color: C.dim, fontSize: '11px', marginBottom: '5px' }}>
+                {tr('joining.acceptWholeTo', { alt: altToDisplay(f.selected[0]) })}
+              </div>
+            )}
+            {f.selected.length > 1 && (
+              <div data-testid="joining-accept-mapping" style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginBottom: '5px' }}>
+                <span style={{ fontWeight: 'bold', fontSize: '11px' }}>{tr('joining.acceptPerAircraft')}</span>
+                {f.indices.map(idx => (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                    <span style={{ minWidth: '56px', fontWeight: 'bold' }}>{bidiAuto(`${f.label}${idx}`)}</span>
+                    {[...f.selected].sort((a, b) => b - a).map(ft => {
+                      const on = f.mapping[idx] === ft;
+                      const occ = occupied.has(ft);
+                      return (
+                        <button
+                          key={ft}
+                          type="button"
+                          data-testid="joining-accept-aircraft-alt"
+                          onClick={() => setAcceptForm(prev => (prev ? { ...prev, mapping: { ...prev.mapping, [idx]: ft } } : prev))}
+                          style={{
+                            ...btn(on ? (occ ? '#f59e0b' : '#16a34a') : '#334155', on && occ ? '#1c1400' : '#fff'),
+                            fontFamily: 'monospace',
+                          }}
+                        >{on ? '✓ ' : ''}{altToDisplay(ft)}</button>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {occupiedPicked.length > 0 && (
+              <div data-testid="joining-accept-occupied-warn" style={{ background: '#f59e0b', color: '#1c1400', borderRadius: '4px', padding: '2px 6px', fontSize: '11px', fontWeight: 'bold', marginBottom: '5px' }}>
+                ⚠ {tr('joining.acceptOccupiedWarn')}: {occupiedPicked.map(ft => `${altToDisplay(ft)} (${labelsAt(ft)})`).join(' · ')}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '5px' }}>
+              <button type="button" disabled={!groups.length} onClick={submit}
+                style={{ ...btn(!groups.length ? '#475569' : occupiedPicked.length ? '#b45309' : '#059669'), opacity: !groups.length ? 0.6 : 1 }}
+              >{tr('joining.accept')}</button>
+              <button type="button" onClick={() => setAcceptForm(null)} style={btn('#475569')}>{tr('joining.cancel')}</button>
+            </div>
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-            {blocks.map(ft => (
-              <button
-                key={ft}
-                type="button"
-                onClick={() => { onAcceptIncoming(altPicker.transferId, ft); setAltPicker(null); }}
-                style={{ ...btn('#1d4ed8'), fontFamily: 'monospace' }}
-              >{altToDisplay(ft)}</button>
-            ))}
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* טופס ההעברה לבלוק: כל המבנה, או מטוסים נבחרים (פיצול בין שני גבהים) */}
       {moveForm && (
