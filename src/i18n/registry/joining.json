@@ -166,6 +166,18 @@
       "he": "פרוס מטוסים",
       "en": "Expand aircraft"
     },
+    "expandByDefault": {
+      "he": "הצג מטוסים פרוסים (ולא רק פ\"ממים)",
+      "en": "Show aircraft expanded (not just strips)"
+    },
+    "dragFormationTitle": {
+      "he": "גרור לבלוק גובה - כל המבנה עובר",
+      "en": "Drag to an altitude block - the whole formation moves"
+    },
+    "dragAircraftTitle": {
+      "he": "גרור לבלוק גובה - רק המטוס הזה עובר. גרור אל ההקפה על המפה כדי לבחור מסלול",
+      "en": "Drag to an altitude block - only this aircraft moves. Drag onto the pattern on the map to pick a runway"
+    },
     "faultNote": {
       "he": "הערת תקלה",
       "en": "Fault note"

@@ -223,6 +223,77 @@ export function formationsInBlocks<T extends JoiningPointStripRow>(
   return map;
 }
 
+// ─── גרירה בתוך הטבלה ─────────────────────────────────────────────────────────
+//
+// גרירת **הפ"מ** מעבירה את כל המבנה; גרירת **מטוס** (אחרי פריסה) מעבירה רק
+// אותו. שתיהן מיידיות ובלי טופס - הטופס נשאר לתפריט ⋯, שבו בוחרים כמה מטוסים.
+
+/** הגובה (רגל) של כל מטוס בפ"מ, לפי הבלוק שהוא מצויר בו כרגע. */
+export function stripAircraftAlts(map: Map<number, BlockEntry[]>, stripId: string): Map<number, number> {
+  const out = new Map<number, number>();
+  for (const [ft, entries] of map) {
+    for (const e of entries) {
+      if (String(e.strip.strip_id) !== String(stripId)) continue;
+      for (const idx of e.indices) out.set(idx, ft);
+    }
+  }
+  return out;
+}
+
+/**
+ * מה נשלח לשרת כששחררו מטוסים של פ"מ על בלוק.
+ *
+ * @returns `null` = אין מה לעשות (כבר שם) · `[]` = כל המבנה · אחרת - רק המטוסים שנגררו.
+ *
+ * כשהגרירה משאירה את **כל** המבנה באותו גובה היא נשלחת כ"כל המבנה", כדי
+ * שהשרת יאפס את החריגים: אחרת המבנה נראה מאוחד אבל נשאר מפוצל ב-DB, ומעבר
+ * הבא של הפ"מ השאיר מטוסים מאחור.
+ */
+export function dropIndices(
+  all: number[], alts: Map<number, number>, moving: number[], targetFt: number,
+): number[] | null {
+  const list = all.length ? all : moving;
+  const movingSet = new Set(moving.length ? moving : list);
+  if (list.length && [...movingSet].every(i => alts.get(i) === targetFt)) return null;
+  if (list.length <= 1) return [];
+  const after = list.map(i => (movingSet.has(i) ? targetFt : alts.get(i)));
+  if (after.every(ft => ft === targetFt)) return [];
+  return [...movingSet].sort((a, b) => a - b);
+}
+
+/**
+ * העדכון המיידי של המצב החי אחרי גרירה - אותה פעולה שהשרת עושה ב-`/split`,
+ * כדי שהפ"מ יקפוץ לבלוק ברגע השחרור ולא אחרי סבב רשת.
+ * פונקציה טהורה: מחזירה מערכים חדשים ולא נוגעת בקלט.
+ */
+export function applyJoiningMove<S extends Record<string, any>, A extends Record<string, any>>(
+  strips: S[], aircraft: A[], pointId: number, stripId: string, indices: number[], alt: string,
+): { strips: S[]; aircraft: A[] } {
+  const sid = String(stripId).replace(/^s/, '');
+  const same = (v: unknown) => String(v) === sid;
+  if (!indices.length) {
+    return {
+      strips: strips.map(s => (same(s.strip_id) && Number(s.joining_point_id) === Number(pointId) ? { ...s, planned_alt: alt } : s)),
+      aircraft: aircraft.map(a => (same(a.strip_id) ? { ...a, alt: null } : a)),
+    };
+  }
+  const next = aircraft.map(a => (same(a.strip_id) && indices.includes(Number(a.aircraft_idx)) ? { ...a, alt } : a));
+  for (const idx of indices) {
+    if (!next.some(a => same(a.strip_id) && Number(a.aircraft_idx) === idx)) {
+      next.push({ strip_id: Number(sid), aircraft_idx: idx, joining_point_id: pointId, alt } as unknown as A);
+    }
+  }
+  return { strips, aircraft: next };
+}
+
+/**
+ * האם מטוסי הפ"מ פרוסים. `toggled` מחזיק את מה שהפקח **שינה** מברירת המחדל,
+ * כך שהגדרת הנקודה ("פרוס כברירת מחדל") והלחיצה על +/− לא מתנגשות.
+ */
+export function isFormationOpen(expandByDefault: boolean, toggled: Set<string>, key: string): boolean {
+  return expandByDefault ? !toggled.has(key) : toggled.has(key);
+}
+
 /**
  * הבלוקים שבהם **שני פ"ממים או יותר** - קונפליקט.
  * נספרים פ"ממים **שונים** ולא רשומות: מבנה מפוצל אינו בקונפליקט עם עצמו.

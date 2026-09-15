@@ -157,11 +157,12 @@ router.post('/api/joining-points', async (req, res) => {
     await client.query('BEGIN');
     const { rows } = await client.query(
       `INSERT INTO airfield_joining_points
-         (airfield_id, name, alt_min_ft, alt_max_ft, default_step_ft, sector_id, sub_label, x_pct, y_pct, color, sort_order)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+         (airfield_id, name, alt_min_ft, alt_max_ft, default_step_ft, sector_id, sub_label, x_pct, y_pct, color, sort_order, expand_aircraft)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
       [int(b.airfield_id), String(b.name || '').slice(0, 100), int(b.alt_min_ft) ?? 0, int(b.alt_max_ft) ?? 0,
         int(b.default_step_ft) ?? 1000, int(b.sector_id), b.sub_label || null,
-        b.x_pct ?? null, b.y_pct ?? null, String(b.color || '#38bdf8').slice(0, 20), int(b.sort_order) ?? 0],
+        b.x_pct ?? null, b.y_pct ?? null, String(b.color || '#38bdf8').slice(0, 20), int(b.sort_order) ?? 0,
+        b.expand_aircraft === true],
     );
     await replaceSteps(client, rows[0].id, b.steps);
     await client.query('COMMIT');
@@ -185,12 +186,15 @@ router.put('/api/joining-points/:id', async (req, res) => {
     const { rows } = await client.query(
       `UPDATE airfield_joining_points SET
          name=$1, alt_min_ft=$2, alt_max_ft=$3, default_step_ft=$4, sector_id=$5,
-         sub_label=$6, x_pct=$7, y_pct=$8, color=$9, sort_order=$10
+         sub_label=$6, x_pct=$7, y_pct=$8, color=$9, sort_order=$10,
+         -- COALESCE: קריאה שאינה נושאת את הדגל לא מאפסת אותו בשקט
+         expand_aircraft=COALESCE($12, expand_aircraft)
        WHERE id=$11 RETURNING *`,
       [String(b.name || '').slice(0, 100), int(b.alt_min_ft) ?? 0, int(b.alt_max_ft) ?? 0,
         int(b.default_step_ft) ?? 1000, int(b.sector_id), b.sub_label || null,
         b.x_pct ?? null, b.y_pct ?? null, String(b.color || '#38bdf8').slice(0, 20),
-        int(b.sort_order) ?? 0, int(req.params.id)],
+        int(b.sort_order) ?? 0, int(req.params.id),
+        typeof b.expand_aircraft === 'boolean' ? b.expand_aircraft : null],
     );
     if (!rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'לא נמצאה' }); }
     if (b.steps !== undefined) await replaceSteps(client, rows[0].id, b.steps);

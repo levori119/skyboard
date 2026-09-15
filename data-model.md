@@ -968,6 +968,7 @@ COALESCE(last_seen, entered_at) > NOW() - INTERVAL '240 seconds'
 | `sub_label` | VARCHAR(50) | תת-נקודה (`sub_sectors.label`), NULL = הנקודה השלמה |
 | `x_pct`, `y_pct` | FLOAT | הדקירה על מפת השדה באחוזי תמונה. NULL = לא ממוקמת, לא מוצגת על המפה |
 | `color` | VARCHAR(20) | צבע הסמן והטבלה |
+| `expand_aircraft` | BOOLEAN NOT NULL DEFAULT FALSE | מטוסי הפ"ממים **פרוסים** כברירת מחדל בטבלה בעמדה (+/− עדיין מכווץ פ"מ בודד) |
 | `sort_order` | INT | סדר |
 | `created_at` | TIMESTAMPTZ | חותמת |
 

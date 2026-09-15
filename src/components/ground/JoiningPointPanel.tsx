@@ -8,7 +8,7 @@ import { FaultBadge } from '../shared/FaultBadge';
 import {
   acceptAltitudeLimit, altitudeGroups, distributeAltitudes, occupiedBlocks, toggleAcceptAltitude,
   altToDisplay, altMismatch, buildBlocks, conflictBlocks, displayToAlt, formationAircraft, formationsInBlocks,
-  normalizeLeg, greensAlert, FLIGHT_LEGS, DEFAULT_LEG,
+  normalizeLeg, greensAlert, FLIGHT_LEGS, DEFAULT_LEG, dropIndices, stripAircraftAlts, isFormationOpen,
   type JoiningPoint, type JoiningPointStripRow, type JoiningAircraftRow, type FormationAircraftRow,
 } from '../../utils/joiningPoints';
 
@@ -22,6 +22,11 @@ import {
 //   1. "קבל" בשורה העליונה -> טופס גובה מטווח הנקודה (כשהגובה מתואם בדיבור)
 //   2. גרירת הכרטיס מהשורה העליונה ישירות לבלוק (קבלה + גובה בתנועה אחת)
 //   3. גרירת פ"מ שכבר שלי מרשימת הפ"ממים שבצד (שינוי גובה או הכנסה לנקודה)
+//
+// גרירה **בתוך** הטבלה מיידית, בלי טופס:
+//   - גרירת שורת הפ"מ     -> כל המבנה עובר לבלוק
+//   - גרירת מטוס (פרוס)   -> רק המטוס עובר (מבנה של מטוס אחד עובר כולו)
+// הטופס נשאר בתפריט ⋯, שבו בוחרים כמה מטוסים בבת אחת.
 
 export interface JoiningPointView extends JoiningPoint {
   sector_id?: number | null;
@@ -32,6 +37,8 @@ export interface JoiningPointView extends JoiningPoint {
   y_pct?: number | null;
   display_mode?: string;
   is_override?: boolean;
+  /** הגדרת הנקודה: מטוסי הפ"ממים פרוסים כברירת מחדל. */
+  expand_aircraft?: boolean;
 }
 
 /** קצה מסלול פעיל לנחיתות, מ-`runway_end_use`. */
@@ -95,6 +102,10 @@ const LEG_LABELS: Record<string, string> = {
 const FLIGHT_ACTIVE_BG = '#1d4ed8';
 /** נחת מהבהב באדום לפני שהשורה יורדת - כדי שהפעולה תיראה ולא תקרה בשקט. */
 const LANDED_BLINK_MS = 5000;
+/** מתחת לתזוזה הזו זו נגיעה ולא גרירה - שלא כל הקשה בעט תזיז מטוס. */
+const DRAG_THRESHOLD_PX = 6;
+/** רצועת הקצה של טבלת הבלוקים שבה גרירה גוללת אותה. */
+const AUTO_SCROLL_EDGE_PX = 28;
 
 export default function JoiningPointPanel({
   point, themeMode = 'dark', incoming, assigned, aircraft, stripAircraftData = {},
@@ -103,6 +114,7 @@ export default function JoiningPointPanel({
   onHeaderPointerDown, onAircraftDropOnMap, onSplit, onRemoveAircraft,
   pendingMove, onPendingMoveHandled,
 }: Props) {
+  /** פ"ממים שהפקח **שינה** את מצב הפריסה שלהם מברירת המחדל של הנקודה. */
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [dragBlock, setDragBlock] = useState<number | null>(null);
   /**
@@ -115,10 +127,17 @@ export default function JoiningPointPanel({
   } | null>(null);
   const [coordFor, setCoordFor] = useState<{ stripId: string; label: string } | null>(null);
   const [coordNote, setCoordNote] = useState('');
-  /** המטוס שנגרר כרגע אל המפה, עם מיקום המצביע לצל הגרירה. */
   /** המטוס שמהבהב כרגע אחרי "נחת", עד שהשורה יורדת. */
   const [landingIdx, setLandingIdx] = useState<{ sid: string; idx: number } | null>(null);
-  const [acDrag, setAcDrag] = useState<{ sid: string; idx: number; label: string; x: number; y: number } | null>(null);
+  /**
+   * מה נגרר כרגע (לצל הגרירה ולעמעום המקור). **המיקום אינו ב-state**: עדכון
+   * state בכל pointermove רינדר את כל הטבלה פעמים בשנייה, וזה מה שהפך את
+   * הגרירה לקופצנית. הצל זז ישירות ב-DOM דרך ה-ref.
+   */
+  const [drag, setDrag] = useState<{ key: string; label: string } | null>(null);
+  const ghostRef = useRef<HTMLDivElement | null>(null);
+  const ghostPos = useRef({ x: 0, y: 0 });
+  const blocksScrollRef = useRef<HTMLDivElement | null>(null);
   /** טופס ההעברה לבלוק: כל המבנה או מטוסים נבחרים. */
   const [moveForm, setMoveForm] = useState<{ sid: string; label: string; all: number[]; picked: Set<number>; targetFt: number | null } | null>(null);
 
@@ -143,6 +162,7 @@ export default function JoiningPointPanel({
   const acOf = (stripId: string | number, idx: number) =>
     aircraft.find(a => String(a.strip_id) === String(stripId) && Number(a.aircraft_idx) === idx);
 
+  const isOpenKey = (key: string) => isFormationOpen(!!point.expand_aircraft, expanded, key);
   const toggleExpand = (sid: string) =>
     setExpanded(prev => { const n = new Set(prev); n.has(sid) ? n.delete(sid) : n.add(sid); return n; });
 
@@ -211,92 +231,104 @@ export default function JoiningPointPanel({
   };
 
   /**
-   * גרירת שבב (העברה נכנסת / מבנה בטבלה) אל בלוק גובה.
-   *
-   * ⚠ Pointer Events ולא `draggable`: עמדת היעד היא Cintiq בעט ובאצבע, ושם
-   * HTML5 drag פשוט לא נורה - הגרירה עבדה בעכבר בלבד (CLAUDE.md §גרירה).
-   * ה-HTML5 נשאר במקביל כדי לא לשבור גרירה מחוץ לפאנל שכבר עובדת בעכבר.
+   * העברת מטוסים של פ"מ לבלוק - הגרירה של שורת הפ"מ ושל מטוס בודד נגמרת כאן.
+   * `moving` ריק = כל המבנה. `dropIndices` מחליט אם זה פיצול או מעבר של הכל,
+   * ומחזיר null כשהשחרור היה על הבלוק שבו הם כבר נמצאים.
    */
-  const startChipDrag = (e: React.PointerEvent, payload: Record<string, unknown>) => {
+  const moveToBlock = (sid: string, row: Record<string, any>, moving: number[], blockFt: number) => {
+    const all = aircraftOf(sid, row).map(a => a.idx);
+    const indices = dropIndices(all, stripAircraftAlts(byBlock, sid), moving, blockFt);
+    if (indices == null) return;
+    if (onSplit) onSplit(sid, indices, blockFt);
+    else onAssign(sid, blockFt);
+  };
+
+  /**
+   * גרירה אחת לכל מה שנגרר בטבלה: כרטיס נכנס, שורת פ"מ, מטוס בודד.
+   *
+   * ⚠ Pointer Events **בלבד** ולא `draggable`: בעט ובאצבע HTML5 drag לא נורה,
+   * ובעכבר הוא **חוטף** את הגרירה (dragstart שולח pointercancel) - כך שבאותה
+   * תנועה רצו שני מנגנונים שונים לפי סוג המצביע (CLAUDE.md §גרירה).
+   *
+   * הידית של שורת הפ"מ היא **השורה עצמה** ולא העוטף שלה: כשהעוטף החזיק גם את
+   * המטוסים הפרוסים, גרירת מטוס הפעילה במקביל גם את גרירת הפ"מ - שתי לכידות
+   * מצביע על אותה תנועה, והמבנה כולו עבר במקום המטוס.
+   */
+  const startDrag = (
+    e: React.PointerEvent,
+    opts: { key: string; label: string; onBlock: (ft: number) => void; onOutside?: (x: number, y: number) => void },
+  ) => {
     if (e.button > 0) return;
     if ((e.target as HTMLElement).closest('button, select, input')) return;
     const el = e.currentTarget as HTMLElement;
     try { el.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    const x0 = e.clientX, y0 = e.clientY;
+    let active = false;
+    let lastFt: number | null = null;
+
+    // רק בלוקים של **הנקודה הזו**: שתי טבלאות פתוחות זו ליד זו, ושחרור על
+    // בלוק של השכנה היה משבץ את הפ"מ כאן בגובה שנבחר שם.
     const blockAt = (x: number, y: number): number | null => {
-      const hit = document.elementFromPoint(x, y)?.closest('[data-block-ft]');
+      const hit = document.elementFromPoint(x, y)?.closest(`[data-block-ft][data-joining-point-id="${point.id}"]`);
       const ft = hit?.getAttribute('data-block-ft');
       return ft == null ? null : Number(ft);
     };
-    const move = (me: PointerEvent) => setDragBlock(blockAt(me.clientX, me.clientY));
-    const done = () => {
-      el.removeEventListener('pointermove', move);
-      el.removeEventListener('pointerup', up);
-      el.removeEventListener('pointercancel', done);
-      try { el.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
-      setDragBlock(null);
+    const placeGhost = (x: number, y: number) => {
+      ghostPos.current = { x, y };
+      const g = ghostRef.current;
+      if (!g) return;
+      const s = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--s')) || 1;
+      g.style.left = `${x / s}px`;
+      g.style.top = `${y / s}px`;
     };
-    const up = (ue: PointerEvent) => {
-      const ft = blockAt(ue.clientX, ue.clientY);
-      done();
-      // תזוזה זניחה = לחיצה, לא גרירה
-      if (ft != null && Math.hypot(ue.clientX - e.clientX, ue.clientY - e.clientY) > 8) {
-        applyDropOnBlock(payload, ft);
-      }
+    // גלילת הטבלה כשהמצביע בקצה - בלי זה בלוק שמחוץ לתצוגה אינו יעד אפשרי
+    const autoScroll = (y: number) => {
+      const box = blocksScrollRef.current;
+      if (!box) return;
+      const r = box.getBoundingClientRect();
+      if (y < r.top + AUTO_SCROLL_EDGE_PX && y > r.top - AUTO_SCROLL_EDGE_PX) box.scrollTop -= 12;
+      else if (y > r.bottom - AUTO_SCROLL_EDGE_PX && y < r.bottom + AUTO_SCROLL_EDGE_PX) box.scrollTop += 12;
     };
-    el.addEventListener('pointermove', move);
-    el.addEventListener('pointerup', up);
-    el.addEventListener('pointercancel', done);
-  };
 
-  /** גרירת מטוס אל המפה - Pointer Events, כדי שתעבוד בעט ובאצבע. */
-  const startAircraftDrag = (e: React.PointerEvent, sid: string, idx: number, label: string) => {
-    if (e.button > 0) return;
-    if ((e.target as HTMLElement).closest('button, select, input')) return;
-    const el = e.currentTarget as HTMLElement;
-    try { el.setPointerCapture(e.pointerId); } catch { /* ignore */ }
-    setAcDrag({ sid, idx, label, x: e.clientX, y: e.clientY });
-    const move = (me: PointerEvent) => setAcDrag(d => (d ? { ...d, x: me.clientX, y: me.clientY } : d));
-    const up = (ue: PointerEvent) => {
+    const move = (me: PointerEvent) => {
+      if (!active) {
+        if (Math.hypot(me.clientX - x0, me.clientY - y0) <= DRAG_THRESHOLD_PX) return;
+        active = true;
+        ghostPos.current = { x: me.clientX, y: me.clientY };
+        setDrag({ key: opts.key, label: opts.label });
+      }
+      placeGhost(me.clientX, me.clientY);
+      autoScroll(me.clientY);
+      const ft = blockAt(me.clientX, me.clientY);
+      if (ft !== lastFt) { lastFt = ft; setDragBlock(ft); }
+    };
+    const finish = (ue: PointerEvent | null) => {
       el.removeEventListener('pointermove', move);
       el.removeEventListener('pointerup', up);
       el.removeEventListener('pointercancel', cancel);
       try { el.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
-      setAcDrag(null);
-      // תזוזה זניחה = לחיצה, לא גרירה - שלא כל נגיעה תשלח מטוס להקפה
-      if (Math.hypot(ue.clientX - e.clientX, ue.clientY - e.clientY) > 8) {
-        onAircraftDropOnMap?.(sid, idx, ue.clientX, ue.clientY);
-      }
+      setDrag(null);
+      setDragBlock(null);
+      if (!ue || !active) return;   // נגיעה ולא גרירה, או ביטול של המערכת
+      const ft = blockAt(ue.clientX, ue.clientY);
+      if (ft != null) opts.onBlock(ft);
+      else opts.onOutside?.(ue.clientX, ue.clientY);
     };
-    const cancel = () => {
-      el.removeEventListener('pointermove', move);
-      el.removeEventListener('pointerup', up);
-      el.removeEventListener('pointercancel', cancel);
-      setAcDrag(null);
-    };
+    const up = (ue: PointerEvent) => finish(ue);
+    const cancel = () => finish(null);
     el.addEventListener('pointermove', move);
     el.addEventListener('pointerup', up);
     el.addEventListener('pointercancel', cancel);
   };
 
-  /** גרירה של פ"מ (מהשורה העליונה או מרשימת הפ"ממים שבצד) אל בלוק גובה. */
-  /** מה שקורה כשמשהו נחת על בלוק - משותף ל-HTML5 ול-Pointer Events. */
+  /** גרירת פ"מ מרשימת הפ"ממים שבצד (HTML5, מחוץ לפאנל) אל בלוק גובה. */
   const applyDropOnBlock = (data: Record<string, any>, blockFt: number) => {
     setDragBlock(null);
-    {
-      if (data.joiningMove) {
-        // מעבר בין בלוקים בתוך הטבלה - תמיד דרך הטופס, כי אולי רק חלק מהמבנה עובר
-        if (String(data.joiningMove.stripId) === '' || data.joiningMove.fromFt === blockFt) return;
-        const row = assigned.find(r => String(r.strip_id) === String(data.joiningMove.stripId));
-        if (row) openMoveForm(String(row.strip_id), row, [], blockFt);
-      } else if (data.joiningTransferId) onAcceptIncoming(String(data.joiningTransferId), blockFt);
-      else if (data.stripId) {
-        // גרירה מרשימת הפ"ממים שבצד - גם היא דרך הטופס, כדי שאפשר יהיה
-        // להעביר רק חלק מהמבנה בלי לגרור כל מטוס בנפרד
-        const row = assigned.find(r => String(r.strip_id) === String(data.stripId));
-        if (row) openMoveForm(String(data.stripId), row, [], blockFt);
-        else onAssign(String(data.stripId), blockFt);
-      }
-    }
+    if (!data.stripId) return;
+    const row = assigned.find(r => String(r.strip_id) === String(data.stripId));
+    // פ"מ שכבר בנקודה - כל המבנה עובר, כמו גרירת שורת הפ"מ בתוך הטבלה
+    if (row) moveToBlock(String(data.stripId), row, [], blockFt);
+    else onAssign(String(data.stripId), blockFt);
   };
 
   const dropOnBlock = (e: React.DragEvent, blockFt: number) => {
@@ -354,11 +386,13 @@ export default function JoiningPointPanel({
             return (
               <div
                 key={t.id}
-                draggable
-                onDragStart={e => e.dataTransfer.setData('text/plain', JSON.stringify({ joiningTransferId: t.id }))}
-                onPointerDown={e => startChipDrag(e, { joiningTransferId: t.id })}
+                onPointerDown={e => startDrag(e, {
+                  key: `in:${t.id}`,
+                  label: getFormationDisplayName(t),
+                  onBlock: ft => onAcceptIncoming(String(t.id), ft),
+                })}
                 title={tr('joining.dragToBlock')}
-                style={{ touchAction: 'none', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '4px', background: C.chip, border: `1px solid ${mismatch ? '#f59e0b' : accent}`, borderRadius: '4px', padding: '2px 5px', cursor: 'grab' }}
+                style={{ touchAction: 'none', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '4px', background: C.chip, border: `1px solid ${mismatch ? '#f59e0b' : accent}`, borderRadius: '4px', padding: '2px 5px', cursor: 'grab', opacity: drag?.key === `in:${t.id}` ? 0.4 : 1 }}
               >
                 <span style={{ fontWeight: 'bold' }}>{bidiAuto(getFormationDisplayName(t))}</span>
                 {t.sq && <span style={{ color: C.dim }}>/ {bidiAuto(String(t.sq))}</span>}
@@ -396,7 +430,7 @@ export default function JoiningPointPanel({
       </div>
 
       {/* טבלת הבלוקים - מהגבוה למטה */}
-      <div style={{ maxHeight: '340px', overflowY: 'auto' }}>
+      <div ref={blocksScrollRef} style={{ maxHeight: '340px', overflowY: 'auto' }}>
         {blocks.map((ft, i) => {
           const rows = byBlock.get(ft) || [];
           const isConflict = conflicts.has(ft);
@@ -435,19 +469,37 @@ export default function JoiningPointPanel({
                   const sid = String(row.strip_id);
                   const acList = aircraftOf(sid, row).filter(a => !entry.indices.length || entry.indices.includes(a.idx));
                   const count = entry.indices.length || acList.length;
-                  const isOpen = expanded.has(`${sid}@${ft}`);
+                  const isOpen = isOpenKey(`${sid}@${ft}`);
+                  const rowKey = `f:${sid}@${ft}`;
+                  const rowLabel = entry.partial
+                    ? `${getFormationDisplayName(row)}/${entry.indices.join('+')}`
+                    : getFormationDisplayName(row);
                   // העמדה המוסרת שלחה גובה אחר ממה שתוכנן כאן - שני אנשים
                   // מחזיקים תמונה שונה על אותו מטוס, וזו התראה ולא תיקון שקט.
                   const mismatch = altMismatch(row.planned_alt, row.alt);
                   return (
-                    <div key={`${sid}@${ft}`} data-testid="joining-formation" data-strip-id={sid} data-partial={entry.partial ? '1' : '0'}
-                      draggable
-                      onDragStart={e => { e.stopPropagation(); e.dataTransfer.setData('text/plain', JSON.stringify({ joiningMove: { stripId: sid, fromFt: ft } })); }}
-                      onPointerDown={e => startChipDrag(e, { joiningMove: { stripId: sid, fromFt: ft } })}
-                      style={{ touchAction: 'none', userSelect: 'none' }}
-                    >
-                      {/* תצוגה מצומצמת: או"ק / טייסת (מספר מטוסים) + הערת תקלה */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                    <div key={`${sid}@${ft}`} data-testid="joining-formation" data-strip-id={sid} data-partial={entry.partial ? '1' : '0'}>
+                      {/* תצוגה מצומצמת: או"ק / טייסת (מספר מטוסים) + הערת תקלה.
+                          השורה הזו היא ידית הגרירה של **הפ"מ** - כל המבנה עובר
+                          (ובשורה של חלק מפוצל - החלק שהיא מציגה). */}
+                      <div
+                        data-testid="joining-formation-handle"
+                        title={tr('joining.dragFormationTitle')}
+                        onPointerDown={e => startDrag(e, {
+                          key: rowKey,
+                          label: rowLabel,
+                          onBlock: target => {
+                            // פ"מ בלי מספר מטוסים ידוע - אין ממה לגזור "כבר שם"
+                            if (target === ft && !entry.indices.length) return;
+                            moveToBlock(sid, row, entry.indices, target);
+                          },
+                        })}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap',
+                          touchAction: 'none', userSelect: 'none', cursor: 'grab',
+                          opacity: drag?.key === rowKey ? 0.4 : 1,
+                        }}
+                      >
                         <button
                           type="button"
                           title={isOpen ? tr('joining.collapseAircraft') : tr('joining.expandAircraft')}
@@ -455,9 +507,8 @@ export default function JoiningPointPanel({
                           style={btn(isOpen ? '#7c3aed' : '#334155')}
                         >{isOpen ? '−' : '+'}</button>
                         <span style={{ fontWeight: 'bold', color: isConflict ? '#fff' : C.text }}>
-                          {bidiAuto(entry.partial
-                            ? `${getFormationDisplayName(row)}/${entry.indices.join('+')}`
-                            : getFormationDisplayName(row))}
+                          <span style={{ opacity: 0.6, marginInlineEnd: '3px' }}>⠿</span>
+                          {bidiAuto(rowLabel)}
                         </span>
                         {/* תקלה במטוס - הפקח רואה אותה על השורה בבלוק הגובה,
                             בלי לפרוס את המבנה. בפ"מ מפוצל השרת כבר סינן לפי
@@ -505,19 +556,26 @@ export default function JoiningPointPanel({
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '2px', paddingInlineStart: '10px' }}>
                           {acList.map(ac => {
                             const st = acOf(sid, ac.idx);
+                            const acKey = `a:${sid}:${ac.idx}`;
                             return (
                               <div
                                 key={ac.idx}
                                 data-testid="joining-aircraft"
                                 data-aircraft-idx={ac.idx}
-                                title={tr('joining.dragToPattern')}
-                                onPointerDown={e => startAircraftDrag(e, sid, ac.idx, `${getFormationDisplayName(row)}${ac.idx}`)}
+                                title={tr('joining.dragAircraftTitle')}
+                                onPointerDown={e => startDrag(e, {
+                                  key: acKey,
+                                  label: `${getFormationDisplayName(row)}${ac.idx}`,
+                                  // על בלוק - רק המטוס הזה עובר; מחוץ לטבלה - אל ההקפה במפה
+                                  onBlock: target => moveToBlock(sid, row, [ac.idx], target),
+                                  onOutside: (x, y) => onAircraftDropOnMap?.(sid, ac.idx, x, y),
+                                })}
                                 style={{
                                   display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap',
                                   background: C.chip, borderRadius: '4px', padding: '1px 4px',
                                   border: st?.in_pattern ? `1px solid ${accent}` : `1px dashed ${st?.pattern_id ? accent : 'transparent'}`,
                                   cursor: 'grab', touchAction: 'none', userSelect: 'none',
-                                  opacity: acDrag && acDrag.sid === sid && acDrag.idx === ac.idx ? 0.4 : 1,
+                                  opacity: drag?.key === acKey ? 0.4 : 1,
                                 }}
                               >
                                 {/* ידית הגרירה - שטח לחיצה מפורש ומסומן. בלעדיה
@@ -525,7 +583,7 @@ export default function JoiningPointPanel({
                                     ניסיון גרירה נחת על בורר המסלול או על כפתור. */}
                                 <span
                                   data-testid="joining-aircraft-grip"
-                                  title={tr('joining.dragToPattern')}
+                                  title={tr('joining.dragAircraftTitle')}
                                   style={{
                                     display: 'inline-flex', alignItems: 'center', gap: '3px',
                                     padding: '2px 6px', margin: '-1px 0', borderRadius: '3px',
@@ -835,28 +893,37 @@ export default function JoiningPointPanel({
         </div>
       )}
 
-      {acDrag && <AircraftDragGhost label={acDrag.label} x={acDrag.x} y={acDrag.y} color={accent} />}
+      {drag && (
+        <DragGhost ref={ghostRef} label={drag.label} x={ghostPos.current.x} y={ghostPos.current.y} color={accent}
+          target={dragBlock != null ? altToDisplay(dragBlock) : null} />
+      )}
     </div>
   );
 }
 
 /**
- * צל הגרירה של מטוס בדרך להקפה.
+ * צל הגרירה - מה שנגרר, ולאיזה גובה הוא ינחת אם ישוחרר עכשיו.
  * Portal ל-body **מחוץ ל-`#root`**, ולכן `zoom: var(--s)` ידני; והקואורדינטות
  * מחולקות ב---s כי `clientX/clientY` מגיעים בפיקסלים לא-מוגדלים (/ui-adapt).
+ * המיקום נקבע כאן רק ברינדור הראשון - משם `startDrag` מזיז אותו ישירות ב-DOM.
  */
-function AircraftDragGhost({ label, x, y, color }: { label: string; x: number; y: number; color: string }) {
-  const s = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--s')) || 1;
-  return createPortal(
-    <div style={{
-      position: 'fixed', left: x / s, top: y / s, transform: 'translate(-50%, -140%)',
-      zoom: 'var(--s)' as any, pointerEvents: 'none', zIndex: 10000,
-      background: '#000000dd', color, border: `1px solid ${color}`, borderRadius: '4px',
-      padding: '2px 6px', fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap',
-    }}>{bidiAuto(label)}</div>,
-    document.body,
-  );
-}
+const DragGhost = React.forwardRef<HTMLDivElement, { label: string; x: number; y: number; color: string; target: string | null }>(
+  function DragGhost({ label, x, y, color, target }, ref) {
+    const s = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--s')) || 1;
+    return createPortal(
+      <div ref={ref} data-testid="joining-drag-ghost" style={{
+        position: 'fixed', left: x / s, top: y / s, transform: 'translate(-50%, -140%)',
+        zoom: 'var(--s)' as any, pointerEvents: 'none', zIndex: 10000,
+        background: '#000000dd', color, border: `1px solid ${color}`, borderRadius: '4px',
+        padding: '2px 6px', fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap',
+      }}>
+        {bidiAuto(label)}
+        {target && <span style={{ color: '#ffffff', fontFamily: 'monospace', marginInlineStart: '6px' }}>→ {target}</span>}
+      </div>,
+      document.body,
+    );
+  },
+);
 
 /** ייצוא לשימוש חיצוני: הגובה שנבחר בטופס, במאות רגל כפי ש-`strips.alt` שומר. */
 export const altFtToStripAlt = (ft: number): string => altToDisplay(ft);

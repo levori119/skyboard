@@ -1657,6 +1657,9 @@ async function applySchemaOnce() {
     created_at TIMESTAMPTZ DEFAULT NOW()
   )`);
   await sq(`CREATE INDEX IF NOT EXISTS idx_joining_points_airfield ON airfield_joining_points(airfield_id)`);
+  // מטוסי הפ"ממים **פרוסים** כברירת מחדל בטבלה - בנקודה שבה עובדים ברמת המטוס
+  // (פיצול בין בלוקים, מסלול והקפה לכל מטוס) לחיצה על + לכל פ"מ היא צעד מיותר.
+  await sq(`ALTER TABLE airfield_joining_points ADD COLUMN IF NOT EXISTS expand_aircraft BOOLEAN NOT NULL DEFAULT FALSE`);
 
   // הפרש הגבהים אינו קבוע לאורך הנקודה: אפשר להגדיר 1000 רגל בין 4000 ל-7000
   // ו-500 רגל בין 7000 ל-10000. טווח שלא כוסה נופל ל-default_step_ft.

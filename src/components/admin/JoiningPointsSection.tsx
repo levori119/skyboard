@@ -26,6 +26,8 @@ export interface JoiningPointRow {
   color?: string | null;
   sort_order?: number;
   steps?: AltStep[];
+  /** מטוסי הפ"ממים פרוסים כברירת מחדל בטבלה בעמדה. */
+  expand_aircraft?: boolean;
 }
 
 interface Props {
@@ -52,7 +54,7 @@ const inp: React.CSSProperties = {
   color: 'white', fontSize: '11px', padding: '3px 6px', width: '100%', boxSizing: 'border-box',
 };
 
-const EMPTY = { name: '', alt_min_ft: '4000', alt_max_ft: '10000', default_step_ft: '1000', sector_id: '', color: '#38bdf8' };
+const EMPTY = { name: '', alt_min_ft: '4000', alt_max_ft: '10000', default_step_ft: '1000', sector_id: '', color: '#38bdf8', expand_aircraft: false };
 
 /**
  * הסיבה **האמיתית** לכשל השמירה.
@@ -92,6 +94,7 @@ export default function JoiningPointsSection({
       default_step_ft: String(p.default_step_ft ?? 1000),
       sector_id: p.sector_id != null ? String(p.sector_id) : '',
       color: p.color || '#38bdf8',
+      expand_aircraft: !!p.expand_aircraft,
     });
     setSteps((p.steps || []).map(s => ({ from_ft: s.from_ft, to_ft: s.to_ft, step_ft: s.step_ft })));
     setEditId(p.id); setAdding(true); setError('');
@@ -118,6 +121,7 @@ export default function JoiningPointsSection({
       alt_min_ft: lo, alt_max_ft: hi, default_step_ft: Number(form.default_step_ft) || 1000,
       sector_id: form.sector_id ? Number(form.sector_id) : null,
       color: form.color, sort_order: editId ? undefined : points.length, steps,
+      expand_aircraft: form.expand_aircraft,
       ...(editId ? { x_pct: points.find(p => p.id === editId)?.x_pct ?? null, y_pct: points.find(p => p.id === editId)?.y_pct ?? null } : {}),
     };
     const res = await fetch(editId ? `${apiUrl}/joining-points/${editId}` : `${apiUrl}/joining-points`, {
@@ -180,6 +184,17 @@ export default function JoiningPointsSection({
                 <input type="color" value={form.color} onChange={e => patch({ color: e.target.value })} style={{ ...inp, padding: 0, height: '24px' }} />
               </label>
             </div>
+
+            {/* איך הטבלה נפתחת בעמדה: פ"ממים מכווצים, או כל המטוסים פרוסים */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#cbd5e1', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                data-testid="joining-expand-aircraft"
+                checked={form.expand_aircraft}
+                onChange={e => patch({ expand_aircraft: e.target.checked })}
+              />
+              {tr('joining.expandByDefault')}
+            </label>
 
             {/* הפרשי גבהים לפי טווח - זה מה שמאפשר 1000 רגל למטה ו-500 למעלה */}
             <div style={{ borderTop: '1px solid #1e3a5f', paddingTop: '5px' }}>

@@ -28,7 +28,7 @@ import { loadStripFieldCatalog, useStripFieldCatalog } from '../../utils/stripFi
 import { stripInCombined, resolveTransferFromPreset, type CombinedPosition } from '../../utils/unifiedStrips';
 import { getFormationDisplayName, getTransferLabel, getTransferSq, normalizeAlt, parseAltToFeet, computeBlockDeviation, parseAltRange, altRangeGap, mergeStripsWithPending } from '../../utils/strips';
 import { compareAirborneThenTakeoff } from '../../utils/stripOrder';
-import { altToDisplay } from '../../utils/joiningPoints';
+import { altToDisplay, applyJoiningMove } from '../../utils/joiningPoints';
 import { parseNoteValue, serializeNoteValue } from '../../utils/notes';
 import { bidiAuto } from '../../utils/bidi';
 import { filterDocsByKind, isChecklistDoc, DOC_KIND_BDH, DOC_KIND_CHECKLIST } from '../../utils/bdhDocs';
@@ -5644,6 +5644,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
    */
   const splitJoiningStrip = async (pointId: number, sid: string, indices: number[], altFt: number) => {
     const strip = strips.find((s: any) => String(s.id) === String(sid));
+    // המסך מתעדכן **ברגע השחרור**: בלי זה הפ"מ נשאר בבלוק הישן עד שהשרת עונה
+    // והפולינג מרענן, והגרירה נראתה כאילו "לא תפסה" ונוסתה שוב.
+    const optimistic = applyJoiningMove(joiningPointStrips, joiningPointAircraft, pointId, sid, indices, altToDisplay(altFt));
+    setJoiningPointStrips(optimistic.strips);
+    setJoiningPointAircraft(optimistic.aircraft);
     await fetch(`${API_URL}/joining-point-strips/${pointId}/${sid}/split`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ alt: altToDisplay(altFt), indices, callsign: strip?.callsign || '', ...joiningAudit() }),
