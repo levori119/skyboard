@@ -188,7 +188,9 @@ describe('Pattern3DScene - מה שנראה על המסך', () => {
       .map(b => ({ b, sh: shelves.find(x => x.altFt === b.altFt) }))
       .filter((x): x is { b: typeof blocks[0]; sh: typeof shelves[0] } => !!x.sh);
     expect(paired.length).toBeGreaterThan(0);   // אחרת הבדיקה ריקה מתוכן
-    for (const { b, sh } of paired) expect(b.drop).toBeCloseTo(sh.drop, 6);
+    // הסצנה מעגלת כל קואורדינטה ל-3 ספרות (`f`), ולכן זה דיוק המדידה האפשרי.
+    // 6 ספרות עברו ב-30° במקרה של העיגול, ונפלו ב-10° על הפרש של 0.0004.
+    for (const { b, sh } of paired) expect(b.drop).toBeCloseTo(sh.drop, 2);
   });
 
   // מסלול סגור - **אותה מוסכמה של המפה השטוחה** (RunwayLayer): מתאר אדום,
@@ -231,8 +233,10 @@ describe('Pattern3DScene - מה שנראה על המסך', () => {
     // בתחתית ההקפה (בסיס/פיינל) הפקח קורא את סדר הנחיתה. ההזחה של תווית הצלע
     // נמדדת ביחידות הטקסט ולא ביחידות עולם, ולכן היא גדלה יחד עם הכתב - אחרת
     // "בסיס 33" נבלע מתחת ל-"ברק02" ומה שנשאר נראה כמו שיבוש תצוגה.
-    for (const leg of ['base', 'final'] as const) {
+    // בכל זווית ולא רק בזו של הפתיחה: ההזחה נמדדת במסך, ולכן אינה תלויה בהטיה
+    for (const tilt of [10, 30, 55]) for (const leg of ['base', 'final'] as const) {
       const m = render({
+        camera: { ...DEFAULT_CAMERA, tilt },
         aircraft: [{
           strip_id: 21, aircraft_idx: 2, pattern_id: 7, in_pattern: true,
           pattern_frac: 0.5, label: 'ברק02', flight_status: leg,
@@ -246,7 +250,7 @@ describe('Pattern3DScene - מה שנראה על המסך', () => {
       const ly = Number(/ y="([-\d.]+)"/.exec(tag)![1]);
       // מרכז תווית הצלע יושב **מחוץ** לתיבת המטוס, בשוליים של חצי תיבה מסביבה
       const clear = lx < x - w * 0.5 || lx > x + w * 1.5 || ly < y - h * 0.5 || ly > y + h * 1.5;
-      expect(clear, `תווית ${leg} ב-(${lx},${ly}) נופלת על תיבת המטוס (${x},${y},${w}x${h})`).toBe(true);
+      expect(clear, `${tilt}°: תווית ${leg} ב-(${lx},${ly}) נופלת על תיבת המטוס (${x},${y},${w}x${h})`).toBe(true);
     }
   });
 

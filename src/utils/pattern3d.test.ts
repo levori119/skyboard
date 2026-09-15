@@ -5,6 +5,7 @@ import {
   DEFAULT_CAMERA,
   TILT_MAX,
   TILT_MIN,
+  TILT_STEP,
   VERT_SPAN,
   aglOf,
   altOnLeg,
@@ -480,6 +481,37 @@ describe('משטח גובה - הדאטום של כל גובה', () => {
   it('במבט-על אין הזזה אנכית כלל - ושם גם הסרגל וגם המשטחים חסרי משמעות', () => {
     const top = { yaw: 0, tilt: 90, zoom: 1 };
     expect(project({ x: 20, y: 30, z: 0 }, top).y).toBeCloseTo(project({ x: 20, y: 30, z: 50 }, top).y, 12);
+  });
+});
+
+// ── זווית הפתיחה: מטוס לא "נראה נמוך" משמשון ─────────────────────────────────
+// דווח מהשטח (2026-09-15): רכיב אווירי נראה תמיד נמוך מגובהו מול נקודות כמו
+// שמשון. הגובה בנתונים נכון - הטעות בעין: שמשון בקצה הצפוני (y=10.66), ובהיטל
+// מוטה כל עצם דרומי לו מצויר נמוך יותר באותו גובה. נמדד על הנתונים האמיתיים
+// (שמשון 4000-10000, בלי גובה שדה): ב-30° מטוס ב-7000 מעל מרכז השדה נראה כמו
+// 2000 בשמשון. הגודל הזה הוא `Δy·tan(tilt)/zScale`, ולכן ההכרעה היא זווית
+// פתיחה נמוכה - בחירת הפקח, והמצלמה עדיין מוטה ביד.
+describe('מצלמת ברירת המחדל - גובה נראה מול נקודה בקצה המפה', () => {
+  /** איזה גובה **בשמשון** מצויר באותו גובה מסך של המטוס. */
+  const apparentAtShimshon = (cam: Camera3D, trackY: number, trackFt: number) => {
+    const zs = zScaleFor(10000);                       // המעטפת: הבלוק העליון של שמשון
+    const shimshon = { x: 91.34 * 1.4, y: 10.66 };
+    const trkScreenY = project({ x: 50 * 1.4, y: trackY, z: trackFt * zs }, cam).y;
+    const groundY = project({ ...shimshon, z: 0 }, cam).y;
+    const risePerFt = groundY - project({ ...shimshon, z: 1 * zs }, cam).y;
+    return (groundY - trkScreenY) / risePerFt;
+  };
+
+  it('מטוס ב-7000 מעל מרכז השדה נראה בשמשון בטעות של פחות מ-2000 רגל', () => {
+    expect(7000 - apparentAtShimshon(DEFAULT_CAMERA, 50, 7000)).toBeLessThan(2000);
+  });
+
+  it('זה הבאג שדווח: ב-30° אותו מטוס נראה נמוך ביותר מ-4000 רגל', () => {
+    expect(7000 - apparentAtShimshon({ ...DEFAULT_CAMERA, tilt: 30 }, 50, 7000)).toBeGreaterThan(4000);
+  });
+
+  it('זווית הפתיחה נגישה מכפתורי ההטיה (כפולה של הצעד)', () => {
+    expect(DEFAULT_CAMERA.tilt % TILT_STEP).toBe(0);
   });
 });
 

@@ -749,8 +749,17 @@ export default function Pattern3DScene({
                 // בתחתית ההקפה, בדיוק במקום שבו הפקח קורא את סדר הנחיתה.
                 // `LABEL_CLEAR` גדול מחצי רוחב תיבת המטוס (עד 8k) ועוד חצי רוחב
                 // התווית, ולכן השתיים לעולם אינן חופפות.
+                //
+                // וההזחה נמדדת **במסך** ולא בעולם: הזחה לאורך העומק מתקצרת
+                // ב-`sin(tilt)`, ובזווית הפתיחה הנמוכה (10°) היא נדחסה פי 6 -
+                // ו"בסיס" נפלה שוב על תיבת המטוס. הכיוון הוא היטל ה"החוצה" של
+                // הצלע, והאורך קבוע בכל זווית. כיוון מנוון (מביטים לאורכו) → מטה.
                 const off = LABEL_CLEAR * k * labelScale;
-                const q = P(W((leg.mid.x + leg.outward.x * off) * aspect, leg.mid.y + leg.outward.y * off, altFt));
+                const m0 = P(W(leg.mid.x * aspect, leg.mid.y, altFt));
+                const m1 = P(W((leg.mid.x + leg.outward.x) * aspect, leg.mid.y + leg.outward.y, altFt));
+                const len = Math.hypot(m1.x - m0.x, m1.y - m0.y);
+                const dir = len > 1e-6 ? { x: (m1.x - m0.x) / len, y: (m1.y - m0.y) / len } : { x: 0, y: 1 };
+                const q = { x: m0.x + dir.x * off, y: m0.y + dir.y * off };
                 return (
                   <text key={key} data-testid="p3d-leg-label" data-leg={key}
                     x={q.x} y={q.y} textAnchor="middle" dominantBaseline="middle"
