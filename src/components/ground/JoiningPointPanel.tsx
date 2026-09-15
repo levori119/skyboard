@@ -6,6 +6,7 @@ import { getFormationDisplayName } from '../../utils/strips';
 import { customConfirm } from '../shared/ConfirmModal';
 import { FaultBadge } from '../shared/FaultBadge';
 import { aircraftKey } from '../../airPicture/patternTrack';
+import { frameColor } from '../../utils/windowFrame';
 import {
   acceptAltitudeLimit, altitudeGroups, distributeAltitudes, occupiedBlocks, toggleAcceptAltitude,
   altToDisplay, altMismatch, buildBlocks, conflictBlocks, displayToAlt, formationAircraft, formationsInBlocks,
@@ -39,8 +40,12 @@ export interface JoiningPointView extends JoiningPoint {
   y_pct?: number | null;
   display_mode?: string;
   is_override?: boolean;
-  /** הגדרת הנקודה: מטוסי הפ"ממים פרוסים כברירת מחדל. */
+  /** "מטוסים בלבד" **בתוקף** לעמדה הזו (בחירת העמדה, ואם אין - הניהול). */
   expand_aircraft?: boolean;
+  /** מה נקבע בניהול - מוצג במאפייני הנקודה כברירת המחדל. */
+  expand_aircraft_default?: boolean;
+  /** בחירת העמדה, או null כשהעמדה הולכת אחרי הניהול. */
+  expand_aircraft_override?: boolean | null;
 }
 
 /** קצה מסלול פעיל לנחיתות, מ-`runway_end_use`. */
@@ -97,6 +102,11 @@ interface Props {
    * מהנקודה - השורה מהבהבת בירוק (PATTERN_AUTOTRACK_SPEC §5).
    */
   approachingKeys?: Set<string>;
+  /**
+   * מאפייני הנקודה בעמדה: "מטוסים בלבד" לעמדה הזו. `null` = חזרה לברירת המחדל
+   * של הניהול. בלי ה-callback אין כפתור מאפיינים - לא מציגים פקד שלא עושה כלום.
+   */
+  onSetAircraftOnly?: (value: boolean | null) => void;
 }
 
 /** תוויות הצלעות, לפי סדר הטיסה. */
@@ -119,8 +129,10 @@ export default function JoiningPointPanel({
   landingRunways, onAcceptIncoming, onAssign, onRemoveStrip, onCoordinate,
   onUpdateAircraft, onFlightStatus, onGreens, onCollapse, onResetPosition,
   onHeaderPointerDown, onAircraftDropOnMap, onSplit, onRemoveAircraft,
-  pendingMove, onPendingMoveHandled, approachingKeys,
+  pendingMove, onPendingMoveHandled, approachingKeys, onSetAircraftOnly,
 }: Props) {
+  /** קטע מאפייני הנקודה (עריכה) - סגור כברירת מחדל, כדי לא לגזול שטח מהטבלה. */
+  const [propsOpen, setPropsOpen] = useState(false);
   /** המטוס (או מטוס כלשהו מהחלק שהשורה מציגה) מתקרב - הרכיב האווירי שלו עד 3 מייל. */
   const approaching = (sid: string, idxs: number[]) =>
     !!approachingKeys?.size && idxs.some(i => approachingKeys.has(aircraftKey(sid, i)));
@@ -500,11 +512,55 @@ export default function JoiningPointPanel({
         <span style={{ fontWeight: 'bold', color: accent, fontFamily: 'monospace' }}>{headerRange}</span>
         <span style={{ fontWeight: 'bold', flex: 1, textAlign: 'start' }}>{bidiAuto(point.name)}</span>
         <span style={{ color: C.dim, fontSize: '10px' }}>{tr('joining.blocksCount')}: {blocks.length}</span>
+        {onSetAircraftOnly && (
+          <button
+            type="button"
+            data-testid="joining-props-toggle"
+            title={tr('joining.stationProps')}
+            aria-pressed={propsOpen}
+            onClick={() => setPropsOpen(o => !o)}
+            style={btn(propsOpen ? frameColor('edit', themeMode) : 'transparent', propsOpen ? '#fff' : C.dim)}
+          >⚙</button>
+        )}
         {onResetPosition && (
           <button type="button" title={tr('joining.resetPosition')} onClick={onResetPosition} style={btn('transparent', C.dim)}>⟲</button>
         )}
         <button type="button" title={tr('joining.collapse')} onClick={onCollapse} style={btn('transparent', C.dim)}>▾</button>
       </div>
+
+      {/* מאפייני הנקודה בעמדה - קטע **עריכה**, ולכן קו כתום (CLAUDE.md §מסגרת חלון).
+          הבחירה נשמרת לעמדה הזו בלבד; הניהול נשאר ברירת המחדל. */}
+      {propsOpen && onSetAircraftOnly && (() => {
+        const override = typeof point.expand_aircraft_override === 'boolean' ? point.expand_aircraft_override : null;
+        const def = typeof point.expand_aircraft_default === 'boolean' ? point.expand_aircraft_default : !!point.expand_aircraft;
+        const edit = frameColor('edit', themeMode);
+        return (
+          <div data-testid="joining-props" style={{ padding: '6px 8px', background: C.head, borderBottom: `2px solid ${edit}`, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <span style={{ fontWeight: 'bold', color: edit }}>{tr('joining.stationProps')}</span>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                data-testid="joining-props-aircraft-only"
+                checked={!!point.expand_aircraft}
+                onChange={e => onSetAircraftOnly(e.target.checked)}
+              />
+              {tr('joining.expandByDefault')}
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', color: C.dim, fontSize: '10px' }}>
+              <span>
+                {override == null
+                  ? tr('joining.propsFollowsDefault')
+                  : tr('joining.propsStationChoice', { def: def ? tr('joining.propsYes') : tr('joining.propsNo') })}
+              </span>
+              {override != null && (
+                <button type="button" data-testid="joining-props-reset" onClick={() => onSetAircraftOnly(null)} style={btn('#475569')}>
+                  {tr('joining.propsResetDefault')}
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* השורה העליונה: מה שמועבר אליי מנקודת המעבר המקושרת ועוד לא קיבל גובה */}
       <div style={{ display: 'flex', borderBottom: `2px solid ${C.border}` }}>

@@ -73,7 +73,7 @@ const LAYERS_KEEP_VISIBLE = 70;
 
 export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onUpdateStripAircraftFault, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, canAddVehicle = false, onDeleteElement, hideStrips, hideElementPanel, hidePatternControls = false, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], linkedRouteNotams = [], runwayAidStatuses = [], airfieldPatterns = [], activeRunwayIdents = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, onCloseLayersPanel, onOpenLayersPanel, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark',
   joiningPoints = [], joiningPointStrips = [], joiningPointAircraft = [], landingRunways = [],
-  onAssignJoiningStrip, onRemoveJoiningAircraft, onAcceptToJoiningPoint, onRemoveJoiningStrip, onCoordinateJoiningStrip, onSplitJoiningStrip,
+  onAssignJoiningStrip, onRemoveJoiningAircraft, onAcceptToJoiningPoint, onRemoveJoiningStrip, onCoordinateJoiningStrip, onSplitJoiningStrip, onSetJoiningPointAircraftOnly,
   onUpdateJoiningAircraft, onSetFlightStatus, onSetGreens, onMoveJoiningPoint, onResetJoiningPoint,
   airPicture, weather, geoAnchor = null, showPatternTraffic = false, onClosePatternTraffic, onOpenPatternTraffic }: {
   strips: any[];
@@ -239,6 +239,8 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   onRemoveJoiningStrip?: (pointId: number, stripId: string) => void;
   onCoordinateJoiningStrip?: (pointId: number, stripId: string, coordinated: boolean, note: string) => void;
   onSplitJoiningStrip?: (pointId: number, stripId: string, indices: number[], altFt: number) => void;
+  /** מאפייני נקודת ההצטרפות בעמדה: "מטוסים בלבד" לעמדה הזו. null = חזרה לברירת המחדל של הניהול. */
+  onSetJoiningPointAircraftOnly?: (pointId: number, value: boolean | null) => void;
   onUpdateJoiningAircraft?: (pointId: number | null, stripId: string, idx: number, patch: Record<string, unknown>) => void;
   onSetFlightStatus?: (stripId: string, idx: number, status: string) => void;
   onSetGreens?: (stripId: string, idx: number, greens: boolean) => void;
@@ -4403,6 +4405,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                         onResetPosition={jpPos[jp.id] ? () => setJpPos(p => { const n = { ...p }; delete n[jp.id]; return n; }) : undefined}
                         onHeaderPointerDown={headerProps.onPointerDown}
                         approachingKeys={autotrack.nearPoint}
+                        onSetAircraftOnly={onSetJoiningPointAircraftOnly ? v => onSetJoiningPointAircraftOnly(jp.id, v) : undefined}
                         onAircraftDropOnMap={(sid, idx, cx, cy) => dropAircraftOnPattern(sid, idx, cx, cy)}
                     onRemoveAircraft={(sid: string, idx: number) => onRemoveJoiningAircraft?.(sid, idx)}
                       />

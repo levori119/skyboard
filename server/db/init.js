@@ -1705,6 +1705,9 @@ async function applySchemaOnce() {
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(joining_point_id, preset_id)
   )`);
+  // "מטוסים בלבד" שהפקח בחר **לעמדה שלו** מתוך מאפייני הנקודה. NULL = הולכת אחרי
+  // ברירת המחדל שנקבעה בניהול (airfield_joining_points.expand_aircraft).
+  await sq(`ALTER TABLE joining_point_preset_overrides ADD COLUMN IF NOT EXISTS expand_aircraft BOOLEAN`);
 
   // ── מצב חי של נקודת ההצטרפות (תפעולי) ────────────────────────────────────
   // **הגובה אינו נשמר כאן**: השיבוץ לבלוק כותב ל-strips.alt, שהוא הגובה שכל

@@ -1004,6 +1004,7 @@ COALESCE(last_seen, entered_at) > NOW() - INTERVAL '240 seconds'
 | `preset_id` | INT → workstation_presets | העמדה הדורסת (CASCADE) |
 | `x_pct`, `y_pct` | FLOAT | מיקום חלופי |
 | `display_mode` | VARCHAR(10) | `pin` (סמן מכווץ) / `full` (טבלה פרוסה) |
+| `expand_aircraft` | BOOLEAN NULL | "מטוסים בלבד" שהפקח בחר לעמדה שלו במאפייני הנקודה. NULL = לפי `airfield_joining_points.expand_aircraft` (ניהול) |
 | `updated_at` | TIMESTAMPTZ | חותמת |
 
 **אינדקס:** `UNIQUE(joining_point_id, preset_id)` — UPSERT אמיתי.
@@ -2304,6 +2305,7 @@ COALESCE(last_seen, entered_at) > NOW() - INTERVAL '240 seconds'
 | `preset_id` | INT → workstation_presets | העמדה הדורסת (CASCADE) |
 | `x_pct`, `y_pct` | FLOAT | מיקום חלופי |
 | `display_mode` | VARCHAR(10) | `pin` (סמן מכווץ) / `full` (טבלה פרוסה) |
+| `expand_aircraft` | BOOLEAN NULL | "מטוסים בלבד" שהפקח בחר לעמדה שלו במאפייני הנקודה. NULL = לפי `airfield_joining_points.expand_aircraft` (ניהול) |
 | `updated_at` | TIMESTAMPTZ | חותמת |
 
 **אינדקס:** `UNIQUE(joining_point_id, preset_id)` — UPSERT אמיתי.

@@ -88,3 +88,26 @@ describe('JoiningPointPanel - תפריט המצב במקום "שים בהקפה"
     expect(render(point())).toContain('border-bottom:2px solid #64748b');
   });
 });
+
+describe('JoiningPointPanel - מאפייני הנקודה בעמדה', () => {
+  const renderWith = (extra: Record<string, unknown>) => renderToStaticMarkup(
+    <JoiningPointPanel
+      point={point()} incoming={[]} assigned={assigned as any} aircraft={[]} landingRunways={[]}
+      onAcceptIncoming={noop} onAssign={noop} onRemoveStrip={noop} onCoordinate={noop}
+      onUpdateAircraft={noop} onFlightStatus={noop} onCollapse={noop}
+      {...extra}
+    />,
+  );
+
+  it('כפתור המאפיינים מופיע כשהעמדה יכולה לשמור בחירה', () => {
+    expect(count(renderWith({ onSetAircraftOnly: noop }), 'joining-props-toggle')).toBe(1);
+  });
+
+  it('בלי יכולת שמירה - אין כפתור שנדלק בלי שקורה משהו', () => {
+    expect(count(renderWith({}), 'joining-props-toggle')).toBe(0);
+  });
+
+  it('המאפיינים סגורים כברירת מחדל - לא גוזלים שטח מהטבלה', () => {
+    expect(count(renderWith({ onSetAircraftOnly: noop }), 'joining-props')).toBe(0);
+  });
+});

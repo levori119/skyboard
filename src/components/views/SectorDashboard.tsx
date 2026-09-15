@@ -29,6 +29,7 @@ import { loadStripFieldCatalog, useStripFieldCatalog } from '../../utils/stripFi
 import { stripInCombined, resolveTransferFromPreset, type CombinedPosition } from '../../utils/unifiedStrips';
 import { getFormationDisplayName, getTransferLabel, getTransferSq, normalizeAlt, parseAltToFeet, computeBlockDeviation, parseAltRange, altRangeGap, mergeStripsWithPending } from '../../utils/strips';
 import { compareAirborneThenTakeoff } from '../../utils/stripOrder';
+import { applyAircraftOnlyChoice } from '../../../shared/joiningPointProps.js';
 import { altToDisplay, applyJoiningAccept, applyJoiningMove, createJoiningSyncGate, patchJoiningAircraft } from '../../utils/joiningPoints';
 import { parseNoteValue, serializeNoteValue } from '../../utils/notes';
 import { bidiAuto } from '../../utils/bidi';
@@ -5703,6 +5704,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     try { await sendJoiningSplit(pointId, sid, indices, altFt); } finally { end(); }
     await reloadJoiningState();
     loadData();
+  };
+
+  /**
+   * מאפייני הנקודה בעמדה: "מטוסים בלבד" **לעמדה הזו** (דריסה על ברירת המחדל מהניהול).
+   * המסך מתעדכן מיד, ובכשל חוזרים למה שהיה - מתג שנשאר דלוק בלי שנשמר מטעה את הפקח.
+   */
+  const setJoiningPointAircraftOnly = async (pointId: number, value: boolean | null) => {
+    const presetId = myPresetConfig?.id;
+    if (!presetId) return;
+    const before = joiningPoints;
+    setJoiningPoints(prev => applyAircraftOnlyChoice(prev, pointId, value));
+    try {
+      const r = await fetch(`${API_URL}/joining-points/${pointId}/station-props`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preset_id: presetId, expand_aircraft: value }),
+      });
+      if (!r.ok) setJoiningPoints(before);
+    } catch { setJoiningPoints(before); }
   };
 
   const removeJoiningStrip = async (pointId: number, sid: string) => {
@@ -14121,6 +14140,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 onRemoveJoiningStrip={removeJoiningStrip}
                 onCoordinateJoiningStrip={coordinateJoiningStrip}
                 onSplitJoiningStrip={splitJoiningStrip}
+                onSetJoiningPointAircraftOnly={myPresetConfig?.id ? setJoiningPointAircraftOnly : undefined}
                 onUpdateJoiningAircraft={updateJoiningAircraft}
                 onSetFlightStatus={setAircraftFlightStatus}
                 onSetGreens={setAircraftGreens}

@@ -19,6 +19,7 @@ import { captureChange } from '../gapi/hooks.js';
 import { expectedFormationCount } from '../../shared/formationCount.js';
 import { planLandingRunways } from '../../shared/landingPriority.js';
 import { resolveEndUse } from '../utils/runwayState.js';
+import { resolveAircraftOnly } from '../../shared/joiningPointProps.js';
 
 const router = new Router();
 
@@ -250,6 +251,7 @@ router.get('/api/joining-points', async (req, res) => {
 
     res.json(rows.map(r => {
       const o = overrides.get(r.id);
+      const aircraftOnly = resolveAircraftOnly(r.expand_aircraft, o?.expand_aircraft);
       return {
         ...r,
         steps: steps.get(r.id) || [],
@@ -257,6 +259,11 @@ router.get('/api/joining-points', async (req, res) => {
         y_pct: o && o.y_pct != null ? o.y_pct : r.y_pct,
         display_mode: o?.display_mode || 'pin',
         is_override: !!o,
+        // מטוסים בלבד: בחירת העמדה גוברת על הניהול. שני השדות הנוספים מאפשרים
+        // למאפייני הנקודה בעמדה להציג את ברירת המחדל והאם היא נדרסה.
+        expand_aircraft: aircraftOnly.value,
+        expand_aircraft_default: aircraftOnly.defaultValue,
+        expand_aircraft_override: aircraftOnly.fromStation ? o.expand_aircraft : null,
       };
     }));
   } catch (err) {
@@ -354,6 +361,31 @@ router.put('/api/joining-points/:id/override', async (req, res) => {
     res.json(rows[0]);
   } catch (err) {
     console.error('PUT /api/joining-points/:id/override:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// מאפייני הנקודה **בעמדה** - "מטוסים בלבד" לעמדה הזו בלבד. עדכון חלקי: לא נוגע
+// במיקום ובמצב התצוגה שנשמרו לעמדה (ה-override למעלה דורס את שלושתם יחד).
+// expand_aircraft: true/false = בחירת העמדה · null = חזרה לברירת המחדל של הניהול.
+router.put('/api/joining-points/:id/station-props', async (req, res) => {
+  try {
+    const b = req.body || {};
+    const presetId = int(b.preset_id);
+    const pointId = int(req.params.id);
+    if (!presetId || !pointId) return res.status(400).json({ error: 'preset_id נדרש' });
+    const choice = typeof b.expand_aircraft === 'boolean' ? b.expand_aircraft : null;
+    const { rows } = await pool.query(
+      `INSERT INTO joining_point_preset_overrides (joining_point_id, preset_id, expand_aircraft)
+       VALUES ($1,$2,$3)
+       ON CONFLICT (joining_point_id, preset_id) DO UPDATE
+         SET expand_aircraft = EXCLUDED.expand_aircraft, updated_at = NOW()
+       RETURNING *`,
+      [pointId, presetId, choice],
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('PUT /api/joining-points/:id/station-props:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

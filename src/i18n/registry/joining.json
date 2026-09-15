@@ -174,6 +174,30 @@
       "he": "מטוסים בלבד",
       "en": "Aircraft only"
     },
+    "stationProps": {
+      "he": "מאפייני הנקודה בעמדה",
+      "en": "Point properties (this station)"
+    },
+    "propsFollowsDefault": {
+      "he": "לפי ברירת המחדל מהניהול",
+      "en": "Following the management default"
+    },
+    "propsStationChoice": {
+      "he": "בחירת העמדה (בניהול: {{def}})",
+      "en": "Station choice (management: {{def}})"
+    },
+    "propsYes": {
+      "he": "כן",
+      "en": "Yes"
+    },
+    "propsNo": {
+      "he": "לא",
+      "en": "No"
+    },
+    "propsResetDefault": {
+      "he": "חזור לברירת המחדל",
+      "en": "Back to default"
+    },
     "dragFormationTitle": {
       "he": "גרור לבלוק גובה - כל המבנה עובר",
       "en": "Drag to an altitude block - the whole formation moves"

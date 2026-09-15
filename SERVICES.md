@@ -1685,6 +1685,7 @@ PUT /api/joining-point-aircraft/:stripId/:idx
 PUT /api/joining-point-strips/:pointId/:stripId/coordinate
 PUT /api/joining-points/:id
 PUT /api/joining-points/:id/override
+PUT /api/joining-points/:id/station-props
 PUT /api/strip-aircraft/:stripId/:idx/flight-status
 
 #### maps.js
