@@ -763,6 +763,24 @@ body.map-panning.fz-pairing [data-map-panel] * {
   50%, 100% { background: #7f1d1d; }
 }
 
+/* מעקב הקפה אוטומטי (PATTERN_AUTOTRACK_SPEC.md). **מסגרת** מהבהבת ולא רקע, כדי
+   שהטקסט יישאר קריא בשלוש התמות. צבעי סטטוס - קבועים בכל התמות.
+   ירוק = הרכיב האווירי של הפ"מ עד 3 מייל מנקודת ההצטרפות.
+   אדום = בבסיס/פיינל ולא דיווח ירוקים. */
+@keyframes skyking-approach-blink {
+  0%, 49%   { box-shadow: 0 0 0 2px #22c55e; }
+  50%, 100% { box-shadow: 0 0 0 2px transparent; }
+}
+@keyframes skyking-greens-row-blink {
+  0%, 49%   { box-shadow: 0 0 0 2px #dc2626; }
+  50%, 100% { box-shadow: 0 0 0 2px transparent; }
+}
+/* שורת טבלה: box-shadow על <tr> אינו מצויר בכל הדפדפנים, ולכן רקע שקוף-למחצה */
+@keyframes skyking-greens-tr-blink {
+  0%, 49%   { background: rgba(220, 38, 38, 0.45); }
+  50%, 100% { background: transparent; }
+}
+
 /* חומרת הודעה "קריטי" בלוח ההודעות (src/utils/signalSeverity.ts).
    ההבהוב עובר בין אדום בהיר לאדום כהה ולא ל-opacity 0, כדי שהטקסט יישאר
    קריא לאורך כל המחזור - הבהוב בעמדת פיקוח מושך תשומת לב ואסור שימנע קריאה.

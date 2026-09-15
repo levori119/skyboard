@@ -30,7 +30,10 @@ import {
   loadPattern3DPrefs, savePattern3DPrefs, smallWinInArea, type Pattern3DPrefs,
 } from '../ground/pattern3dPrefs';
 import { DEFAULT_CAMERA, shouldRenderPattern3D, shouldShowPatternLabels, type Camera3D } from '../../utils/pattern3d';
-import { altToDisplay, collectGreensAlerts, greensPoint, type GreensAlertRow } from '../../utils/joiningPoints';
+import { altToDisplay, collectGreensAlerts, greensAlert, greensPoint, greensPopupQueue, type GreensAlertRow } from '../../utils/joiningPoints';
+import { usePatternAutotrack } from '../../airPicture/usePatternAutotrack';
+import PatternTrafficWindow from '../ground/PatternTrafficWindow';
+import GreensAlertPopup from '../ground/GreensAlertPopup';
 import { bidiAuto } from '../../utils/bidi';
 import { ELEMENT_NEUTRAL_FILL, canChangeElementStatus, displayStateOptions, nextServiceability, serviceabilityStyle } from '../../utils/elementStatus';
 import { activePatterns, boundsAspect } from '../../utils/trafficPattern';
@@ -69,7 +72,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   joiningPoints = [], joiningPointStrips = [], joiningPointAircraft = [], landingRunways = [],
   onAssignJoiningStrip, onRemoveJoiningAircraft, onAcceptToJoiningPoint, onRemoveJoiningStrip, onCoordinateJoiningStrip, onSplitJoiningStrip,
   onUpdateJoiningAircraft, onSetFlightStatus, onSetGreens, onMoveJoiningPoint, onResetJoiningPoint,
-  airPicture, weather, geoAnchor = null }: {
+  airPicture, weather, geoAnchor = null, showPatternTraffic = false, onClosePatternTraffic }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -171,6 +174,9 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
    * העוגן שגוי או שהמטוס באמת לא נמצא בתחומי התמונה.
    */
   geoAnchor?: MapGeoAnchor | null;
+  /** חלון "בהקפה" פתוח (מתפריט תצוגה) - PATTERN_AUTOTRACK_SPEC §7. */
+  showPatternTraffic?: boolean;
+  onClosePatternTraffic?: () => void;
   onDeleteElement?: (elementId: number) => Promise<void>;
   hideStrips?: boolean;
   hideElementPanel?: boolean;
@@ -1301,6 +1307,62 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
     () => collectGreensAlerts(strips || [], (stripAircraftData || {}) as any),
     [strips, stripAircraftData],
   );
+
+  // ── מעקב הקפה אוטומטי (PATTERN_AUTOTRACK_SPEC.md) ─────────────────────────
+  // הרכיב האווירי משודך למטוס בודד (או"ק + מספר במבנה), והרישום זז בעקבותיו:
+  // יציאה מהנקודה, צלע, נחת. רק לפ"מים של העמדה הזו, רק כשיש תמונ"א ומפה
+  // מעוגנת, ולא בעמדת ניהול שדה (`hidePatternControls`) שאין לה עניין בהקפות.
+  const autotrack = usePatternAutotrack({
+    enabled: !!airPicture?.active && !!geoAnchor && !hidePatternControls,
+    anchor: geoAnchor,
+    aspect: boundsAspect(imgBounds),
+    patterns: shownPatterns,
+    joiningPoints, joiningPointStrips, joiningPointAircraft,
+    stripAircraft: stripAircraftData as any,
+    presetId: currentPresetId,
+    pollMs: airPicture?.pollMs,
+    handlers: {
+      updateJoiningAircraft: (pid, sid, idx, patch) => onUpdateJoiningAircraft?.(pid, sid, idx, patch),
+      setFlightStatus: (sid, idx, st) => onSetFlightStatus?.(sid, idx, st),
+      removeAircraft: (sid, idx) => onRemoveJoiningAircraft?.(sid, idx),
+    },
+  });
+
+  /**
+   * כל המטוסים בבסיס/פיינל בלי ירוקים: של רשימת העמדה **ושל שורות ההקפה** -
+   * פ"מ שכל מטוסיו בהקפה כבר אינו ברשימת העמדה, ובלי השורות האלה ההתראה שלו
+   * הייתה נעלמת בדיוק כשהוא מתקרב לנחיתה.
+   */
+  const greensAlertAll = React.useMemo(() => {
+    const out = new Map<string, GreensAlertRow>();
+    for (const r of greensAlertRows) out.set(`${r.stripId}|${r.idx}`, r);
+    for (const a of patternAircraftRows as any[]) {
+      if (!greensAlert(a.flight_status, a.greens)) continue;
+      const key = `${a.strip_id}|${a.aircraft_idx}`;
+      if (!out.has(key)) out.set(key, { stripId: String(a.strip_id), idx: Number(a.aircraft_idx), label: a.label });
+    }
+    return [...out.values()];
+  }, [greensAlertRows, patternAircraftRows]);
+
+  /** הרכיבים האוויריים של אותם מטוסים - הטבעת האדומה בתמונ"א. */
+  const greensAlertTrackIds = React.useMemo(() => {
+    const ids = new Set<string>();
+    for (const r of greensAlertAll) {
+      const tid = autotrack.trackIdByKey.get(`${r.stripId}|${r.idx}`);
+      if (tid) ids.add(tid);
+    }
+    return ids;
+  }, [greensAlertAll, autotrack.trackIdByKey]);
+
+  // ההתראה המתפרצת - פעם אחת לכל כניסה למצב (greensPopupQueue)
+  const greensSeenRef = useRef<Set<string>>(new Set());
+  const [greensPopups, setGreensPopups] = React.useState<GreensAlertRow[]>([]);
+  React.useEffect(() => {
+    const { fresh, seen } = greensPopupQueue(greensSeenRef.current, greensAlertAll);
+    greensSeenRef.current = seen;
+    // מטוס שיצא מהמצב לפני שאושר - ההתראה שלו כבר אינה נכונה
+    setGreensPopups(prev => [...prev.filter(r => seen.has(`${r.stripId}|${r.idx}`)), ...fresh]);
+  }, [greensAlertAll]);
 
   const ptPos = (x_pct: number, y_pct: number) => imgBounds
     ? { left: `${imgBounds.left + (x_pct / 100) * imgBounds.width}px`, top: `${imgBounds.top + (y_pct / 100) * imgBounds.height}px` }
@@ -2925,6 +2987,28 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           </div>
           )}
 
+          {/* מעקב הקפה אוטומטי: טבלת "בהקפה" והתראת הירוקים המתפרצת. שניהם
+              portal - המיקום כאן בעץ אינו משנה את מיקומם על המסך. */}
+          {showPatternTraffic && !hidePatternControls && (
+            <PatternTrafficWindow
+              aircraft={patternAircraftRows as any[]}
+              patterns={shownPatterns}
+              trackIdByKey={autotrack.trackIdByKey}
+              elevFt={airfield?.elev_ft ?? null}
+              themeMode={themeMode}
+              onClose={() => onClosePatternTraffic?.()}
+              onFlightStatus={(sid, idx, st) => onSetFlightStatus?.(sid, idx, st)}
+              onGreens={(sid, idx, g) => onSetGreens?.(sid, idx, g)}
+            />
+          )}
+          {!hidePatternControls && (
+            <GreensAlertPopup
+              queue={greensPopups}
+              themeMode={themeMode}
+              onAck={() => setGreensPopups(q => q.slice(1))}
+            />
+          )}
+
           {/* ── הקפה תלת מימדית ──
               **תצוגה נוספת, לא מחליפה**: אותה הקפה, אותם בלוקי גבהים ואותם
               מטוסים - עם הגובה. כל פעולה (הזזת מטוס בין בלוקים, שינוי סטטוס)
@@ -2970,7 +3054,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 display={mapDisplaySettings}
                 /* תמונ"א: העוגן וההעדפות בלבד - המטוסים נקראים מה-store בתוך
                    הסצנה, כמו בשכבה השטוחה, ולכן דגימה אינה מרנדרת את העמדה. */
-                airPicture={airPicture?.active ? { anchor: airPicture.anchor, prefs: airPicture.prefs } : null}
+                airPicture={airPicture?.active ? { anchor: airPicture.anchor, prefs: airPicture.prefs, alertIds: greensAlertTrackIds } : null}
               />
             );
             type ControlsProps = React.ComponentProps<typeof Pattern3DControls>;
@@ -3240,6 +3324,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               pollMs={airPicture.pollMs}
               zIndex={0}
               onVisibleCount={airPicture.onVisibleCount}
+              alertTrackIds={greensAlertTrackIds}
             />
           )}
 
@@ -4278,6 +4363,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                         onCollapse={() => setJpOpen(s => { const n = new Set(s); n.delete(jp.id); return n; })}
                         onResetPosition={jpPos[jp.id] ? () => setJpPos(p => { const n = { ...p }; delete n[jp.id]; return n; }) : undefined}
                         onHeaderPointerDown={headerProps.onPointerDown}
+                        approachingKeys={autotrack.nearPoint}
                         onAircraftDropOnMap={(sid, idx, cx, cy) => dropAircraftOnPattern(sid, idx, cx, cy)}
                     onRemoveAircraft={(sid: string, idx: number) => onRemoveJoiningAircraft?.(sid, idx)}
                       />

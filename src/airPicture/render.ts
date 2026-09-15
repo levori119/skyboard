@@ -32,7 +32,17 @@ export interface RenderOpts {
   density: number;
   /** התמונה ישנה - הסמלים מעומעמים נוספות. */
   stale: boolean;
+  /**
+   * רכיבים בהתראה (מעקב הקפה: בסיס/פיינל בלי ירוקים). סביבם טבעת אדומה.
+   * **לא** מסנן ולא משנה את צבע הסיווג - הצבע עונה על "מי זה", הטבעת על "יש בעיה".
+   */
+  alertIds?: Set<string> | null;
+  /** חצי המחזור שבו הטבעת דולקת - ההבהוב נגזר מהשעון בלולאה, לא כאן. */
+  blinkOn?: boolean;
 }
+
+/** אדום סטטוס - קבוע בכל התמות, כמו הבהוב הירוקים בטבלאות. */
+export const ALERT_RING_COLOR = '#dc2626';
 
 /**
  * מטמון הביטמאפים של התוויות - **האופטימיזציה היחידה שבלעדיה זה לא עומד**.
@@ -166,6 +176,16 @@ export function renderFrame(
   for (const t of tracks) {
     const px = (t.x / 100) * W;
     const py = (t.y / 100) * H;
+    if (o.alertIds?.has(t.id) && o.blinkOn !== false) {
+      cx.save();
+      cx.globalAlpha = 1;               // התראה אינה מתעמעמת עם בהירות התמונה
+      cx.beginPath();
+      cx.arc(px, py, r * 1.9, 0, Math.PI * 2);
+      cx.lineWidth = Math.max(2, r / 2.5);
+      cx.strokeStyle = ALERT_RING_COLOR;
+      cx.stroke();
+      cx.restore();
+    }
     drawSymbol(cx, px, py, t.hdg, r, CLASSIFICATION_COLOR[t.cls] || '#94a3b8');
     drawTrend(cx, px, py, r, o.trends?.get(t.id) ?? null);
     if (!o.labels) continue;

@@ -407,6 +407,48 @@ State מתעדכן **רק כשחתימת ההתראות משתנתה**. תמונ
 גורף, ולכן אירוע חדש יופיע שוב.
 **מייצא:** `useZoneWatch`, `ZoneWatchMap`, `ZoneWatchOffender`, `UseZoneWatchResult`.
 
+### `src/airPicture/patternTrack.ts`
+**תפקיד:** **מנוע מעקב ההקפה האוטומטי** - פונקציות טהורות (PATTERN_AUTOTRACK_SPEC.md).
+משדך רכיב אווירי למטוס **בודד** בפ"מ: שם לפי `zoneWatch.callsignSimilarity`, ומספר
+במבנה מסוף ה-או"ק (`formationIndexOf`: "בננה 11" ברביעייה = 1). פ"מ מפוצל מקבל רק את
+המספרים שלו; שני רכיבים לאותו מטוס = **לא משודך** (`ambiguous`). מכונת מצבים **מבוססת
+מעברים** (כותבת רק כשהזיהוי משתנה, ולכן תיקון ידני אינו נדרס): עד 3 מייל מנקודת
+ההצטרפות = הבהוב ירוק; יצא מעבר ל-3.2 = `leave-point`; עד 0.5 מייל מצלע עם הרוח /
+בסיס / פיינל = `set-leg`; אחרי פיינל, מהירות < 60 קשר או נעלם עד מייל מקטע המסלול, 30 שניות
+רצוף = `landed`. השהיה 3 שניות לכל מצב, ופער טיקים > 5 שניות מאפס ספירות.
+**מייצא:** `tickPatternAutotrack`, `matchFormationTracks`, `formationIndexOf`, `detectLeg`,
+`distToSegmentNm`, `aircraftKey`, `expectedFormationCount` (מ-`shared/formationCount.js`) והספים.
+
+### `src/airPicture/patternTrackInputs.ts`
+**תפקיד:** שורות ה-DB → קלט למנוע. `autotrackInputs` - הפ"מים **של העמדה**
+(`workstation_preset_id`) שממתינים בנקודה או שיש להם מטוס בהקפה, ומטוסיהם עם נ"צ
+הנקודה והסטטוס. `patternGeoOf` - צלעות ההקפה בנ"צ דרך עוגן המפה.
+
+### `src/airPicture/usePatternAutotrack.ts`
+**תפקיד:** מריץ את המנוע בעמדת המגדל פעם בשנייה, **בלי מנוי ל-store** (אותה תבנית של
+`useZoneWatch`). שולח את הפעולות דרך **אותם handlers** של פאנל הנקודה, בתור **לכל
+מטוס** (המנוע מוציא כל פעולה פעם אחת - אסור לזרוק). מחזיר `nearPoint` (הבהוב ירוק)
+ו-`trackIdByKey` (טבעת אדומה על הרכיב, גובה בטבלה).
+**מייצא:** `usePatternAutotrack`.
+
+### `src/utils/patternTraffic.ts`
+**תפקיד:** טבלת "בהקפה" - מטוס שורה (`in_pattern`, לא נחת), מקובץ לפי מסלול נחיתה
+(ללא מסלול - אחרון), ממוין לפי גובה - הגבוה ראשון. גובה הרכיב המשודך, ובהיעדרו
+`altOnLeg` של ההקפה (מסומן מתוכנן). **מייצא:** `patternTrafficGroups`.
+
+### `src/components/ground/PatternTrafficWindow.tsx`
+**תפקיד:** חלון צף בר-עגינה "בהקפה" (מסגרת `view`), מתפריט "תצוגה" בעמדת מגדל.
+צלע וירוקים ניתנים לתיקון מכאן - סוגר את הפער שבו מטוס שעזב את הנקודה לא היה נגיש.
+נרשם ל-store בעצמו, כדי שדגימה תרנדר את החלון ולא את מסך המגדל.
+
+### `src/components/ground/GreensAlertPopup.tsx`
+**תפקיד:** התראה מתפרצת "לא דווחו גלגלים ירוקים" - **אישור בלבד**, פעם אחת לכל כניסה
+למצב (`greensPopupQueue`). ההבהוב האדום (טבלה, הקפה, רכיב אווירי) נשאר עד הדיווח.
+
+### `shared/formationCount.js`
+**תפקיד:** כמה מטוסים צפויים בפ"מ - כלל אחד לשרת ולעמדה. פ"מ מפוצל = `aircraft_indices.length`,
+אחרת `max(שורות strip_aircraft, number_of_formation)`. **מייצא:** `expectedFormationCount`.
+
 ### `server/routes/airPicture.js`
 **תפקיד:** קונפיגורציה וריליי. **אין טבלת מטוסים ואין כתיבה ל-DB בנתיב הנתונים.**
 **Endpoints:** `GET /api/air-picture/config` (לעמדה — **בלי הטוקן**) ·

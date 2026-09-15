@@ -1534,6 +1534,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [sdElemDsMenu, setSdElemDsMenu] = useState<{ id: number; x: number; y: number } | null>(null);
   // טבלת האלמנטים - חוצה את כל שדות בסיס האב, ולכן רשימה משלה ולא airfieldElements
   const [showElementsTable, setShowElementsTable] = useState(false);
+  /** טבלת "בהקפה" - מטוסים שעזבו את נקודת ההצטרפות (PATTERN_AUTOTRACK_SPEC §7). */
+  const [showPatternTraffic, setShowPatternTraffic] = useState(false);
   const [baseElements, setBaseElements] = useState<any[]>([]);
   const [aidGroup, setAidGroup] = useState<any | null>(null);
   const [aidExpandedIds, setAidExpandedIds] = useState<Set<string>>(new Set());
@@ -11829,6 +11831,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <span style={{ fontSize: '10px', color: showElementsTable ? '#60a5fa' : '#94a3b8' }}>{showElementsTable ? '\u2713' : ''}</span>
                     </div>
                   )}
+                  {/* טבלת "בהקפה" - עמדת מגדל בלבד; לניהול שדה אין הקפות */}
+                  {isGroundMode && !isGroundMgmtMode && (
+                    <div
+                      data-testid="view-menu-pattern-traffic"
+                      onClick={() => { setShowPatternTraffic(v => !v); setShowViewMenu(false); }}
+                      style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: showPatternTraffic ? '#93c5fd' : '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #1e3a5f' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
+                      onMouseLeave={e => (e.currentTarget.style.background = '')}
+                    >
+                      <span>{tr('dock.winPatternTraffic')}</span>
+                      <span style={{ fontSize: '10px', color: showPatternTraffic ? '#60a5fa' : '#94a3b8' }}>{showPatternTraffic ? '✓' : ''}</span>
+                    </div>
+                  )}
                   {/* חלון שכבות — הצג/הסתר (עמדת שדה) */}
                   {isGroundMode && (
                     <div
@@ -14004,6 +14019,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   themeMode,
                 }}
                 geoAnchor={groundAnchor}
+                showPatternTraffic={showPatternTraffic}
+                onClosePatternTraffic={() => setShowPatternTraffic(false)}
                 lightMode={lightMode}
                 themeMode={themeMode}
                 allSectors={allSectors}

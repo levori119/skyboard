@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { allAircraftInPattern, altMismatch, altToDisplay, blockOf, buildBlocks, conflictBlocks, findStepOverlaps, formationAircraft, formationsInBlocks, collectGreensAlerts, greensAlert, greensPoint, isAltInPoint, normalizeLeg, FLIGHT_LEGS, DEFAULT_LEG, nearestBlock, type AltStep, type JoiningPoint } from './joiningPoints';
+import { allAircraftInPattern, altMismatch, altToDisplay, blockOf, buildBlocks, conflictBlocks, findStepOverlaps, formationAircraft, formationsInBlocks, collectGreensAlerts, greensAlert, greensPopupQueue, greensPoint, isAltInPoint, normalizeLeg, FLIGHT_LEGS, DEFAULT_LEG, nearestBlock, type AltStep, type JoiningPoint } from './joiningPoints';
 
 // נקודת הצטרפות נפרסת לטבלת בלוקי גבהים. הגובה נשמר **ברגל** (4000) ומוצג
 // **במאות** (040), כמו על הסדק. ההפרש בין בלוקים אינו קבוע: אפשר 1000 רגל
@@ -299,9 +299,14 @@ describe('greensAlert - מטוס נוחת ולא דיווח ירוקים', () =>
     expect(greensAlert('final', true)).toBe(false);
   });
 
-  it('צלעות מוקדמות - עוד לא רלוונטי', () => {
+  // מעכשיו (2026-09-15, הכרעת הפקח): מהבסיס והלאה. בפיינל כבר מאוחר לגלות.
+  it('בסיס בלי ירוקים - התראה, ועם ירוקים - לא', () => {
+    expect(greensAlert('base', false)).toBe(true);
+    expect(greensAlert('base', true)).toBe(false);
+  });
+
+  it('עם הרוח ולפני כן - עוד לא רלוונטי', () => {
     expect(greensAlert('downwind', false)).toBe(false);
-    expect(greensAlert('base', false)).toBe(false);
     expect(greensAlert('none', false)).toBe(false);
   });
 
@@ -314,17 +319,38 @@ describe('greensAlert - מטוס נוחת ולא דיווח ירוקים', () =>
   });
 });
 
+describe('greensPopupQueue - התראה מתפרצת פעם אחת לכל כניסה למצב', () => {
+  const row = (stripId: string, idx: number) => ({ stripId, idx, label: `בננה${idx}` });
+
+  it('מטוס חדש במצב - נכנס לתור', () => {
+    const r = greensPopupQueue(new Set(), [row('10', 1)]);
+    expect(r.fresh.map(x => x.idx)).toEqual([1]);
+    expect([...r.seen]).toEqual(['10|1']);
+  });
+
+  it('אותו מטוס בטיק הבא - לא שוב', () => {
+    const r = greensPopupQueue(new Set(['10|1']), [row('10', 1)]);
+    expect(r.fresh).toEqual([]);
+  });
+
+  it('יצא מהמצב (דיווח ירוקים) ונכנס שוב - מתריע שוב', () => {
+    const out = greensPopupQueue(new Set(['10|1']), []);
+    expect(out.seen.size).toBe(0);
+    expect(greensPopupQueue(out.seen, [row('10', 1)]).fresh).toHaveLength(1);
+  });
+});
+
 describe('collectGreensAlerts - מקור אחד לבאנר ולסימון בטבלה', () => {
   const strips = [{ id: 1, callsign: 'בננה' }, { id: 2, callsign: 'אגס' }];
 
-  it('רק מטוסים בפיינל בלי ירוקים', () => {
+  it('רק מטוסים בבסיס/פיינל בלי ירוקים', () => {
     const rows = collectGreensAlerts(strips, {
       1: [{ idx: 1, flight_status: 'final', greens: false },
         { idx: 2, flight_status: 'final', greens: true },
         { idx: 3, flight_status: 'downwind', greens: false }],
       2: [{ idx: 1, flight_status: 'base', greens: false }],
     });
-    expect(rows.map(r => r.label)).toEqual(['בננה1']);
+    expect(rows.map(r => r.label)).toEqual(['אגס1', 'בננה1']);
   });
 
   it('מיון יציב - הסדר לא קופץ בין רענונים', () => {

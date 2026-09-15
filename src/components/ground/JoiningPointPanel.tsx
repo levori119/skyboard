@@ -5,6 +5,7 @@ import { bidiAuto } from '../../utils/bidi';
 import { getFormationDisplayName } from '../../utils/strips';
 import { customConfirm } from '../shared/ConfirmModal';
 import { FaultBadge } from '../shared/FaultBadge';
+import { aircraftKey } from '../../airPicture/patternTrack';
 import {
   acceptAltitudeLimit, altitudeGroups, distributeAltitudes, occupiedBlocks, toggleAcceptAltitude,
   altToDisplay, altMismatch, buildBlocks, conflictBlocks, displayToAlt, formationAircraft, formationsInBlocks,
@@ -90,6 +91,11 @@ interface Props {
    *  ובלעדיה מספר המטוסים במבנה אינו ידוע והטופס נפתח ריק. */
   pendingMove?: { stripId: string; strip: Record<string, any> } | null;
   onPendingMoveHandled?: () => void;
+  /**
+   * מעקב הקפה אוטומטי: `aircraftKey` של מטוסים שהרכיב האווירי שלהם עד 3 מייל
+   * מהנקודה - השורה מהבהבת בירוק (PATTERN_AUTOTRACK_SPEC §5).
+   */
+  approachingKeys?: Set<string>;
 }
 
 /** תוויות הצלעות, לפי סדר הטיסה. */
@@ -112,8 +118,12 @@ export default function JoiningPointPanel({
   landingRunways, onAcceptIncoming, onAssign, onRemoveStrip, onCoordinate,
   onUpdateAircraft, onFlightStatus, onGreens, onCollapse, onResetPosition,
   onHeaderPointerDown, onAircraftDropOnMap, onSplit, onRemoveAircraft,
-  pendingMove, onPendingMoveHandled,
+  pendingMove, onPendingMoveHandled, approachingKeys,
 }: Props) {
+  /** המטוס (או מטוס כלשהו מהחלק שהשורה מציגה) מתקרב - הרכיב האווירי שלו עד 3 מייל. */
+  const approaching = (sid: string, idxs: number[]) =>
+    !!approachingKeys?.size && idxs.some(i => approachingKeys.has(aircraftKey(sid, i)));
+  const APPROACH_BLINK = 'skyking-approach-blink 0.6s steps(1) infinite';
   /** פ"ממים שהפקח **שינה** את מצב הפריסה שלהם מברירת המחדל של הנקודה. */
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [dragBlock, setDragBlock] = useState<number | null>(null);
@@ -494,10 +504,13 @@ export default function JoiningPointPanel({
                             moveToBlock(sid, row, entry.indices, target);
                           },
                         })}
+                        data-approaching={approaching(sid, acList.map(a => a.idx)) ? '1' : '0'}
                         style={{
                           display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap',
                           touchAction: 'none', userSelect: 'none', cursor: 'grab',
                           opacity: drag?.key === rowKey ? 0.4 : 1,
+                          borderRadius: '3px',
+                          animation: approaching(sid, acList.map(a => a.idx)) ? APPROACH_BLINK : undefined,
                         }}
                       >
                         <button
@@ -562,6 +575,7 @@ export default function JoiningPointPanel({
                                 key={ac.idx}
                                 data-testid="joining-aircraft"
                                 data-aircraft-idx={ac.idx}
+                                data-approaching={approaching(sid, [ac.idx]) ? '1' : '0'}
                                 title={tr('joining.dragAircraftTitle')}
                                 onPointerDown={e => startDrag(e, {
                                   key: acKey,
@@ -576,6 +590,7 @@ export default function JoiningPointPanel({
                                   border: st?.in_pattern ? `1px solid ${accent}` : `1px dashed ${st?.pattern_id ? accent : 'transparent'}`,
                                   cursor: 'grab', touchAction: 'none', userSelect: 'none',
                                   opacity: drag?.key === acKey ? 0.4 : 1,
+                                  animation: approaching(sid, [ac.idx]) ? APPROACH_BLINK : undefined,
                                 }}
                               >
                                 {/* ידית הגרירה - שטח לחיצה מפורש ומסומן. בלעדיה

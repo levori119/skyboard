@@ -13,7 +13,7 @@ const COS = Math.cos(LAT0 * Math.PI / 180);
 /** נקודה במרחק x מייל מזרחה ו-y מייל צפונה מהראשית. */
 const nm = (x: number, y: number): GeoPt => ({ lat: LAT0 + y / 60, lon: LON0 + x / (60 * COS) });
 
-// הקפה: מסלול צפון-דרום, הסף בראשית, עם הרוח 1.5 מייל מזרחה.
+// הקפה: מסלול צפון-דרום באורך 2 מייל, הסף בראשית, עם הרוח 1.5 מייל מזרחה.
 const PAT: PatternGeo = {
   id: 7, runwayIdent: '36',
   legs: {
@@ -22,6 +22,7 @@ const PAT: PatternGeo = {
     final: [nm(0, -1), nm(0, 0)],
   },
   threshold: nm(0, 0),
+  runway: [nm(0, 0), nm(0, 2)],
 };
 const POINT = nm(8, 8);
 
@@ -293,6 +294,14 @@ describe('נחת', () => {
   it('במהירות נמוכה ליד הסף 30 שניות - נחת, פעם אחת', () => {
     const { actions } = run(everySec(0, LANDED_HOLD_MS + 5000,
       () => ({ aircraft: [onFinal], tracks: [trk(rollout, { spd: 30 })] })));
+    expect(actions).toEqual([{ kind: 'landed', stripId: '10', idx: 1 }]);
+  });
+
+  // נמדד בסימולטור (ATSIM): המטוס מתגלגל 1.4 מייל **לאורך המסלול** ורק אז נעלם.
+  // מדידה מול נקודת הסף פספסה את כל הנחיתות - המרחק הוא מהמסלול, לא מהסף.
+  it('גלגול בקצה הרחוק של המסלול ונעלם שם - נחת', () => {
+    const { actions } = run(everySec(0, LANDED_HOLD_MS + 5000,
+      t => ({ aircraft: [onFinal], tracks: t < 3000 ? [trk(nm(0, 1.4), { spd: 45 })] : [] })));
     expect(actions).toEqual([{ kind: 'landed', stripId: '10', idx: 1 }]);
   });
 

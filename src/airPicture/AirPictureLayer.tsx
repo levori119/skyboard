@@ -34,6 +34,8 @@ interface Props {
    * לצד מסך ריק נראה כמו תקלה - בזמן שפשוט אף מטוס לא מעל השדה.
    */
   onVisibleCount?: (n: number) => void;
+  /** רכיבים בהתראה - טבעת אדומה מהבהבת (מעקב הקפה, PATTERN_AUTOTRACK_SPEC §6). */
+  alertTrackIds?: Set<string> | null;
 }
 
 /** 10fps. תמונה שמתעדכנת כל 2 שניות לא צריכה 60 - זה פי 6 פחות עבודה. */
@@ -47,7 +49,7 @@ const rootScale = () =>
   parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--s')) || 1;
 
 export default function AirPictureLayer({
-  anchor, bounds, mapZoom, prefs, pollMs, zIndex = 0, onVisibleCount,
+  anchor, bounds, mapZoom, prefs, pollMs, zIndex = 0, onVisibleCount, alertTrackIds = null,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const snap = useSyncExternalStore(airPictureStore.subscribe, airPictureStore.getSnapshot);
@@ -64,6 +66,8 @@ export default function AirPictureLayer({
   zoomRef.current = mapZoom;
   const reportRef = useRef(onVisibleCount);
   reportRef.current = onVisibleCount;
+  const alertRef = useRef(alertTrackIds);
+  alertRef.current = alertTrackIds;
 
   const on = prefs.on && !!anchor && !!bounds;
 
@@ -133,6 +137,8 @@ export default function AirPictureLayer({
         scale: p.scale, opacity: p.opacity, labels: p.labels, fields: p.fields,
         trends: s.trends,
         density: d, stale: age > STALE_AFTER_SEC || s.status !== 'live',
+        // ברמה מופחתת אין ציור בין דגימות, ולכן הטבעת נשארת דלוקה במקום להבהב
+        alertIds: alertRef.current, blinkOn: degraded || Math.floor(now / 500) % 2 === 0,
       });
       // מדווח את מה שבאמת **על המסך**, בלי שולי הסינון שנחתכים ע"י הקנבס.
       // רק כשהמספר משתנה - זו לולאת ציור, לא מקום ל-setState בכל פריים.

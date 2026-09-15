@@ -109,6 +109,10 @@
     "adminPosition": {
       "he": "מיקום ברירת המחדל",
       "en": "Default position"
+    },
+    "winPatternTraffic": {
+      "he": "בהקפה",
+      "en": "In pattern"
     }
   }
 }

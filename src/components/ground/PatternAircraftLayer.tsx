@@ -1,6 +1,7 @@
 import { bidiAuto } from '../../utils/bidi';
 import { normalizeGeometry, patternLegs, type LegKey, type Pt } from '../../utils/trafficPattern';
 import type { PatternRow } from '../map/TrafficPatternLayer';
+import { greensAlert } from '../../utils/joiningPoints';
 
 // ─── מטוסים על ההקפה ──────────────────────────────────────────────────────────
 //
@@ -21,7 +22,12 @@ export interface PatternAircraftRow {
   label?: string;
   /** סטטוס הטיסה - קובע על איזו צלע המטוס יושב, ואם בכלל. */
   flight_status?: string | null;
+  /** דיווח ירוקים. בבסיס/פיינל בלעדיו התווית מהבהבת באדום (`greensAlert`). */
+  greens?: boolean | null;
 }
+
+/** אדום סטטוס - קבוע בכל התמות. */
+const GREENS_ALERT_COLOR = '#dc2626';
 
 interface Props {
   patterns: PatternRow[];
@@ -169,13 +175,22 @@ export default function PatternAircraftLayer({ patterns, aircraft, aspect, sz }:
         const fs = FONT * sz;
         const w = Math.max(4.7, label.length * 0.77 + 1.6) * sz;
         const h = 2.3 * sz;
+        // בבסיס/פיינל בלי ירוקים - מסגרת אדומה עבה שמהבהבת. ההבהוב הוא ב-SVG
+        // (`animate`) ולא ב-CSS, כי השכבה חיה בתוך ה-SVG של המפה.
+        const alert = greensAlert(ac.flight_status, ac.greens);
         return (
           <g key={`${ac.strip_id}-${ac.aircraft_idx}`} data-testid="pattern-aircraft"
             data-strip-id={String(ac.strip_id)} data-aircraft-idx={ac.aircraft_idx}
-            data-in-pattern={ac.in_pattern ? '1' : '0'} style={{ pointerEvents: 'none' }}>
+            data-in-pattern={ac.in_pattern ? '1' : '0'} data-greens-alert={alert ? '1' : '0'}
+            style={{ pointerEvents: 'none' }}>
             <rect x={pt.x - w / 2} y={pt.y - h / 2} width={w} height={h} rx={0.6 * sz}
-              fill="#000000cc" stroke={col} strokeWidth={0.4 * sz}
-              strokeDasharray={ac.in_pattern ? undefined : `${1.1 * sz},${0.8 * sz}`} />
+              fill="#000000cc" stroke={alert ? GREENS_ALERT_COLOR : col} strokeWidth={(alert ? 0.8 : 0.4) * sz}
+              strokeDasharray={ac.in_pattern ? undefined : `${1.1 * sz},${0.8 * sz}`}>
+              {alert && (
+                <animate attributeName="stroke-opacity" values="1;1;0.15;0.15" keyTimes="0;0.5;0.5;1"
+                  dur="1s" repeatCount="indefinite" />
+              )}
+            </rect>
             <text x={pt.x} y={pt.y} textAnchor="middle" dominantBaseline="central"
               fill={col} fontSize={fs} fontWeight="bold" style={{ userSelect: 'none' }}>
               {bidiAuto(label)}

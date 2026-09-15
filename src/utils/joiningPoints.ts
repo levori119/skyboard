@@ -427,13 +427,15 @@ export function normalizeLeg(status: unknown): FlightLeg | 'none' {
 }
 
 /**
- * **מטוס נוחת ולא דיווח ירוקים.**
- * בפיינל המטוס כבר בקו הנחיתה, ודיווח הירוקים (גלגלים) הוא התנאי לנחיתה
- * בטוחה. פיינל בלי דיווח הוא בדיוק המצב שהפקח חייב לתפוס בעצמו - ולכן
- * ההתראה נדלקת שם, ולא ברגע הנחיתה שבו כבר מאוחר.
+ * **מטוס בדרך לנחיתה ולא דיווח ירוקים.**
+ * דיווח הירוקים (גלגלים) הוא התנאי לנחיתה בטוחה, והפקח חייב לתפוס את החסר
+ * בעצמו. מעכשיו (2026-09-15, הכרעת הפקח) ההתראה נדלקת **מהבסיס**: בפיינל
+ * המטוס כבר בקו הנחיתה, ושם מאוחר מדי לגלות. כלל אחד לבאנר, לטבלת "בהקפה",
+ * להבהוב ולהתראה המתפרצת.
  */
 export function greensAlert(status: unknown, greens: unknown): boolean {
-  return normalizeLeg(status) === 'final' && !greens;
+  const leg = normalizeLeg(status);
+  return (leg === 'base' || leg === 'final') && !greens;
 }
 
 /** מטוס שההתראה חלה עליו, מוכן לתצוגה בבאנר. */
@@ -457,6 +459,26 @@ export function collectGreensAlerts(
     }
   }
   return out.sort((a, b) => a.label.localeCompare(b.label) || a.idx - b.idx);
+}
+
+/**
+ * התור של ההתראה המתפרצת: מי **נכנס** למצב מאז הטיק הקודם.
+ *
+ * פעם אחת לכל כניסה, לא בכל רענון - התראה מתפרצת שקופצת שוב כל 5 שניות על אותו
+ * מטוס מלמדת את הפקח ללחוץ "אישור" בלי לקרוא. מטוס שיצא מהמצב (דיווח ירוקים,
+ * נחת, חזר לעם הרוח) נמחק מ-`seen`, ולכן כניסה חוזרת מתריעה שוב.
+ */
+export function greensPopupQueue(
+  seen: Set<string>, current: GreensAlertRow[],
+): { fresh: GreensAlertRow[]; seen: Set<string> } {
+  const next = new Set<string>();
+  const fresh: GreensAlertRow[] = [];
+  for (const r of current) {
+    const key = `${r.stripId}|${r.idx}`;
+    next.add(key);
+    if (!seen.has(key)) fresh.push(r);
+  }
+  return { fresh, seen: next };
 }
 
 /** שורת מטוס לפריסה בטבלה. `id` קיים רק כשהיא באמת מ-`strip_aircraft`. */

@@ -91,7 +91,12 @@ interface Props {
    * בשכבה השטוחה, ולכן דגימה חדשה אינה מרנדרת את GroundView.
    * `null` / בלי עוגן = השכבה כבויה, ואין ניחוש מיקום.
    */
-  airPicture?: { anchor: MapGeoAnchor | null; prefs: AirPicturePrefs } | null;
+  airPicture?: {
+    anchor: MapGeoAnchor | null;
+    prefs: AirPicturePrefs;
+    /** רכיבים בהתראה (בסיס/פיינל בלי ירוקים) - טבעת אדומה מהבהבת, כמו במבט מלמעלה. */
+    alertIds?: Set<string> | null;
+  } | null;
 }
 
 /** חצי צלע של לוח בלוק, ביחידות iso (אחוז מגובה התמונה). */
@@ -516,6 +521,13 @@ export default function Pattern3DScene({
             stroke={color} strokeWidth={0.18 * k} strokeDasharray={`${0.3 * k},${0.8 * k}`} opacity={0.7} />
           <ellipse cx={ground.x} cy={ground.y} rx={0.6 * k} ry={0.6 * k * Math.sin(camera.tilt * Math.PI / 180)}
             fill="none" stroke={color} strokeWidth={0.18 * k} opacity={0.6} />
+          {airPicture?.alertIds?.has(t.t.id) && (
+            <circle data-testid="p3d-track-alert" cx={q.x} cy={q.y} r={r * 1.9}
+              fill="none" stroke="#dc2626" strokeWidth={r / 2.5}>
+              <animate attributeName="stroke-opacity" values="1;1;0;0" keyTimes="0;0.5;0.5;1"
+                dur="1s" repeatCount="indefinite" />
+            </circle>
+          )}
           <polygon transform={`rotate(${f(rot)} ${f(q.x)} ${f(q.y)})`}
             points={trackSymbolPoints(r).map(p => `${f(q.x + p.x)},${f(q.y + p.y)}`).join(' ')}
             fill={color} stroke="#000000aa" strokeWidth={r / 7} />

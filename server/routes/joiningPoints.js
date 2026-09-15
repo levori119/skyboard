@@ -15,8 +15,38 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
 import { aircraftFaultsSubquery } from '../db/aircraftFaults.js';
+import { captureChange } from '../gapi/hooks.js';
+import { expectedFormationCount } from '../../shared/formationCount.js';
 
 const router = new Router();
+
+/**
+ * האם **כל** מטוסי הפ"מ כבר אינם ממתינים בנקודת ההצטרפות - בהקפה או נחתו.
+ *
+ * הגודל הצפוי מגיע מ-`expectedFormationCount` (shared) ולא מספירת שורות:
+ * שורת `strip_aircraft` / `joining_point_aircraft` נוצרת רק למטוס שנגעו בו,
+ * וספירת שורות הוציאה מבנה שלם מהטבלה ברגע שהמטוס **היחיד** עם שורה יצא
+ * להקפה או נחת - בזמן ששאר המבנה עדיין המתין בנקודה (PATTERN_AUTOTRACK_SPEC §8).
+ */
+async function formationLeftPoint(q, sid) {
+  const { rows } = await q.query(
+    `SELECT (SELECT COUNT(*) FROM strip_aircraft WHERE strip_id = $1) AS total,
+            s.number_of_formation AS formation, s.aircraft_indices AS indices,
+            (SELECT COUNT(DISTINCT g.idx) FROM (
+               SELECT aircraft_idx AS idx FROM joining_point_aircraft WHERE strip_id = $1 AND in_pattern = TRUE
+               UNION
+               SELECT idx FROM strip_aircraft WHERE strip_id = $1 AND flight_status = 'landed'
+             ) g) AS gone
+       FROM strips s WHERE s.id = $1`,
+    [sid],
+  );
+  const r = rows[0];
+  if (!r) return false;
+  const expected = expectedFormationCount({
+    rows: Number(r.total), formation: r.formation, indices: Array.isArray(r.indices) ? r.indices : null,
+  });
+  return expected > 0 && Number(r.gone) >= expected;
+}
 
 const int = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : null; };
 /** מזהה פ"מ מגיע מהלקוח גם כ-`s123` (ראה routes/strips.js). */
@@ -267,7 +297,7 @@ router.get('/api/joining-point-strips', async (req, res) => {
       `SELECT jps.id, jps.joining_point_id, jps.strip_id, jps.is_coordinated, jps.coordination_note,
               jps.planned_alt,
               s.callsign, s.sq, s.alt, s.squadron, s.number_of_formation, s.notes, s.task,
-              s.aircraft_indices, s.workstation_preset_id,
+              s.aircraft_indices, s.original_formation_count, s.workstation_preset_id,
               -- מטוס בתקלה שנכנס לנקודת ההצטרפות משנה את סדר הקליטה, ולכן
               -- הפקח רואה את התג על הפ"מ בבלוק הגובה ולא רק בפתיחת המבנה
               ${aircraftFaultsSubquery('s')} AS aircraft_faults
@@ -286,6 +316,7 @@ router.get('/api/joining-point-strips', async (req, res) => {
     // ההקפה הצטמצמה למספר בלבד במקום לאות הקריאה המלאה.
     const ac = await pool.query(
       `SELECT jpa.*, s.callsign, s.aircraft_indices, s.number_of_formation,
+              s.original_formation_count, s.workstation_preset_id,
               COALESCE(sa.flight_status, 'none') AS flight_status,
               COALESCE(sa.greens, FALSE) AS greens
          FROM joining_point_aircraft jpa
@@ -439,11 +470,12 @@ router.delete('/api/joining-point-aircraft/:stripId/:idx', async (req, res) => {
     const idx = int(req.params.idx);
     await client.query('BEGIN');
     await client.query('DELETE FROM joining_point_aircraft WHERE strip_id=$1 AND aircraft_idx=$2', [sid, idx]);
-    await client.query(
-      `DELETE FROM joining_point_strips js
-        WHERE js.strip_id = $1
-          AND NOT EXISTS (SELECT 1 FROM joining_point_aircraft a
-                           WHERE a.strip_id = js.strip_id AND a.joining_point_id = js.joining_point_id)`, [sid]);
+    // הפ"מ יוצא מהנקודה רק כש**כל** מטוסיו הצפויים בהקפה או נחתו. קודם הוא
+    // יצא כשלא נשארו לו **שורות** בנקודה, ולכן מטוס 1 שנחת העלים מהטבלה את
+    // 2-4 שעדיין המתינו בה בלי שורה משלהם.
+    if (await formationLeftPoint(client, sid)) {
+      await client.query('DELETE FROM joining_point_strips WHERE strip_id = $1', [sid]);
+    }
     await client.query('COMMIT');
     res.json({ ok: true });
   } catch (err) {
@@ -535,16 +567,9 @@ router.put('/api/joining-point-aircraft/:stripId/:idx', async (req, res) => {
         altGiven && b.alt ? String(b.alt).slice(0, 10) : null, altGiven],
     );
 
-    // כל מטוסי הפ"מ בהקפה -> הפ"מ כולו נעלם מנקודת ההצטרפות.
+    // כל מטוסי הפ"מ בהקפה (או נחתו) -> הפ"מ כולו נעלם מנקודת ההצטרפות.
     if (b.in_pattern === true) {
-      const cnt = await pool.query(
-        `SELECT (SELECT COUNT(*) FROM strip_aircraft WHERE strip_id=$1) AS total,
-                (SELECT COUNT(*) FROM joining_point_aircraft
-                  WHERE strip_id=$1 AND in_pattern=TRUE) AS in_pattern`,
-        [sid],
-      );
-      const { total, in_pattern } = cnt.rows[0];
-      if (Number(total) > 0 && Number(in_pattern) >= Number(total)) {
+      if (await formationLeftPoint(pool, sid)) {
         await pool.query('DELETE FROM joining_point_strips WHERE strip_id = $1', [sid]);
       }
       await logActivity(req, {
@@ -603,7 +628,10 @@ router.put('/api/strip-aircraft/:stripId/:idx/flight-status', async (req, res) =
     const { total, landed, formation } = land.rows[0] || {};
     const expected = Math.max(Number(total) || 0, parseInt(formation, 10) || 0);
     const allLanded = expected > 0 && Number(landed) >= expected;
-    await pool.query('UPDATE strips SET landed = $1 WHERE id = $2 AND landed IS DISTINCT FROM $1', [allLanded, sid]);
+    const flip = await pool.query('UPDATE strips SET landed = $1 WHERE id = $2 AND landed IS DISTINCT FROM $1', [allLanded, sid]);
+    // ⚠ בלי זה "נחת" נכתב ל-DB ו**לא יוצא** ל-GAPI: אין טריגר, והיציאה נשענת
+    // על captureChange מה-route. no-op כש-GAPI כבוי.
+    if (flip.rowCount) captureChange('sortie', 'upsert', sid);
 
     await logActivity(req, {
       event_type: 'aircraft_flight_status', preset_id: int(b.preset_id), preset_name: b.preset_name,

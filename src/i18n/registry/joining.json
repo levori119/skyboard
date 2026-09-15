@@ -369,6 +369,62 @@
     "toPattern": {
       "he": "שים בהקפה",
       "en": "Put in pattern"
+    },
+    "ptColAircraft": {
+      "he": "מטוס",
+      "en": "Aircraft"
+    },
+    "ptColLeg": {
+      "he": "צלע",
+      "en": "Leg"
+    },
+    "ptColAlt": {
+      "he": "גובה",
+      "en": "Alt"
+    },
+    "ptNoRunway": {
+      "he": "ללא מסלול",
+      "en": "No runway"
+    },
+    "ptEmpty": {
+      "he": "אין מטוסים בהקפה",
+      "en": "No aircraft in the pattern"
+    },
+    "ptCount": {
+      "he": "{{count}} מטוסים",
+      "en": "{{count}} aircraft"
+    },
+    "ptAltTrack": {
+      "he": "גובה מהתמונה האווירית",
+      "en": "Altitude from the air picture"
+    },
+    "ptAltPlanned": {
+      "he": "גובה מתוכנן לפי צלע ההקפה - אין רכיב אווירי משודך",
+      "en": "Planned altitude for the leg - no matched air track"
+    },
+    "ptTracked": {
+      "he": "משודך לרכיב אווירי",
+      "en": "Matched to an air track"
+    },
+    "ptUntracked": {
+      "he": "לא משודך לרכיב אווירי",
+      "en": "Not matched to an air track"
+    },
+    "greensPopupTitle": {
+      "he": "לא דווחו גלגלים ירוקים",
+      "en": "No greens reported"
+    },
+    "greensPopupBody": {
+      "he": "{{label}} בבסיס או בפיינל ולא דיווח גלגלים ירוקים",
+      "en": "{{label}} is on base or final without a greens report"
+    },
+    "greensPopupAck": {
+      "he": "אישור",
+      "en": "OK"
+    },
+    "greensPopupMore": {
+      "he": "ועוד {{count}} ממתינות",
+      "en": "{{count}} more waiting"
     }
   }
 }
