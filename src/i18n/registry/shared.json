@@ -126,6 +126,14 @@
       "he": "קטגוריה:",
       "en": "Category:"
     },
+    "collapsedIncomingHint": {
+      "he": "{{count}} העברות ממתינות לקבלה - לחץ לפתיחה",
+      "en": "{{count}} transfers awaiting acceptance - click to open"
+    },
+    "collapsedStripsHint": {
+      "he": "קיימים {{count}} פ\"מים במאגר - לחץ לפתיחה",
+      "en": "{{count}} formations in the pool - click to open"
+    },
     "clear": {
       "he": "נקה",
       "en": "Clear"

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import AnchoredPopup from '../shared/AnchoredPopup';
+import { CollapsedStripsBadge } from '../shared/CollapsedStripsBadge';
 import { tr } from '../../i18n/tr';
 import { API_URL } from '../../config';
 import { APP_VERSION, APP_VERSION_DATE } from '../../version';
@@ -17002,31 +17003,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const closedCount = tableMode
               ? myTableStrips.filter(s => !tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer')).length
               : myStrips.filter(s => (showPendingTransfer || s.status !== 'pending_transfer') && !s.onMap).length;
-            return closedCount > 0 ? (
-              <div
-                onClick={() => setSidebarPinned(true)}
-                title={`קיימים ${closedCount} פ"מם במאגר — לחץ לפתיחה`}
-                style={{
-                  writingMode: 'vertical-rl',
-                  transform: 'rotate(180deg)',
-                  fontSize: '11px',
-                  color: '#7c3aed',
-                  fontWeight: 'bold',
-                  marginTop: '12px',
-                  cursor: 'pointer',
-                  userSelect: 'none',
-                  whiteSpace: 'nowrap',
-                  textAlign: 'center',
-                  lineHeight: 1.3,
-                  background: '#f3e8ff',
-                  borderRadius: '6px',
-                  padding: '8px 4px',
-                  border: '1px solid #c4b5fd',
-                }}
-              >
-                {tr('ctrl.existing')} {closedCount} {tr('ctrl.formation5')}
-              </div>
-            ) : null;
+            return <CollapsedStripsBadge count={closedCount} onOpen={() => setSidebarPinned(true)} />;
           })()}
           {sidebarPinned && !isGroundMode && (tableMode ? (
             <>

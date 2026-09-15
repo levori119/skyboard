@@ -8,6 +8,7 @@ import { sc } from '../../utils/scale';
 import { getFormationDisplayName } from '../../utils/strips';
 import { VKTrigger } from '../../VirtualKeyboard';
 import Strip from '../strips/Strip';
+import { CollapsedStripsBadge } from '../shared/CollapsedStripsBadge';
 import type { GroundStatusKey, AircraftPos, GroundAircraftRow, VectorData } from '../../types/ground';
 import {
   GROUND_STATUSES, normalizeAircraftPositions, toEmbedUrl,
@@ -1670,10 +1671,9 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           {stripsPinned && <span style={{ color: headerColor, fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', flex: 1 }}>{tr('ground.formations')}{strips.length})</span>}
           {stripsPinned && headerButtons && <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexShrink: 0 }}>{headerButtons}</div>}
         </div>
+        {/* מכווץ: רק התווית המשותפת, כמו בכל עמדה. הכרטיסים לא נכנסים לעמודה של 32px */}
         {!stripsPinned && (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '10px', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>{tr('ground.formations')}{strips.length})</span>
-          </div>
+          <CollapsedStripsBadge count={strips.length} incomingCount={incomingTransfers.length} onOpen={() => onTogglePin?.()} />
         )}
 
 
@@ -1706,7 +1706,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
         </div>
 
         {/* Incoming transfers zone */}
-        {incomingTransfers.length > 0 && (
+        {stripsPinned && incomingTransfers.length > 0 && (
           <div style={{ padding: '4px', borderBottom: `1px solid ${border}`, background: lightMode ? '#eff6ff' : '#0f1f3a', flexShrink: 0 }}>
             <div style={{ fontSize: '11px', color: '#60a5fa', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>{tr('ground.awaitingAcceptance')}{incomingTransfers.length})</div>
             {incomingTransfers.map(t => (
@@ -1748,8 +1748,8 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           </div>
         )}
 
-        {/* Strip cards list */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '4px', minHeight: 0 }}>
+        {/* Strip cards list - מוסתר (לא מוסר) בכיווץ, כדי לשמור גלילה ומצב קבוצות */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '4px', minHeight: 0, display: stripsPinned ? undefined : 'none' }}>
           {strips.length === 0 && <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>{tr('shared.noFormations')}</div>}
           {groundDisplayItems.map((item, itemIdx) => {
             if (item.type === 'header') {
