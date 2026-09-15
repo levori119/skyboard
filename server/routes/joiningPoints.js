@@ -17,6 +17,8 @@ import pool from '../db/pool.js';
 import { aircraftFaultsSubquery } from '../db/aircraftFaults.js';
 import { captureChange } from '../gapi/hooks.js';
 import { expectedFormationCount } from '../../shared/formationCount.js';
+import { planLandingRunways } from '../../shared/landingPriority.js';
+import { resolveEndUse } from '../utils/runwayState.js';
 
 const router = new Router();
 
@@ -77,6 +79,91 @@ async function logActivity(req, fields) {
     // יומן הביקורת לא מפיל פעולה תפעולית - הפקח לא יכול לחכות ל-INSERT הזה
     console.error('[joining-points] activity_log נכשל:', err.message);
   }
+}
+
+/**
+ * סדר עדיפויות לנחיתה לדת"ק - חלוקת מבנה **שהגיע עכשיו** לנקודה למסלולים.
+ *
+ * כל מטוס מקבל את המסלול הראשון ברשימת העדיפויות של הדת"ק שלו
+ * (`airfield_points.landing_priority`, נקודה מסוג `datk` בשדה של הנקודה) **שפתוח
+ * כרגע לנחיתות** (`runway_end_use` אחרי מיזוג המסלולים המקושרים - אותו מקור
+ * כמו פאנל "מסלולים בשימוש"). ההקפה של המסלול נרשמת איתו, כמו בבחירה ידנית.
+ *
+ * רץ **רק בכניסה לנקודה** ולא בכל שיבוץ: מסלול שהפקח ניקה בכוונה לא חוזר בשינוי
+ * גובה. מטוס שכבר יש לו מסלול (או שבהקפה) לא נדרס - תנאי ה-WHERE ב-upsert
+ * אוכף את זה גם מול בחירה ידנית שנכתבה באותו רגע מעמדה אחרת.
+ *
+ * `q` הוא ה-client של הטרנזקציה כשיש כזה: `pool.query` באמצע handler שמחזיק
+ * client נתקע מול PGlite (localPool = חיבור יחיד).
+ * @returns {Promise<{ idx: number, runway_ident: string }[]>}
+ */
+async function autoAssignLandingRunways(q, pointId, sid) {
+  const pt = await q.query('SELECT airfield_id FROM airfield_joining_points WHERE id = $1', [pointId]);
+  const airfieldId = pt.rows[0]?.airfield_id;
+  if (!airfieldId) return [];
+  const { rows: points } = await q.query(
+    `SELECT name, point_type, landing_priority FROM airfield_points
+      WHERE airfield_id = $1 AND point_type = 'datk' AND jsonb_array_length(landing_priority) > 0`,
+    [airfieldId],
+  );
+  if (!points.length) return [];
+  const landingRunways = (await resolveEndUse((sql, params) => q.query(sql, params), airfieldId))
+    .filter(r => r.in_landing).map(r => String(r.end_name));
+  if (!landingRunways.length) return [];
+
+  // פ"מ מפוצל מחזיק רק חלק מהמטוסים - לא לשבץ מטוסים שיושבים בפ"מ אחר
+  const { rows: [strip] } = await q.query('SELECT aircraft_indices FROM strips WHERE id = $1', [sid]);
+  const own = Array.isArray(strip?.aircraft_indices) && strip.aircraft_indices.length
+    ? new Set(strip.aircraft_indices.map(Number)) : null;
+  const { rows: aircraft } = await q.query(
+    `SELECT sa.idx, sa.datk, COALESCE(jpa.runway_ident, '') AS runway_ident
+       FROM strip_aircraft sa
+       LEFT JOIN joining_point_aircraft jpa ON jpa.strip_id = sa.strip_id AND jpa.aircraft_idx = sa.idx
+      WHERE sa.strip_id = $1 ORDER BY sa.idx`,
+    [sid],
+  );
+  const plan = planLandingRunways({
+    aircraft: aircraft.filter(a => !own || own.has(Number(a.idx))), points, landingRunways,
+  });
+  if (!plan.length) return [];
+
+  const { rows: patterns } = await q.query(
+    'SELECT id, runway_ident FROM airfield_patterns WHERE airfield_id = $1 ORDER BY sort_order, id', [airfieldId],
+  );
+  const done = [];
+  for (const { idx, runway_ident } of plan) {
+    const patternId = patterns.find(p => String(p.runway_ident || '').trim() === runway_ident)?.id ?? null;
+    const { rowCount } = await q.query(
+      `INSERT INTO joining_point_aircraft (joining_point_id, strip_id, aircraft_idx, runway_ident, pattern_id)
+       VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (strip_id, aircraft_idx) DO UPDATE SET
+         runway_ident = EXCLUDED.runway_ident, pattern_id = EXCLUDED.pattern_id, updated_at = NOW()
+       WHERE COALESCE(joining_point_aircraft.runway_ident, '') = '' AND joining_point_aircraft.in_pattern = FALSE`,
+      [pointId, sid, idx, runway_ident, patternId],
+    );
+    if (rowCount) done.push({ idx, runway_ident });
+  }
+  return done;
+}
+
+/** החלוקה האוטומטית לא מפילה שיבוץ: הפ"מ כבר בנקודה, והמסלול נבחר ידנית כמו תמיד. */
+async function safeAutoAssign(q, pointId, sid) {
+  try {
+    return await autoAssignLandingRunways(q, pointId, sid);
+  } catch (err) {
+    console.error('[joining-points] חלוקה אוטומטית למסלולים נכשלה:', err.message);
+    return [];
+  }
+}
+
+/** שקיפות: הפקח (ותחקיר) יודעים שהמסלול נבחר אוטומטית ולפי מה. */
+async function logAutoRunways(req, b, pointId, sid, assigned) {
+  if (!assigned.length) return;
+  await logActivity(req, {
+    event_type: 'joining_point_auto_runway', preset_id: int(b.preset_id), preset_name: b.preset_name,
+    strip_id: sid, strip_callsign: b.callsign || '',
+    details: { joiningPointId: pointId, assignments: assigned.map(a => ({ aircraftIdx: a.idx, runwayIdent: a.runway_ident })) },
+  });
 }
 
 // ── ולידציה של טווחי ההפרשים ─────────────────────────────────────────────────
@@ -378,15 +465,18 @@ router.post('/api/joining-point-strips', async (req, res) => {
        ON CONFLICT (joining_point_id, strip_id) DO UPDATE
          SET planned_alt = COALESCE(EXCLUDED.planned_alt, joining_point_strips.planned_alt),
              updated_at = NOW()
-       RETURNING *`,
+       RETURNING *, (xmax = 0) AS arrived`,
       [pointId, sid, alt],
     );
+    const { arrived, ...row } = rows[0];
     await logActivity(req, {
       event_type: 'joining_point_assign', preset_id: int(b.preset_id), preset_name: b.preset_name,
       strip_id: sid, strip_callsign: b.callsign || '',
       details: { joiningPointId: pointId, joiningPointName: b.point_name || '', altitude: b.alt ?? null },
     });
-    res.json(rows[0]);
+    // המבנה **הגיע** לנקודה (שורה חדשה, לא שינוי גובה) - חלוקה למסלולים לפי הדת"ק
+    if (arrived) await logAutoRunways(req, b, pointId, sid, await safeAutoAssign(pool, pointId, sid));
+    res.json(row);
   } catch (err) {
     console.error('POST /api/joining-point-strips:', err.message);
     res.status(500).json({ error: err.message });
@@ -398,28 +488,33 @@ router.post('/api/joining-point-strips', async (req, res) => {
 // והפ"מ מופיע בשני הבלוקים - בדיוק כמו "בננה 1,2" בגובה אחד ו"בננה 3,4" באחר
 // על הסדק. `indices` ריק (או שווה לכל המבנה) = ביטול הפיצול והחזרה לגובה אחד.
 router.put('/api/joining-point-strips/:pointId/:stripId/split', async (req, res) => {
+  const b = req.body || {};
+  const pointId = int(req.params.pointId);
+  const sid = stripId(req.params.stripId);
+  const alt = b.alt != null && String(b.alt) !== '' ? String(b.alt).slice(0, 10) : null;
+  const indices = Array.isArray(b.indices) ? b.indices.map(int).filter(n => n != null && n > 0) : [];
+  if (!sid || !alt) return res.status(400).json({ error: 'מזהה פ"מ וגובה נדרשים' });
+
+  let all = false;
+  let autoRunways = [];
   const client = await pool.connect();
   try {
-    const b = req.body || {};
-    const pointId = int(req.params.pointId);
-    const sid = stripId(req.params.stripId);
-    const alt = b.alt != null && String(b.alt) !== '' ? String(b.alt).slice(0, 10) : null;
-    const indices = Array.isArray(b.indices) ? b.indices.map(int).filter(n => n != null && n > 0) : [];
-    if (!sid || !alt) return res.status(400).json({ error: 'מזהה פ"מ וגובה נדרשים' });
-
+    let arrived = false;
     await client.query('BEGIN');
     const cnt = await client.query('SELECT number_of_formation FROM strips WHERE id = $1', [sid]);
     const total = Math.max(0, Math.min(parseInt(cnt.rows[0]?.number_of_formation, 10) || 0, 16));
-    const all = indices.length === 0 || (total > 0 && indices.length >= total);
+    all = indices.length === 0 || (total > 0 && indices.length >= total);
 
     if (all) {
       // כל המבנה עובר: הגובה חוזר להיות של הפ"מ, והחריגים מתאפסים
       await client.query('UPDATE joining_point_aircraft SET alt = NULL, updated_at = NOW() WHERE strip_id = $1', [sid]);
-      await client.query(
+      const ins = await client.query(
         `INSERT INTO joining_point_strips (joining_point_id, strip_id, planned_alt) VALUES ($1,$2,$3)
-         ON CONFLICT (joining_point_id, strip_id) DO UPDATE SET planned_alt = EXCLUDED.planned_alt, updated_at = NOW()`,
+         ON CONFLICT (joining_point_id, strip_id) DO UPDATE SET planned_alt = EXCLUDED.planned_alt, updated_at = NOW()
+         RETURNING (xmax = 0) AS arrived`,
         [pointId, sid, alt],
       );
+      arrived = ins.rows[0]?.arrived === true;
       const own = await client.query('SELECT workstation_preset_id FROM strips WHERE id = $1', [sid]);
       if (int(b.preset_id) != null && Number(own.rows[0]?.workstation_preset_id) === int(b.preset_id)) {
         await client.query('UPDATE strips SET alt = $1 WHERE id = $2', [alt, sid]);
@@ -427,11 +522,13 @@ router.put('/api/joining-point-strips/:pointId/:stripId/split', async (req, res)
     } else {
       // גם בפיצול הפ"מ **חייב** להיות רשום בנקודה: בלעדיו רק שורות המטוסים
       // נוצרות, והמבנה לא מופיע בטבלה כלל - הפעולה נראית כאילו לא קרתה.
-      await client.query(
+      const ins = await client.query(
         `INSERT INTO joining_point_strips (joining_point_id, strip_id) VALUES ($1,$2)
-         ON CONFLICT (joining_point_id, strip_id) DO UPDATE SET updated_at = NOW()`,
+         ON CONFLICT (joining_point_id, strip_id) DO UPDATE SET updated_at = NOW()
+         RETURNING (xmax = 0) AS arrived`,
         [pointId, sid],
       );
+      arrived = ins.rows[0]?.arrived === true;
       for (const idx of indices) {
         await client.query(
           `INSERT INTO joining_point_aircraft (joining_point_id, strip_id, aircraft_idx, alt)
@@ -445,19 +542,24 @@ router.put('/api/joining-point-strips/:pointId/:stripId/split', async (req, res)
       }
     }
     await client.query('COMMIT');
-    await logActivity(req, {
-      event_type: 'joining_point_assign', preset_id: int(b.preset_id), preset_name: b.preset_name,
-      strip_id: sid, strip_callsign: b.callsign || '',
-      details: { joiningPointId: pointId, altitude: alt, aircraftIndices: all ? 'all' : indices.join('+') },
-    });
-    res.json({ ok: true, all, indices });
+    // אחרי ה-COMMIT: הגובה נשמר גם אם החלוקה למסלולים נכשלת
+    if (arrived) autoRunways = await safeAutoAssign(client, pointId, sid);
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     console.error('PUT split:', err.message);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   } finally {
     client.release();
   }
+  // היומן נכתב דרך `pool`, ולכן **אחרי** שחרור ה-client: מול PGlite (חיבור
+  // יחיד) כתיבה בזמן שה-client מוחזק נתקעה, והפיצול לא חזר לעולם.
+  await logActivity(req, {
+    event_type: 'joining_point_assign', preset_id: int(b.preset_id), preset_name: b.preset_name,
+    strip_id: sid, strip_callsign: b.callsign || '',
+    details: { joiningPointId: pointId, altitude: alt, aircraftIndices: all ? 'all' : indices.join('+') },
+  });
+  await logAutoRunways(req, b, pointId, sid, autoRunways);
+  res.json({ ok: true, all, indices });
 });
 
 // הסרת **מטוס בודד** מנקודת ההצטרפות. נקרא כשהמטוס נחת.

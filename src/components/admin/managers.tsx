@@ -1605,6 +1605,7 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   joining_point_conflict:    'קונפליקט בנקודת הצטרפות',
   joining_point_coordinated: 'קונפליקט אושר כמתואם',
   joining_point_pattern:     'מטוס נכנס להקפה',
+  joining_point_auto_runway: 'מסלול נחיתה נקבע לפי סדר עדיפויות הדת"ק',
   aircraft_flight_status:    'סטטוס מטוס',
   // אזור סגור / מוגבל
   zone_closed_blocked:       'שיוך לאזור סגור נדחה',

@@ -3829,6 +3829,38 @@
     "elemRelevantForHint": {
       "he": "אפליקציית הנהג ונתיב הרכב מתייחסים רק לאלמנטים של רכבים. לפחות אחד.",
       "en": "The driver app and vehicle routing use only vehicle elements. At least one."
+    },
+    "landingPriority": {
+      "he": "סדר עדיפויות לנחיתה",
+      "en": "Landing priority"
+    },
+    "landingPriorityHint": {
+      "he": "מבנה שמגיע לנקודת הצטרפות מחולק למסלול הראשון ברשימה שפתוח לנחיתות",
+      "en": "A formation arriving at a joining point is assigned the first runway on the list that is open for landing"
+    },
+    "landingPriorityEmpty": {
+      "he": "לא הוגדר - המסלול ייבחר ידנית",
+      "en": "Not set - runway is picked manually"
+    },
+    "landingPriorityMissing": {
+      "he": "המסלול לא מוגדר בשדה - לא ייבחר",
+      "en": "Runway is not defined at this airfield - it will not be picked"
+    },
+    "landingPriorityUp": {
+      "he": "העלה בעדיפות",
+      "en": "Move up"
+    },
+    "landingPriorityRemove": {
+      "he": "הסר מהרשימה",
+      "en": "Remove"
+    },
+    "landingPriorityAdd": {
+      "he": "הוסף:",
+      "en": "Add:"
+    },
+    "landingPriorityNoRunways": {
+      "he": "לא הוגדרו מסלולים בשדה",
+      "en": "No runways defined at this airfield"
     }
   }
 }

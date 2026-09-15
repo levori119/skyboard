@@ -1062,6 +1062,21 @@ COALESCE(last_seen, entered_at) > NOW() - INTERVAL '240 seconds'
 ("זה עובר לסטטוס מטוס") ולכן יושב על `strip_aircraft` ונשאר גם אחרי שהמטוס
 עזב את הנקודה.
 
+### `airfield_points.landing_priority` - סדר עדיפויות לנחיתה לדת"ק
+
+`JSONB NOT NULL DEFAULT '[]'` - מספרי מסלולים **בסדר רץ** (`["26","08"]`), רלוונטי
+לנקודה מסוג `point_type='datk'` בלבד. נערך בטופס הנקודה בניהול השדה, בבחירה מתוך
+קצוות המסלולים של השדה.
+
+כשמבנה **נכנס** לנקודת הצטרפות (שורה חדשה ב-`joining_point_strips` - דרך השיבוץ או
+הפיצול), כל מטוס בלי מסלול מקבל ב-`joining_point_aircraft.runway_ident` את המסלול
+הראשון ברשימה של **הדת"ק שלו** (`strip_aircraft.datk` מול מספר הדת"ק בשם הנקודה)
+**שפתוח לנחיתות** (`runway_end_use.in_landing`, אחרי מיזוג המסלולים המקושרים), יחד עם
+ההקפה של אותו מסלול. מטוס שכבר יש לו מסלול לא נדרס, ושינוי גובה בתוך הנקודה לא מחלק
+מחדש. נרשם ביומן כ-`joining_point_auto_runway`. לוגיקה: `shared/landingPriority.js`.
+
+PUT בלי השדה (מתג נהג, גרירה במפה) משאיר את הקיים.
+
 > **סיווג סביבות:** שלוש טבלאות ההגדרה הן **קונפיג** (ב-public בלבד);
 > `joining_point_strips` ו-`joining_point_aircraft` הן **תפעוליות** ומבודדות
 > לכל סביבת תרגול, כמו `blocks` ו-`strip_transfers`.

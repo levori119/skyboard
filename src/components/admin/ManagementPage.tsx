@@ -54,6 +54,8 @@ import { SCHEMATIC_ASPECT_CSS } from '../../utils/schematicCanvas';
 import { startPointerDrag, DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
 import type { DocKind } from '../../utils/bdhDocs';
 import { ELEMENT_AUDIENCES, DEFAULT_RELEVANT_FOR, relevantFor, type ElementAudience } from '../../../shared/elementRelevance';
+import { parseLandingPriority } from '../../../shared/landingPriority';
+import { LandingPriorityEditor, runwayEndsOf } from './LandingPriorityEditor';
 
 /** טופס אלמנט בבסיס ריק. אלמנט חדש רלוונטי לרכבים ולמטוסים עד שבוחרים אחרת. */
 const emptyElementForm = () => ({
@@ -393,9 +395,9 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
   const [editingAirfield, setEditingAirfield] = useState<any | null>(null);
   const [showAirfieldForm, setShowAirfieldForm] = useState(false);
   const [airfieldPoints, setAirfieldPoints] = useState<any[]>([]);
-  const [airfieldPointForm, setAirfieldPointForm] = useState({ name: '', color: '#3b82f6', marker: 'circle', density_warn: 3, point_type: '' });
+  const [airfieldPointForm, setAirfieldPointForm] = useState<{ name: string; color: string; marker: string; density_warn: number; point_type: string; landing_priority: string[] }>({ name: '', color: '#3b82f6', marker: 'circle', density_warn: 3, point_type: '', landing_priority: [] });
   const [placingPointMode, setPlacingPointMode] = useState(false);
-  const [editingPoint, setEditingPoint] = useState<{ id: number; name: string; color: string; marker: string; density_warn: number; point_type: string } | null>(null);
+  const [editingPoint, setEditingPoint] = useState<{ id: number; name: string; color: string; marker: string; density_warn: number; point_type: string; landing_priority: string[] } | null>(null);
   const [adminLocNewName, setAdminLocNewName] = useState('');
   const [editingAdminLoc, setEditingAdminLoc] = useState<{ id: number; name: string } | null>(null);
   const [adminAirfieldMapData, setAdminAirfieldMapData] = useState<any>(null);
@@ -5041,7 +5043,7 @@ CHARLIE,1,301,`}
           const addPointAt = async (x_pct: number, y_pct: number) => {
             if (!selectedAdminAirfieldId || !airfieldPointForm.name.trim()) return;
             try {
-              const res = await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/points`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldPointForm.name, x_pct, y_pct, color: airfieldPointForm.color, marker: airfieldPointForm.marker, density_warn: airfieldPointForm.density_warn, point_type: airfieldPointForm.point_type || null }) });
+              const res = await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/points`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldPointForm.name, x_pct, y_pct, color: airfieldPointForm.color, marker: airfieldPointForm.marker, density_warn: airfieldPointForm.density_warn, point_type: airfieldPointForm.point_type || null, landing_priority: airfieldPointForm.point_type === 'datk' ? airfieldPointForm.landing_priority : [] }) });
               if (res.ok) {
                 const saved = await res.json();
                 setAirfieldPoints(prev => [...prev, saved]);
@@ -5072,6 +5074,8 @@ CHARLIE,1,301,`}
               color: editingPoint.color,
               marker: editingPoint.marker,
               density_warn: Number(editingPoint.density_warn) || 3,
+              // סדר העדיפויות שייך לנקודת דת"ק בלבד - נקודה שעברה לסוג אחר מתנקה ממנו
+              landing_priority: editingPoint.point_type === 'datk' ? editingPoint.landing_priority : [],
             };
             try {
               const res = await fetch(`${API_URL}/airfield-points/${editingPoint.id}`, {
@@ -6128,6 +6132,13 @@ CHARLIE,1,301,`}
                             <option value='general'>{tr('admin.klly')}</option>
                             <option value='admin_loc'>{tr('admin.mkvmMnhlty')}</option>
                           </select>
+                          {/* סדר עדיפויות לנחיתה - רק לנקודת דת"ק */}
+                          {airfieldPointForm.point_type === 'datk' && (
+                            <div style={{ marginBottom: '6px' }}>
+                              <LandingPriorityEditor value={airfieldPointForm.landing_priority} runwayEnds={runwayEndsOf(adminAirfieldRunways)}
+                                onChange={next => setAirfieldPointForm(p => ({ ...p, landing_priority: next }))} />
+                            </div>
+                          )}
                           <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '6px' }}>
                             <label style={{ fontSize: '10px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{tr('admin.htratAvmsMtvsym')}</label>
                             <input type="number" min={1} max={20} value={airfieldPointForm.density_warn}
@@ -6176,6 +6187,12 @@ CHARLIE,1,301,`}
                                     <GroundMarkerSVG marker={pt.marker || 'circle'} color={pt.color || '#3b82f6'} size={12} />
                                     <span style={{ color: '#e2e8f0', fontSize: '11px', flex: 1 }}>{pt.name}</span>
                                     {pt.point_type && <span style={{ fontSize: '9px', color: '#a5b4fc', background: '#1e1b4b', border: '1px solid #4338ca', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap', flexShrink: 0 }}>{{ alignment: 'התיישורת', katsam: 'קצ"מ', datk: 'דת"ק', waiting: 'המתנה', general: 'כללי', admin_loc: '🏢 ב"מ' }[pt.point_type as string] ?? pt.point_type}</span>}
+                                    {pt.point_type === 'datk' && parseLandingPriority(pt.landing_priority).length > 0 && (
+                                      <span data-testid="point-landing-priority" title={tr('admin.landingPriority')}
+                                        style={{ fontSize: '9px', color: '#93c5fd', background: '#0a1628', border: '1px solid #1e3a5f', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: 'monospace', direction: 'ltr' }}>
+                                        🛬 {parseLandingPriority(pt.landing_priority).join(' › ')}
+                                      </span>
+                                    )}
                                     <span title={tr('admin.sfHtratAvms')} style={{ fontSize: '9px', color: '#f59e0b', background: '#1c1400', border: '1px solid #78350f', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap', flexShrink: 0 }}>⚠️ {pt.density_warn ?? 3}</span>
                                     <button
                                       title={pt.show_in_driver ? 'מוצג לנהג חיוני — לחץ להסרה' : 'לחץ להצגה בתפריט נהג חיוני'}
@@ -6188,7 +6205,7 @@ CHARLIE,1,301,`}
                                       {pt.show_in_driver ? '🚗✓' : '🚗'}
                                     </button>
                                     <button
-                                      onClick={() => setEditingPoint(isEditing ? null : { id: pt.id, name: pt.name, color: pt.color || '#3b82f6', marker: pt.marker || 'circle', density_warn: pt.density_warn ?? 3, point_type: pt.point_type || '' })}
+                                      onClick={() => setEditingPoint(isEditing ? null : { id: pt.id, name: pt.name, color: pt.color || '#3b82f6', marker: pt.marker || 'circle', density_warn: pt.density_warn ?? 3, point_type: pt.point_type || '', landing_priority: parseLandingPriority(pt.landing_priority) })}
                                       style={{ padding: '1px 6px', background: isEditing ? '#1e3a5f' : '#1e293b', color: isEditing ? '#93c5fd' : '#94a3b8', border: `1px solid ${isEditing ? '#3b82f6' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>
                                       {isEditing ? '▲' : '✏️'}
                                     </button>
@@ -6214,6 +6231,10 @@ CHARLIE,1,301,`}
                                         <option value='general'>{tr('admin.klly')}</option>
                                         <option value='admin_loc'>{tr('admin.mkvmMnhlty')}</option>
                                       </select>
+                                      {editingPoint.point_type === 'datk' && (
+                                        <LandingPriorityEditor value={editingPoint.landing_priority} runwayEnds={runwayEndsOf(adminAirfieldRunways)}
+                                          onChange={next => setEditingPoint(p => p ? { ...p, landing_priority: next } : p)} />
+                                      )}
                                       <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                                         <label style={{ fontSize: '10px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{tr('admin.avms')}</label>
                                         <input type="number" min={1} max={20} value={editingPoint.density_warn}

@@ -8,6 +8,7 @@ import {
   resolveLinkedRouteNotams, resolveNotams,
 } from '../utils/runwayState.js';
 import { parseRelevantFor, onlyRelevantFor, DEFAULT_RELEVANT_FOR } from '../../shared/elementRelevance.js';
+import { parseLandingPriority } from '../../shared/landingPriority.js';
 const router = new Router();
 
 // אייקון סוג אלמנט: או אמוג'י, או `svg:<גוף ה-SVG>|<צבע>` (ראה RunwayLayer /
@@ -220,8 +221,8 @@ router.post('/api/airfields/:id/points', async (req, res) => {
     const lat = req.body.lat != null ? parseFloat(req.body.lat) : null;
     const lng = req.body.lng != null ? parseFloat(req.body.lng) : null;
     const result = await pool.query(
-      'INSERT INTO airfield_points (airfield_id, name, x_pct, y_pct, display_order, color, marker, density_warn, point_type, lat, lng) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *',
-      [req.params.id, name, x_pct ?? 50, y_pct ?? 50, display_order ?? 0, req.body.color || '#3b82f6', req.body.marker || 'circle', req.body.density_warn ?? 3, req.body.point_type || null, lat, lng]
+      'INSERT INTO airfield_points (airfield_id, name, x_pct, y_pct, display_order, color, marker, density_warn, point_type, lat, lng, landing_priority) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *',
+      [req.params.id, name, x_pct ?? 50, y_pct ?? 50, display_order ?? 0, req.body.color || '#3b82f6', req.body.marker || 'circle', req.body.density_warn ?? 3, req.body.point_type || null, lat, lng, JSON.stringify(parseLandingPriority(req.body.landing_priority))]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -266,9 +267,9 @@ router.post('/api/airfields/:id/duplicate', async (req, res) => {
     const oldPoints = (await client.query('SELECT * FROM airfield_points WHERE airfield_id=$1 ORDER BY id', [srcId])).rows;
     for (const pt of oldPoints) {
       const nr = await client.query(
-        `INSERT INTO airfield_points (airfield_id,name,x_pct,y_pct,display_order,color,marker,density_warn,point_type,lat,lng,show_in_driver)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
-        [newId, pt.name, pt.x_pct, pt.y_pct, pt.display_order, pt.color || '#3b82f6', pt.marker || 'circle', pt.density_warn ?? 3, pt.point_type, pt.lat, pt.lng, pt.show_in_driver ?? false]
+        `INSERT INTO airfield_points (airfield_id,name,x_pct,y_pct,display_order,color,marker,density_warn,point_type,lat,lng,show_in_driver,landing_priority)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
+        [newId, pt.name, pt.x_pct, pt.y_pct, pt.display_order, pt.color || '#3b82f6', pt.marker || 'circle', pt.density_warn ?? 3, pt.point_type, pt.lat, pt.lng, pt.show_in_driver ?? false, JSON.stringify(parseLandingPriority(pt.landing_priority))]
       );
       pointMap[pt.id] = nr.rows[0].id;
     }
@@ -515,9 +516,13 @@ router.put('/api/airfield-points/:id', async (req, res) => {
     const lat = req.body.lat != null ? parseFloat(req.body.lat) : null;
     const lng = req.body.lng != null ? parseFloat(req.body.lng) : null;
     const show_in_driver = req.body.show_in_driver !== undefined ? req.body.show_in_driver : null;
+    // סדר העדיפויות נשלח רק מטופס העריכה. שאר הקריאות (מתג נהג, גרירה במפה)
+    // שולחות את הנקודה בלעדיו - `undefined` משאיר את הקיים ולא מוחק אותו בשקט.
+    const landing_priority = req.body.landing_priority !== undefined
+      ? JSON.stringify(parseLandingPriority(req.body.landing_priority)) : null;
     const result = await pool.query(
-      'UPDATE airfield_points SET name=$1, x_pct=$2, y_pct=$3, display_order=$4, color=$5, marker=$6, density_warn=$7, point_type=$8, lat=$9, lng=$10, show_in_driver=COALESCE($12,show_in_driver) WHERE id=$11 RETURNING *',
-      [name, x_pct ?? 50, y_pct ?? 50, display_order ?? 0, req.body.color || '#3b82f6', req.body.marker || 'circle', req.body.density_warn ?? 3, req.body.point_type || null, lat, lng, req.params.id, show_in_driver]
+      'UPDATE airfield_points SET name=$1, x_pct=$2, y_pct=$3, display_order=$4, color=$5, marker=$6, density_warn=$7, point_type=$8, lat=$9, lng=$10, show_in_driver=COALESCE($12,show_in_driver), landing_priority=COALESCE($13::jsonb,landing_priority) WHERE id=$11 RETURNING *',
+      [name, x_pct ?? 50, y_pct ?? 50, display_order ?? 0, req.body.color || '#3b82f6', req.body.marker || 'circle', req.body.density_warn ?? 3, req.body.point_type || null, lat, lng, req.params.id, show_in_driver, landing_priority]
     );
     res.json(result.rows[0]);
   } catch (err) {

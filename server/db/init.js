@@ -551,6 +551,9 @@ async function applySchemaOnce() {
   await sq(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION DEFAULT NULL`);
   await sq(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION DEFAULT NULL`);
   await sq(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS show_in_driver BOOLEAN DEFAULT false`);
+  // סדר עדיפויות לנחיתה לנקודת דת"ק: מספרי מסלולים בסדר רץ (["26","08"]). מבנה שמגיע
+  // לנקודת הצטרפות מחולק לפיו למסלולים הפתוחים לנחיתות (shared/landingPriority.js).
+  await sq(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS landing_priority JSONB NOT NULL DEFAULT '[]'::jsonb`);
   await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS sids JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS stars JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS vector_data JSONB DEFAULT NULL`);

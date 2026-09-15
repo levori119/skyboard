@@ -15,6 +15,7 @@ import {
   renderGroundSvgIcon, getElemDisplayStateOpts, GroundMarkerSVG,
 } from '../ground/groundShared';
 import { elementSymbolKey, elementStateColor } from '../../../shared/elementSymbols';
+import { datkNumberOf } from '../../../shared/landingPriority';
 import RunwayLayer from '../map/RunwayLayer';
 import TrafficPatternLayer from '../map/TrafficPatternLayer';
 import type { PatternRow } from '../map/TrafficPatternLayer';
@@ -1457,28 +1458,15 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
 
   const points: any[] = airfield?.points || [];
 
-  // Extract datk number from point name — handles all naming variants:
-  //   "5"           pure number
-  //   "דת"ק 5"     with Hebrew quotes, space before number
-  //   "דת"ק5"      with Hebrew quotes, no space
-  //   "דתק 5"      without quotes, space before number
-  //   "דתק5"       without quotes, no space
-  //   "דת"ק-5"     with separator
-  //   "דת״ק 3"     with Gershayim (Unicode 05F4)
-  const extractDatkPointNumber = (name: string): number | null => {
-    if (!name) return null;
-    // Covers: optional datkPrefix (with any quote variant) + optional separator + digits
-    const m = name.trim().match(/^(?:דת["״\u05F4]?ק[\s\-]?)?(\d+)$/u);
-    if (m) return parseInt(m[1], 10);
-    return null;
-  };
+  // מספר הדת"ק מתוך שם הנקודה ("5", "דת"ק 5", "דתק5", "דת״ק-3") - כלל אחד עם
+  // החלוקה למסלולים בשרת, ב-shared/landingPriority.js
 
   const autoDatkPlacements = React.useMemo((): Record<string, Record<number, number>> => {
     const result: Record<string, Record<number, number>> = {};
     // Pre-compute datk number for every point once
     const pointDatkNum: Record<number, number> = {};
     points.forEach((p: any) => {
-      const n = extractDatkPointNumber(p.name);
+      const n = datkNumberOf(p.name);
       if (n != null) pointDatkNum[p.id] = n;
     });
     const useTimeWindow = datkShowMinutes != null && datkShowMinutes > 0;
