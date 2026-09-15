@@ -125,3 +125,34 @@ describe('JoiningPointPanel - מאפייני הנקודה בעמדה', () => {
     expect(count(renderWith({ onSetAircraftOnly: noop }), 'joining-props')).toBe(0);
   });
 });
+
+describe('JoiningPointPanel - מסלול אוטומטי מול ידני, וסידור מחדש לפי דת"קים', () => {
+  const renderWith = (aircraft: any[], extra: Record<string, unknown> = {}) => renderToStaticMarkup(
+    <JoiningPointPanel
+      point={point({ expand_aircraft: true })} incoming={[]} assigned={assigned as any} aircraft={aircraft}
+      landingRunways={[{ ident: '26' }, { ident: '33' }]}
+      onAcceptIncoming={noop} onAssign={noop} onRemoveStrip={noop} onCoordinate={noop}
+      onUpdateAircraft={noop} onFlightStatus={noop} onCollapse={noop} {...extra}
+    />,
+  );
+
+  it('כל בורר מסלול מסומן לפי המקור: אוטומטי, ידני, או בלי מסלול', () => {
+    const html = renderWith([
+      { strip_id: 7, aircraft_idx: 1, runway_ident: '26', runway_auto: true },
+      { strip_id: 7, aircraft_idx: 2, runway_ident: '33', runway_auto: false },
+    ]);
+    expect([...html.matchAll(/data-runway-source="([a-z]+)"/g)].map(m => m[1])).toEqual(['auto', 'manual']);
+    expect(count(html, 'joining-runway-auto')).toBe(1);
+    expect(count(html, 'joining-runway-manual')).toBe(1);
+  });
+
+  it('מטוס בלי מסלול - אין תג', () => {
+    const html = renderWith([]);
+    expect(html.includes('data-runway-source=')).toBe(false);
+  });
+
+  it('כפתור "סדר מחדש לפי דת"קים" בכותרת רק כשיש פעולה', () => {
+    expect(count(renderWith([]), 'joining-reorder-runways')).toBe(0);
+    expect(count(renderWith([], { onReorderRunways: noop }), 'joining-reorder-runways')).toBe(1);
+  });
+});

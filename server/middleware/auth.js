@@ -126,6 +126,9 @@ const RULES = [
   // נקודות הצטרפות: שיבוץ פ"מ לבלוק גובה, אישור קונפליקט מתואם, מסלול והקפה
   // למטוס - כולן פעולות הפקח בזמן אמת, להבדיל מ-/api/joining-points שהיא ההגדרה.
   { m: ALL, p: /^\/api\/joining-point-(strips|aircraft)(\/|$)/, need: NEED.USER, why: 'מצב חי של נקודת הצטרפות - תפעולי' },
+  // "סדר מחדש מסלולים לפי דת"קים" יושב תחת /api/joining-points (שייך לנקודה) אבל
+  // כותב רק מצב חי של המטוסים - ולכן חייב לקדום לכלל ההגדרה (STAFF) שמתחתיו.
+  { m: ['POST'], p: /^\/api\/joining-points\/\d+\/reorder-runways$/, need: NEED.USER, why: 'חלוקה מחדש של מסלולי הנחיתה בנקודה - פעולת הפקח' },
   { m: ALL, p: /^\/api\/strip-aircraft\/[^/]+\/\d+\/flight-status$/, need: NEED.USER, why: 'ירוקים / אישור לנחות / נחיתה - דיווח הפקח' },
   { m: ALL, p: /^\/api\/strip-aircraft\/[^/]+\/\d+\/fault$/, need: NEED.USER, why: 'סימון תקלה במטוס - דיווח תפעולי של הבקר/הפקח (התפריט עצמו הוא ניהול)' },
   { m: ALL, p: /^\/api\/strip-zone-/, need: NEED.USER, why: 'שיוך פ"מ לאזור - תפעולי' },

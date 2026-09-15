@@ -34,6 +34,7 @@ const RULES = [
   // ── נקודות הצטרפות ────────────────────────────────────────────────────────
   { m: null,       p: /^\/api\/joining-point-strips/,             key: 'undo.joiningPointStrip' },
   { m: null,       p: /^\/api\/joining-point-aircraft/,           key: 'undo.joiningPointAircraft' },
+  { m: null,       p: /^\/api\/joining-points\/\d+\/reorder-runways/, key: 'undo.joiningPointReorder' },
   { m: null,       p: /^\/api\/joining-points/,                   key: 'undo.joiningPointDef' },
 
   // ── מפה ואזורים ───────────────────────────────────────────────────────────

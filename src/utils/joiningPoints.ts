@@ -45,7 +45,18 @@ export interface JoiningAircraftRow {
   pattern_frac?: number | null;
   /** גובה חריג למטוס הבודד - פיצול המבנה. NULL = הולך עם הפ"מ. */
   alt?: string | null;
+  /** המסלול נקבע בחלוקה האוטומטית לפי סדר העדיפויות של הדת"ק. FALSE = נבחר ידנית. */
+  runway_auto?: boolean;
   [k: string]: unknown;
+}
+
+/**
+ * איך נבחר מסלול הנחיתה של המטוס - כדי שהפקח יבדיל במבט בין מה שהמערכת קבעה
+ * לבין מה שהוא עצמו בחר. `null` = אין מסלול, אין מה לסמן.
+ */
+export function runwaySource(row: JoiningAircraftRow | null | undefined): 'auto' | 'manual' | null {
+  if (!String(row?.runway_ident ?? '').trim()) return null;
+  return row?.runway_auto === true ? 'auto' : 'manual';
 }
 
 /** תקרת ביטחון מול הגדרה שגויה (טווח ענק עם הפרש זעיר) - לא לתלות את הדפדפן. */

@@ -38,6 +38,7 @@
     "stripSerial": { "he": "בחירת סדרה לפ\"מ", "en": "Strip serial selection" },
     "joiningPointStrip": { "he": "שיבוץ בנקודת הצטרפות", "en": "Joining point assignment" },
     "joiningPointAircraft": { "he": "מטוס בנקודת הצטרפות", "en": "Joining point aircraft" },
+    "joiningPointReorder": { "he": "סידור מסלולים לפי דת\"קים", "en": "Reorder runways by parking" },
     "joiningPointDef": { "he": "הגדרת נקודת הצטרפות", "en": "Joining point definition" },
     "mapZone": { "he": "אזור במפה", "en": "Map zone" },
     "zoneAltitudes": { "he": "גבהים של אזור", "en": "Zone altitudes" },

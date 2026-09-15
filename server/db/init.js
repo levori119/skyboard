@@ -1763,6 +1763,9 @@ async function applySchemaOnce() {
   // הפ"מ נשאר פ"מ אחד: על הסדק כותבים "בננה 1,2" בגובה אחד ו"בננה 3,4" באחר,
   // ולא מפצלים את המבנה לשתי רשומות.
   await sq(`ALTER TABLE joining_point_aircraft ADD COLUMN IF NOT EXISTS alt VARCHAR(10)`);
+  // מסלול הנחיתה נקבע בחלוקה האוטומטית לפי סדר העדיפויות של הדת"ק (TRUE) או נבחר
+  // ידנית (FALSE). מוצג בטבלת נקודת ההצטרפות כדי שהפקח יבדיל בין השניים.
+  await sq(`ALTER TABLE joining_point_aircraft ADD COLUMN IF NOT EXISTS runway_auto BOOLEAN NOT NULL DEFAULT FALSE`);
 
   // מצב המטוס הבודד בהצטרפות: לאיזה מסלול נחיתה נבחר, והאם כבר בהקפה.
   // המפתח הוא (strip_id, idx) ולא הנקודה: מטוס שנכנס להקפה עוזב את הטבלה של

@@ -457,3 +457,14 @@ describe('greensPoint - נקודת הירוקים של השדה', () => {
     expect(greensPoint([{ id: 1, name: null, point_type: ' greens ' }])!.id).toBe(1);
   });
 });
+
+describe('runwaySource - איך נבחר מסלול הנחיתה', () => {
+  it('אוטומטי / ידני / אין מסלול', async () => {
+    const { runwaySource } = await import('./joiningPoints');
+    expect(runwaySource({ aircraft_idx: 1, runway_ident: '26', runway_auto: true })).toBe('auto');
+    expect(runwaySource({ aircraft_idx: 1, runway_ident: '26', runway_auto: false })).toBe('manual');
+    expect(runwaySource({ aircraft_idx: 1, runway_ident: '26' })).toBe('manual');
+    expect(runwaySource({ aircraft_idx: 1, runway_ident: ' ', runway_auto: true })).toBeNull();
+    expect(runwaySource(undefined)).toBeNull();
+  });
+});

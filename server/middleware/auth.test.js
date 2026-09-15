@@ -35,6 +35,13 @@ const call = (method, path, token) =>
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
 
+describe('נקודת הצטרפות - סדר מחדש מסלולים לפי דת"קים', () => {
+  it('פעולה תפעולית של הפקח (USER), בזמן שהגדרת הנקודה נשארת STAFF', () => {
+    expect(requirementFor('POST', '/api/joining-points/4/reorder-runways')).toBe(NEED.USER);
+    expect(requirementFor('PUT', '/api/joining-points/4')).toBe(NEED.STAFF);
+  });
+});
+
 describe('deny by default', () => {
   it('נתיב API שלא סווג דורש זהות', () => {
     expect(requirementFor('GET', '/api/some-brand-new-router')).toBe(NEED.USER);

@@ -30,7 +30,7 @@ import { stripInCombined, resolveTransferFromPreset, type CombinedPosition } fro
 import { getFormationDisplayName, getTransferLabel, getTransferSq, normalizeAlt, parseAltToFeet, computeBlockDeviation, parseAltRange, altRangeGap, mergeStripsWithPending } from '../../utils/strips';
 import { compareAirborneThenTakeoff } from '../../utils/stripOrder';
 import { applyAircraftOnlyChoice } from '../../../shared/joiningPointProps.js';
-import { altToDisplay, applyJoiningAccept, applyJoiningMove, createJoiningSyncGate, patchJoiningAircraft } from '../../utils/joiningPoints';
+import { altToDisplay, applyJoiningAccept, applyJoiningMove, createJoiningSyncGate, patchJoiningAircraft, runwaySource } from '../../utils/joiningPoints';
 import { parseNoteValue, serializeNoteValue } from '../../utils/notes';
 import { bidiAuto } from '../../utils/bidi';
 import { filterDocsByKind, isChecklistDoc, DOC_KIND_BDH, DOC_KIND_CHECKLIST } from '../../utils/bdhDocs';
@@ -5710,6 +5710,26 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     try { await sendJoiningSplit(pointId, sid, indices, altFt); } finally { end(); }
     await reloadJoiningState();
     loadData();
+  };
+
+  /**
+   * "סדר מחדש מסלולים לפי דת"קים": השרת מחלק מחדש את כל המטוסים שממתינים בנקודה
+   * לפי סדר העדיפויות של הדת"ק שלהם. הפעולה דורסת גם בחירה **ידנית** - ולכן כשיש
+   * כזו, הפקח מאשר קודם ויודע כמה מטוסים ישתנו (לא דריסה שקטה).
+   */
+  const reorderJoiningRunways = async (pointId: number) => {
+    const inPoint = new Set(joiningPointStrips
+      .filter((s: any) => Number(s.joining_point_id) === Number(pointId)).map((s: any) => String(s.strip_id)));
+    const manual = joiningPointAircraft.filter((a: any) =>
+      inPoint.has(String(a.strip_id)) && !a.in_pattern && runwaySource(a) === 'manual').length;
+    if (manual > 0 && !await customConfirm(tr('joining.reorderRunwaysConfirm', { count: manual }))) return;
+    const end = joiningSync.begin();
+    try {
+      await fetch(`${API_URL}/joining-points/${pointId}/reorder-runways`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(joiningAudit()),
+      }).catch(() => {});
+    } finally { end(); }
+    await reloadJoiningState();
   };
 
   /**
@@ -14158,6 +14178,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 onCoordinateJoiningStrip={coordinateJoiningStrip}
                 onSplitJoiningStrip={splitJoiningStrip}
                 onSetJoiningPointAircraftOnly={myPresetConfig?.id ? setJoiningPointAircraftOnly : undefined}
+                onReorderJoiningRunways={reorderJoiningRunways}
                 onUpdateJoiningAircraft={updateJoiningAircraft}
                 onSetFlightStatus={setAircraftFlightStatus}
                 onSetGreens={setAircraftGreens}

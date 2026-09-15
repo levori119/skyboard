@@ -95,11 +95,18 @@ async function logActivity(req, fields) {
  * גובה. מטוס שכבר יש לו מסלול (או שבהקפה) לא נדרס - תנאי ה-WHERE ב-upsert
  * אוכף את זה גם מול בחירה ידנית שנכתבה באותו רגע מעמדה אחרת.
  *
+ * `reorder` = הפעולה "סדר מחדש מסלולים לפי דת"קים": מחלקים מחדש **גם** מטוסים
+ * שכבר יש להם מסלול (אוטומטי או ידני), כי המצב בשדה השתנה. מטוס בהקפה לא נוגעים
+ * בו, ומטוס שאין לו תוצאה (בלי דת"ק / אף מסלול לא פתוח) שומר את המסלול שלו.
+ *
+ * כל מסלול שנכתב כאן מסומן `runway_auto` - כך הפקח רואה בטבלה מה נבחר אוטומטית
+ * ומה בחר בעצמו. בחירה ידנית (PUT על המטוס) מכבה את הסימון.
+ *
  * `q` הוא ה-client של הטרנזקציה כשיש כזה: `pool.query` באמצע handler שמחזיק
  * client נתקע מול PGlite (localPool = חיבור יחיד).
  * @returns {Promise<{ idx: number, runway_ident: string }[]>}
  */
-async function autoAssignLandingRunways(q, pointId, sid) {
+async function autoAssignLandingRunways(q, pointId, sid, { reorder = false } = {}) {
   const pt = await q.query('SELECT airfield_id FROM airfield_joining_points WHERE id = $1', [pointId]);
   const airfieldId = pt.rows[0]?.airfield_id;
   if (!airfieldId) return [];
@@ -118,14 +125,18 @@ async function autoAssignLandingRunways(q, pointId, sid) {
   const own = Array.isArray(strip?.aircraft_indices) && strip.aircraft_indices.length
     ? new Set(strip.aircraft_indices.map(Number)) : null;
   const { rows: aircraft } = await q.query(
-    `SELECT sa.idx, sa.datk, COALESCE(jpa.runway_ident, '') AS runway_ident
+    `SELECT sa.idx, sa.datk, COALESCE(jpa.runway_ident, '') AS runway_ident, COALESCE(jpa.in_pattern, FALSE) AS in_pattern
        FROM strip_aircraft sa
        LEFT JOIN joining_point_aircraft jpa ON jpa.strip_id = sa.strip_id AND jpa.aircraft_idx = sa.idx
       WHERE sa.strip_id = $1 ORDER BY sa.idx`,
     [sid],
   );
   const plan = planLandingRunways({
-    aircraft: aircraft.filter(a => !own || own.has(Number(a.idx))), points, landingRunways,
+    aircraft: aircraft
+      .filter(a => (!own || own.has(Number(a.idx))) && !a.in_pattern)
+      // בסידור מחדש המסלול הקיים לא מונע חלוקה - הוא בדיוק מה שמחליפים
+      .map(a => (reorder ? { ...a, runway_ident: '' } : a)),
+    points, landingRunways,
   });
   if (!plan.length) return [];
 
@@ -136,12 +147,14 @@ async function autoAssignLandingRunways(q, pointId, sid) {
   for (const { idx, runway_ident } of plan) {
     const patternId = patterns.find(p => String(p.runway_ident || '').trim() === runway_ident)?.id ?? null;
     const { rowCount } = await q.query(
-      `INSERT INTO joining_point_aircraft (joining_point_id, strip_id, aircraft_idx, runway_ident, pattern_id)
-       VALUES ($1,$2,$3,$4,$5)
+      `INSERT INTO joining_point_aircraft (joining_point_id, strip_id, aircraft_idx, runway_ident, pattern_id, runway_auto)
+       VALUES ($1,$2,$3,$4,$5,TRUE)
        ON CONFLICT (strip_id, aircraft_idx) DO UPDATE SET
-         runway_ident = EXCLUDED.runway_ident, pattern_id = EXCLUDED.pattern_id, updated_at = NOW()
-       WHERE COALESCE(joining_point_aircraft.runway_ident, '') = '' AND joining_point_aircraft.in_pattern = FALSE`,
-      [pointId, sid, idx, runway_ident, patternId],
+         runway_ident = EXCLUDED.runway_ident, pattern_id = EXCLUDED.pattern_id,
+         runway_auto = TRUE, updated_at = NOW()
+       WHERE joining_point_aircraft.in_pattern = FALSE
+         AND ($6::boolean OR COALESCE(joining_point_aircraft.runway_ident, '') = '')`,
+      [pointId, sid, idx, runway_ident, patternId, reorder],
     );
     if (rowCount) done.push({ idx, runway_ident });
   }
@@ -159,12 +172,12 @@ async function safeAutoAssign(q, pointId, sid) {
 }
 
 /** שקיפות: הפקח (ותחקיר) יודעים שהמסלול נבחר אוטומטית ולפי מה. */
-async function logAutoRunways(req, b, pointId, sid, assigned) {
+async function logAutoRunways(req, b, pointId, sid, assigned, reorder = false) {
   if (!assigned.length) return;
   await logActivity(req, {
     event_type: 'joining_point_auto_runway', preset_id: int(b.preset_id), preset_name: b.preset_name,
     strip_id: sid, strip_callsign: b.callsign || '',
-    details: { joiningPointId: pointId, assignments: assigned.map(a => ({ aircraftIdx: a.idx, runwayIdent: a.runway_ident })) },
+    details: { joiningPointId: pointId, reorder, assignments: assigned.map(a => ({ aircraftIdx: a.idx, runwayIdent: a.runway_ident })) },
   });
 }
 
@@ -331,6 +344,34 @@ router.put('/api/joining-points/:id', async (req, res) => {
     res.status(500).json({ error: e.message });
   } finally {
     client.release();
+  }
+});
+
+// POST /api/joining-points/:id/reorder-runways — "סדר מחדש מסלולים לפי דת"קים".
+// הפקח לוחץ כשהמצב בשדה השתנה (מסלול נסגר/נפתח לנחיתה): כל המטוסים שממתינים
+// בנקודה מחולקים מחדש לפי סדר העדיפויות של הדת"ק שלהם - גם מי שנבחר לו ידנית.
+// האישור מול דריסת בחירה ידנית נעשה בעמדה, לפני הבקשה.
+router.post('/api/joining-points/:id/reorder-runways', async (req, res) => {
+  try {
+    const b = req.body || {};
+    const pointId = int(req.params.id);
+    const pt = await pool.query('SELECT id FROM airfield_joining_points WHERE id = $1', [pointId]);
+    if (!pt.rows.length) return res.status(404).json({ error: 'לא נמצא' });
+    const { rows: strips } = await pool.query(
+      `SELECT jps.strip_id, s.callsign FROM joining_point_strips jps JOIN strips s ON s.id = jps.strip_id
+        WHERE jps.joining_point_id = $1 ORDER BY jps.created_at`,
+      [pointId],
+    );
+    const assigned = [];
+    for (const s of strips) {
+      const done = await autoAssignLandingRunways(pool, pointId, s.strip_id, { reorder: true });
+      await logAutoRunways(req, { ...b, callsign: s.callsign }, pointId, s.strip_id, done, true);
+      assigned.push(...done.map(d => ({ strip_id: s.strip_id, ...d })));
+    }
+    res.json({ assigned });
+  } catch (err) {
+    console.error('POST reorder-runways:', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -691,6 +732,10 @@ router.put('/api/joining-point-aircraft/:stripId/:idx', async (req, res) => {
        ON CONFLICT (strip_id, aircraft_idx) DO UPDATE SET
          joining_point_id = COALESCE(EXCLUDED.joining_point_id, joining_point_aircraft.joining_point_id),
          runway_ident = EXCLUDED.runway_ident,
+         -- מסלול **אחר** מהקיים = הפקח בחר ידנית. עדכון שלא משנה את המסלול
+         -- (גרירה על ההקפה, צלע) שולח אותו שוב - ואז הסימון האוטומטי נשמר.
+         runway_auto  = CASE WHEN COALESCE(EXCLUDED.runway_ident, '') = COALESCE(joining_point_aircraft.runway_ident, '')
+                             THEN joining_point_aircraft.runway_auto ELSE FALSE END,
          pattern_id   = EXCLUDED.pattern_id,
          in_pattern   = EXCLUDED.in_pattern,
          pattern_frac = EXCLUDED.pattern_frac,

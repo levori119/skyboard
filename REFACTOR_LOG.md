@@ -72,6 +72,37 @@
 
 ---
 
+## 2026-09-15 - נקודת הצטרפות: "סדר מחדש מסלולים לפי דת"קים" וסימון מסלול אוטומטי מול ידני
+
+**הבקשה:** פעולה בנקודת הצטרפות - סדר מחדש מסלולים לפי דת"קים; מסלול מחלוקה אוטומטית מודגש,
+ומסלול ידני מסומן שנבחר ידנית.
+
+**DB:** `joining_point_aircraft.runway_auto BOOLEAN NOT NULL DEFAULT FALSE` (טבלה קיימת, תפעולית).
+החלוקה האוטומטית כותבת TRUE. ב-PUT המטוס: מסלול שונה מהקיים = FALSE, אותו מסלול = נשמר - כי
+העמדה שולחת את המסלול בכל עדכון (גרירה על ההקפה, צלע), וכיבוי גורף היה הופך כל אוטומטי לידני.
+
+**שרת:** `autoAssignLandingRunways(..., { reorder })` - בסידור מחדש המסלול הקיים לא חוסם, ה-upsert
+דורס כל מטוס שאינו בהקפה. `POST /api/joining-points/:id/reorder-runways` עובר על כל הפ"ממים בנקודה
+ורושם `joining_point_auto_runway` עם `reorder: true`. **הרשאה:** כלל USER ב-`auth.js` לפני כלל
+ה-STAFF של `/api/joining-points` - בלעדיו פקח היה מקבל 403. תווית ביטול משלה (`undo.joiningPointReorder`).
+
+**לקוח:** `runwaySource` (טהורה) · בפאנל: בורר מסלול אוטומטי בסגול מודגש + `⚡ אוטו'`, ידני עם
+`✋ ידני` שקט (צבעים לשלוש התמות) · כפתור `⇅ דת"ק` בכותרת (כבוי בנקודה ריקה) · ב-`SectorDashboard`
+אישור כשיש מטוסים עם בחירה ידנית שתידרס, עם מספרם.
+
+**קבצים:** `server/routes/joiningPoints.js` (+test), `server/db/init.js`, `server/middleware/auth.js` (+test),
+`server/undo/labels.js` (+test), `src/utils/joiningPoints.ts` (+test),
+`src/components/ground/JoiningPointPanel.tsx` (+test), `src/components/views/GroundView.tsx`,
+`src/components/views/SectorDashboard.tsx`, `src/i18n/registry/joining.json`, `src/i18n/registry/undo.json`,
+`data-model.md`, `JOINING_POINTS_SPEC.md`.
+
+**QA:** tsc נקי · כל חבילת vitest ירוקה (175 קבצים) · build עובר · 12 בדיקות נתיב מול PGlite (5 חדשות:
+סימון אוטומטי, ידני מול עדכון הקפה, סידור מחדש דורס ידני בכל הנקודה, בהקפה ובלי תוצאה לא משתנים, 404).
+
+**לא נבדק:** הכפתור והסימון לא נלחצו בדפדפן.
+
+---
+
 ## 2026-09-15 - סדר עדיפויות לנחיתה לדת"ק וחלוקה אוטומטית למסלולים בנקודת הצטרפות
 
 **הבקשה:** בניהול שדה תעופה, לנקודה מסוג דת"ק - סדר עדיפות לנחיתה (מספרי מסלולים בסדר רץ).

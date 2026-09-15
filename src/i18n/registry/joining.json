@@ -453,6 +453,34 @@
     "conflictPopupBody": {
       "he": "רכיב אווירי {{cs}} בגובה {{alt}} בטווח ההקפה. בהקפה: {{aircraft}}",
       "en": "Air track {{cs}} at {{alt}} is inside the pattern. In pattern: {{aircraft}}"
+    },
+    "runwayAuto": {
+      "he": "אוטו'",
+      "en": "AUTO"
+    },
+    "runwayAutoTitle": {
+      "he": "המסלול נקבע אוטומטית לפי סדר העדיפויות של הדת\"ק",
+      "en": "Runway set automatically by the parking landing priority"
+    },
+    "runwayManual": {
+      "he": "ידני",
+      "en": "MAN"
+    },
+    "runwayManualTitle": {
+      "he": "המסלול נבחר ידנית",
+      "en": "Runway selected manually"
+    },
+    "reorderRunways": {
+      "he": "⇅ דת\"ק",
+      "en": "⇅ Parking"
+    },
+    "reorderRunwaysTitle": {
+      "he": "סדר מחדש מסלולים לפי דת\"קים - חלוקה מחדש לפי סדר העדיפויות והמסלולים הפתוחים לנחיתה",
+      "en": "Reorder runways by parking - reassign by landing priority and runways open for landing"
+    },
+    "reorderRunwaysConfirm": {
+      "he": "{{count}} מטוסים עם מסלול שנבחר ידנית יקבלו מסלול לפי סדר העדיפויות של הדת\"ק. להמשיך?",
+      "en": "{{count}} aircraft with a manually selected runway will be reassigned by parking priority. Continue?"
     }
   }
 }

@@ -19,6 +19,11 @@ describe('תוויות הפעולה', () => {
     expect(labelFor('PUT', '/api/strip-aircraft/abc/2').key).toBe('undo.updateAircraft');
   });
 
+  it('סדר מחדש מסלולים בנקודת הצטרפות - תווית משלו ולא "הגדרת נקודה"', () => {
+    expect(labelFor('POST', '/api/joining-points/4/reorder-runways').key).toBe('undo.joiningPointReorder');
+    expect(labelFor('PUT', '/api/joining-points/4').key).toBe('undo.joiningPointDef');
+  });
+
   it('שאילתת query אינה משבשת התאמה', () => {
     expect(labelFor('DELETE', '/api/strips/42?force=1').key).toBe('undo.deleteStrip');
   });

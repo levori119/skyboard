@@ -52,7 +52,7 @@ beforeAll(async () => {
       created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW(), UNIQUE(joining_point_id, strip_id))`,
     `CREATE TABLE joining_point_aircraft (id SERIAL PRIMARY KEY, joining_point_id INTEGER, strip_id INTEGER, aircraft_idx INTEGER NOT NULL,
       runway_ident VARCHAR(10) DEFAULT '', pattern_id INTEGER, in_pattern BOOLEAN NOT NULL DEFAULT FALSE, pattern_frac FLOAT,
-      alt VARCHAR(10), updated_at TIMESTAMPTZ DEFAULT NOW(), UNIQUE(strip_id, aircraft_idx))`,
+      alt VARCHAR(10), runway_auto BOOLEAN NOT NULL DEFAULT FALSE, updated_at TIMESTAMPTZ DEFAULT NOW(), UNIQUE(strip_id, aircraft_idx))`,
     `CREATE TABLE activity_log (id SERIAL PRIMARY KEY, event_type VARCHAR(50), severity VARCHAR(20), workstation_preset_id INTEGER,
       workstation_name VARCHAR(100), crew_member_id INTEGER, crew_member_name VARCHAR(100), strip_id VARCHAR(20),
       strip_callsign VARCHAR(50), details JSONB, created_at TIMESTAMPTZ DEFAULT NOW())`,
@@ -140,5 +140,59 @@ describe('חלוקה אוטומטית למסלולים כשמבנה מגיע ל�
     await pool.query(`UPDATE strips SET aircraft_indices = '[3]'::jsonb, number_of_formation = '1' WHERE id = 10`);
     await req('POST', '/api/joining-point-strips', { joining_point_id: 1, strip_id: 10, alt: '050' });
     expect((await runwaysOf(10)).map(a => [a.idx, a.runway])).toEqual([[3, '33']]);
+  });
+});
+
+const sourceOf = async (sid) => (await pool.query(
+  'SELECT aircraft_idx, runway_ident, runway_auto FROM joining_point_aircraft WHERE strip_id = $1 ORDER BY aircraft_idx', [sid],
+)).rows.map(r => [r.aircraft_idx, r.runway_ident, r.runway_auto ? 'auto' : 'manual']);
+
+describe('מקור המסלול - אוטומטי או ידני', () => {
+  it('חלוקה אוטומטית מסמנת את המסלול כאוטומטי', async () => {
+    await req('POST', '/api/joining-point-strips', { joining_point_id: 1, strip_id: 10, alt: '050' });
+    expect(await sourceOf(10)).toEqual([[1, '26', 'auto'], [2, '26', 'auto'], [3, '33', 'auto']]);
+  });
+
+  it('בחירה ידנית של מסלול אחר - ידני; עדכון שלא משנה מסלול (הקפה) - נשאר אוטומטי', async () => {
+    await req('POST', '/api/joining-point-strips', { joining_point_id: 1, strip_id: 10, alt: '050' });
+    await req('PUT', '/api/joining-point-aircraft/10/1', { joining_point_id: 1, runway_ident: '33', pattern_id: 8 });
+    await req('PUT', '/api/joining-point-aircraft/10/2', { joining_point_id: 1, runway_ident: '26', pattern_id: 7, pattern_frac: 0.4 });
+    expect(await sourceOf(10)).toEqual([[1, '33', 'manual'], [2, '26', 'auto'], [3, '33', 'auto']]);
+  });
+});
+
+describe('סדר מחדש מסלולים לפי דת"קים - פעולה על הנקודה', () => {
+  beforeEach(async () => {
+    await pool.query(`INSERT INTO strips (id, callsign, number_of_formation) VALUES (11, 'תפוח', '1')`);
+    await pool.query(`INSERT INTO strip_aircraft (strip_id, idx, datk) VALUES (11, 1, 2)`);
+  });
+
+  it('דורס גם בחירה ידנית, לכל הפ"ממים בנקודה, ומסמן אוטומטי', async () => {
+    await req('POST', '/api/joining-point-strips', { joining_point_id: 1, strip_id: 10, alt: '050' });
+    await req('POST', '/api/joining-point-strips', { joining_point_id: 1, strip_id: 11, alt: '060' });
+    await req('PUT', '/api/joining-point-aircraft/10/1', { joining_point_id: 1, runway_ident: '33' });
+    await req('PUT', '/api/joining-point-aircraft/11/1', { joining_point_id: 1, runway_ident: '26' });
+    // המצב בשדה השתנה: 26 נסגר לנחיתה
+    await setLanding('26', false);
+
+    const r = await req('POST', '/api/joining-points/1/reorder-runways', {});
+    expect(r.status).toBe(200);
+    expect(r.json.assigned).toHaveLength(4);
+    expect(await sourceOf(10)).toEqual([[1, '33', 'auto'], [2, '33', 'auto'], [3, '33', 'auto']]);
+    expect(await sourceOf(11)).toEqual([[1, '33', 'auto']]);
+  });
+
+  it('מטוס בהקפה לא נוגעים בו; מטוס בלי תוצאה שומר את המסלול שלו', async () => {
+    await req('POST', '/api/joining-point-strips', { joining_point_id: 1, strip_id: 10, alt: '050' });
+    await pool.query(`UPDATE joining_point_aircraft SET in_pattern = TRUE, runway_auto = FALSE WHERE strip_id = 10 AND aircraft_idx = 1`);
+    await pool.query(`INSERT INTO joining_point_aircraft (joining_point_id, strip_id, aircraft_idx, runway_ident) VALUES (1, 10, 4, '33')`);
+    await req('PUT', '/api/joining-point-aircraft/10/3', { joining_point_id: 1, runway_ident: '26' });
+
+    await req('POST', '/api/joining-points/1/reorder-runways', {});
+    expect(await sourceOf(10)).toEqual([[1, '26', 'manual'], [2, '26', 'auto'], [3, '33', 'auto'], [4, '33', 'manual']]);
+  });
+
+  it('נקודה לא קיימת - 404', async () => {
+    expect((await req('POST', '/api/joining-points/999/reorder-runways', {})).status).toBe(404);
   });
 });

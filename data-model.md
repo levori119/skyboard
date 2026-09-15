@@ -1046,6 +1046,7 @@ COALESCE(last_seen, entered_at) > NOW() - INTERVAL '240 seconds'
 | `in_pattern` | BOOLEAN | FALSE = נגרר להקפה, מסגרת מקווקוות; TRUE = **בהקפה**, מסגרת קבועה ויצא מהטבלה |
 | `pattern_frac` | FLOAT | מיקום על צלע "עם הרוח" (0..1) |
 | `alt` | VARCHAR(10) | **גובה חריג למטוס הבודד** - פיצול המבנה בין שני בלוקים. NULL = הולך עם הפ"מ |
+| `runway_auto` | BOOLEAN NOT NULL DEFAULT FALSE | TRUE = המסלול נקבע בחלוקה האוטומטית לפי סדר העדיפויות של הדת"ק (מודגש בטבלה). FALSE = נבחר ידנית. PUT שמשנה את המסלול מכבה; PUT שמשאיר אותו (הקפה, צלע) שומר |
 | `updated_at` | TIMESTAMPTZ | חותמת |
 
 > **פיצול מבנה בין שני גבהים** אינו מפצל את הפ"מ לשתי רשומות: המטוסים שנבחרו
@@ -1077,6 +1078,10 @@ COALESCE(last_seen, entered_at) > NOW() - INTERVAL '240 seconds'
 מחדש. נרשם ביומן כ-`joining_point_auto_runway`. לוגיקה: `shared/landingPriority.js`.
 
 PUT בלי השדה (מתג נהג, גרירה במפה) משאיר את הקיים.
+
+**סדר מחדש מסלולים לפי דת"קים** (`POST /api/joining-points/:id/reorder-runways`, USER): אותה חלוקה לכל
+הפ"ממים בנקודה, והפעם **דורסת** גם מסלול קיים (אוטומטי או ידני). מטוס בהקפה לא נוגעים בו; מטוס
+בלי תוצאה שומר את המסלול שלו. כל מסלול שנכתב בחלוקה מסומן `runway_auto=TRUE`.
 
 > **סיווג סביבות:** שלוש טבלאות ההגדרה הן **קונפיג** (ב-public בלבד);
 > `joining_point_strips` ו-`joining_point_aircraft` הן **תפעוליות** ומבודדות

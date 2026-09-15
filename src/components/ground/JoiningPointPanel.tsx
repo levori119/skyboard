@@ -11,7 +11,7 @@ import {
   acceptAltitudeLimit, altitudeGroups, distributeAltitudes, occupiedBlocks, toggleAcceptAltitude,
   altToDisplay, altMismatch, buildBlocks, conflictBlocks, displayToAlt, formationAircraft, formationsInBlocks,
   greensAlert, FLIGHT_LEGS, dropIndices, stripAircraftAlts, isFormationOpen,
-  displayLeg, legChange, JOINING_LEG,
+  displayLeg, legChange, JOINING_LEG, runwaySource,
   type JoiningPoint, type JoiningPointStripRow, type JoiningAircraftRow, type FormationAircraftRow,
 } from '../../utils/joiningPoints';
 
@@ -107,6 +107,11 @@ interface Props {
    * של הניהול. בלי ה-callback אין כפתור מאפיינים - לא מציגים פקד שלא עושה כלום.
    */
   onSetAircraftOnly?: (value: boolean | null) => void;
+  /**
+   * "סדר מחדש מסלולים לפי דת"קים" - חלוקה מחדש של כל המטוסים בנקודה לפי סדר
+   * העדיפויות של הדת"ק שלהם והמסלולים הפתוחים לנחיתה. בלי ה-callback אין כפתור.
+   */
+  onReorderRunways?: () => void;
 }
 
 /** תוויות הצלעות, לפי סדר הטיסה. */
@@ -129,7 +134,7 @@ export default function JoiningPointPanel({
   landingRunways, onAcceptIncoming, onAssign, onRemoveStrip, onCoordinate,
   onUpdateAircraft, onFlightStatus, onGreens, onCollapse, onResetPosition,
   onHeaderPointerDown, onAircraftDropOnMap, onSplit, onRemoveAircraft,
-  pendingMove, onPendingMoveHandled, approachingKeys, onSetAircraftOnly,
+  pendingMove, onPendingMoveHandled, approachingKeys, onSetAircraftOnly, onReorderRunways,
 }: Props) {
   /** קטע מאפייני הנקודה (עריכה) - סגור כברירת מחדל, כדי לא לגזול שטח מהטבלה. */
   const [propsOpen, setPropsOpen] = useState(false);
@@ -171,6 +176,13 @@ export default function JoiningPointPanel({
     : themeMode === 'ocean'
       ? { panel: '#05404e', head: '#0a5768', border: '#0e7490', text: '#cffafe', dim: '#7dd3fc', row: '#064a5a', rowAlt: '#053e4c', chip: '#0a5768', blockSep: '#67e8f9' }
       : { panel: '#0f172a', head: '#1e293b', border: '#334155', text: '#e2e8f0', dim: '#94a3b8', row: '#111d33', rowAlt: '#0d1729', chip: '#1e293b', blockSep: '#64748b' };
+  // מסלול שנקבע **אוטומטית** מודגש (מסגרת ורקע), וידני מקבל תווית שקטה - הפקח
+  // צריך לראות מיד מה המערכת בחרה בשבילו, בלי שהידני ייראה כמו אזהרה.
+  const AUTO = themeMode === 'light'
+    ? { fg: '#6d28d9', bg: '#ede9fe' }
+    : themeMode === 'ocean'
+      ? { fg: '#ddd6fe', bg: '#5b21b6' }
+      : { fg: '#c4b5fd', bg: '#4c1d95' };
 
   // **חריג מתועד לקוד צבע המסגרות** (CLAUDE.md §מסגרת חלון): כאן הצבע מזהה
   // *איזו* נקודה זו, ולא *סוג* חלון, ולכן הוא נשאר צבע הנקודה ולא windowFrame.
@@ -408,15 +420,40 @@ export default function JoiningPointPanel({
           {bidiAuto(`${getFormationDisplayName(row)}${ac.idx}`)}
         </span>
         {ac.datk != null && <span style={{ color: C.dim }}>{tr('joining.datk')} {ac.datk}</span>}
-        <select
-          value={st?.runway_ident || ''}
-          onChange={e => onUpdateAircraft(sid, ac.idx, { runway_ident: e.target.value, pattern_id: landingRunways.find(r => r.ident === e.target.value)?.pattern_id ?? null })}
-          title={tr('joining.pickRunway')}
-          style={{ background: C.panel, color: C.text, border: `1px solid ${C.border}`, borderRadius: '3px', fontSize: '11px', padding: '0 3px' }}
-        >
-          <option value="">{landingRunways.length ? tr('joining.pickRunway') : tr('joining.noActiveRunways')}</option>
-          {landingRunways.map(r => <option key={r.ident} value={r.ident}>{r.ident}</option>)}
-        </select>
+        {(() => {
+          const source = runwaySource(st);
+          const auto = source === 'auto';
+          return (
+            <>
+              <select
+                value={st?.runway_ident || ''}
+                onChange={e => onUpdateAircraft(sid, ac.idx, { runway_ident: e.target.value, pattern_id: landingRunways.find(r => r.ident === e.target.value)?.pattern_id ?? null })}
+                title={auto ? tr('joining.runwayAutoTitle') : source === 'manual' ? tr('joining.runwayManualTitle') : tr('joining.pickRunway')}
+                data-runway-source={source ?? undefined}
+                style={{
+                  background: auto ? AUTO.bg : C.panel, color: auto ? AUTO.fg : C.text,
+                  border: auto ? `2px solid ${AUTO.fg}` : `1px solid ${C.border}`,
+                  borderRadius: '3px', fontSize: '11px', padding: '0 3px', fontWeight: auto ? 'bold' : 'normal',
+                }}
+              >
+                <option value="">{landingRunways.length ? tr('joining.pickRunway') : tr('joining.noActiveRunways')}</option>
+                {landingRunways.map(r => <option key={r.ident} value={r.ident}>{r.ident}</option>)}
+              </select>
+              {auto && (
+                <span data-testid="joining-runway-auto" title={tr('joining.runwayAutoTitle')}
+                  style={{ fontSize: '9px', fontWeight: 'bold', color: AUTO.fg, background: AUTO.bg, borderRadius: '3px', padding: '0 4px' }}>
+                  ⚡ {tr('joining.runwayAuto')}
+                </span>
+              )}
+              {source === 'manual' && (
+                <span data-testid="joining-runway-manual" title={tr('joining.runwayManualTitle')}
+                  style={{ fontSize: '9px', color: C.dim, border: `1px solid ${C.border}`, borderRadius: '3px', padding: '0 4px' }}>
+                  ✋ {tr('joining.runwayManual')}
+                </span>
+              )}
+            </>
+          );
+        })()}
         {(() => {
           const inPattern = !!st?.in_pattern;
           const hasRunway = !!String(st?.runway_ident ?? '').trim();
@@ -512,6 +549,17 @@ export default function JoiningPointPanel({
         <span style={{ fontWeight: 'bold', color: accent, fontFamily: 'monospace' }}>{headerRange}</span>
         <span style={{ fontWeight: 'bold', flex: 1, textAlign: 'start' }}>{bidiAuto(point.name)}</span>
         <span style={{ color: C.dim, fontSize: '10px' }}>{tr('joining.blocksCount')}: {blocks.length}</span>
+        {onReorderRunways && (
+          <button
+            type="button"
+            data-testid="joining-reorder-runways"
+            title={tr('joining.reorderRunwaysTitle')}
+            // נקודה ריקה - אין מה לחלק, והכפתור לא נדלק בלי שקורה משהו
+            disabled={assigned.length === 0}
+            onClick={onReorderRunways}
+            style={{ ...btn(AUTO.bg, AUTO.fg), opacity: assigned.length === 0 ? 0.4 : 1, cursor: assigned.length === 0 ? 'default' : 'pointer' }}
+          >{tr('joining.reorderRunways')}</button>
+        )}
         {onSetAircraftOnly && (
           <button
             type="button"
