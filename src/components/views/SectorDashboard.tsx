@@ -62,7 +62,7 @@ import { projectSeizure } from '../seizure/useTempZoneSeizures';
 import { raiseWindow, windowZ } from '../seizure/windowStack';
 import AirPictureLayer from '../../airPicture/AirPictureLayer';
 import AirPictureControls from '../../airPicture/AirPictureControls';
-import { loadPrefs, savePrefs, type AirPicturePrefs } from '../../airPicture/prefs';
+import { airPictureLogicActive, loadPrefs, savePrefs, stationLogicWhenOff, type AirPicturePrefs } from '../../airPicture/prefs';
 import WeatherLayer, { type WeatherStatus } from '../../weather/WeatherLayer';
 import WeatherMenu from '../../weather/WeatherMenu';
 import WeatherWindow from '../../weather/WeatherWindow';
@@ -2405,9 +2405,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // את השדה מתנהגת כמו עד היום: התראות דולקות, ורק כשהתמונה מצוירת.
   const zwCfg = (myPresetConfig as any)?.zone_watch_settings || {};
   const zwAlertsOn = zwCfg.alerts !== false;
-  const zwWhenPictureOff = zwCfg.whenPictureOff === true;
+  // לוגיקות התמונ"א - הגדרת העמדה ("גם כשלא מוצגת", ברירת מחדל כן) ושני המתגים
+  // של הפקח בפאנל. מקור אחד לזיהוי חריגה מאזור ולמעקב ההקפה (airPictureLogicActive).
+  const apStationLogicWhenOff = stationLogicWhenOff(zwCfg);
+  const apLogicActive = airPictureLogicActive(airPicturePrefs, apStationLogicWhenOff);
   const zoneWatch = useZoneWatch({
-    enabled: isFlightZonesMode && airPictureActive && zwAlertsOn && (airPicturePrefs.on || zwWhenPictureOff),
+    enabled: isFlightZonesMode && airPictureActive && zwAlertsOn && apLogicActive,
     maps: zoneWatchMaps,
     pollMs: airPictureCfg?.pollMs,
     onStatusChange: applyZoneWatchStatus,
@@ -2417,7 +2420,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
    * ממילא וסימון נוסף עליהם הוא רעש; כשהיא כבויה זה כל מה שהפקח רואה - ולכן
    * מוצג הרכיב החורג בלבד ולא התמונה כולה.
    */
-  const zwHighlight = (!airPicturePrefs.on && zwWhenPictureOff) ? zoneWatch.offenders : EMPTY_ZW_OFFENDERS;
+  const zwHighlight = (!airPicturePrefs.on && apLogicActive) ? zoneWatch.offenders : EMPTY_ZW_OFFENDERS;
 
   // דו-מפה: כפתורי עיוורת/ציור משפיעים על שתי המפות בו-זמנית (מוגדר כאן כדי לעקוף את ההצללה של הסטרים בלולאת הרינדור).
   const setBlindBothMaps = (nv: boolean) => { setBlindMapMode(nv); setMap2BlindMode(nv); };
@@ -9096,6 +9099,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   visibleCount={airPictureVisible}
                   errorDetail={airPictureSnap.error}
                   offReason={airPictureOffReason}
+                  stationLogicWhenOff={apStationLogicWhenOff}
                   themeMode={themeMode}
                   onClose={() => setShowAirPictureControls(false)}
                 />
@@ -13998,6 +14002,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   active: true,
                   anchor: groundAnchor,
                   prefs: airPicturePrefs,
+                  stationLogicWhenOff: apStationLogicWhenOff,
                   pollMs: airPictureCfg?.pollMs,
                   status: airPictureSnap.status,
                   onToggleControls: () => setShowAirPictureControls(v => !v),

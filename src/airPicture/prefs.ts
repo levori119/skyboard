@@ -40,6 +40,18 @@ export interface AirPicturePrefs {
   altMin: number | null;
   altMax: number | null;
   resp: string;
+  /**
+   * **לוגיקות** התמונ"א (זיהוי חריגה מאזור, מעקב הקפה אוטומטי) כשהתמונ"א **מוצגת**.
+   * מופרד מ-`on` בכוונה: "להציג" ו"לחשב" הן שתי החלטות. פקח יכול לרצות לראות את
+   * התמונה בלי שהמערכת תזיז פ"מים, או להפך.
+   */
+  logicWhenOn: boolean;
+  /**
+   * אותן לוגיקות כשהתמונ"א **אינה** מוצגת. `null` = לפי הגדרת העמדה בניהול
+   * (`stationLogicWhenOff`) - לא ערך קבוע, כדי שהגדרת העמדה שנטענת אחרי הסשן
+   * עדיין תחול על פקח שלא נגע במתג.
+   */
+  logicWhenOff: boolean | null;
 }
 
 /**
@@ -57,7 +69,28 @@ export const DEFAULT_PREFS: AirPicturePrefs = {
   altMin: null,
   altMax: null,
   resp: '',
+  logicWhenOn: true,
+  logicWhenOff: null,
 };
+
+/**
+ * הגדרת העמדה בניהול: האם לוגיקות התמונ"א רצות גם כשהתמונ"א אינה מוצגת.
+ * **ברירת המחדל כן** (הכרעת הפקח, 2026-09-15) - גם לעמדה ותיקה שאין לה את השדה.
+ * יושב ב-`zone_watch_settings` כי זה ה-JSONB שטופס הניהול שומר.
+ */
+export function stationLogicWhenOff(cfg: { airLogicWhenOff?: unknown; [k: string]: unknown } | null | undefined): boolean {
+  return cfg?.airLogicWhenOff !== false;
+}
+
+/**
+ * האם הלוגיקות של התמונ"א רצות **עכשיו** - מקור אחד לכל הצרכנים (זיהוי חריגה
+ * מאזור, מעקב הקפה). מוצגת → המתג "כשמוצגת"; לא מוצגת → המתג "כשלא מוצגת",
+ * ובלי בחירה של הפקח - הגדרת העמדה.
+ */
+export function airPictureLogicActive(prefs: AirPicturePrefs, stationWhenOff: boolean): boolean {
+  if (prefs.on) return prefs.logicWhenOn;
+  return prefs.logicWhenOff ?? stationWhenOff;
+}
 
 const KEY = (presetId: number | string) => `skyking.airPicture.${presetId}`;
 
@@ -103,6 +136,9 @@ export function mergePrefs(
     altMin: numOrNull(raw.altMin),
     altMax: numOrNull(raw.altMax),
     resp: typeof raw.resp === 'string' ? raw.resp : '',
+    // חסר (סשן מלפני הפיצ'ר) = דלוק / לפי העמדה - לא לכבות לפקח לוגיקה בשקט
+    logicWhenOn: raw.logicWhenOn !== false,
+    logicWhenOff: typeof raw.logicWhenOff === 'boolean' ? raw.logicWhenOff : null,
   };
 }
 

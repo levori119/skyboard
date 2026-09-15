@@ -173,6 +173,30 @@
     "fieldsHint": {
       "he": "מה מוצג ליד הסמל בשני המבטים",
       "en": "What appears next to the symbol in both views"
+    },
+    "logicWhenOn": {
+      "he": "לוגיקות כשמוצגת",
+      "en": "Logic when shown"
+    },
+    "logicWhenOnHint": {
+      "he": "זיהוי חריגה מאזור ומעקב הקפה אוטומטי כשהתמונה האווירית מוצגת על המפה",
+      "en": "Zone deviation detection and automatic pattern tracking while the air picture is shown"
+    },
+    "logicWhenOff": {
+      "he": "לוגיקות כשלא מוצגת",
+      "en": "Logic when hidden"
+    },
+    "logicWhenOffHint": {
+      "he": "אותן לוגיקות כשהתמונה האווירית אינה מוצגת - הן רצות ברקע. ברירת המחדל לפי הגדרת העמדה",
+      "en": "The same logic while the air picture is hidden - it runs in the background. Default follows the workstation setting"
+    },
+    "adminLogicWhenOff": {
+      "he": "לוגיקות והתראות תמונ\"א גם כשהתמונה האווירית אינה מוצגת",
+      "en": "Air picture logic and alerts even when the air picture is hidden"
+    },
+    "adminLogicWhenOffHint": {
+      "he": "זיהוי חריגה מאזור ומעקב הקפה אוטומטי ימשיכו לרוץ ברקע. זו ברירת המחדל של העמדה - בעמדה עצמה הפקח מדליק ומכבה בפאנל התמונ\"א.",
+      "en": "Zone deviation detection and automatic pattern tracking keep running in the background. This is the workstation default - at the workstation the controller toggles it in the air picture panel."
     }
   }
 }

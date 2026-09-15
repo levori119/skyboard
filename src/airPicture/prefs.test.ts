@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mergePrefs, DEFAULT_PREFS } from './prefs';
+import { mergePrefs, DEFAULT_PREFS, airPictureLogicActive, stationLogicWhenOff } from './prefs';
 
 describe('mergePrefs - שלוש שכבות, מהחלשה לחזקה', () => {
   it('בלי כלום - ברירת המחדל של הקוד', () => {
@@ -16,6 +16,47 @@ describe('mergePrefs - שלוש שכבות, מהחלשה לחזקה', () => {
 
   it('בהירות ברירת המחדל נמוכה - התמונ"א משנית לפ"מים', () => {
     expect(DEFAULT_PREFS.opacity).toBeLessThan(0.6);
+  });
+});
+
+// ── לוגיקות תמונ"א: כשמוצגת / כשלא מוצגת (2026-09-15) ────────────────────────
+describe('airPictureLogicActive - האם הלוגיקות של התמונ"א רצות', () => {
+  const p = (over: Partial<typeof DEFAULT_PREFS>) => mergePrefs(null, over);
+
+  it('ברירת מחדל: מוצגת - רצות; לא מוצגת - לפי העמדה, ובעמדה ברירת המחדל "כן"', () => {
+    expect(DEFAULT_PREFS.logicWhenOn).toBe(true);
+    expect(DEFAULT_PREFS.logicWhenOff).toBeNull();
+    expect(airPictureLogicActive(p({ on: true }), true)).toBe(true);
+    expect(airPictureLogicActive(p({ on: false }), true)).toBe(true);
+  });
+
+  it('מוצגת: המתג "כשמוצגת" בלבד קובע', () => {
+    expect(airPictureLogicActive(p({ on: true, logicWhenOn: false }), true)).toBe(false);
+    expect(airPictureLogicActive(p({ on: true, logicWhenOn: true, logicWhenOff: false }), false)).toBe(true);
+  });
+
+  it('לא מוצגת: הפקח גובר על העמדה, ובלי בחירה - העמדה', () => {
+    expect(airPictureLogicActive(p({ on: false }), false)).toBe(false);
+    expect(airPictureLogicActive(p({ on: false, logicWhenOff: false }), true)).toBe(false);
+    expect(airPictureLogicActive(p({ on: false, logicWhenOff: true }), false)).toBe(true);
+    expect(airPictureLogicActive(p({ on: false, logicWhenOn: false }), true)).toBe(true);
+  });
+
+  it('ניקוי: לא-בוליאני - "כשמוצגת" דלוק, "כשלא מוצגת" לפי העמדה', () => {
+    const x = mergePrefs(null, { logicWhenOn: 'x' as never, logicWhenOff: 'y' as never });
+    expect(x.logicWhenOn).toBe(true);
+    expect(x.logicWhenOff).toBeNull();
+  });
+});
+
+describe('stationLogicWhenOff - הגדרת העמדה בניהול', () => {
+  it('לא הוגדר (עמדה ותיקה) - כן', () => {
+    expect(stationLogicWhenOff(null)).toBe(true);
+    expect(stationLogicWhenOff({})).toBe(true);
+    expect(stationLogicWhenOff({ alerts: true })).toBe(true);
+  });
+  it('כובה במפורש - לא', () => {
+    expect(stationLogicWhenOff({ airLogicWhenOff: false })).toBe(false);
   });
 });
 

@@ -46,7 +46,7 @@ import { MapDrawToolbar, MapDrawToggle, MapDrawSurface, useMapDrawing } from '..
 import AirPictureLayer from '../../airPicture/AirPictureLayer';
 import AirPictureControls from '../../airPicture/AirPictureControls';
 import CursorGeoReadout from '../ground/CursorGeoReadout';
-import type { AirPicturePrefs } from '../../airPicture/prefs';
+import { airPictureLogicActive, type AirPicturePrefs } from '../../airPicture/prefs';
 import type { AirPictureStatus } from '../../airPicture/store';
 import type { MapGeoAnchor } from '../../utils/geo';
 import WeatherLayer, { type WeatherStatus } from '../../weather/WeatherLayer';
@@ -147,6 +147,8 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
     themeMode?: 'light' | 'dark' | 'ocean';
     anchor: MapGeoAnchor | null;
     prefs: AirPicturePrefs;
+    /** הגדרת העמדה: לוגיקות תמונ"א גם כשאינה מוצגת (ברירת מחדל - כן). */
+    stationLogicWhenOff?: boolean;
     pollMs?: number;
     status: AirPictureStatus;
     onToggleControls: () => void;
@@ -1313,7 +1315,9 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   // יציאה מהנקודה, צלע, נחת. רק לפ"מים של העמדה הזו, רק כשיש תמונ"א ומפה
   // מעוגנת, ולא בעמדת ניהול שדה (`hidePatternControls`) שאין לה עניין בהקפות.
   const autotrack = usePatternAutotrack({
-    enabled: !!airPicture?.active && !!geoAnchor && !hidePatternControls,
+    // "לוגיקות כשמוצגת / כשלא מוצגת" - המתגים בפאנל התמונ"א (airPictureLogicActive)
+    enabled: !!airPicture?.active && !!geoAnchor && !hidePatternControls
+      && airPictureLogicActive(airPicture.prefs, airPicture.stationLogicWhenOff !== false),
     anchor: geoAnchor,
     aspect: boundsAspect(imgBounds),
     patterns: shownPatterns,
@@ -2927,6 +2931,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                         visibleCount={airPicture.visibleCount}
                         errorDetail={airPicture.errorDetail}
                         offReason={airPicture.offReason}
+                        stationLogicWhenOff={airPicture.stationLogicWhenOff !== false}
                         themeMode={airPicture.themeMode || 'dark'}
                         onClose={airPicture.onToggleControls}
                       />
