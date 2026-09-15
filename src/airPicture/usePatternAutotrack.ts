@@ -8,9 +8,8 @@
 // ראה PATTERN_AUTOTRACK_SPEC.md.
 
 import { useEffect, useRef, useState } from 'react';
-import { airPictureStore } from './store';
+import { airPictureStore, pictureFresh } from './store';
 import { joinAirPicture } from './poller';
-import { ageSec, STALE_AFTER_SEC } from './track';
 import {
   tickPatternAutotrack, emptyPatternTrackState, aircraftKey,
   type AutoAction, type AutoAircraft, type PatternTrackState,
@@ -113,8 +112,9 @@ export function usePatternAutotrack(o: UsePatternAutotrackOptions): UsePatternAu
       const snap = airPictureStore.getSnapshot();
       const now = Date.now();
       // תמונה ישנה **מקפיאה** את המנוע. הפער בטיקים מאפס בו את הספירות, כך
-      // שמטוס שנעלם לפני ההקפאה אינו "נוחת" ברגע שהתמונה חוזרת.
-      if (snap.status !== 'live' || !snap.t || ageSec(snap.t, now) > STALE_AFTER_SEC) return;
+      // שמטוס שנעלם לפני ההקפאה אינו "נוחת" ברגע שהתמונה חוזרת. הטריות לפי
+      // האישור האחרון מהמאגר (כולל 304) ולא לפי זמן הדגימה - ראה pictureFresh.
+      if (!pictureFresh(snap, airPictureStore.lastConfirmedAt(), now)) return;
       const cur = optsRef.current;
       if (!cur.anchor) return;
 

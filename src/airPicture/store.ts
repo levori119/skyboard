@@ -11,6 +11,7 @@
 
 import type { AirTrack } from '../../shared/airTrafficApi';
 import { updateTrendRefs, type TrendRef, type VertTrend } from './trend';
+import { STALE_AFTER_SEC } from './track';
 
 export type AirPictureStatus =
   /** לא מוגדר / כבוי בעמדה - השכבה כלל לא מרונדרת. */
@@ -67,6 +68,26 @@ const EMPTY: AirPictureState = {
 /** נקודות הייחוס של המגמה - מצב פנימי, לא חלק מה-snapshot שהרכיבים קוראים. */
 let trendRefs: Map<string, TrendRef> = new Map();
 
+/**
+ * שעון העמדה בתשובה **התקינה** האחרונה מהמאגר - דגימה חדשה **או 304**.
+ *
+ * מחוץ ל-snapshot בכוונה: 304 מגיע כל 2 שניות כשהתמונה לא זזה, ועדכון state
+ * עליו היה מרנדר כל מנוי בלי שדבר השתנה. המנועים קוראים אותו בטיימר שלהם.
+ */
+let confirmedAt = 0;
+
+/**
+ * האם התמונה **עדיין נכונה** - הבסיס של המנועים (מעקב הקפה, חריגה מאזור).
+ *
+ * ⚠ לא לפי `t` של הדגימה. ה-ETag של המאגר הוא על התוכן בלבד, ולכן תמונה שלא
+ * זזה (שמיים ריקים, מטוסים עומדים) מקבלת 304 ו-`t` אינו מתקדם. המנועים ראו
+ * בה "תמונה ישנה" וקפאו: דרקון 3 - המטוס האחרון שנחת - נעלם, השמיים התרוקנו,
+ * וספירת 30 השניות של הנחיתה לא הושלמה לעולם (2026-09-15).
+ */
+export function pictureFresh(snap: Pick<AirPictureState, 'status'>, confirmedAtMs: number, nowMs: number): boolean {
+  return snap.status === 'live' && confirmedAtMs > 0 && (nowMs - confirmedAtMs) / 1000 <= STALE_AFTER_SEC;
+}
+
 // ה-snapshot חייב להיות **אותה הפניה** כל עוד לא השתנה: useSyncExternalStore
 // משווה בזהות, וייצור אובייקט חדש בכל קריאה מייצר לולאת רינדור אינסופית.
 let state: AirPictureState = EMPTY;
@@ -90,7 +111,17 @@ export const airPictureStore = {
     const trends = new Map<string, VertTrend>();
     for (const [id, r] of trendRefs) trends.set(id, r.trend);
     state = { t, seq, tracks, status: 'live', receivedAt: nowMs, error: null, trends };
+    confirmedAt = nowMs;
     emit();
+  },
+
+  /** 304 - המאגר אישר שהתמונה לא השתנתה. מעדכן טריות בלבד, בלי רינדור. */
+  confirm(nowMs: number): void {
+    confirmedAt = nowMs;
+  },
+
+  lastConfirmedAt(): number {
+    return confirmedAt;
   },
 
   /**
@@ -111,6 +142,7 @@ export const airPictureStore = {
    */
   setEnvMismatch(error: string): void {
     trendRefs = new Map();
+    confirmedAt = 0;
     if (state.status === 'envmismatch' && state.error === error) return;
     state = { ...EMPTY, status: 'envmismatch', error };
     emit();
@@ -119,6 +151,7 @@ export const airPictureStore = {
   /** ניתוק מלא - כיבוי בעמדה או החלפת עמדה. */
   reset(): void {
     trendRefs = new Map();
+    confirmedAt = 0;
     if (state === EMPTY) return;
     state = EMPTY;
     emit();

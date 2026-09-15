@@ -37,18 +37,13 @@ interface Props {
    * ברוחב מלא. `floating` = חלון נגרר חופשי.
    */
   placement?: 'anchored' | 'floating';
-  /**
-   * הגדרת העמדה בניהול ללוגיקות כשהתמונ"א אינה מוצגת (`stationLogicWhenOff`).
-   * המתג בפאנל מציג אותה כל עוד הפקח לא בחר אחרת.
-   */
-  stationLogicWhenOff?: boolean;
   themeMode: 'light' | 'dark' | 'ocean';
   onClose: () => void;
 }
 
 export default function AirPictureControls({
   prefs, onChange, status, ageSec, count, visibleCount, errorDetail, offReason,
-  placement = 'floating', stationLogicWhenOff = true, themeMode, onClose,
+  placement = 'floating', themeMode, onClose,
 }: Props) {
   const anchored = placement === 'anchored';
   const winRef = useRef<HTMLDivElement | null>(null);
@@ -215,24 +210,6 @@ export default function AirPictureControls({
         <label style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 5, color: muted, fontSize: 11, cursor: 'pointer', marginInlineStart: 'auto' }}>
           <input type="checkbox" checked={prefs.labels} onChange={e => set({ labels: e.target.checked })} />
           {tr('airPicture.labels')}
-        </label>
-      </div>
-
-      {/* לוגיקות התמונ"א - זיהוי חריגה מאזור ומעקב הקפה אוטומטי. שני מתגים, כי
-          "להציג" ו"לחשב" הן שתי החלטות: אפשר לראות את התמונה בלי שהמערכת תזיז
-          פ"מים, ואפשר שהמערכת תעקוב בלי שהתמונה תעמיס את המפה. */}
-      <div style={{ ...row, flexDirection: 'column', alignItems: 'stretch', gap: 3 }}>
-        <label title={tr('airPicture.logicWhenOnHint')}
-          style={{ ...lbl, minWidth: 0, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
-          <input type="checkbox" data-testid="ap-logic-when-on" checked={prefs.logicWhenOn}
-            onChange={e => set({ logicWhenOn: e.target.checked })} />
-          {tr('airPicture.logicWhenOn')}
-        </label>
-        <label title={tr('airPicture.logicWhenOffHint')}
-          style={{ ...lbl, minWidth: 0, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
-          <input type="checkbox" data-testid="ap-logic-when-off" checked={prefs.logicWhenOff ?? stationLogicWhenOff}
-            onChange={e => set({ logicWhenOff: e.target.checked })} />
-          {tr('airPicture.logicWhenOff')}
         </label>
       </div>
 

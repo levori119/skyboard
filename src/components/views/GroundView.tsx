@@ -2931,7 +2931,6 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                         visibleCount={airPicture.visibleCount}
                         errorDetail={airPicture.errorDetail}
                         offReason={airPicture.offReason}
-                        stationLogicWhenOff={airPicture.stationLogicWhenOff !== false}
                         themeMode={airPicture.themeMode || 'dark'}
                         onClose={airPicture.onToggleControls}
                       />

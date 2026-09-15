@@ -8,9 +8,9 @@
 // ראה AIR_PICTURE_SPEC.md §5.2.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { airPictureStore } from './store';
+import { airPictureStore, pictureFresh } from './store';
 import { joinAirPicture } from './poller';
-import { place, ageSec, STALE_AFTER_SEC } from './track';
+import { place } from './track';
 import {
   tickZoneWatch, emptyZoneWatchState, alertsSignature,
   type ZoneWatchState, type ZoneAlert, type WatchZone, type WatchAssignment,
@@ -136,7 +136,8 @@ export function useZoneWatch({ enabled, maps, pollMs, onStatusChange }: UseZoneW
       const now = Date.now();
       // תמונה שאינה חיה **מקפיאה** את הזיהוי ואינה מאפסת אותו: חישוב-חשבון על
       // דגימה ישנה היה מטיס את המטוס אל מחוץ לאזור ומדווח חריגה שלא קרתה.
-      if (snap.status !== 'live' || !snap.t || ageSec(snap.t, now) > STALE_AFTER_SEC) return;
+      // טריות לפי האישור האחרון מהמאגר (כולל 304): תמונה שלא זזה אינה ישנה (pictureFresh)
+      if (!pictureFresh(snap, airPictureStore.lastConfirmedAt(), now)) return;
       const dtSec = Math.max(0, (now - snap.receivedAt) / 1000);
 
       const merged: ZoneAlert[] = [];

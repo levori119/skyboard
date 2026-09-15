@@ -9099,7 +9099,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   visibleCount={airPictureVisible}
                   errorDetail={airPictureSnap.error}
                   offReason={airPictureOffReason}
-                  stationLogicWhenOff={apStationLogicWhenOff}
                   themeMode={themeMode}
                   onClose={() => setShowAirPictureControls(false)}
                 />
@@ -12013,6 +12012,28 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       {suggestAltRangeFormation ? '🔕 כבה' : '🔔 הפעל'}
                     </button>
                   </div>
+                  {/* ─── לוגיקות תמונ"א ───────────────────────────
+                      זיהוי חריגה מאזור ומעקב הקפה אוטומטי. בהגדרות העמדה ולא
+                      בפאנל התמונ"א (הכרעת הפקח): זו התנהגות של העמדה - מה המערכת
+                      עושה - ולא הגדרת תצוגה של השכבה. הכותרת אומרת שזה של התמונ"א. */}
+                  {airPictureActive && <>
+                  <div style={{ padding: '6px 12px', fontSize: '10px', color: menuMuted, borderBottom: `1px solid ${menuBorder}` }}>✈ {tr('airPicture.logicSection')}</div>
+                  {([
+                    ['logicWhenOn', airPicturePrefs.logicWhenOn],
+                    ['logicWhenOff', airPicturePrefs.logicWhenOff ?? apStationLogicWhenOff],
+                  ] as const).map(([key, on]) => (
+                    <div key={key} data-testid={`settings-ap-${key}`} title={tr(`airPicture.${key}Hint`)}
+                      style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
+                      <span style={{ fontSize: '12px', color: on ? menuAcc('#93c5fd','#2563eb') : menuMuted }}>
+                        {on ? '🟢 ' : '⚪ '}{tr(`airPicture.${key}`)}
+                      </span>
+                      <button onClick={() => updateAirPicturePrefs({ ...airPicturePrefs, [key]: !on })}
+                        style={{ background: on ? '#1e3a5f' : '#334155', color: on ? '#93c5fd' : '#94a3b8', border: `1px solid ${on ? '#3b82f6' : '#475569'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        {on ? tr('ctrl.turnOff') : tr('ctrl.turnOn')}
+                      </button>
+                    </div>
+                  ))}
+                  </>}
                   {/* שידוך פ"מ בלחיצה — חלופה לגרירה (רק במסך אזורי טיסה) */}
                   {isFlightZonesMode && (
                     <div style={{ padding: '8px 12px', borderBottom: `1px solid ${menuBorder}` }}>

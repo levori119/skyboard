@@ -88,6 +88,7 @@ async function tick(): Promise<void> {
       // התמונה לא זזה. `receivedAt` **לא** מתעדכן בכוונה: הגיל נמדד מול שעון
       // המאגר, ו-304 אינו דגימה חדשה אלא אישור שאין חדש.
       airPictureStore.setStatus('live');
+      airPictureStore.confirm(Date.now());   // המנועים: התמונה עדיין נכונה (pictureFresh)
       backoff = 0;
       return;
     }
