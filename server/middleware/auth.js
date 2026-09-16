@@ -108,6 +108,11 @@ const RULES = [
   { m: ['GET'], p: '/api/air-picture/admin-config', need: NEED.STAFF, why: 'מסך הניהול - חושף את כתובת המאגר' },
   { m: WRITE, p: /^\/api\/serials\//, need: NEED.ADMIN, why: 'ייבוא ומחיקה גורפת של סדרות' },
   { m: ['PATCH', 'DELETE'], p: /^\/api\/suggestions\//, need: NEED.ADMIN, why: 'טיפול בהצעות - טאב מנהל בלבד' },
+  // הקלטת פעולות במסך (SCREEN_RECORDING_SPEC.md). הכלל הספציפי **חייב** לקדום
+  // לכללי, אחרת העמדה הייתה מקבלת 403 על קריאת התצורה של עצמה.
+  { m: ['GET'], p: /^\/api\/screen-recording\/config\/\d+$/, need: NEED.USER, why: 'העמדה (ותהליך ה-Electron שלה) קוראת את תצורת ההקלטה של הבסיס שלה' },
+  { m: ALL, p: /^\/api\/screen-recording(\/|$)/, need: NEED.ADMIN, why: 'נתיב כתיבה בדיסק הרשת של הבסיס - הגדרת ניהול טכני שחלה על כל עמדותיו' },
+
 
   // ── חריגים תפעוליים - חייבים לקדום לתחיליות הניהול שמתחתיהם ────────────────
   // ביטול פעולה (CTRL+Z). USER ולא STAFF: זו פעולה תפעולית של הבקר/הפקח על

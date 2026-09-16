@@ -95,6 +95,8 @@ import HelpModal from '../shared/HelpModal';
 import HelpSpotlight from '../shared/HelpSpotlight';
 import type { HelpContext } from '../../utils/helpTopics';
 import { captureStation } from '../../utils/stationSnapshot';
+import { useScreenRecorder } from '../../hooks/useScreenRecorder';
+import { CRITICAL_BLINK_CLASS } from '../../utils/signalSeverity';
 import { openStationSession, closeStationSession, heartbeatStationSession } from '../../utils/stationSession';
 import { renderGroundSvgIcon, GroundMarkerSVG, getElemDisplayStateOpts, normalizeAircraftPositions, GROUND_STATUSES, GROUND_POINT_MARKERS, GROUND_SVG_ICON_KEYS, ALL_MAZAA_STATUSES, AIR_DEFENSE_STATUSES, YABA_AIR_DEFENSE_STATUSES, toEmbedUrl } from '../ground/groundShared';
 import type { MapZone, ZoneAltRange, StripZoneAssignment, AircraftPos, GroundAircraftRow, VectorData } from '../../types/ground';
@@ -4075,6 +4077,28 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
   // Derived from preset: parent base and pressure update rights
   const parentBaseId: number | null = myPresetConfig?.parent_base_id ? Number(myPresetConfig.parent_base_id) : null;
+  // הקלטת פעולות במסך (SCREEN_RECORDING_SPEC.md). הנתיב מוגדר פר-בסיס
+  // בניהול הטכני, ולכן העמדה מוסרת את הבסיס שלה ולא נתיב.
+  const screenRec = useScreenRecorder({
+    baseId: parentBaseId,
+    presetName: session.workstationName || '',
+    ready: Boolean(session.presetId),
+  });
+  const [recMsg, setRecMsg] = useState('');
+  const recBlockedText = (): string => {
+    switch (screenRec.blocked) {
+      case 'disabled': return tr('screenRec.whyDisabled');
+      case 'noPath': return tr('screenRec.whyNoPath');
+      case 'badPath': return tr('screenRec.whyBadPath');
+      case 'noElectron': return tr('screenRec.whyNoElectron');
+      case 'noBase': return tr('screenRec.whyNoBase');
+      case 'noCodec': return tr('screenRec.whyNoCodec');
+      case 'noPermission': return tr('screenRec.whyNoPermission');
+      case 'pathUnreachable': return tr('screenRec.whyPathUnreachable');
+      case 'configUnavailable': return tr('screenRec.whyConfigUnavailable');
+      default: return '';
+    }
+  };
   const canUpdatePressure: boolean = myPresetConfig?.can_update_pressure === true;
   const canUpdateMazaa: boolean = myPresetConfig?.can_update_mazaa === true;
   const canUpdateAtis: boolean = myPresetConfig?.can_update_atis === true;
@@ -11259,6 +11283,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </>)}
             </div>
             )}
+            {/* חיווי הקלטה - גלוי כל זמן שהמסך מוקלט. מסך שמוקלט
+                בלי שהיושב בו יודע הוא בעיה, ולכן זה חלק מהפיצר ולא קישוט. */}
+            {screenRec.state.recording && (
+              <div
+                data-nosnapshot
+                title={screenRec.state.writeError ? tr('screenRec.writeError') : tr('screenRec.segmentFile', { file: screenRec.state.file || '' })}
+                style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 7px', borderRadius: '4px', background: screenRec.state.writeError ? '#7f1d1d' : 'rgba(220,38,38,0.18)', border: '1px solid ' + (screenRec.state.writeError ? '#dc2626' : 'rgba(220,38,38,0.5)'), fontSize: '10px', color: screenRec.state.writeError ? '#fecaca' : '#f87171', whiteSpace: 'nowrap' }}
+              >
+                <span className={CRITICAL_BLINK_CLASS} style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#dc2626', display: 'inline-block' }} />
+                {screenRec.state.writeError ? tr('screenRec.writeError') : screenRec.state.manual ? tr('screenRec.recordingManual') : tr('screenRec.recording')}
+              </div>
+            )}
             {/* כפתור משתמש — משמאל לשם העמדה */}
             <div style={{ position: 'relative' }}>
               <button
@@ -11300,6 +11336,51 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     >
                       {tr('ctrl.createDebrief')}
                     </button>
+                    {/* הקלטת מסך: מצב, התחל/עצור ו"שמור את הקטע הזה".
+                        כשאי-אפשר להקליט מוצגת **הסיבה** ולא כפתור דומם - כפתור
+                        שנדלק בלי שקורה משהו נראה למפעיל כמו פיצ׳ר שבור. */}
+                    <div style={{ borderTop: `1px solid ${menuBorder}`, padding: '6px 12px 2px' }}>
+                      <div style={{ fontSize: '10px', color: menuMuted }}>{tr('screenRec.menuTitle')}</div>
+                      {!screenRec.state.recording && screenRec.blocked && (
+                        <div style={{ fontSize: '10px', color: menuAcc('#fca5a5', '#b91c1c'), marginTop: '3px', lineHeight: 1.4 }}>{recBlockedText()}</div>
+                      )}
+                      {screenRec.state.recording && screenRec.config && (
+                        <div style={{ fontSize: '10px', color: menuMuted, marginTop: '3px' }}>
+                          {screenRec.config.retentionDays > 0
+                            ? tr('screenRec.retentionNote', { days: screenRec.config.retentionDays })
+                            : tr('screenRec.retentionForever')}
+                        </div>
+                      )}
+                      {recMsg && <div style={{ fontSize: '10px', color: menuAcc('#86efac', '#15803d'), marginTop: '3px' }}>{recMsg}</div>}
+                    </div>
+                    {screenRec.state.recording ? (<>
+                      <button
+                        onClick={async () => { const kept = await screenRec.keep(); setRecMsg(kept ? tr('screenRec.kept') : tr('screenRec.keepFailed')); setTimeout(() => setRecMsg(''), 4000); }}
+                        style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#fcd34d', '#b45309'), cursor: 'pointer', fontSize: '13px' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                      >
+                        {tr('screenRec.keep')}
+                      </button>
+                      <button
+                        onClick={async () => { await screenRec.stop(); setShowUserMenu(false); }}
+                        style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#f87171', '#dc2626'), cursor: 'pointer', fontSize: '13px' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                      >
+                        {tr('screenRec.stop')}
+                      </button>
+                    </>) : (
+                      <button
+                        onClick={async () => { await screenRec.start(); setShowUserMenu(false); }}
+                        disabled={!screenRec.canStart}
+                        style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: screenRec.canStart ? menuAcc('#86efac', '#15803d') : menuMuted, cursor: screenRec.canStart ? 'pointer' : 'default', fontSize: '13px' }}
+                        onMouseEnter={e => { if (screenRec.canStart) e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'); }}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                      >
+                        {tr('screenRec.start')}
+                      </button>
+                    )}
                     <button
                       onClick={() => { setShowCalibration(true); setShowUserMenu(false); }}
                       style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#86efac','#15803d'), cursor: 'pointer', fontSize: '13px' }}

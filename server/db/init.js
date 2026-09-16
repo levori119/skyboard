@@ -945,6 +945,16 @@ async function applySchemaOnce() {
   // סמל הבסיס כ-data URL, מנוהל ממסך הניהול. NULL = נופלים לסמל המובנה בקוד
   // (src/assets/emblems). מוגש כתמונה בינארית דרך server/routes/emblem.js.
   await sq(`ALTER TABLE aviation_bases ADD COLUMN IF NOT EXISTS emblem_data TEXT`);
+  // -- הקלטת פעולות במסך (SCREEN_RECORDING_SPEC.md) ------------------------
+  // התצורה יושבת על הבסיס ולא על העמדה: ה-PATH הוא הכרעה של הניהול הטכני של
+  // אותו בסיס / יב"א (הטבלה מחזיקה את שניהם), ולכל עמדותיו אותו יעד כתיבה.
+  // `recording_path` יכול להיות נתיב רשת (UNC) ולכן TEXT, לא VARCHAR קצר.
+  await sq(`ALTER TABLE aviation_bases ADD COLUMN IF NOT EXISTS recording_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
+  await sq(`ALTER TABLE aviation_bases ADD COLUMN IF NOT EXISTS recording_path TEXT`);
+  await sq(`ALTER TABLE aviation_bases ADD COLUMN IF NOT EXISTS recording_segment_minutes INTEGER NOT NULL DEFAULT 15`);
+  await sq(`ALTER TABLE aviation_bases ADD COLUMN IF NOT EXISTS recording_retention_days INTEGER NOT NULL DEFAULT 7`);
+  await sq(`ALTER TABLE aviation_bases ADD COLUMN IF NOT EXISTS recording_fps INTEGER NOT NULL DEFAULT 5`);
+  await sq(`ALTER TABLE aviation_bases ADD COLUMN IF NOT EXISTS recording_quality VARCHAR(10) NOT NULL DEFAULT 'medium'`);
   await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS base_id INTEGER REFERENCES aviation_bases(id) ON DELETE SET NULL`);
   await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS custom_name VARCHAR(100)`);
 

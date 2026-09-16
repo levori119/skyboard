@@ -21,6 +21,7 @@
 | [TEMP_ZONE_SEIZURE_SPEC.md](TEMP_ZONE_SEIZURE_SPEC.md) | **הלאמת אזור זמני** - ציור מרחב על המפה, הפצה לעמדות, התראה מתפרצת ואישור, צביעת האזורים המושפעים ומטריצת המקרים |
 | [TRIP_LIVE_TRACKING_SPEC.md](TRIP_LIVE_TRACKING_SPEC.md) | **מעקב נסיעה חי** - מפת הנהג אחרי הפעלה, שידור GPS, התרעות התקרבות לנהג, סטייה ואלמנט חוסם במגדל, הספים ומטריצת המקרים |
 | [STRIP_FLOW_SPEC.md](STRIP_FLOW_SPEC.md) | **FLOW של פ"מ** - רצף השלבים (דת"ק, הסעה, המראה, נקודת העברה, עמדה שקיבלה, נחיתה), "נמצא עכשיו", ירושה בפיצול/מיזוג ומקרי קצה |
+| [SCREEN_RECORDING_SPEC.md](SCREEN_RECORDING_SPEC.md) | **הקלטת פעולות במסך** - קופסה שחורה וכפתור, כל המסך הפיזי, PATH פר בסיס ויב"א בניהול הטכני, קטעים ותקופת שמירה ומטריצת המקרים |
 | [USER_STORIES.md](USER_STORIES.md) | סטוריות משתמש |
 
 > **לפני שמחפשים איפה קוד נמצא - לבדוק ב-SERVICES.md.** הקוד מודולרי: server.js → server/routes/*, App.tsx → src/components/*.

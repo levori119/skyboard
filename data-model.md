@@ -2762,6 +2762,30 @@ return `${base}${indices.sort().join('+')}`
 
 ---
 
+## הקלטת פעולות במסך — `aviation_bases.recording_*`
+
+תצורת ההקלטה יושבת על **הבסיס** ולא על העמדה: ה-PATH הוא הכרעה של
+הניהול הטכני של אותו בסיס / יב"א (**אותה טבלה מחזיקה את שניהם** — בח"א/כנף
+לצד 509/506/528), וחלה על כל עמדותיו. אפיון: [SCREEN_RECORDING_SPEC.md](SCREEN_RECORDING_SPEC.md).
+
+| עמודה | סוג | ברירת מחדל | תיאור |
+|---|---|---|---|
+| `recording_enabled` | BOOLEAN NOT NULL | `FALSE` | הקלטה אוטומטית ("קופסה שחורה") בעליית כל עמדה של הבסיס. כבויה → הכפתור הידני **עדיין עובד** |
+| `recording_path` | TEXT | `NULL` | **ה-PATH** — נתיב מוחלט (`D:\SKYKING\REC`) או נתיב רשת (`\\srv01\skyking$\rec`). TEXT ולא VARCHAR קצר בגלל UNC ארוך. מאומת ב-`isSafeRecordingPath` **גם בשרת בשמירה וגם בעמדה לפני הכתיבה** |
+| `recording_segment_minutes` | INTEGER NOT NULL | `15` | אורך קטע (1-120). בסוף קטע נפתח קובץ חדש |
+| `recording_retention_days` | INTEGER NOT NULL | `7` | ימי שמירה (0-365). **`0` = ללא הגבלה**, ולא "מחק הכל" |
+| `recording_fps` | INTEGER NOT NULL | `5` | פריימים לשנייה (1-30). מסך עמדה כמעט סטטי, ו-5 חוסך פי כמה דיסק |
+| `recording_quality` | VARCHAR(10) NOT NULL | `'medium'` | `low` / `medium` / `high` → 600Kbps / 1.5Mbps / 4Mbps |
+
+> הערכים נקצצים לגבולות ב-`normalizeRecordingConfig` ולא נדחים — הגדרה שגויה
+> לא מפילה הקלטה. `aviation_bases` היא טבלת **קונפיגורציה**, ולכן התצורה
+> יושבת ב-public בלבד ואינה משתנה בסביבות תרגול.
+
+> **אין טבלת הקלטות.** ההכרעה הייתה "העמדה כותבת ישירות ל-PATH": הקבצים
+> מזוהים לפי שם (`SKYKING_<בסיס>_<עמדה>_<תאריך>_<שעה>`) ולא דרך ה-DB.
+
+---
+
 ## סמלים — `aviation_bases.emblem_data` ו-`system_emblems`
 
 הסמלים שמוצגים בכל עמדה (סמל בסיס האב + סמל מיח"ה) מנוהלים ממסך הניהול,

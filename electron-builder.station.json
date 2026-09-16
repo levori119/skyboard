@@ -12,6 +12,8 @@
     "electron-main.cjs",
     "electron-preload.cjs",
     "electron/whisper.cjs",
+    "electron/screenRecorder.cjs",
+    "shared/screenRecording.js",
     "electron/stationServer.cjs",
     "electron-status.html",
     "package.json",

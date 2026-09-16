@@ -136,6 +136,11 @@
 **הלוגיקה הטהורה:** [`server/utils/stripFlow.js`](server/utils/stripFlow.js) - `diffAircraftPositions` (שלבי קרקע מתוך שני מצבי מיקום), `flowCurrent` ("נמצא בעמדה" = הקבלה האחרונה, לא `strip_table_assignments`), `mergeLineageEvents` (ירושה בפיצול/מיזוג, בלי כפילויות ובלי מעגלים).
 **מאומת:** `server/routes/stripFlow.test.js` (13 בדיקות מול PGlite) + `server/utils/stripFlow.test.js` (20).
 
+### `server/routes/screenRecording.js` — 3 routes
+**תפקיד:** תצורת **הקלטת פעולות במסך** - נתיב השמירה והמדיניות פר-בסיס ויב"א. אפיון: [SCREEN_RECORDING_SPEC.md](SCREEN_RECORDING_SPEC.md).
+**Endpoints:** `GET /api/screen-recording/bases` (ADMIN) · `PUT /api/screen-recording/bases/:id` (ADMIN, דוחה נתיב פסול ב-400 `invalid_path`) · `GET /api/screen-recording/config/:baseId` (USER - **תהליך ה-Electron של העמדה** קורא אותו בכל התחלת הקלטה).
+**למה לא ב-`GET /api/aviation-bases`:** אותה רשימה נטענת בכל כניסה לעמדה, ושם שרת ושיתוף ברשת הבסיס הם פרט תשתית - לא מידע שכל מסך צריך.
+
 ### `server/routes/sectors.js` — 17 routes
 **תפקיד:** ניהול סקטורים (נקודות העברה), קשרי שכנות, sub-sectors, תצורת נקודות העברה.
 **קבלה אוטומטית:** `POST`/`PUT /api/sectors` מקבלים `auto_accept_mode` (`off`/`immediate`/`eta`), מנורמל ב-`normalizeAutoAcceptMode` (ערך לא מוכר → `off`).
@@ -1319,6 +1324,23 @@ DB מנוהל היה נופל יחד עם העמדה.
 **חלון אודיו דינמי:** whisper מעבד תמיד 30 שניות גם על פקודה בת 2. `audioCtxForDuration` מצמצם את החלון לפי אורך ההקלטה - במדידה על i7-1355U זה הוריד אמירה של 2.5 שניות מ-15.8 שנ' ל-3.2 שנ'. ⚠️ רצפה של 256 פריימים: מתחתיה המודל נשבר ללולאת חזרות.
 **נתיבים:** פיתוח `vendor/whisper/`, ארוז `resources/whisper/`; `config.json` → `WHISPER_DIR`/`WHISPER_MODEL_PATH` גוברים (החלפת מודל בעמדה בלי מתקין חדש). מכוסה בדיקות (`whisper.test.js`, 20).
 **מייצא:** `transcribeWav`, `sttStatus`, `resolveSttPaths`, `cleanWhisperOutput`, `audioCtxForDuration`, `wavDurationSeconds`.
+
+### `src/utils/screenRecording.ts` + `src/hooks/useScreenRecorder.ts`
+**תפקיד:** צד העמדה של הקלטת המסך - `getDisplayMedia` (כל המסך הפיזי, בלי דיאלוג בחירה) + `MediaRecorder` ותור נתחים טורי ל-IPC. ה-hook מפעיל **קופסה שחורה** בעליית העמדה וגם את הכפתור בתפריט, ומחזיר את **הסיבה** כשאי-אפשר להקליט (כבויה / בלי נתיב / נתיב פסול / דפדפן).
+**מופע יחיד** (`screenRecorder`): שני מקליטים במקביל היו כותבים שני קבצים לאותו נתיב. החיווי האדום בכותרת העמדה גלוי כל זמן שההקלטה רצה - חלק מהפיצ׳ר.
+
+### `src/components/admin/ScreenRecordingSection.tsx`
+**תפקיד:** ההגדרה בלשונית "בסיסים" ל**מנהל הטכני בלבד** (`isAdmin`): נתיב שמירה, הקלטה אוטומטית, אורך קטע, ימי שמירה, fps ואיכות - לכל בסיס ויב"א. מציג **אומדן נפח** ליד ההגדרה.
+
+### `shared/screenRecording.js`
+**תפקיד:** הלוגיקה הטהורה של הקלטת המסך - **מקור אמת אחד** לשרת, לתהליך ה-Electron, לעמדה ולמסך הניהול.
+**מייצא:** `sanitizeFileToken` (גרשיים נמחקים: `בח"א 8` → `בחא-8`) · `normalizeRecordingConfig` (קיצוץ לגבולות) · `recordingBlockReason` (*למה* כבויה) · `recordingFileName` · `isRecordingFile` / `recordingStartedAt` / `expiredRecordingFiles` (המחיקה נוגעת **רק** בקבצים שלנו) · `isSafeRecordingPath` (מוחלט/UNC, בלי `..` ובלי `%VAR%`) · `pickRecordingMime` (MP4/H264 מועדף - נפתח בנגן של Windows) · `estimateRecordingBytes`.
+**מאומת:** `shared/screenRecording.test.js` (27).
+
+### `electron/screenRecorder.cjs`
+**תפקיד:** צד הכתיבה של **הקלטת המסך** - מחזיק את הנתיב ואת הקובץ. שואב תצורה מ-`/api/screen-recording/config/:baseId` **בעצמו**, מאמת נתיב, בונה שם קובץ, כותב את הנתחים, מחליף קטעים, מעביר ל-`keep/` וסורק למחיקה שעה-שעה. אפיון: [SCREEN_RECORDING_SPEC.md](SCREEN_RECORDING_SPEC.md).
+**שתי מלכודות שנסגרו בבדיקות:** התנגשות שם באותה שנייה (הקטע הקודם נדרס) · `createWriteStream` נכשל רק אסינכרונית, ולכן נתיב רשת שאינו נגיש דווח "מקליט". שניהם מכוסים ב-`screenRecorder.test.js` (16).
+**מייצא:** `createScreenRecorder({ apiBase })` → `status / start / chunk / rotate / keep / stop`.
 
 ### `scripts/db-orphans.mjs`
 **תפקיד:** מאתר (ובפקודה מפורשת גם מנקה) את השורות היתומות שחוסמות הוספת מפתחות זרים. `ensureForeignKeys` מדווחת בכל עלייה **אילו** FK חסומים אך לא כמה שורות חוסמות אותם ומה הן - זה מה שהכלי עונה עליו. סורק את `public` וכל סכמות התרגול, מצליב כל FK מוצהר שאינו קיים מול הנתונים בפועל.

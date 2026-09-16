@@ -1,8 +1,9 @@
-const { app, BrowserWindow, dialog, shell, ipcMain, session } = require('electron');
+const { app, BrowserWindow, dialog, shell, ipcMain, session, desktopCapturer, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { resolveSttPaths, sttStatus, transcribeWav } = require('./electron/whisper.cjs');
 const { createStationServer } = require('./electron/stationServer.cjs');
+const { createScreenRecorder } = require('./electron/screenRecorder.cjs');
 
 const isDev = !app.isPackaged;
 
@@ -51,6 +52,7 @@ let target = null;
 let retryTimer = null;
 let attempt = 0;
 let stationServer = null;
+let screenRecorder = null;
 
 function configPath() {
   return path.join(app.getPath('userData'), 'config.json');
@@ -245,6 +247,58 @@ function senderAllowed(event) {
   return !!appOrigin && originOf(senderUrl) === appOrigin;
 }
 
+// בסיס ה-API שלה התהליך הראשי פונה בעצמו (קריאת תצורת ההקלטה).
+// במצב bundled זה שרת העמדה המקומי, שממילא מפרוקסס את /api לשרת האמיתי -
+// ולכן אותה כתובת עובדת בשלושת המצבים בלי הפרדה.
+function apiBase() {
+  return (target && target.url) || DEFAULT_APP_URL;
+}
+
+/**
+ * הקלטת פעולות במסך - חמשת הערוצים. כל אחד מתודה אחת
+ * וללא נתיב בפרמטרים - הנתיב נשאב מהשרת בתוך screenRecorder.cjs.
+ */
+function registerRecordingHandlers() {
+  screenRecorder = createScreenRecorder({ apiBase });
+
+  ipcMain.handle('rec:status', (event) => {
+    if (!senderAllowed(event)) return { available: false, reason: 'forbidden' };
+    return screenRecorder.status();
+  });
+
+  ipcMain.handle('rec:start', async (event, opts) => {
+    if (!senderAllowed(event)) return { ok: false, reason: 'forbidden' };
+    const o = opts && typeof opts === 'object' ? opts : {};
+    return screenRecorder.start({
+      baseId: Number(o.baseId) || 0,
+      presetName: typeof o.presetName === 'string' ? o.presetName : '',
+      token: typeof o.token === 'string' ? o.token : '',
+      ext: o.ext === 'mp4' ? 'mp4' : 'webm',
+      manual: Boolean(o.manual),
+    });
+  });
+
+  ipcMain.handle('rec:chunk', async (event, data) => {
+    if (!senderAllowed(event)) return { ok: false, reason: 'forbidden' };
+    return screenRecorder.chunk(data);
+  });
+
+  ipcMain.handle('rec:rotate', async (event) => {
+    if (!senderAllowed(event)) return { ok: false, reason: 'forbidden' };
+    return screenRecorder.rotate();
+  });
+
+  ipcMain.handle('rec:keep', async (event) => {
+    if (!senderAllowed(event)) return { ok: false, reason: 'forbidden' };
+    return screenRecorder.keep();
+  });
+
+  ipcMain.handle('rec:stop', async (event) => {
+    if (!senderAllowed(event)) return { ok: false, reason: 'forbidden' };
+    return screenRecorder.stop();
+  });
+}
+
 function registerSttHandlers() {
   ipcMain.handle('stt:available', (event) => {
     if (!senderAllowed(event)) return { ok: false, code: 'stt-forbidden' };
@@ -336,6 +390,30 @@ async function createWindow() {
   session.defaultSession.setPermissionCheckHandler((_contents, _permission, requestingOrigin) => {
     return requestingOrigin === appOrigin;
   });
+
+  // הקלטת המסך: בורר המקור נענה **אוטומטית** במסך שעליו העמדה.
+  // בלי ה-handler הזה getDisplayMedia נכשל ב-Electron, ואיתו בלי useSystemPicker
+  // לא נפתח דיאלוג "בחר מה לשתף" - בעמדה תפעולית אין מי שילחץ עליו,
+  // והקלטה שממתינה לאישור היא הקלטה שלא קורת.
+  session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+    if (!permittedFor(request.frame ? request.frame.url : '')) { callback({}); return; }
+    desktopCapturer.getSources({ types: ['screen'] }).then(sources => {
+      if (!sources.length) { callback({}); return; }
+      // הצג שעליו חלון העמדה יושב בפועל, ולא "הראשון שברשימה"
+      let pick = sources[0];
+      try {
+        const b = mainWindow.getBounds();
+        const disp = screen.getDisplayNearestPoint({ x: b.x + Math.floor(b.width / 2), y: b.y + Math.floor(b.height / 2) });
+        pick = sources.find(src => String(src.display_id) === String(disp.id)) || sources[0];
+      } catch { /* מסך בודד - הראשון הוא הנכון */ }
+      callback({ video: pick });
+    }).catch(() => callback({}));
+  }, { useSystemPicker: false });
+
+  // רענון דף או נפילת עמוד משאירים קובץ פתוח ללא מקליט - סוגרים אותו
+  // כדי שהקטע יישאר נגין; העמדה מתחילה מחדש כשהדף עולה שוב.
+  wc.on('render-process-gone', () => { if (screenRecorder) screenRecorder.stop().catch(() => {}); });
+  wc.on('did-start-loading', () => { if (screenRecorder) screenRecorder.stop().catch(() => {}); });
 
   console.log(`[window] mode=${target.mode} url=${target.url} kiosk=${mainWindow.isKiosk()} frame=${windowed}`);
 
@@ -429,6 +507,7 @@ async function createWindow() {
 
 app.whenReady().then(() => {
   registerSttHandlers();   // פעם אחת לכל חיי האפליקציה, לא לכל חלון
+  registerRecordingHandlers();
   return createWindow();
 });
 
@@ -440,6 +519,8 @@ app.on('window-all-closed', () => {
 // (סגירה ופתיחה של העמדה) הייתה נופלת ללקוח דק.
 app.on('before-quit', () => {
   if (stationServer) { stationServer.close().catch(() => {}); stationServer = null; }
+  // הקלטה שלא נסגרה משאירה קובץ בלי זנב - ב-fMP4/WebM הוא ניגן, אבל בלי אורך
+  if (screenRecorder) { screenRecorder.stop().catch(() => {}); }
 });
 
 app.on('activate', () => {

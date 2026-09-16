@@ -44,6 +44,7 @@ import JoiningPointsSection, { type JoiningPointRow } from './JoiningPointsSecti
 import AirDefenseSection from './AirDefenseSection';
 import RouteLinksSection from './RouteLinksSection';
 import PermitParamsSection from './PermitParamsSection';
+import ScreenRecordingSection from './ScreenRecordingSection';
 import type { LinkGroup } from '../../utils/routeLinks';
 import TrafficPatternLayer from '../map/TrafficPatternLayer';
 import RunwayLayer from '../map/RunwayLayer';
@@ -7894,6 +7895,10 @@ CHARLIE,1,301,`}
                   }}
                 />
               </div>
+
+              {/* הקלטת פעולות במסך - נתיב לכל בסיס ויב"א. פרט תשתית, ולכן
+                  למנהל הטכני בלבד - לראש צוות אין מה לעשות עם שם שיתוף ברשת */}
+              {isAdmin && <ScreenRecordingSection apiUrl={API_URL} />}
 
               {showAviationBaseForm && (
                 <div style={{ background: '#1e293b', padding: '16px', borderRadius: '8px', marginBottom: '16px', border: '1px solid #334155' }}>
