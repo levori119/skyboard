@@ -179,12 +179,15 @@ export interface RecorderState {
   blocked: RecorderUnavailable;
   /** תקלת כתיבה שהצד הכותב דיווח עליה (דיסק רשת שנפל) */
   writeError: string | null;
+  /** קוד/הודעת מערכת ההפעלה מהכשל האחרון - מתורגם לסיבה שמוצגת למפעיל */
+  blockedDetail: string | null;
   /** מי כותב לדיסק בהקלטה הנוכחית */
   mode: RecordingMode;
 }
 
 export const IDLE_STATE: RecorderState = {
-  recording: false, file: null, manual: false, blocked: null, writeError: null, mode: 'station',
+  recording: false, file: null, manual: false, blocked: null, writeError: null,
+  blockedDetail: null, mode: 'station',
 };
 
 /** אורך נתח. שנייה אחת: איבוד מקסימלי של שנייה בנפילת חשמל. */
@@ -247,7 +250,9 @@ class ScreenRecorder {
     });
     if (!started.ok) {
       const reason = started.reason as RecorderUnavailable;
-      this.set({ blocked: reason, writeError: started.detail ?? null });
+      // `detail` הוא קוד מערכת ההפעלה (EPERM / ENOENT / ETIMEDOUT). בלעדיו
+      // "הנתיב אינו נגיש" הוא מסך חסום בלי דרך פעולה.
+      this.set({ blocked: reason, blockedDetail: started.detail ?? null });
       return reason;
     }
 
@@ -263,7 +268,7 @@ class ScreenRecorder {
     }
 
     this.stopping = false;
-    this.set({ recording: true, file: started.file, manual: args.manual, blocked: null, writeError: null, mode: out.mode });
+    this.set({ recording: true, file: started.file, manual: args.manual, blocked: null, writeError: null, blockedDetail: null, mode: out.mode });
     this.openRecorder(mime.mimeType, started.bitrate);
     this.scheduleRotate(started.segmentMs, mime.mimeType, started.bitrate);
     return null;

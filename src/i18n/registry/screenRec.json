@@ -54,8 +54,8 @@
       "en": "No save path configured for this base in technical management"
     },
     "whyBadPath": {
-      "he": "נתיב השמירה של הבסיס אינו תקין",
-      "en": "The base save path is invalid"
+      "he": "נתיב השמירה של הבסיס אינו תקין - נדרשת תיקייה, לא שורש הכונן",
+      "en": "The base save path is invalid - a folder is required, not a drive root"
     },
     "whyNoElectron": {
       "he": "אין יעד כתיבה להקלטה",
@@ -102,8 +102,8 @@
       "en": "Save path"
     },
     "adminPathPlaceholder": {
-      "he": "D:\\SKYKING\\REC או \\\\srv01\\skyking\\rec",
-      "en": "D:\\SKYKING\\REC or \\\\srv01\\skyking\\rec"
+      "he": "C:\\SKYKING\\REC או \\\\srv01\\skyking\\rec",
+      "en": "C:\\SKYKING\\REC or \\\\srv01\\skyking\\rec"
     },
     "adminSegment": {
       "he": "אורך קטע (דקות)",
@@ -142,8 +142,8 @@
       "en": "Saved"
     },
     "adminInvalidPath": {
-      "he": "נדרש נתיב מוחלט או נתיב רשת, בלי .. ובלי משתני סביבה",
-      "en": "An absolute path or network share is required, without .. or environment variables"
+      "he": "נדרשת תיקייה מוחלטת (C:\\SKYKING\\REC) או נתיב רשת - לא שורש כונן, בלי .. ובלי משתני סביבה",
+      "en": "An absolute folder (C:\\SKYKING\\REC) or network share is required - not a drive root, without .. or environment variables"
     },
     "adminSaveFailed": {
       "he": "השמירה נכשלה",
@@ -168,6 +168,22 @@
     "adminBrowserNote": {
       "he": "עמדה שרצה בדפדפן מעלה את הווידאו לשרת, והשרת כותב לנתיב - ולכן הנתיב חייב להיות נגיש מהשרת, וההעלאה צורכת ~1-2GB לשעה לכל עמדה.",
       "en": "A station running in a browser uploads the video to the server, which writes it to the path - so the path must be reachable from the server, and the upload costs ~1-2GB per hour per station."
+    },
+    "pathErrPerm": {
+      "he": "אין הרשאת כתיבה לנתיב. שורש הכונן ו-Program Files דורשים הרשאת מנהל - בחר תיקייה כמו C:\\SKYKING\\REC",
+      "en": "No write permission for the path. A drive root or Program Files needs administrator rights - pick a folder such as C:\\SKYKING\\REC"
+    },
+    "pathErrMissing": {
+      "he": "הכונן או התיקייה אינם קיימים בעמדה",
+      "en": "The drive or folder does not exist on this station"
+    },
+    "pathErrNetwork": {
+      "he": "שרת הרשת של הנתיב אינו נענה",
+      "en": "The network server for this path is not responding"
+    },
+    "pathErrSpace": {
+      "he": "אין מקום פנוי בדיסק היעד",
+      "en": "No free space on the target disk"
     }
   }
 }

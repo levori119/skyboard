@@ -14,6 +14,7 @@ import {
   isSafeRecordingPath,
   pickRecordingMime,
   estimateRecordingBytes,
+  recordingPathErrorKey,
 } from './screenRecording.js';
 
 describe('sanitizeFileToken', () => {
@@ -195,5 +196,53 @@ describe('קבועים', () => {
   it('תיקיית השמורים ותחילית השם קבועות', () => {
     expect(RECORDING_PREFIX).toBe('SKYKING');
     expect(KEEP_DIR).toBe('keep');
+  });
+});
+
+// ── תקלה מהשדה (2026-09-16): בניהול הטכני הוגדר `C:\\` ─────────────
+// העמדה דיווחה "נתיב השמירה אינו נגיש" וההקלטה לא התחילה. השחזור:
+// `mkdir` רקורסיבי על שורש כונן נכשל ב-EPERM **גם כשהוא קיים**, ולכן שורש כונן
+// אינו יעד הקלטה קביל. נוסף על כך, סריקת המחיקה השעתית הייתה סורקת את
+// שורש כונן המערכת - מקום שאין לנו עסק לסרוק בו.
+describe('isSafeRecordingPath - שורש כונן', () => {
+  it('פוסל שורש כונן: נדרשת תיקייה', () => {
+    expect(isSafeRecordingPath('C:\\')).toBe(false);
+    expect(isSafeRecordingPath('C:/')).toBe(false);
+    expect(isSafeRecordingPath('D:\\ ')).toBe(false);
+    expect(isSafeRecordingPath('/')).toBe(false);
+  });
+
+  it('מאשר תיקייה מתחת לשורש', () => {
+    expect(isSafeRecordingPath('C:\\SKYKING')).toBe(true);
+    expect(isSafeRecordingPath('C:\\SKYKING\\REC')).toBe(true);
+    expect(isSafeRecordingPath('C:/SKYKING/REC')).toBe(true);
+  });
+
+  it('שיתוף רשת נשאר קביל - שיתוף הוא ממילא מכל מיועד', () => {
+    expect(isSafeRecordingPath('\\\\srv01\\recordings')).toBe(true);
+    expect(isSafeRecordingPath('\\\\srv01\\skyking$\\rec')).toBe(true);
+    // שם מחשב בלבד, בלי שיתוף - אינו נתיב
+    expect(isSafeRecordingPath('\\\\srv01')).toBe(false);
+    expect(isSafeRecordingPath('\\\\srv01\\')).toBe(false);
+  });
+});
+
+describe('recordingPathErrorKey', () => {
+  it('מתרגם את קוד השגיאה של מערכת ההפעלה לסיבה שאפשר להציג', () => {
+    expect(recordingPathErrorKey('EPERM')).toBe('perm');
+    expect(recordingPathErrorKey('EACCES')).toBe('perm');
+    expect(recordingPathErrorKey('EROFS')).toBe('perm');
+    expect(recordingPathErrorKey('ENOENT')).toBe('missing');
+    expect(recordingPathErrorKey('ENOTDIR')).toBe('missing');
+    expect(recordingPathErrorKey('ENETUNREACH')).toBe('network');
+    expect(recordingPathErrorKey('ETIMEDOUT')).toBe('network');
+    expect(recordingPathErrorKey('ENOSPC')).toBe('space');
+  });
+
+  it('קוד לא מוכר, או הודעה שלמה במקום קוד', () => {
+    expect(recordingPathErrorKey('EWHATEVER')).toBe('other');
+    expect(recordingPathErrorKey(null)).toBe('other');
+    // התהליך הראשי מעביר לפעמים את ההודעה המלאה; הקוד נשלף ממנה
+    expect(recordingPathErrorKey("EPERM: operation not permitted, mkdir 'C:\\'")).toBe('perm');
   });
 });

@@ -4100,6 +4100,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       default: return '';
     }
   };
+  /** מה מערכת ההפעלה אמרה בפועל - השורה שמכוונת את הטיפול */
+  const recPathHint = (): string => {
+    switch (screenRec.pathError) {
+      case 'perm': return tr('screenRec.pathErrPerm');
+      case 'missing': return tr('screenRec.pathErrMissing');
+      case 'network': return tr('screenRec.pathErrNetwork');
+      case 'space': return tr('screenRec.pathErrSpace');
+      default: return '';
+    }
+  };
   const canUpdatePressure: boolean = myPresetConfig?.can_update_pressure === true;
   const canUpdateMazaa: boolean = myPresetConfig?.can_update_mazaa === true;
   const canUpdateAtis: boolean = myPresetConfig?.can_update_atis === true;
@@ -11346,6 +11356,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <div style={{ fontSize: '10px', color: menuMuted }}>{tr('screenRec.menuTitle')}</div>
                       {!screenRec.state.recording && screenRec.blocked && (
                         <div style={{ fontSize: '10px', color: menuAcc('#fca5a5', '#b91c1c'), marginTop: '3px', lineHeight: 1.4 }}>{recBlockedText()}</div>
+                      )}
+                      {!screenRec.state.recording && recPathHint() && (
+                        <div style={{ fontSize: '10px', color: menuAcc('#fcd34d', '#b45309'), marginTop: '3px', lineHeight: 1.4 }}>{recPathHint()}</div>
                       )}
                       {screenRec.state.recording && screenRec.config && (
                         <div style={{ fontSize: '10px', color: menuMuted, marginTop: '3px' }}>

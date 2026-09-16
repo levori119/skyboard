@@ -18,7 +18,7 @@ import {
   IDLE_STATE, canRecordScreen, recordingMode, recordingNeedsGesture, screenRecorder,
   type RecorderState, type RecorderUnavailable, type RecordingMode,
 } from '../utils/screenRecording';
-import { normalizeRecordingConfig, type RecordingConfig } from '../../shared/screenRecording';
+import { normalizeRecordingConfig, recordingPathErrorKey, type RecordingConfig } from '../../shared/screenRecording';
 
 /** קריאה חוזרת של התצורה: שינוי בניהול הטכני נתפס בלי לרענן את העמדה */
 const CONFIG_POLL_MS = 5 * 60 * 1000;
@@ -33,6 +33,8 @@ interface Args {
 
 export interface ScreenRecorderApi {
   state: RecorderState;
+  /** 'perm' | 'missing' | 'network' | 'space' | 'other' - או null כשאין כשל נתיב */
+  pathError: 'perm' | 'missing' | 'network' | 'space' | 'other' | null;
   config: RecordingConfig | null;
   /** מי כותב לדיסק בעמדה הזו */
   mode: RecordingMode;
@@ -116,6 +118,9 @@ export function useScreenRecorder({ baseId, presetName, ready }: Args): ScreenRe
   return {
     state,
     config,
+    // הסיבה הטכנית מוצגת **ליד** הסיבה התפעולית: "הנתיב אינו נגיש" לבד שולח
+    // את המפעיל לחפש את התקלה במקום הלא נכון
+    pathError: state.blockedDetail ? recordingPathErrorKey(state.blockedDetail) : null,
     mode: recordingMode(),
     needsGesture: recordingNeedsGesture(),
     blocked,

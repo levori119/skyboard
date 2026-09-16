@@ -194,7 +194,36 @@ export function isSafeRecordingPath(p) {
   const posix = s.startsWith('/');
   if (!unc && !drive && !posix) return false;
   // ':' חוקי רק כאות הכונן
-  return s.indexOf(':', 2) === -1;
+  if (s.indexOf(':', 2) !== -1) return false;
+  // **שורש כונן אינו יעד הקלטה** (תקלה מהשדה, 2026-09-16: הוגדר `C:\`).
+  // שתי סיבות, ושתיהן מספיקות:
+  //   1. `mkdir` רקורסיבי על שורש כונן נכשל ב-EPERM **גם כשהוא קיים**, ולכן
+  //      ההקלטה לא מתחילה - והמפעיל מקבל "הנתיב אינו נגיש" בלי לדעת למה.
+  //   2. סריקת המחיקה השעתית הייתה סורקת את שורש כונן המערכת. גם אם היא נוגעת
+  //      רק בקבצים שלנו, זה לא מקום שיש לנו עסק לסרוק בו.
+  // שיתוף רשת (`\\srv\share`) כן קביל: שיתוף הוא ממילא מכל מיועד.
+  if (drive || posix) {
+    const rest = s.slice(drive ? 3 : 1).replace(/[\\/]+$/, '');
+    if (!rest) return false;
+  }
+  return true;
+}
+
+/**
+ * קוד שגיאה של מערכת ההפעלה → **סיבה שאפשר להציג למפעיל**.
+ * בלי זה "הנתיב אינו נגיש" הוא מסך חסום בלי דרך פעולה: הפקח לא יודע אם
+ * הכונן חסר, אם אין הרשאה, או אם שרת הרשת נפל - ואלה שלושה טיפולים שונים.
+ * @returns {'perm'|'missing'|'network'|'space'|'other'}
+ */
+export function recordingPathErrorKey(codeOrMessage) {
+  const s = String(codeOrMessage || '');
+  // התהליך הראשי מעביר לפעמים את ההודעה המלאה ("EPERM: operation not ...")
+  const code = (s.match(/^[A-Z]{4,}/) || [''])[0];
+  if (['EPERM', 'EACCES', 'EROFS'].includes(code)) return 'perm';
+  if (['ENOENT', 'ENOTDIR', 'ENODEV', 'ENXIO'].includes(code)) return 'missing';
+  if (['ENETUNREACH', 'ETIMEDOUT', 'EHOSTUNREACH', 'ECONNREFUSED', 'ENETDOWN'].includes(code)) return 'network';
+  if (code === 'ENOSPC' || code === 'EDQUOT') return 'space';
+  return 'other';
 }
 
 /**

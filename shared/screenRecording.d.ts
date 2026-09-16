@@ -55,8 +55,13 @@ export declare function expiredRecordingFiles(
   opts?: { now?: Date; retentionDays?: number },
 ): string[];
 
-/** נתיב יעד קביל: מוחלט, נתיב רשת (UNC) או POSIX מוחלט */
+/** נתיב יעד קביל: תיקייה מוחלטת, נתיב רשת (UNC) או POSIX. **שורש כונן נפסל** */
 export declare function isSafeRecordingPath(p: unknown): boolean;
+
+/** קוד שגיאה של מערכת ההפעלה → סיבה שאפשר להציג למפעיל */
+export declare function recordingPathErrorKey(
+  codeOrMessage: unknown,
+): 'perm' | 'missing' | 'network' | 'space' | 'other';
 
 /** הקודק להקלטה לפי תמיכה בפועל. MP4/H264 מועדף - נפתח בנגן של Windows */
 export declare function pickRecordingMime(
