@@ -26,6 +26,9 @@ const PRIVATE_PATTERNS: RegExp[] = [
 
 /** נתיבים שאין טעם לשחזר אחרי נתק — מצב רגעי שכבר לא רלוונטי כשהקשר חוזר. */
 const DROP_PATTERNS: RegExp[] = [
+  // נתחי הקלטת מסך - חסרי משמעות אחרי נתק (ראה bypassesOfflineLayer למטה,
+  // שמוציא אותם מהשכבה כולה; זו רשת הביטחון אם העקיפה תוסר)
+  /^\/api\/screen-recording\/sessions(\/|$|\?)/,
   /^\/api\/workstations\/\d+\/heartbeat(\/|$|\?)/,
   // דופק המשמרת ("אני עדיין כאן"). שחזור שלו אחרי נתק היה **משקר**: הוא היה
   // מכריז שהעמדה מאוישת ברגע שכבר חלף. ברירת המחדל היא shared (חסום), ולכן
@@ -64,7 +67,15 @@ export function isApiRequest(url: string): boolean {
  * שניות בלי צורך. למאגר יש חיווי מצב משלו (airPictureStore).
  */
 export function bypassesOfflineLayer(url: string): boolean {
-  return normalizePath(url).startsWith('/api/air-picture/');
+  const p = normalizePath(url);
+  // הקלטת המסך מהדפדפן: נתח וידאו עולה כל שנייה, ולשלושה דברים אין כאן מקום.
+  // (1) נתח שנכשל אינו עדות ש-SKY-KING נפל - הוא יכול להיות דיסק שהתמלא, ולכן
+  // הוא לא צריך להדליק חיווי נתק. (2) אין שום טעם לשחזר נתח מ-outbox אחרי
+  // נתק: ההקלטה כבר נקטעה, והקובץ בשרת נסגר. (3) הנתח הוא מאות KB, ואחסון
+  // שלו ב-IndexedDB היה ממלא את הדיסק של העמדה בדקות.
+  // להקלטה יש חיווי מצב משלה (הנקודה האדומה ו"הכתיבה לדיסק נכשלה").
+  if (p.startsWith('/api/screen-recording/sessions')) return true;
+  return p.startsWith('/api/air-picture/');
 }
 
 export function isReadMethod(method: string): boolean {

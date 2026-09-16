@@ -5,14 +5,18 @@
 //                     לבסיס. המפעיל לא נוגע בכלום.
 //   **כפתור**       - "התחל / עצור הקלטה" ו"שמור את הקטע הזה" בתפריט העמדה.
 //
+// ⚠ **בדפדפן אין קופסה שחורה.** `getDisplayMedia` דורש לחיצת משתמש
+// (transient activation), וקריאה בעליית הדף נדחית ע"י הדפדפן. לכן שם
+// ההקלטה מתחילה בלחיצה, והתפריט אומר את זה במפורש במקום לשתוק.
+//
 // החיווי חייב להיות גלוי כל זמן שההקלטה רצה: מסך עמדה שמוקלט בלי שהיושב בה
 // יודע הוא בעיה, לא פיצ'ר. הנקודה האדומה בכותרת היא חלק מהפיצ'ר ולא קישוט.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { API_URL } from '../config';
 import { getAuthToken } from '../utils/authToken';
 import {
-  IDLE_STATE, canRecordScreen, screenRecorder,
-  type RecorderState, type RecorderUnavailable,
+  IDLE_STATE, canRecordScreen, recordingMode, recordingNeedsGesture, screenRecorder,
+  type RecorderState, type RecorderUnavailable, type RecordingMode,
 } from '../utils/screenRecording';
 import { normalizeRecordingConfig, type RecordingConfig } from '../../shared/screenRecording';
 
@@ -30,6 +34,10 @@ interface Args {
 export interface ScreenRecorderApi {
   state: RecorderState;
   config: RecordingConfig | null;
+  /** מי כותב לדיסק בעמדה הזו */
+  mode: RecordingMode;
+  /** בדפדפן: ההקלטה מתחילה בלחיצה ולא לבד */
+  needsGesture: boolean;
   /** למה אי-אפשר להקליט כרגע, או null */
   blocked: RecorderUnavailable;
   /** האם הכפתור הידני יכול לעשות משהו בפועל */
@@ -86,6 +94,9 @@ export function useScreenRecorder({ baseId, presetName, ready }: Args): ScreenRe
   useEffect(() => {
     if (!ready || autoTried.current) return;
     if (!canRecordScreen() || !config?.enabled || !pathValid) return;
+    // בדפדפן אין התחלה אוטומטית - הדפדפן דוחה בקשת שיתוף מסך
+    // שלא באה מלחיצה. מסמנים את הסיבה וממתינים לכפתור.
+    if (recordingNeedsGesture()) return;
     autoTried.current = true;
     void startWith(false);
   }, [ready, config, pathValid, startWith]);
@@ -98,14 +109,18 @@ export function useScreenRecorder({ baseId, presetName, ready }: Args): ScreenRe
     : state.blocked ? state.blocked
     : !config?.path ? 'noPath'
     : !pathValid ? 'badPath'
+    // אחרון במכוון: זו אינה תקלה אלא הסבר למה ההקלטה לא עלתה לבד
+    : (config.enabled && recordingNeedsGesture() && !state.recording) ? 'browserNeedsClick'
     : null;
 
   return {
     state,
     config,
+    mode: recordingMode(),
+    needsGesture: recordingNeedsGesture(),
     blocked,
     // ידני מותר גם כשהקופסה השחורה כבויה בבסיס - מה שנדרש הוא נתיב תקין
-    canStart: canRecordScreen() && Boolean(baseId) && Boolean(config?.path) && pathValid,
+    canStart: Boolean(baseId) && Boolean(config?.path) && pathValid,
     start: () => startWith(true),
     stop: async () => { await screenRecorder.stop(); setState(screenRecorder.snapshot); },
     keep: () => screenRecorder.keep(),

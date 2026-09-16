@@ -14,6 +14,7 @@
 //    בכל רבע שעה.
 // 3. **`ondataavailable` הוא נקודת הלחץ.** נתח נשלח ב-IPC ונכתב לדיסק רשת.
 //    השליחה מסודרת בתור טורי, אחרת נתחים היו מגיעים לקובץ בסדר שגוי.
+import { API_URL } from '../config';
 import {
   pickRecordingMime,
   recordingBlockReason,
@@ -35,21 +36,135 @@ interface SkykingBridge {
 }
 
 function bridge(): SkykingBridge | null {
+  if (typeof window === 'undefined') return null;
   const w = window as unknown as { skyking?: SkykingBridge };
   return w.skyking?.recStart ? w.skyking : null;
 }
 
-/** האם העמדה בכלל מסוגלת להקליט. בדפדפן - לא, ואז מציגים את הסיבה. */
-export const canRecordScreen = (): boolean => bridge() !== null;
+// ── שני מקבלים לאותו מקליט ──────────────────────────────────────────────────
+//
+// הצילום והקידוד זהים בשני המצבים; מה שמשתנה הוא **מי כותב לדיסק**:
+//
+//   'station' - תהליך ה-Electron של העמדה כותב ישירות ל-PATH. אפס עומס רשת,
+//               עובד בנתק, ואין דיאלוג שיתוף מסך.
+//   'server'  - דפדפן. הנתחים עולים לשרת והוא כותב לאותו PATH. עובד בכל
+//               דפדפן, במחיר של ~1-2GB לשעה לכל עמדה דרך הרשת, ובלי נתק.
+//
+// המקליט עצמו לא יודע באיזה מצב הוא רץ - זה כל הרעיון של התפר הזה.
+
+export type RecordingMode = 'station' | 'server';
+
+interface RecordingSink {
+  mode: RecordingMode;
+  /** בדפדפן `getDisplayMedia` דורש לחיצת משתמש, ולכן אין התחלה אוטומטית */
+  needsGesture: boolean;
+  start(a: { baseId: number; presetName: string; token: string; ext: string; manual: boolean }): Promise<RecStartResult>;
+  chunk(bytes: Uint8Array): Promise<{ ok: boolean; reason?: string; detail?: string }>;
+  rotate(): Promise<{ ok: boolean; file?: string; reason?: string }>;
+  keep(): Promise<{ ok: boolean; kept?: number }>;
+  stop(): Promise<unknown>;
+}
+
+const stationSink = (api: SkykingBridge): RecordingSink => ({
+  mode: 'station',
+  needsGesture: false,
+  start: a => api.recStart!(a),
+  chunk: b => api.recChunk!(b),
+  rotate: () => api.recRotate!(),
+  keep: () => api.recKeep!(),
+  stop: () => api.recStop!(),
+});
+
+/**
+ * מקבל השרת. `sessionId` נולד ב-start ומזהה את הקובץ הפתוח בשרת.
+ *
+ * ⚠️ כל הקריאות כאן **עוקפות את שכבת הנתק** (`bypassesOfflineLayer`
+ * ב-src/offline/policy.ts): נתח וידאו שנכשל אינו עדות לנפילת השרת, והוא בטח
+ * לא משהו שצריך לשחזר מ-outbox אחרי נתק. להקלטה יש חיווי מצב משלה.
+ */
+function serverSink(): RecordingSink {
+  let sessionId: string | null = null;
+  const url = (suffix: string) => `${API_URL}/screen-recording/sessions/${sessionId}/${suffix}`;
+  const post = (u: string, body?: unknown) => fetch(u, {
+    method: 'POST',
+    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  return {
+    mode: 'server',
+    needsGesture: true,
+    async start(a) {
+      const res = await post(`${API_URL}/screen-recording/sessions`, {
+        base_id: a.baseId, preset_name: a.presetName, ext: a.ext, manual: a.manual,
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok || !body?.session_id) {
+        return { ok: false, reason: body?.error === 'base_not_found' ? 'noBase' : (body?.error || 'configUnavailable'), detail: body?.detail };
+      }
+      sessionId = body.session_id;
+      return body as RecStartResult;
+    },
+    async chunk(bytes) {
+      if (!sessionId) return { ok: false, reason: 'notRecording' };
+      // Uint8Array ולא Blob: אין צורך ב-multipart, והשרת קורא את הגוף כמו שהוא
+      const res = await fetch(url('chunk'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: bytes as BodyInit,
+      });
+      if (res.ok) return { ok: true };
+      const body = await res.json().catch(() => null);
+      return { ok: false, reason: res.status === 404 ? 'notRecording' : 'writeFailed', detail: body?.detail };
+    },
+    async rotate() {
+      if (!sessionId) return { ok: false, reason: 'notRecording' };
+      const res = await post(url('rotate'));
+      return res.ok ? await res.json() : { ok: false, reason: 'notRecording' };
+    },
+    async keep() {
+      if (!sessionId) return { ok: false, kept: 0 };
+      const res = await post(url('keep'));
+      return res.ok ? await res.json() : { ok: false, kept: 0 };
+    },
+    async stop() {
+      if (!sessionId) return;
+      const id = sessionId;
+      sessionId = null;
+      await post(`${API_URL}/screen-recording/sessions/${id}/stop`).catch(() => {});
+    },
+  };
+}
+
+/** מי יכתוב לדיסק בעמדה הזו. טהורה, כדי שתהיה בדיקה ולא ניחוש. */
+export const pickRecordingMode = (hasStationBridge: boolean): RecordingMode =>
+  hasStationBridge ? 'station' : 'server';
+
+function sink(): RecordingSink {
+  const api = bridge();
+  return api ? stationSink(api) : serverSink();
+}
+
+/** באיזה מצב העמדה הזו מקליטה */
+export const recordingMode = (): RecordingMode => pickRecordingMode(bridge() !== null);
+
+/**
+ * האם אפשר להקליט. **תמיד true** מאז שמסלול השרת קיים - גם דפדפן מקליט.
+ * ההבדל היחיד הוא שבדפדפן ההתחלה דורשת לחיצה (`recordingNeedsGesture`).
+ */
+export const canRecordScreen = (): boolean => true;
+
+/** בדפדפן: ההקלטה לא מתחילה לבד, כי הדפדפן דורש אישור שיתוף מסך בלחיצה */
+export const recordingNeedsGesture = (): boolean => sink().needsGesture;
 
 /** למה אי-אפשר להקליט, מעבר לתצורת הבסיס. null = אפשר. */
 export type RecorderUnavailable = RecordingBlockReason
-  | 'noElectron'         // ריצה בדפדפן ולא באפליקציית העמדה
+  | 'noElectron'         // אין מקבל כתיבה בכלל (לא אמור לקרות מאז מסלול השרת)
   | 'noCodec'            // אין קודק וידאו נתמך
   | 'noPermission'       // אין מקור מסך (הפעלה בלי צג)
   | 'noBase'             // העמדה אינה משויכת לבסיס
   | 'pathUnreachable'    // הנתיב מוגדר אך אינו נגיש מהעמדה
   | 'configUnavailable'  // התצורה לא נטענה מהשרת
+  | 'browserNeedsClick'  // דפדפן: מוגדר ודולק, אבל צריך לחיצה כדי להתחיל
   | 'alreadyRecording'
   | 'writeFailed'
   | 'forbidden';
@@ -62,12 +177,14 @@ export interface RecorderState {
   manual: boolean;
   /** מה חוסם, או null */
   blocked: RecorderUnavailable;
-  /** תקלת כתיבה שהתהליך הראשי דיווח עליה (דיסק רשת שנפל) */
+  /** תקלת כתיבה שהצד הכותב דיווח עליה (דיסק רשת שנפל) */
   writeError: string | null;
+  /** מי כותב לדיסק בהקלטה הנוכחית */
+  mode: RecordingMode;
 }
 
 export const IDLE_STATE: RecorderState = {
-  recording: false, file: null, manual: false, blocked: null, writeError: null,
+  recording: false, file: null, manual: false, blocked: null, writeError: null, mode: 'station',
 };
 
 /** אורך נתח. שנייה אחת: איבוד מקסימלי של שנייה בנפילת חשמל. */
@@ -97,6 +214,8 @@ class ScreenRecorder {
   private state: RecorderState = { ...IDLE_STATE };
   private onState: StartArgs['onState'] = () => {};
   private stopping = false;
+  /** מי כותב לדיסק במקטע הנוכחי. נבחר ב-start ונשמר עד stop. */
+  private out: RecordingSink | null = null;
 
   get snapshot(): RecorderState { return { ...this.state }; }
 
@@ -110,8 +229,8 @@ class ScreenRecorder {
     this.onState = args.onState;
     if (this.state.recording) return null;
 
-    const api = bridge();
-    if (!api?.recStart || !api.recChunk) { this.set({ blocked: 'noElectron' }); return 'noElectron'; }
+    const out = sink();
+    this.out = out;
     if (!args.baseId) { this.set({ blocked: 'noBase' }); return 'noBase'; }
 
     // הקלטה ידנית מותרת גם כשהקופסה השחורה כבויה בבסיס - מה שחייב להיות מוגדר
@@ -122,7 +241,7 @@ class ScreenRecorder {
     const mime = pickRecordingMime(m => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(m));
     if (!mime) { this.set({ blocked: 'noCodec' }); return 'noCodec'; }
 
-    const started = await api.recStart({
+    const started = await out.start({
       baseId: args.baseId, presetName: args.presetName, token: args.token,
       ext: mime.ext, manual: args.manual,
     });
@@ -135,15 +254,16 @@ class ScreenRecorder {
     try {
       await this.openStream(started.fps);
     } catch {
-      // בעמדה ההרשאה נענית אוטומטית (setDisplayMediaRequestHandler); כאן זה
-      // אומר שאין מקור מסך בכלל - למשל הפעלה בלי צג (RDP מנותק)
-      await api.recStop?.();
+      // בעמדה ההרשאה נענית אוטומטית (setDisplayMediaRequestHandler), ולכן כאן
+      // זה אומר שאין מקור מסך בכלל. בדפדפן זו גם התשובה כשהמפעיל **ביטל** את
+      // בקשת שיתוף המסך - ולכן הקובץ שנפתח בשרת נסגר מיד.
+      await out.stop();
       this.set({ blocked: 'noPermission' });
       return 'noPermission';
     }
 
     this.stopping = false;
-    this.set({ recording: true, file: started.file, manual: args.manual, blocked: null, writeError: null });
+    this.set({ recording: true, file: started.file, manual: args.manual, blocked: null, writeError: null, mode: out.mode });
     this.openRecorder(mime.mimeType, started.bitrate);
     this.scheduleRotate(started.segmentMs, mime.mimeType, started.bitrate);
     return null;
@@ -169,10 +289,10 @@ class ScreenRecorder {
       if (!e.data || !e.data.size) return;
       // התור הטורי: כל נתח נכתב אחרי קודמו, גם כשהדיסק איטי מקצב הקידוד
       this.tail = this.tail.then(async () => {
-        const api = bridge();
-        if (!api?.recChunk) return;
+        const out = this.out;
+        if (!out) return;
         const bytes = new Uint8Array(await e.data.arrayBuffer());
-        const res = await api.recChunk(bytes);
+        const res = await out.chunk(bytes);
         if (!res.ok && res.reason === 'writeFailed') this.set({ writeError: res.detail ?? 'writeFailed' });
       }).catch(() => {});
     };
@@ -199,8 +319,7 @@ class ScreenRecorder {
     this.rotateTimer = setTimeout(async () => {
       if (!this.state.recording || this.stopping) return;
       await this.closeRecorder();
-      const api = bridge();
-      const res = await api?.recRotate?.();
+      const res = await this.out?.rotate();
       if (!res?.ok) { await this.stop(); return; }
       this.set({ file: res.file ?? null });
       this.openRecorder(mimeType, bitrate);
@@ -210,7 +329,7 @@ class ScreenRecorder {
 
   /** "שמור את הקטע הזה" - הקטע הנוכחי והקודם לא יימחקו במחיקה האוטומטית */
   async keep(): Promise<number> {
-    const res = await bridge()?.recKeep?.();
+    const res = await this.out?.keep();
     return res?.kept ?? 0;
   }
 
@@ -220,7 +339,8 @@ class ScreenRecorder {
     await this.closeRecorder();
     this.stream?.getTracks().forEach(t => t.stop());
     this.stream = null;
-    await bridge()?.recStop?.();
+    await this.out?.stop();
+    this.out = null;
     this.set({ recording: false, file: null, manual: false });
   }
 }

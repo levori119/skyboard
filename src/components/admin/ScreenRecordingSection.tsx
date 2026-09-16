@@ -120,7 +120,8 @@ export default function ScreenRecordingSection({ apiUrl }: ScreenRecordingSectio
     <div style={{ background: '#1e293b', padding: '16px', borderRadius: '8px', border: '1px solid #334155', marginBottom: '16px' }}>
       <h3 style={{ margin: '0 0 6px 0', fontSize: '14px', color: '#7dd3fc' }}>{tr('screenRec.adminTitle')}</h3>
       <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px', lineHeight: 1.5 }}>{tr('screenRec.adminHint')}</div>
-      <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '12px' }}>{tr('screenRec.adminKeepNote')}</div>
+      <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>{tr('screenRec.adminKeepNote')}</div>
+      <div style={{ fontSize: '11px', color: '#fbbf24', marginBottom: '12px', lineHeight: 1.5 }}>{tr('screenRec.adminBrowserNote')}</div>
 
       {rows.map(row => {
         const isOpen = openId === row.id;

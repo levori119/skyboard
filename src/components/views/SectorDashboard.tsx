@@ -4096,6 +4096,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       case 'noPermission': return tr('screenRec.whyNoPermission');
       case 'pathUnreachable': return tr('screenRec.whyPathUnreachable');
       case 'configUnavailable': return tr('screenRec.whyConfigUnavailable');
+      case 'browserNeedsClick': return tr('screenRec.whyBrowserNeedsClick');
       default: return '';
     }
   };
@@ -11292,7 +11293,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 7px', borderRadius: '4px', background: screenRec.state.writeError ? '#7f1d1d' : 'rgba(220,38,38,0.18)', border: '1px solid ' + (screenRec.state.writeError ? '#dc2626' : 'rgba(220,38,38,0.5)'), fontSize: '10px', color: screenRec.state.writeError ? '#fecaca' : '#f87171', whiteSpace: 'nowrap' }}
               >
                 <span className={CRITICAL_BLINK_CLASS} style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#dc2626', display: 'inline-block' }} />
-                {screenRec.state.writeError ? tr('screenRec.writeError') : screenRec.state.manual ? tr('screenRec.recordingManual') : tr('screenRec.recording')}
+                {screenRec.state.writeError ? tr('screenRec.writeError')
+                  : screenRec.state.mode === 'server' ? tr('screenRec.recordingServer')
+                  : screenRec.state.manual ? tr('screenRec.recordingManual') : tr('screenRec.recording')}
               </div>
             )}
             {/* כפתור משתמש — משמאל לשם העמדה */}

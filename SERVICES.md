@@ -136,9 +136,12 @@
 **הלוגיקה הטהורה:** [`server/utils/stripFlow.js`](server/utils/stripFlow.js) - `diffAircraftPositions` (שלבי קרקע מתוך שני מצבי מיקום), `flowCurrent` ("נמצא בעמדה" = הקבלה האחרונה, לא `strip_table_assignments`), `mergeLineageEvents` (ירושה בפיצול/מיזוג, בלי כפילויות ובלי מעגלים).
 **מאומת:** `server/routes/stripFlow.test.js` (13 בדיקות מול PGlite) + `server/utils/stripFlow.test.js` (20).
 
-### `server/routes/screenRecording.js` — 3 routes
+### `server/routes/screenRecording.js` — 8 routes
 **תפקיד:** תצורת **הקלטת פעולות במסך** - נתיב השמירה והמדיניות פר-בסיס ויב"א. אפיון: [SCREEN_RECORDING_SPEC.md](SCREEN_RECORDING_SPEC.md).
 **Endpoints:** `GET /api/screen-recording/bases` (ADMIN) · `PUT /api/screen-recording/bases/:id` (ADMIN, דוחה נתיב פסול ב-400 `invalid_path`) · `GET /api/screen-recording/config/:baseId` (USER - **תהליך ה-Electron של העמדה** קורא אותו בכל התחלת הקלטה).
+**הקלטה מהדפדפן** (דפדפן אינו יכול לכתוב לדיסק): `POST /api/screen-recording/sessions` פותח מקטע ומחזיר מזהה + פרמטרי קידוד, ו-`.../:id/chunk|rotate|keep|stop` מנהלים אותו (USER). הנתח מגיע כ-`application/octet-stream` דרך `express.raw` ברמת ה-route, תקרה 25MB. הכתיבה עצמה ב-[`shared/recordingWriter.js`](shared/recordingWriter.js) - **אותה ליבה שהעמדה מריצה**.
+**מקטע נטוש** (דפדפן שנסגר אינו שולח "עצור") נסגר בשלושה מנגנונים: פתיחה חדשה לאותה עמדה · 2 דקות בלי נתחים · `stop` מפורש. המקטע בזיכרון התהליך ולא ב-DB - זה מצב של קובץ פתוח.
+⚠ **השרת חייב לראות את ה-PATH.** בפריסה עננית אין לו גישה לשיתוף ברשת הבסיס; בעמדת Electron המסלול הזה אינו בשימוש כלל.
 **למה לא ב-`GET /api/aviation-bases`:** אותה רשימה נטענת בכל כניסה לעמדה, ושם שרת ושיתוף ברשת הבסיס הם פרט תשתית - לא מידע שכל מסך צריך.
 
 ### `server/routes/sectors.js` — 17 routes
@@ -1326,7 +1329,7 @@ DB מנוהל היה נופל יחד עם העמדה.
 **מייצא:** `transcribeWav`, `sttStatus`, `resolveSttPaths`, `cleanWhisperOutput`, `audioCtxForDuration`, `wavDurationSeconds`.
 
 ### `src/utils/screenRecording.ts` + `src/hooks/useScreenRecorder.ts`
-**תפקיד:** צד העמדה של הקלטת המסך - `getDisplayMedia` (כל המסך הפיזי, בלי דיאלוג בחירה) + `MediaRecorder` ותור נתחים טורי ל-IPC. ה-hook מפעיל **קופסה שחורה** בעליית העמדה וגם את הכפתור בתפריט, ומחזיר את **הסיבה** כשאי-אפשר להקליט (כבויה / בלי נתיב / נתיב פסול / דפדפן).
+**תפקיד:** צד העמדה של הקלטת המסך - `getDisplayMedia` + `MediaRecorder` ותור נתחים טורי. **שני מקבלים (`RecordingSink`)**: `station` - IPC לתהליך ה-Electron שכותב ל-PATH (בלי דיאלוג בחירת מסך) · `server` - דפדפן, הנתחים עולים ל-`/api/screen-recording/sessions` והשרת כותב. `pickRecordingMode` טהורה ומכוסה. ה-hook מפעיל **קופסה שחורה** בעליית העמדה וגם את הכפתור בתפריט, ומחזיר את **הסיבה** כשאי-אפשר להקליט (כבויה / בלי נתיב / נתיב פסול / דפדפן).
 **מופע יחיד** (`screenRecorder`): שני מקליטים במקביל היו כותבים שני קבצים לאותו נתיב. החיווי האדום בכותרת העמדה גלוי כל זמן שההקלטה רצה - חלק מהפיצ׳ר.
 
 ### `src/components/admin/ScreenRecordingSection.tsx`
@@ -1337,10 +1340,15 @@ DB מנוהל היה נופל יחד עם העמדה.
 **מייצא:** `sanitizeFileToken` (גרשיים נמחקים: `בח"א 8` → `בחא-8`) · `normalizeRecordingConfig` (קיצוץ לגבולות) · `recordingBlockReason` (*למה* כבויה) · `recordingFileName` · `isRecordingFile` / `recordingStartedAt` / `expiredRecordingFiles` (המחיקה נוגעת **רק** בקבצים שלנו) · `isSafeRecordingPath` (מוחלט/UNC, בלי `..` ובלי `%VAR%`) · `pickRecordingMime` (MP4/H264 מועדף - נפתח בנגן של Windows) · `estimateRecordingBytes`.
 **מאומת:** `shared/screenRecording.test.js` (27).
 
+### `shared/recordingWriter.js`
+**תפקיד:** **ליבת הכתיבה לדיסק** של הקלטת המסך - קבצים, החלפת קטעים, `keep/` ומחיקה לפי תקופת שמירה. ⚠ **Node בלבד** (מייבא `fs`) - אין לייבא מהלקוח.
+**למה ב-shared:** **שני** צדדים כותבים וחייבים לכתוב אותו דבר - תהליך ה-Electron של העמדה, והשרת כשההקלטה מגיעה מדפדפן. ההבדל היחיד הוא מאיפה באה התצורה, והוא מוזרק כ-`loadConfig`.
+**שתי מלכודות שנסגרו בבדיקות:** התנגשות שם באותה שנייה (הקטע הקודם נדרס) · `createWriteStream` נכשל רק אסינכרונית, ולכן נתיב רשת שאינו נגיש דווח "מקליט".
+**מייצא:** `createRecordingWriter({ loadConfig, log })` → `status / start / chunk / rotate / keep / stop`.
+
 ### `electron/screenRecorder.cjs`
-**תפקיד:** צד הכתיבה של **הקלטת המסך** - מחזיק את הנתיב ואת הקובץ. שואב תצורה מ-`/api/screen-recording/config/:baseId` **בעצמו**, מאמת נתיב, בונה שם קובץ, כותב את הנתחים, מחליף קטעים, מעביר ל-`keep/` וסורק למחיקה שעה-שעה. אפיון: [SCREEN_RECORDING_SPEC.md](SCREEN_RECORDING_SPEC.md).
-**שתי מלכודות שנסגרו בבדיקות:** התנגשות שם באותה שנייה (הקטע הקודם נדרס) · `createWriteStream` נכשל רק אסינכרונית, ולכן נתיב רשת שאינו נגיש דווח "מקליט". שניהם מכוסים ב-`screenRecorder.test.js` (16).
-**מייצא:** `createScreenRecorder({ apiBase })` → `status / start / chunk / rotate / keep / stop`.
+**תפקיד:** מתאם דק בין ערוצי ה-IPC לליבה המשותפת. מזריק `loadConfig` ששואב תצורה מ-`/api/screen-recording/config/:baseId` עם האסימון שהעמדה מסרה - וזה כל מה ששונה מהשרת. מכוסה ב-`screenRecorder.test.js` (16), שעברו ללא שינוי אחרי חילוץ הליבה.
+**מייצא:** `createScreenRecorder({ apiBase })` → אותם ששה של הליבה.
 
 ### `scripts/db-orphans.mjs`
 **תפקיד:** מאתר (ובפקודה מפורשת גם מנקה) את השורות היתומות שחוסמות הוספת מפתחות זרים. `ensureForeignKeys` מדווחת בכל עלייה **אילו** FK חסומים אך לא כמה שורות חוסמות אותם ומה הן - זה מה שהכלי עונה עליו. סורק את `public` וכל סכמות התרגול, מצליב כל FK מוצהר שאינו קיים מול הנתונים בפועל.
