@@ -159,6 +159,8 @@ export default function ScreenRecordingSection({ apiUrl }: ScreenRecordingSectio
                     onChange={e => setForm({ ...form, path: e.target.value })}
                     style={{ ...input, textAlign: 'start' }}
                   />
+                  {/* המלכודת שנתפסה בשדה: הנתיב נכתב ממחשב אחד ונכתב במכונה אחרת */}
+                  <div style={{ fontSize: '10px', color: '#64748b', marginTop: '4px', lineHeight: 1.5 }}>{tr('screenRec.adminPathNote')}</div>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '10px' }}>

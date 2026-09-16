@@ -1337,7 +1337,7 @@ DB מנוהל היה נופל יחד עם העמדה.
 
 ### `shared/screenRecording.js`
 **תפקיד:** הלוגיקה הטהורה של הקלטת המסך - **מקור אמת אחד** לשרת, לתהליך ה-Electron, לעמדה ולמסך הניהול.
-**מייצא:** `sanitizeFileToken` (גרשיים נמחקים: `בח"א 8` → `בחא-8`) · `normalizeRecordingConfig` (קיצוץ לגבולות) · `recordingBlockReason` (*למה* כבויה) · `recordingFileName` · `isRecordingFile` / `recordingStartedAt` / `expiredRecordingFiles` (המחיקה נוגעת **רק** בקבצים שלנו) · `isSafeRecordingPath` (תיקייה מוחלטת או UNC; **שורש כונן נפסל** - `mkdir` על `C:\` נכשל ב-EPERM גם כשהוא קיים) · `recordingPathErrorKey` (קוד שגיאה → סיבה שמוצגת למפעיל) · `pickRecordingMime` (MP4/H264 מועדף - נפתח בנגן של Windows) · `estimateRecordingBytes`.
+**מייצא:** `sanitizeFileToken` (גרשיים נמחקים: `בח"א 8` → `בחא-8`) · `normalizeRecordingConfig` (קיצוץ לגבולות) · `recordingBlockReason` (*למה* כבויה) · `recordingFileName` · `isRecordingFile` / `recordingStartedAt` / `expiredRecordingFiles` (המחיקה נוגעת **רק** בקבצים שלנו) · `isSafeRecordingPath` (תיקייה מוחלטת או UNC; **שורש כונן נפסל** - `mkdir` על `C:\` נכשל ב-EPERM גם כשהוא קיים) · `recordingPathErrorKey` (קוד שגיאה → סיבה שמוצגת למפעיל) · `recordingPathRoot` (שורש הנתיב - הכותב בודק אותו לפני `mkdir`, כדי ש"כונן לא קיים" לא ידווח כ"אין הרשאה") · `pickRecordingMime` (MP4/H264 מועדף - נפתח בנגן של Windows) · `estimateRecordingBytes`.
 **מאומת:** `shared/screenRecording.test.js` (27).
 
 ### `shared/recordingWriter.js`

@@ -16,7 +16,7 @@
 import fs from 'fs';
 import path from 'path';
 import {
-  KEEP_DIR, recordingFileName, expiredRecordingFiles,
+  KEEP_DIR, recordingFileName, expiredRecordingFiles, recordingPathRoot,
   recordingBlockReason, recordingSegmentMs, recordingBitrate, isSafeRecordingPath,
 } from './screenRecording.js';
 
@@ -147,6 +147,21 @@ export function createRecordingWriter({ loadConfig, log = () => {} }) {
       if (!isSafeRecordingPath(cfg.path)) return { ok: false, reason: 'badPath' };
 
       const dir = cfg.path;
+
+      // **שורש הנתיב נבדק לפני mkdir**, כדי שהסיבה תהיה נכונה (תקלה
+      // מהשדה, 2026-09-16): `mkdir` על `D:\SKYKING\REC` במכונה בלי כונן D:
+      // מחזיר `ENOENT: ... mkdir '\\?'` - הודעה שאינה מזכירה אפילו את הכונן,
+      // והמפעיל קיבל "אין הרשאה" וחיפש הרשאות במקום כונן קיים.
+      const root = recordingPathRoot(dir);
+      if (root) {
+        try {
+          await fs.promises.stat(root);
+        } catch (e) {
+          log(`שורש הנתיב אינו קיים: ${root} (${e.code})`);
+          return { ok: false, reason: 'pathUnreachable', detail: `ENOENT: root not found ${root}` };
+        }
+      }
+
       try {
         await fs.promises.mkdir(dir, { recursive: true });
       } catch (e) {

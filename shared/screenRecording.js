@@ -209,6 +209,26 @@ export function isSafeRecordingPath(p) {
   return true;
 }
 
+
+/**
+ * **שורש** הנתיב: `D:\` · `\\srv\share` · `/`. מחזיר '' לקלט שאינו נתיב.
+ *
+ * למה זה קיים (תקלה מהשדה, 2026-09-16): בניהול הטכני הוגדר
+ * `D:\SKYKING\REC` במכונה שיש לה רק כונן C:. השגיאה ש-Windows מחזיר על
+ * כונן שאינו קיים היא `ENOENT: ... mkdir '\\?'` - הודעה שאינה מזכירה אפילו
+ * את הכונן. בדיקת השורש לפני הכתיבה היא מה שמאפשר לומר למפעיל
+ * "הכונן D:\ אינו קיים בעמדה" במקום "אין הרשאה".
+ */
+export function recordingPathRoot(p) {
+  const s = typeof p === 'string' ? p.trim() : '';
+  if (!s) return '';
+  const unc = s.match(/^\\\\([^\\/]+)[\\/]([^\\/]+)/);
+  if (unc) return `\\\\${unc[1]}\\${unc[2]}`;
+  const drive = s.match(/^([A-Za-z]):[\\/]/);
+  if (drive) return `${drive[1].toUpperCase()}:\\`;
+  return s.startsWith('/') ? '/' : '';
+}
+
 /**
  * קוד שגיאה של מערכת ההפעלה → **סיבה שאפשר להציג למפעיל**.
  * בלי זה "הנתיב אינו נגיש" הוא מסך חסום בלי דרך פעולה: הפקח לא יודע אם

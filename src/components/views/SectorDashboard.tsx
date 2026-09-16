@@ -97,6 +97,7 @@ import type { HelpContext } from '../../utils/helpTopics';
 import { captureStation } from '../../utils/stationSnapshot';
 import { useScreenRecorder } from '../../hooks/useScreenRecorder';
 import { CRITICAL_BLINK_CLASS } from '../../utils/signalSeverity';
+import { recordingPathRoot } from '../../../shared/screenRecording';
 import { openStationSession, closeStationSession, heartbeatStationSession } from '../../utils/stationSession';
 import { renderGroundSvgIcon, GroundMarkerSVG, getElemDisplayStateOpts, normalizeAircraftPositions, GROUND_STATUSES, GROUND_POINT_MARKERS, GROUND_SVG_ICON_KEYS, ALL_MAZAA_STATUSES, AIR_DEFENSE_STATUSES, YABA_AIR_DEFENSE_STATUSES, toEmbedUrl } from '../ground/groundShared';
 import type { MapZone, ZoneAltRange, StripZoneAssignment, AircraftPos, GroundAircraftRow, VectorData } from '../../types/ground';
@@ -4104,7 +4105,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const recPathHint = (): string => {
     switch (screenRec.pathError) {
       case 'perm': return tr('screenRec.pathErrPerm');
-      case 'missing': return tr('screenRec.pathErrMissing');
+      case 'missing': return tr('screenRec.pathErrMissing', { root: recordingPathRoot(screenRec.config?.path || '') || '-' });
       case 'network': return tr('screenRec.pathErrNetwork');
       case 'space': return tr('screenRec.pathErrSpace');
       default: return '';
@@ -11359,6 +11360,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       )}
                       {!screenRec.state.recording && recPathHint() && (
                         <div style={{ fontSize: '10px', color: menuAcc('#fcd34d', '#b45309'), marginTop: '3px', lineHeight: 1.4 }}>{recPathHint()}</div>
+                      )}
+                      {/* הנתיב שהוגדר בפועל - בלעדו כל בירור מתחיל בניחוש מה באמת
+                          רשום בניהול הטכני. העמדה ממילא קוראת אותו מה-API. */}
+                      {!screenRec.state.recording && screenRec.blocked && screenRec.config?.path && (
+                        <div dir="ltr" style={{ fontSize: '9px', color: menuMuted, marginTop: '3px', textAlign: 'start', wordBreak: 'break-all' }}>
+                          {tr('screenRec.currentPath', { path: screenRec.config.path })}
+                        </div>
                       )}
                       {screenRec.state.recording && screenRec.config && (
                         <div style={{ fontSize: '10px', color: menuMuted, marginTop: '3px' }}>

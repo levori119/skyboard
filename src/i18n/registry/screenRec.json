@@ -174,8 +174,8 @@
       "en": "No write permission for the path. A drive root or Program Files needs administrator rights - pick a folder such as C:\\SKYKING\\REC"
     },
     "pathErrMissing": {
-      "he": "הכונן או התיקייה אינם קיימים בעמדה",
-      "en": "The drive or folder does not exist on this station"
+      "he": "היעד {{root}} אינו קיים בעמדה הזו - בדוק את אות הכונן או את שם השיתוף",
+      "en": "The target {{root}} does not exist on this station - check the drive letter or share name"
     },
     "pathErrNetwork": {
       "he": "שרת הרשת של הנתיב אינו נענה",
@@ -184,6 +184,14 @@
     "pathErrSpace": {
       "he": "אין מקום פנוי בדיסק היעד",
       "en": "No free space on the target disk"
+    },
+    "adminPathNote": {
+      "he": "הכונן חייב להיות קיים בעמדה עצמה (או נגיש מהשרת בהקלטה מהדפדפן) - לא רק במחשב שממנו מגדירים.",
+      "en": "The drive must exist on the station itself (or be reachable from the server for browser recording) - not only on the machine used for configuration."
+    },
+    "currentPath": {
+      "he": "נתיב מוגדר: {{path}}",
+      "en": "Configured path: {{path}}"
     }
   }
 }

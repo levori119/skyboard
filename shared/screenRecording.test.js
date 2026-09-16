@@ -15,6 +15,7 @@ import {
   pickRecordingMime,
   estimateRecordingBytes,
   recordingPathErrorKey,
+  recordingPathRoot,
 } from './screenRecording.js';
 
 describe('sanitizeFileToken', () => {
@@ -244,5 +245,31 @@ describe('recordingPathErrorKey', () => {
     expect(recordingPathErrorKey(null)).toBe('other');
     // התהליך הראשי מעביר לפעמים את ההודעה המלאה; הקוד נשלף ממנה
     expect(recordingPathErrorKey("EPERM: operation not permitted, mkdir 'C:\\'")).toBe('perm');
+  });
+});
+
+// ── תקלה מהשדה (2026-09-16, המשך): הוגדר `D:\\SKYKING\\REC` במכונה בלי כונן D:
+// ההודעה אמרה "אין הרשאת כתיבה" - מטעה. `mkdir` על כונן שאינו קיים
+// מחזיר ENOENT עם הודעה חסרת שימוש (`mkdir '\\\\?'`) שאינה מזכירה אפילו את
+// הכונן, ולכן הכותב בודק קודם את **שורש** הנתיב, והעמדה נוקבת בו.
+describe('recordingPathRoot', () => {
+  it('שורש כונן', () => {
+    expect(recordingPathRoot('D:\\SKYKING\\REC')).toBe('D:\\');
+    expect(recordingPathRoot('C:/SKYKING/REC')).toBe('C:\\');
+    expect(recordingPathRoot('c:\\rec')).toBe('C:\\');
+  });
+
+  it('שיתוף רשת - השורש הוא השיתוף עצמו, לא המחשב', () => {
+    expect(recordingPathRoot('\\\\srv01\\skyking$\\rec')).toBe('\\\\srv01\\skyking$');
+    expect(recordingPathRoot('\\\\srv01\\recordings')).toBe('\\\\srv01\\recordings');
+  });
+
+  it('POSIX', () => {
+    expect(recordingPathRoot('/var/skyking/rec')).toBe('/');
+  });
+
+  it('קלט שאינו נתיב', () => {
+    expect(recordingPathRoot('rec')).toBe('');
+    expect(recordingPathRoot(null)).toBe('');
   });
 });

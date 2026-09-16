@@ -58,6 +58,9 @@ export declare function expiredRecordingFiles(
 /** נתיב יעד קביל: תיקייה מוחלטת, נתיב רשת (UNC) או POSIX. **שורש כונן נפסל** */
 export declare function isSafeRecordingPath(p: unknown): boolean;
 
+/** שורש הנתיב: `D:\` · `\\srv\share` · `/`. '' לקלט שאינו נתיב */
+export declare function recordingPathRoot(p: unknown): string;
+
 /** קוד שגיאה של מערכת ההפעלה → סיבה שאפשר להציג למפעיל */
 export declare function recordingPathErrorKey(
   codeOrMessage: unknown,
