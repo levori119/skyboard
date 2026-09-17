@@ -228,6 +228,10 @@
     "adminServerBlind": {
       "he": "השרת אינו רואה את הנתיב הזה - הקלטה מדפדפן תיכשל. באפליקציית העמדה, שכותבת מקומית, זה אינו רלוונטי.",
       "en": "The server cannot see this path - browser recording will fail. It is irrelevant for the station app, which writes locally."
+    },
+    "whyUnknown": {
+      "he": "ההקלטה לא התחילה ({{code}})",
+      "en": "Recording did not start ({{code}})"
     }
   }
 }

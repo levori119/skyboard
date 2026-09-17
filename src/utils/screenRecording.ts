@@ -170,6 +170,34 @@ export const recordingHintKey = (
 export const recordingUnreachableKey = (mode: RecordingMode): string =>
   mode === 'server' ? 'screenRec.whyPathUnreachableServer' : 'screenRec.whyPathUnreachable';
 
+/**
+ * מפתח התרגום לסיבת החסימה, או `''` כשאין לה ניסוח.
+ *
+ * תקלה מהשדה (2026-09-17): ה-switch בתפריט כיסה רק חלק מהסיבות, וכל
+ * סיבה אחרת ('forbidden', 'alreadyRecording', 'writeFailed', או כל קוד חדש
+ * מהשרת) הובילה למחרוזת ריקה - כלומר "לחצתי ולא קרה כלום". המסך
+ * מציג עכשיו את הקוד הגולמי כשאין ניסוח, כדי שלא תהיה אף פעם חסימה
+ * שקטה (CLAUDE.md §Do NOT).
+ */
+export const recordingBlockKey = (
+  blocked: RecorderUnavailable,
+  mode: RecordingMode,
+): string => {
+  switch (blocked) {
+    case 'disabled': return 'screenRec.whyDisabled';
+    case 'noPath': return 'screenRec.whyNoPath';
+    case 'badPath': return 'screenRec.whyBadPath';
+    case 'noElectron': return 'screenRec.whyNoElectron';
+    case 'noBase': return 'screenRec.whyNoBase';
+    case 'noCodec': return 'screenRec.whyNoCodec';
+    case 'noPermission': return 'screenRec.whyNoPermission';
+    case 'configUnavailable': return 'screenRec.whyConfigUnavailable';
+    case 'browserNeedsClick': return 'screenRec.whyBrowserNeedsClick';
+    case 'pathUnreachable': return recordingUnreachableKey(mode);
+    default: return '';
+  }
+};
+
 /** מי יכתוב לדיסק בעמדה הזו. טהורה, כדי שתהיה בדיקה ולא ניחוש. */
 export const pickRecordingMode = (hasStationBridge: boolean): RecordingMode =>
   hasStationBridge ? 'station' : 'server';
@@ -285,6 +313,8 @@ class ScreenRecorder {
     });
     if (!started.ok) {
       const reason = started.reason as RecorderUnavailable;
+      // לקונסולה גם: בעמדה זו הדרך לראות את הכשל בלי לפתוח תפריט
+      console.warn(`[rec] ההקלטה לא התחילה: ${reason}${started.detail ? ' | ' + started.detail : ''} (${out.mode})`);
       // `detail` הוא קוד מערכת ההפעלה (EPERM / ENOENT / ETIMEDOUT). בלעדיו
       // "הנתיב אינו נגיש" הוא מסך חסום בלי דרך פעולה.
       this.set({ blocked: reason, blockedDetail: started.detail ?? null });

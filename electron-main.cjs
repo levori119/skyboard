@@ -413,7 +413,13 @@ async function createWindow() {
   // רענון דף או נפילת עמוד משאירים קובץ פתוח ללא מקליט - סוגרים אותו
   // כדי שהקטע יישאר נגין; העמדה מתחילה מחדש כשהדף עולה שוב.
   wc.on('render-process-gone', () => { if (screenRecorder) screenRecorder.stop().catch(() => {}); });
-  wc.on('did-start-loading', () => { if (screenRecorder) screenRecorder.stop().catch(() => {}); });
+  // רק ניווט של **המסגרת הראשית**. קודם היה כאן `did-start-loading`,
+  // שנורה גם על טעינות פנימיות (לעמדה יש iframes - סרגל ההצצה, מפות) -
+  // ולכן הקלטה הייתה נעצרת בשקט שניות אחרי שהתחילה, בלי שום הודעה.
+  wc.on('did-start-navigation', (details) => {
+    if (details && details.isMainFrame === false) return;
+    if (screenRecorder) screenRecorder.stop().catch(() => {});
+  });
 
   console.log(`[window] mode=${target.mode} url=${target.url} kiosk=${mainWindow.isKiosk()} frame=${windowed}`);
 

@@ -3,6 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   pickRecordingMode, shouldResetRecorderBlock, recordingHintKey, recordingUnreachableKey,
+  recordingBlockKey,
 } from './screenRecording';
 import { bypassesOfflineLayer, classifyWrite } from '../offline/policy';
 
@@ -81,5 +82,34 @@ describe('recordingUnreachableKey', () => {
   it('מי לא מצא את הנתיב - העמדה או השרת', () => {
     expect(recordingUnreachableKey('station')).toBe('screenRec.whyPathUnreachable');
     expect(recordingUnreachableKey('server')).toBe('screenRec.whyPathUnreachableServer');
+  });
+});
+
+// ── תקלה מהשדה (2026-09-17): "לא עובד ולא מופיעה שום סיבה" ────────
+// ה-switch בתפריט כיסה רק חלק מהסיבות, וכל סיבה אחרת ('forbidden',
+// 'alreadyRecording', 'writeFailed', או כל קוד חדש מהשרת) הובילה למחרוזת
+// ריקה - כלומר כפתור שלא קורה בו כלום. זה בדיוק מה ש-CLAUDE.md אוסר.
+describe('recordingBlockKey', () => {
+  it('סיבות מוכרות → מפתח תרגום', () => {
+    expect(recordingBlockKey('disabled', 'station')).toBe('screenRec.whyDisabled');
+    expect(recordingBlockKey('noPath', 'station')).toBe('screenRec.whyNoPath');
+    expect(recordingBlockKey('badPath', 'station')).toBe('screenRec.whyBadPath');
+    expect(recordingBlockKey('noBase', 'station')).toBe('screenRec.whyNoBase');
+    expect(recordingBlockKey('noCodec', 'station')).toBe('screenRec.whyNoCodec');
+    expect(recordingBlockKey('noPermission', 'station')).toBe('screenRec.whyNoPermission');
+    expect(recordingBlockKey('configUnavailable', 'station')).toBe('screenRec.whyConfigUnavailable');
+    expect(recordingBlockKey('browserNeedsClick', 'server')).toBe('screenRec.whyBrowserNeedsClick');
+  });
+
+  it('הנתיב לא נגיש - לפי מי שכותב', () => {
+    expect(recordingBlockKey('pathUnreachable', 'station')).toBe('screenRec.whyPathUnreachable');
+    expect(recordingBlockKey('pathUnreachable', 'server')).toBe('screenRec.whyPathUnreachableServer');
+  });
+
+  it('סיבה שאין לה ניסוח → מחרוזת ריקה, והמסך מציג את הקוד הגולמי', () => {
+    expect(recordingBlockKey('forbidden', 'station')).toBe('');
+    expect(recordingBlockKey('alreadyRecording', 'station')).toBe('');
+    expect(recordingBlockKey('writeFailed', 'server')).toBe('');
+    expect(recordingBlockKey(null, 'station')).toBe('');
   });
 });

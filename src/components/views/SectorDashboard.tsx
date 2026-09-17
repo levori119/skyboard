@@ -98,7 +98,8 @@ import { captureStation } from '../../utils/stationSnapshot';
 import { useScreenRecorder } from '../../hooks/useScreenRecorder';
 import { CRITICAL_BLINK_CLASS } from '../../utils/signalSeverity';
 import { recordingPathRoot } from '../../../shared/screenRecording';
-import { recordingHintKey, recordingUnreachableKey } from '../../utils/screenRecording';
+import { recordingBlockKey } from '../../utils/screenRecording';
+import { recordingHintKey } from '../../utils/screenRecording';
 import { openStationSession, closeStationSession, heartbeatStationSession } from '../../utils/stationSession';
 import { renderGroundSvgIcon, GroundMarkerSVG, getElemDisplayStateOpts, normalizeAircraftPositions, GROUND_STATUSES, GROUND_POINT_MARKERS, GROUND_SVG_ICON_KEYS, ALL_MAZAA_STATUSES, AIR_DEFENSE_STATUSES, YABA_AIR_DEFENSE_STATUSES, toEmbedUrl } from '../ground/groundShared';
 import type { MapZone, ZoneAltRange, StripZoneAssignment, AircraftPos, GroundAircraftRow, VectorData } from '../../types/ground';
@@ -4088,20 +4089,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   });
   const [recMsg, setRecMsg] = useState('');
   const recBlockedText = (): string => {
-    switch (screenRec.blocked) {
-      case 'disabled': return tr('screenRec.whyDisabled');
-      case 'noPath': return tr('screenRec.whyNoPath');
-      case 'badPath': return tr('screenRec.whyBadPath');
-      case 'noElectron': return tr('screenRec.whyNoElectron');
-      case 'noBase': return tr('screenRec.whyNoBase');
-      case 'noCodec': return tr('screenRec.whyNoCodec');
-      case 'noPermission': return tr('screenRec.whyNoPermission');
-      // מי לא מוצא את הנתיב - העמדה או השרת? בדפדפן הכותב הוא השרת
-      case 'pathUnreachable': return tr(recordingUnreachableKey(screenRec.mode));
-      case 'configUnavailable': return tr('screenRec.whyConfigUnavailable');
-      case 'browserNeedsClick': return tr('screenRec.whyBrowserNeedsClick');
-      default: return '';
-    }
+    const key = recordingBlockKey(screenRec.blocked, screenRec.mode);
+    // אין ניסוח לסיבה? מציגים את הקוד הגולמי. כפתור שלא קורה בו כלום
+    // ובלי סיבה הוא המקרה הגרוע מכולם - המפעיל מחפש תקלה שאינה קיימת.
+    if (!key) return screenRec.blocked ? tr('screenRec.whyUnknown', { code: String(screenRec.blocked) }) : '';
+    return tr(key);
   };
   /** מה מערכת ההפעלה אמרה בפועל, מנוסח לפי **מי** ניסה לכתוב */
   const recPathHint = (): string => {
@@ -11366,6 +11358,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       )}
                       {/* הנתיב שהוגדר בפועל - בלעדו כל בירור מתחיל בניחוש מה באמת
                           רשום בניהול הטכני. העמדה ממילא קוראת אותו מה-API. */}
+                      {/* הפירוט הגולמי שמערכת ההפעלה החזירה - למנהל הטכני, לא לפקח */}
+                      {!screenRec.state.recording && screenRec.state.blockedDetail && (
+                        <div dir="ltr" style={{ fontSize: '9px', color: menuMuted, marginTop: '3px', textAlign: 'start', wordBreak: 'break-all' }}>
+                          {screenRec.state.blockedDetail}
+                        </div>
+                      )}
                       {!screenRec.state.recording && screenRec.blocked && screenRec.config?.path && (
                         <div dir="ltr" style={{ fontSize: '9px', color: menuMuted, marginTop: '3px', textAlign: 'start', wordBreak: 'break-all' }}>
                           {tr('screenRec.currentPath', { path: screenRec.config.path })}
