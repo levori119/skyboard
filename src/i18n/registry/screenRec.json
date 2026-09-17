@@ -192,6 +192,42 @@
     "currentPath": {
       "he": "נתיב מוגדר: {{path}}",
       "en": "Configured path: {{path}}"
+    },
+    "whyPathUnreachableServer": {
+      "he": "נתיב השמירה אינו נגיש מהשרת",
+      "en": "The save path is not reachable from the server"
+    },
+    "pathErrMissingServer": {
+      "he": "היעד {{root}} אינו קיים בשרת. בהקלטה מדפדפן השרת הוא שכותב, ושרת בענן אינו רואה את הדיסק של העמדה - להקלטה מקומית יש להפעיל את אפליקציית העמדה",
+      "en": "The target {{root}} does not exist on the server. In browser recording the server does the writing, and a cloud server cannot see the station disk - for local recording run the station app"
+    },
+    "pathErrPermServer": {
+      "he": "אין לשרת הרשאת כתיבה לנתיב הזה",
+      "en": "The server has no write permission for this path"
+    },
+    "pathErrNetworkServer": {
+      "he": "שרת הרשת של הנתיב אינו נענה מהשרת",
+      "en": "The network server for this path is unreachable from the server"
+    },
+    "pathErrSpaceServer": {
+      "he": "אין מקום פנוי בדיסק היעד בשרת",
+      "en": "No free space on the target disk on the server"
+    },
+    "modeStation": {
+      "he": "כתיבה מהעמדה",
+      "en": "Written by the station"
+    },
+    "modeServerLabel": {
+      "he": "כתיבה דרך השרת (דפדפן)",
+      "en": "Written via the server (browser)"
+    },
+    "modeLine": {
+      "he": "מצב: {{mode}}",
+      "en": "Mode: {{mode}}"
+    },
+    "adminServerBlind": {
+      "he": "השרת אינו רואה את הנתיב הזה - הקלטה מדפדפן תיכשל. באפליקציית העמדה, שכותבת מקומית, זה אינו רלוונטי.",
+      "en": "The server cannot see this path - browser recording will fail. It is irrelevant for the station app, which writes locally."
     }
   }
 }

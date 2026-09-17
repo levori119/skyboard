@@ -98,6 +98,7 @@ import { captureStation } from '../../utils/stationSnapshot';
 import { useScreenRecorder } from '../../hooks/useScreenRecorder';
 import { CRITICAL_BLINK_CLASS } from '../../utils/signalSeverity';
 import { recordingPathRoot } from '../../../shared/screenRecording';
+import { recordingHintKey, recordingUnreachableKey } from '../../utils/screenRecording';
 import { openStationSession, closeStationSession, heartbeatStationSession } from '../../utils/stationSession';
 import { renderGroundSvgIcon, GroundMarkerSVG, getElemDisplayStateOpts, normalizeAircraftPositions, GROUND_STATUSES, GROUND_POINT_MARKERS, GROUND_SVG_ICON_KEYS, ALL_MAZAA_STATUSES, AIR_DEFENSE_STATUSES, YABA_AIR_DEFENSE_STATUSES, toEmbedUrl } from '../ground/groundShared';
 import type { MapZone, ZoneAltRange, StripZoneAssignment, AircraftPos, GroundAircraftRow, VectorData } from '../../types/ground';
@@ -4095,21 +4096,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       case 'noBase': return tr('screenRec.whyNoBase');
       case 'noCodec': return tr('screenRec.whyNoCodec');
       case 'noPermission': return tr('screenRec.whyNoPermission');
-      case 'pathUnreachable': return tr('screenRec.whyPathUnreachable');
+      // מי לא מוצא את הנתיב - העמדה או השרת? בדפדפן הכותב הוא השרת
+      case 'pathUnreachable': return tr(recordingUnreachableKey(screenRec.mode));
       case 'configUnavailable': return tr('screenRec.whyConfigUnavailable');
       case 'browserNeedsClick': return tr('screenRec.whyBrowserNeedsClick');
       default: return '';
     }
   };
-  /** מה מערכת ההפעלה אמרה בפועל - השורה שמכוונת את הטיפול */
+  /** מה מערכת ההפעלה אמרה בפועל, מנוסח לפי **מי** ניסה לכתוב */
   const recPathHint = (): string => {
-    switch (screenRec.pathError) {
-      case 'perm': return tr('screenRec.pathErrPerm');
-      case 'missing': return tr('screenRec.pathErrMissing', { root: recordingPathRoot(screenRec.config?.path || '') || '-' });
-      case 'network': return tr('screenRec.pathErrNetwork');
-      case 'space': return tr('screenRec.pathErrSpace');
-      default: return '';
-    }
+    const key = recordingHintKey(screenRec.pathError, screenRec.mode);
+    if (!key) return '';
+    return tr(key, { root: recordingPathRoot(screenRec.config?.path || '') || '-' });
   };
   const canUpdatePressure: boolean = myPresetConfig?.can_update_pressure === true;
   const canUpdateMazaa: boolean = myPresetConfig?.can_update_mazaa === true;
@@ -11355,6 +11353,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         שנדלק בלי שקורה משהו נראה למפעיל כמו פיצ׳ר שבור. */}
                     <div style={{ borderTop: `1px solid ${menuBorder}`, padding: '6px 12px 2px' }}>
                       <div style={{ fontSize: '10px', color: menuMuted }}>{tr('screenRec.menuTitle')}</div>
+                      {/* מי כותב לדיסק - מוצג תמיד. בלעדו אי-אפשר לדעת אם הנתיב
+                          צריך להיות נגיש מהעמדה או מהשרת - וזו שאלה ששולחת לבדוק מכונה אחרת. */}
+                      <div style={{ fontSize: '10px', color: menuMuted, marginTop: '2px' }}>
+                        {tr('screenRec.modeLine', { mode: tr(screenRec.mode === 'server' ? 'screenRec.modeServerLabel' : 'screenRec.modeStation') })}
+                      </div>
                       {!screenRec.state.recording && screenRec.blocked && (
                         <div style={{ fontSize: '10px', color: menuAcc('#fca5a5', '#b91c1c'), marginTop: '3px', lineHeight: 1.4 }}>{recBlockedText()}</div>
                       )}

@@ -138,7 +138,7 @@
 
 ### `server/routes/screenRecording.js` — 8 routes
 **תפקיד:** תצורת **הקלטת פעולות במסך** - נתיב השמירה והמדיניות פר-בסיס ויב"א. אפיון: [SCREEN_RECORDING_SPEC.md](SCREEN_RECORDING_SPEC.md).
-**Endpoints:** `GET /api/screen-recording/bases` (ADMIN) · `PUT /api/screen-recording/bases/:id` (ADMIN, דוחה נתיב פסול ב-400 `invalid_path`) · `GET /api/screen-recording/config/:baseId` (USER - **תהליך ה-Electron של העמדה** קורא אותו בכל התחלת הקלטה).
+**Endpoints:** `GET /api/screen-recording/bases` (ADMIN - מחזיר גם `server_root_ok`: האם **השרת** רואה את שורש הנתיב, נדרש להקלטה מדפדפן) · `PUT /api/screen-recording/bases/:id` (ADMIN, דוחה נתיב פסול ב-400 `invalid_path`) · `GET /api/screen-recording/config/:baseId` (USER - **תהליך ה-Electron של העמדה** קורא אותו בכל התחלת הקלטה).
 **הקלטה מהדפדפן** (דפדפן אינו יכול לכתוב לדיסק): `POST /api/screen-recording/sessions` פותח מקטע ומחזיר מזהה + פרמטרי קידוד, ו-`.../:id/chunk|rotate|keep|stop` מנהלים אותו (USER). הנתח מגיע כ-`application/octet-stream` דרך `express.raw` ברמת ה-route, תקרה 25MB. הכתיבה עצמה ב-[`shared/recordingWriter.js`](shared/recordingWriter.js) - **אותה ליבה שהעמדה מריצה**.
 **מקטע נטוש** (דפדפן שנסגר אינו שולח "עצור") נסגר בשלושה מנגנונים: פתיחה חדשה לאותה עמדה · 2 דקות בלי נתחים · `stop` מפורש. המקטע בזיכרון התהליך ולא ב-DB - זה מצב של קובץ פתוח.
 ⚠ **השרת חייב לראות את ה-PATH.** בפריסה עננית אין לו גישה לשיתוף ברשת הבסיס; בעמדת Electron המסלול הזה אינו בשימוש כלל.

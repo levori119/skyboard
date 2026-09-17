@@ -29,8 +29,9 @@
 
 import { Router, raw } from 'express';
 import { randomUUID } from 'crypto';
+import fs from 'fs';
 import pool from '../db/pool.js';
-import { normalizeRecordingConfig, isSafeRecordingPath, RECORDING_LIMITS } from '../../shared/screenRecording.js';
+import { normalizeRecordingConfig, isSafeRecordingPath, RECORDING_LIMITS, recordingPathRoot } from '../../shared/screenRecording.js';
 import { createRecordingWriter } from '../../shared/recordingWriter.js';
 
 const router = new Router();
@@ -38,11 +39,29 @@ const router = new Router();
 const REC_COLS = `id, name, code, recording_enabled, recording_path,
   recording_segment_minutes, recording_retention_days, recording_fps, recording_quality`;
 
+/**
+ * האם **השרת הזה** רואה את שורש הנתיב. `null` כשאין נתיב.
+ *
+ * למה השרת עונה על זה (תקלה מהשדה, 2026-09-17): בהקלטה **מדפדפן**
+ * השרת הוא שכותב, ושרת בענן לא רואה שום `C:\` של עמדה. בלי הדיווח
+ * הזה המנהל הטכני מגלה זאת רק כשההקלטה נכשלת בעמדה, ואז הוא מחפש את
+ * התקלה במכונה הלא נכונה. `stat` על השורש בלבד - בלי ליצור ובלי לכתוב.
+ */
+async function serverSeesRoot(path) {
+  const root = recordingPathRoot(path || '');
+  if (!root) return null;
+  return fs.promises.stat(root).then(() => true).catch(() => false);
+}
+
 /** רשימת הבסיסים והיב"אות עם תצורת ההקלטה - מסך הניהול הטכני */
 router.get('/api/screen-recording/bases', async (_req, res) => {
   try {
     const r = await pool.query(`SELECT ${REC_COLS} FROM aviation_bases ORDER BY name`);
-    res.json(r.rows);
+    const rows = await Promise.all(r.rows.map(async row => ({
+      ...row,
+      server_root_ok: await serverSeesRoot(row.recording_path),
+    })));
+    res.json(rows);
   } catch {
     res.status(500).json({ error: 'Failed to fetch recording config' });
   }

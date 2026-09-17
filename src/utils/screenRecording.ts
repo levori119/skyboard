@@ -149,6 +149,27 @@ export const shouldResetRecorderBlock = (
   recording: boolean,
 ): boolean => !recording && prevPath !== nextPath;
 
+/**
+ * מפתח ההודעה לכשל נתיב, **לפי מי ניסה לכתוב**.
+ *
+ * תקלה מהשדה (2026-09-17): בדפדפן מול שרת בענן הוצג "היעד `C:\` אינו
+ * קיים בעמדה הזו" - והנתיב דווקא קיים בעמדה. מי שלא מוצא אותו הוא **השרת**,
+ * כי בדפדפן הוא זה שכותב (§7 באפיון). הודעה שמצביעה על המכונה
+ * הלא נכונה גרועה מהעדר הודעה.
+ */
+export const recordingHintKey = (
+  kind: 'perm' | 'missing' | 'network' | 'space' | 'other' | null,
+  mode: RecordingMode,
+): string => {
+  if (!kind || kind === 'other') return '';
+  const name = kind.charAt(0).toUpperCase() + kind.slice(1);
+  return `screenRec.pathErr${name}${mode === 'server' ? 'Server' : ''}`;
+};
+
+/** "הנתיב אינו נגיש" - מהעמדה או מהשרת, לפי מי כותב */
+export const recordingUnreachableKey = (mode: RecordingMode): string =>
+  mode === 'server' ? 'screenRec.whyPathUnreachableServer' : 'screenRec.whyPathUnreachable';
+
 /** מי יכתוב לדיסק בעמדה הזו. טהורה, כדי שתהיה בדיקה ולא ניחוש. */
 export const pickRecordingMode = (hasStationBridge: boolean): RecordingMode =>
   hasStationBridge ? 'station' : 'server';

@@ -170,3 +170,17 @@ describe('מחיקה לפי תקופת שמירה', () => {
     expect(fs.existsSync(path.join(dir, 'תחקיר-של-מישהו.mp4'))).toBe(true);
   });
 });
+
+describe('השרת מדווח האם הוא עצמו רואה את הנתיב', () => {
+  // תקלה מהשדה (2026-09-17): בדפדפן מול שרת בענן הוגדר `C:\SKYKING\REC`.
+  // הנתיב קיים בעמדה ואינו קיים בשרת, וההקלטה נכשלה בלי שאפשר היה
+  // לדעת זאת מראש. השרת הוא היחיד שיודע לענות על זה, ולכן הוא עונה.
+  it('רשימת הניהול הטכני מחזירה server_root_ok לכל בסיס', async () => {
+    await pool.query(`INSERT INTO aviation_bases (id, name, recording_path) VALUES (21, 'עם נתיב קיים', $1), (22, 'עם נתיב שאינו קיים', 'Z:\\nope\\rec'), (23, 'בלי נתיב', NULL)`, [dir]);
+    const rows = await fetch(`${base}/api/screen-recording/bases`).then(r => r.json());
+    const by = Object.fromEntries(rows.map(r => [r.id, r]));
+    expect(by[21].server_root_ok).toBe(true);
+    expect(by[22].server_root_ok).toBe(false);
+    expect(by[23].server_root_ok).toBe(null);
+  });
+});

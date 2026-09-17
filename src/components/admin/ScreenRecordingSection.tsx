@@ -20,6 +20,8 @@ interface BaseRow {
   id: number;
   name: string;
   code: string | null;
+  /** האם **השרת** רואה את שורש הנתיב. null = אין נתיב */
+  server_root_ok?: boolean | null;
   recording_enabled: boolean;
   recording_path: string | null;
   recording_segment_minutes: number;
@@ -142,6 +144,13 @@ export default function ScreenRecordingSection({ apiUrl }: ScreenRecordingSectio
               </span>
               <span style={{ fontSize: '11px', color: '#64748b' }}>{isOpen ? '▲' : '▼'}</span>
             </div>
+
+            {/* השרת מדווח בעצמו שהוא אינו רואה את הנתיב - רלוונטי להקלטה מדפדפן */}
+            {row.server_root_ok === false && (
+              <div style={{ fontSize: '10px', color: '#fbbf24', marginTop: '4px', lineHeight: 1.5 }}>
+                {tr('screenRec.adminServerBlind')}
+              </div>
+            )}
 
             {isOpen && form && (
               <div style={{ marginTop: '10px', display: 'grid', gap: '10px' }}>

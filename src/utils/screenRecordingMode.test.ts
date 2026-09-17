@@ -1,7 +1,9 @@
 // בחירת יעד הכתיבה של הקלטת המסך, ומה שכבת הנתק עושה עם העלאות הווידאו.
 // אפיון: SCREEN_RECORDING_SPEC.md §7
 import { describe, it, expect } from 'vitest';
-import { pickRecordingMode, shouldResetRecorderBlock } from './screenRecording';
+import {
+  pickRecordingMode, shouldResetRecorderBlock, recordingHintKey, recordingUnreachableKey,
+} from './screenRecording';
 import { bypassesOfflineLayer, classifyWrite } from '../offline/policy';
 
 describe('pickRecordingMode', () => {
@@ -49,5 +51,35 @@ describe('shouldResetRecorderBlock', () => {
 
   it('באמצע הקלטה → לא מאפסים, גם אם התצורה שונתה', () => {
     expect(shouldResetRecorderBlock('D:/REC', 'C:/REC', true)).toBe(false);
+  });
+});
+
+// ── תקלה מהשדה (2026-09-17): "היעד C:\\ אינו קיים בעמדה הזו" ───────
+// ההקלטה רצה בדפדפן מול השרת בענן, ולכן מי שלא מוצא את `C:\\` הוא
+// **השרת** ולא העמדה. הודעה שאומרת "בעמדה הזו" שולחת לבדוק את
+// המכונה הלא נכונה - וזה בדיוק מה שקרה.
+describe('recordingHintKey', () => {
+  it('מצב עמדה - הודעה על העמדה', () => {
+    expect(recordingHintKey('missing', 'station')).toBe('screenRec.pathErrMissing');
+    expect(recordingHintKey('perm', 'station')).toBe('screenRec.pathErrPerm');
+  });
+
+  it('מצב שרת - הודעה על השרת', () => {
+    expect(recordingHintKey('missing', 'server')).toBe('screenRec.pathErrMissingServer');
+    expect(recordingHintKey('perm', 'server')).toBe('screenRec.pathErrPermServer');
+    expect(recordingHintKey('network', 'server')).toBe('screenRec.pathErrNetworkServer');
+    expect(recordingHintKey('space', 'server')).toBe('screenRec.pathErrSpaceServer');
+  });
+
+  it("'other' ו-null אינם מיוצגים", () => {
+    expect(recordingHintKey('other', 'station')).toBe('');
+    expect(recordingHintKey(null, 'server')).toBe('');
+  });
+});
+
+describe('recordingUnreachableKey', () => {
+  it('מי לא מצא את הנתיב - העמדה או השרת', () => {
+    expect(recordingUnreachableKey('station')).toBe('screenRec.whyPathUnreachable');
+    expect(recordingUnreachableKey('server')).toBe('screenRec.whyPathUnreachableServer');
   });
 });
