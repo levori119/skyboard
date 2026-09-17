@@ -391,6 +391,37 @@ Checklist:
 **ש: tsc נכשל אחרי שהזזתי קוד**
 ת: כנראה חסר import של type/helper משותף. tsc יציין את השם - ייבא מהמודול הנכון (ראה SERVICES.md).
 
+**ש: "Electron failed to install correctly, please delete node_modules/electron"**
+ת: הבינארי של Electron חסר - `npm install` נקטע באמצע הורדת ה-zip (או רץ עם
+`--ignore-scripts`). **לא צריך למחוק `node_modules` ולא להוריד מחדש:** ה-zip כמעט
+תמיד יושב במחסן המקומי, ומה שחסר הוא החילוץ ו-`path.txt`.
+
+```powershell
+# 1. יש zip במחסן? (הגרסה לפי node_modules/electron/package.json)
+ls "$env:LOCALAPPDATA\electron\Cache\electron-v36.9.5-win32-x64.zip"
+
+# 2. חילוץ + path.txt
+$root = "node_modules\electron"; $dist = "$root\dist"
+if (Test-Path $dist) { Remove-Item -Recurse -Force $dist }
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[System.IO.Compression.ZipFile]::ExtractToDirectory("$env:LOCALAPPDATA\electron\Cache\electron-v36.9.5-win32-x64.zip", $dist)
+Set-Content "$root\path.txt" 'electron.exe' -NoNewline -Encoding ascii
+
+# 3. אימות - חייב להדפיס v36.9.5 ולא את גרסת Node
+cmd /c "set ELECTRON_RUN_AS_NODE= && node_modules\electron\dist\electron.exe --version"
+```
+
+⚠️ **`node node_modules/electron/install.js` נכשל כאן בשקט** (exit 2 בלי הודעה):
+`extract-zip` לא מסיים את ה-promise על ה-zip הזה תחת Node 24, ולכן התהליך יוצא
+לפני שהחילוץ נגמר. ה-zip עצמו תקין - אימות: `(Get-FileHash <zip> -Algorithm SHA256).Hash`
+מול `node_modules/electron/checksums.json`. החילוץ ב-.NET שלמעלה עובד.
+
+> **הסימפטום השני של אותה תקלה:** `electron.exe --version` מדפיס גרסת Node
+> (למשל `v22.19.0`) ולא `v36.9.5`. זה לא התקנה שבורה אלא
+> `ELECTRON_RUN_AS_NODE=1` שטרמינלים מוטמעים (VS Code / Cursor) מגדירים -
+> [`scripts/electron-dev.mjs`](scripts/electron-dev.mjs) מנקה אותו, ולכן
+> `npm run electron:dev` עובד גם כשהרצה ישירה של הבינארי "לא עובדת".
+
 **ש: הוספתי טבלה ל-DB והשרת לא עולה - "טבלאות לא מסווגות"**
 ת: זה מכוון. כל טבלה ב-`public` חייבת סיווג ב-[server/db/env-tables.js](server/db/env-tables.js):
 `OPERATIONAL_TABLES` (מבודדת פר-סביבת תרגול), `CONFIG_TABLES` (משותפת ב-public), או
