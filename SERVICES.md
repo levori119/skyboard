@@ -1329,7 +1329,8 @@ DB מנוהל היה נופל יחד עם העמדה.
 **מייצא:** `transcribeWav`, `sttStatus`, `resolveSttPaths`, `cleanWhisperOutput`, `audioCtxForDuration`, `wavDurationSeconds`.
 
 ### `src/utils/screenRecording.ts` + `src/hooks/useScreenRecorder.ts`
-**תפקיד:** צד העמדה של הקלטת המסך - `getDisplayMedia` + `MediaRecorder` ותור נתחים טורי. **שני מקבלים (`RecordingSink`)**: `station` - IPC לתהליך ה-Electron שכותב ל-PATH (בלי דיאלוג בחירת מסך) · `server` - דפדפן, הנתחים עולים ל-`/api/screen-recording/sessions` והשרת כותב. `pickRecordingMode` טהורה ומכוסה. ה-hook מפעיל **קופסה שחורה** בעליית העמדה וגם את הכפתור בתפריט, ומחזיר את **הסיבה** כשאי-אפשר להקליט (כבויה / בלי נתיב / נתיב פסול / דפדפן).
+**תפקיד:** צד העמדה של הקלטת המסך - `getDisplayMedia` + `MediaRecorder` ותור נתחים טורי. **שני מקבלים (`RecordingSink`)**: `station` - IPC לתהליך ה-Electron שכותב ל-PATH (בלי דיאלוג בחירת מסך) · `server` - דפדפן, הנתחים עולים ל-`/api/screen-recording/sessions` והשרת כותב. `pickRecordingMode` טהורה ומכוסה.
+**כשל אינו נדבק:** `shouldResetRecorderBlock` מנקה את הסיבה השמורה כשהנתיב מוחלף בניהול הטכני, והקופסה השחורה מתאוששת לבד בדגימה הבאה - סיבה מיושנת על המסך גרועה משתיקה. ה-hook מפעיל **קופסה שחורה** בעליית העמדה וגם את הכפתור בתפריט, ומחזיר את **הסיבה** כשאי-אפשר להקליט (כבויה / בלי נתיב / נתיב פסול / דפדפן).
 **מופע יחיד** (`screenRecorder`): שני מקליטים במקביל היו כותבים שני קבצים לאותו נתיב. החיווי האדום בכותרת העמדה גלוי כל זמן שההקלטה רצה - חלק מהפיצ׳ר.
 
 ### `src/components/admin/ScreenRecordingSection.tsx`

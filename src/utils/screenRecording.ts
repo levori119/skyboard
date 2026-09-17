@@ -135,6 +135,20 @@ function serverSink(): RecordingSink {
   };
 }
 
+/**
+ * האם לנקות את כשל ההקלטה השמור ולנסות מחדש.
+ *
+ * תקלה מהשדה (2026-09-16): הנתיב תוקן בניהול הטכני, והעמדה המשיכה
+ * להציג את הסיבה מהניסיון הקודם - כלומר "זה לא עובד" גם אחרי
+ * שהתקלה נפתרה. כשל שמוצג חייב להיות של **התצורה הנוכחית**;
+ * כשל מיושן מטעה גרוע משתיקה.
+ */
+export const shouldResetRecorderBlock = (
+  prevPath: string,
+  nextPath: string,
+  recording: boolean,
+): boolean => !recording && prevPath !== nextPath;
+
 /** מי יכתוב לדיסק בעמדה הזו. טהורה, כדי שתהיה בדיקה ולא ניחוש. */
 export const pickRecordingMode = (hasStationBridge: boolean): RecordingMode =>
   hasStationBridge ? 'station' : 'server';
@@ -330,6 +344,16 @@ class ScreenRecorder {
       this.openRecorder(mimeType, bitrate);
       this.scheduleRotate(segmentMs, mimeType, bitrate);
     }, segmentMs);
+  }
+
+  /**
+   * מנקה כשל שמור (לא נוגע בהקלטה שרצה). נקרא כשהתצורה שונתה
+   * בניהול הטכני - מרגע זה הסיבה הקודמת שייכת לתצורה שכבר אינה.
+   */
+  reset() {
+    if (this.state.recording) return;
+    this.state = { ...IDLE_STATE };
+    this.onState({ ...IDLE_STATE });
   }
 
   /** "שמור את הקטע הזה" - הקטע הנוכחי והקודם לא יימחקו במחיקה האוטומטית */

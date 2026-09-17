@@ -16,6 +16,7 @@ import { API_URL } from '../config';
 import { getAuthToken } from '../utils/authToken';
 import {
   IDLE_STATE, canRecordScreen, recordingMode, recordingNeedsGesture, screenRecorder,
+  shouldResetRecorderBlock,
   type RecorderState, type RecorderUnavailable, type RecordingMode,
 } from '../utils/screenRecording';
 import { normalizeRecordingConfig, recordingPathErrorKey, type RecordingConfig } from '../../shared/screenRecording';
@@ -54,6 +55,8 @@ export function useScreenRecorder({ baseId, presetName, ready }: Args): ScreenRe
   const [config, setConfig] = useState<RecordingConfig | null>(null);
   const [pathValid, setPathValid] = useState(false);
   const autoTried = useRef(false);
+  /** הנתיב שלפיו נעשה הניסיון האחרון - לזיהוי תצורה שהוחלפה */
+  const triedPath = useRef('');
 
   const onState = useCallback((patch: Partial<RecorderState>) => {
     setState(prev => ({ ...prev, ...patch }));
@@ -79,6 +82,9 @@ export function useScreenRecorder({ baseId, presetName, ready }: Args): ScreenRe
   }, [baseId]);
 
   const startWith = useCallback(async (manual: boolean) => {
+    // מנקה את הכשל הקודם: הסיבה שתוצג תהיה של הניסיון הזה בלבד
+    screenRecorder.reset();
+    triedPath.current = config?.path || '';
     await screenRecorder.start({
       baseId,
       presetName,
@@ -89,6 +95,18 @@ export function useScreenRecorder({ baseId, presetName, ready }: Args): ScreenRe
     });
     setState(screenRecorder.snapshot);
   }, [baseId, presetName, config, onState]);
+
+  // ── תצורה שהוחלפה → ניקוי הכשל הקודם וניסיון חדש ──────────
+  // המנהל הטכני מתקן את הנתיב, והעמדה אמורה להתאושש לבד בדגימה הבאה -
+  // בלי לבקש מהפקח לרענן דף, ובלי להשאיר על המסך סיבה שכבר אינה נכונה.
+  useEffect(() => {
+    const next = config?.path || '';
+    if (!shouldResetRecorderBlock(triedPath.current, next, state.recording)) return;
+    triedPath.current = next;
+    autoTried.current = false;
+    screenRecorder.reset();
+    setState(screenRecorder.snapshot);
+  }, [config?.path, state.recording]);
 
   // ── קופסה שחורה: התחלה אוטומטית ────────────────────────────────────────────
   // פעם אחת לכל עליית עמדה. כשל (נתיב שאינו נגיש, אין קודק) נרשם ב-state
