@@ -232,6 +232,34 @@
     "whyUnknown": {
       "he": "ההקלטה לא התחילה ({{code}})",
       "en": "Recording did not start ({{code}})"
+    },
+    "whyNoFolderApi": {
+      "he": "הדפדפן הזה אינו תומך בבחירת תיקיית שמירה - יש להשתמש ב-Chrome או Edge, או באפליקציית העמדה",
+      "en": "This browser cannot pick a save folder - use Chrome or Edge, or the station app"
+    },
+    "whyNoFolder": {
+      "he": "לא נבחרה תיקיית שמירה - בחר תיקייה ואז התחל הקלטה",
+      "en": "No save folder chosen - pick a folder, then start recording"
+    },
+    "modeLocalFolder": {
+      "he": "כתיבה לתיקייה שנבחרה בדפדפן",
+      "en": "Written to a folder chosen in the browser"
+    },
+    "recordingLocalFolder": {
+      "he": "מקליט (לתיקייה מקומית)",
+      "en": "Recording (to a local folder)"
+    },
+    "localFolderNote": {
+      "he": "השרת אינו רואה את נתיב הבסיס, ולכן הדפדפן כותב בעצמו. התיקייה נבחרת פעם אחת ונשמרת לפעמים הבאות.",
+      "en": "The server cannot see the base path, so the browser writes the file itself. The folder is chosen once and remembered."
+    },
+    "pickFolder": {
+      "he": "בחר תיקיית שמירה",
+      "en": "Choose save folder"
+    },
+    "folderPicked": {
+      "he": "התיקייה נבחרה - אפשר להתחיל הקלטה",
+      "en": "Folder chosen - you can start recording"
     }
   }
 }

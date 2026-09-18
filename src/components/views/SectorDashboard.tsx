@@ -11296,6 +11296,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 <span className={CRITICAL_BLINK_CLASS} style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#dc2626', display: 'inline-block' }} />
                 {screenRec.state.writeError ? tr('screenRec.writeError')
                   : screenRec.state.mode === 'server' ? tr('screenRec.recordingServer')
+                  : screenRec.state.mode === 'localFolder' ? tr('screenRec.recordingLocalFolder')
                   : screenRec.state.manual ? tr('screenRec.recordingManual') : tr('screenRec.recording')}
               </div>
             )}
@@ -11348,8 +11349,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       {/* מי כותב לדיסק - מוצג תמיד. בלעדו אי-אפשר לדעת אם הנתיב
                           צריך להיות נגיש מהעמדה או מהשרת - וזו שאלה ששולחת לבדוק מכונה אחרת. */}
                       <div style={{ fontSize: '10px', color: menuMuted, marginTop: '2px' }}>
-                        {tr('screenRec.modeLine', { mode: tr(screenRec.mode === 'server' ? 'screenRec.modeServerLabel' : 'screenRec.modeStation') })}
+                        {tr('screenRec.modeLine', { mode: tr(
+                          screenRec.mode === 'server' ? 'screenRec.modeServerLabel'
+                            : screenRec.mode === 'localFolder' ? 'screenRec.modeLocalFolder'
+                            : 'screenRec.modeStation') })}
                       </div>
+                      {screenRec.mode === 'localFolder' && !screenRec.state.recording && (
+                        <div style={{ fontSize: '10px', color: menuMuted, marginTop: '3px', lineHeight: 1.4 }}>{tr('screenRec.localFolderNote')}</div>
+                      )}
                       {!screenRec.state.recording && screenRec.blocked && (
                         <div style={{ fontSize: '10px', color: menuAcc('#fca5a5', '#b91c1c'), marginTop: '3px', lineHeight: 1.4 }}>{recBlockedText()}</div>
                       )}
@@ -11378,6 +11385,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       )}
                       {recMsg && <div style={{ fontSize: '10px', color: menuAcc('#86efac', '#15803d'), marginTop: '3px' }}>{recMsg}</div>}
                     </div>
+                    {/* בחירת התיקייה היא **צעד נפרד**: הבורר צורך את לחיצת המשתמש,
+                        ובקשת שיתוף המסך אחריו היתה נדחית. פעם אחת לכל דפדפן. */}
+                    {screenRec.mode === 'localFolder' && !screenRec.state.recording && !screenRec.folderReady && (
+                      <button
+                        onClick={async () => { const ok = await screenRec.pickFolder(); setRecMsg(ok ? tr('screenRec.folderPicked') : ''); }}
+                        style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#7dd3fc', '#0369a1'), cursor: 'pointer', fontSize: '13px' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                      >
+                        {tr('screenRec.pickFolder')}
+                      </button>
+                    )}
                     {screenRec.state.recording ? (<>
                       <button
                         onClick={async () => { const kept = await screenRec.keep(); setRecMsg(kept ? tr('screenRec.kept') : tr('screenRec.keepFailed')); setTimeout(() => setRecMsg(''), 4000); }}

@@ -16,8 +16,11 @@
 //    השליחה מסודרת בתור טורי, אחרת נתחים היו מגיעים לקובץ בסדר שגוי.
 import { API_URL } from '../config';
 import {
+  KEEP_DIR,
+  expiredRecordingFiles,
   pickRecordingMime,
   recordingBlockReason,
+  recordingFileName,
   type RecordingBlockReason,
 } from '../../shared/screenRecording';
 
@@ -52,7 +55,14 @@ function bridge(): SkykingBridge | null {
 //
 // המקליט עצמו לא יודע באיזה מצב הוא רץ - זה כל הרעיון של התפר הזה.
 
-export type RecordingMode = 'station' | 'server';
+/**
+ * מי כותב את הקובץ לדיסק:
+ *   'station'     - תהליך ה-Electron של העמדה, ישירות ל-PATH שהוגדר.
+ *   'server'      - דפדפן, והשרת רואה את ה-PATH (שרת בבסיס / מקומי).
+ *   'localFolder' - דפדפן מול שרת ש**אינו** רואה את ה-PATH (למשל ענן):
+ *                   הדפדפן כותב בעצמו לתיקייה שהמפעיל בוחר פעם אחת.
+ */
+export type RecordingMode = 'station' | 'server' | 'localFolder';
 
 interface RecordingSink {
   mode: RecordingMode;
@@ -183,10 +193,17 @@ export const recordingBlockKey = (
   blocked: RecorderUnavailable,
   mode: RecordingMode,
 ): string => {
+  // במצב כתיבה לתיקייה מקומית ה-PATH שבניהול הטכני אינו בשימוש כלל,
+  // ולכן הכשלים שלו אינם רלוונטיים - הצגתם הייתה שולחת לתקן דבר לא נכון.
+  if (mode === 'localFolder' && (blocked === 'noPath' || blocked === 'badPath' || blocked === 'pathUnreachable')) {
+    return '';
+  }
   switch (blocked) {
     case 'disabled': return 'screenRec.whyDisabled';
     case 'noPath': return 'screenRec.whyNoPath';
     case 'badPath': return 'screenRec.whyBadPath';
+    case 'noFolderApi': return 'screenRec.whyNoFolderApi';
+    case 'noFolder': return 'screenRec.whyNoFolder';
     case 'noElectron': return 'screenRec.whyNoElectron';
     case 'noBase': return 'screenRec.whyNoBase';
     case 'noCodec': return 'screenRec.whyNoCodec';
@@ -198,17 +215,280 @@ export const recordingBlockKey = (
   }
 };
 
-/** מי יכתוב לדיסק בעמדה הזו. טהורה, כדי שתהיה בדיקה ולא ניחוש. */
-export const pickRecordingMode = (hasStationBridge: boolean): RecordingMode =>
-  hasStationBridge ? 'station' : 'server';
 
-function sink(): RecordingSink {
+// ── מקבל שלישי: הדפדפן כותב לתיקייה שהמפעיל בוחר ───────────────
+//
+// למה זה קיים (תקלה מהשדה, 2026-09-18): בדפדפן מול שרת בענן אין ולא
+// תהיה דרך לכתוב ל-`C:\SKYKING\REC` של העמדה - השרת הוא מכונת Linux
+// במרכז נתונים. במצב הזה הדפדפן כותב בעצמו, דרך File System Access API.
+//
+// שלוש נקודות שקובעות את העיצוב:
+//   1. **בוחרים תיקייה ולא קובץ.** קטע חדש כל רבע שעה = קובץ חדש, ובחירת
+//      קובץ (`showSaveFilePicker`) הייתה פותחת דיאלוג בכל החלפה. עם תיקייה
+//      בוחרים **פעם אחת**, ומשם והלאה הדף יוצר קבצים בלי לשאול שוב.
+//   2. **ההרשאה נשמרת ב-IndexedDB.** הידית (handle) ניתנת ל-structured clone,
+//      ולכן בפעם הבאה מבקשים רק אישור מחדש (בלחיצה) ולא בוחרים מחדש.
+//   3. **אותם כללים.** שם הקובץ, `keep/` ותקופת השמירה באים מ-`shared/`,
+//      כמו בעמדה ובשרת - שלושה עותקים של הלוגיקה הזו היו נפרדים מהר.
+
+/**
+ * File System Access API - החלקים שחסרים ב-lib.dom של גרסת ה-TS הזו.
+ * מוצהר מקומית ולא ב-lib גלובלי: השימוש היחיד הוא כאן.
+ */
+interface FsWritable {
+  write(data: Uint8Array | BlobPart): Promise<void>;
+  close(): Promise<void>;
+}
+type FsFileHandle = FileSystemFileHandle & {
+  createWritable: () => Promise<FsWritable>;
+  getFile: () => Promise<File>;
+  move?: (dest: unknown, name: string) => Promise<void>;
+};
+
+const FOLDER_DB = 'skyking-rec';
+const FOLDER_STORE = 'handles';
+const FOLDER_KEY = 'recDir';
+
+type DirHandle = FileSystemDirectoryHandle & {
+  queryPermission?: (d: { mode: 'readwrite' }) => Promise<PermissionState>;
+  requestPermission?: (d: { mode: 'readwrite' }) => Promise<PermissionState>;
+};
+
+/** האם הדפדפן תומך בבחירת תיקייה (Chrome/Edge ✓ · Firefox/Safari ✗) */
+export const canPickFolder = (): boolean =>
+  typeof window !== 'undefined' && typeof (window as any).showDirectoryPicker === 'function';
+
+function idb(): Promise<IDBDatabase | null> {
+  return new Promise(resolve => {
+    try {
+      const req = indexedDB.open(FOLDER_DB, 1);
+      req.onupgradeneeded = () => req.result.createObjectStore(FOLDER_STORE);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    } catch { resolve(null); }
+  });
+}
+
+async function rememberedDir(): Promise<DirHandle | null> {
+  const db = await idb();
+  if (!db) return null;
+  return new Promise(resolve => {
+    try {
+      const req = db.transaction(FOLDER_STORE, 'readonly').objectStore(FOLDER_STORE).get(FOLDER_KEY);
+      req.onsuccess = () => resolve((req.result as DirHandle) || null);
+      req.onerror = () => resolve(null);
+    } catch { resolve(null); }
+  });
+}
+
+async function rememberDir(handle: DirHandle): Promise<void> {
+  const db = await idb();
+  if (!db) return;
+  try {
+    db.transaction(FOLDER_STORE, 'readwrite').objectStore(FOLDER_STORE).put(handle, FOLDER_KEY);
+  } catch { /* הבחירה תחוזור בפעם הבאה - לא שווה להפיל הקלטה על זה */ }
+}
+
+/**
+ * התיקייה הזכורה, **בלי לפתוח בורר** - או null.
+ *
+ * למה בלי בורר כאן: גם בורר התיקייה וגם `getDisplayMedia` דורשים
+ * "לחיצת משתמש טרייה" (transient activation), והראשון **צורך אותה** - כך
+ * שבקשת שיתוף המסך אחריו נדחתה ב-InvalidStateError. לכן בחירת התיקייה
+ * היא **צעד נפרד** בתפריט ("בחר תיקיית שמירה"), וההתחלה משתמשת
+ * במה שכבר מורשה.
+ */
+async function grantedDir(): Promise<DirHandle | null> {
+  const saved = await rememberedDir();
+  if (!saved) return null;
+  const state = (await saved.queryPermission?.({ mode: 'readwrite' })) ?? 'granted';
+  return state === 'granted' ? saved : null;
+}
+
+/**
+ * בוחר תיקיית שמירה (או מחדש הרשאה לזכורה). **נקרא מלחיצה בלבד.**
+ * מחזיר true אם יש עכשיו תיקייה שמותר לכתוב אליה.
+ */
+export async function pickRecordingFolder(): Promise<boolean> {
+  if (!canPickFolder()) return false;
+  const saved = await rememberedDir();
+  if (saved) {
+    const state = (await saved.queryPermission?.({ mode: 'readwrite' })) ?? 'granted';
+    if (state === 'granted') return true;
+    const asked = (await saved.requestPermission?.({ mode: 'readwrite' })) ?? 'denied';
+    if (asked === 'granted') return true;
+  }
+  try {
+    const picked: DirHandle = await (window as any).showDirectoryPicker({ mode: 'readwrite', id: 'skyking-rec', startIn: 'videos' });
+    await rememberDir(picked);
+    return true;
+  } catch {
+    return false;   // המפעיל ביטל
+  }
+}
+
+/** האם יש כבר תיקייה מורשת - בלי לשאול את המפעיל שום דבר */
+export const recordingFolderReady = (): Promise<boolean> =>
+  canPickFolder() ? grantedDir().then(d => d !== null) : Promise.resolve(false);
+
+/** מודד לפי אותם כללים שהעמדה והשרת מודדים בהם - ולא נוגע בקובץ זר */
+async function sweepDir(dir: DirHandle, retentionDays: number, current: string | null) {
+  try {
+    const names: string[] = [];
+    for await (const name of (dir as any).keys()) names.push(name as string);
+    for (const name of expiredRecordingFiles(names, { now: new Date(), retentionDays })) {
+      if (name === current) continue;
+      await dir.removeEntry(name).catch(() => {});
+    }
+  } catch { /* סריקה שנכשלה אינה סיבה לא להקליט */ }
+}
+
+/**
+ * מקבל התיקייה המקומית. `baseName` מגיע מתשובת השרת (כמו בשני
+ * המסלולים האחרים), כדי ששם הקובץ יהיה זהה בכל שלושת המסלולים.
+ */
+function localFolderSink(cfg: {
+  baseName: string; segmentMinutes: number; retentionDays: number; fps: number; bitrate: number;
+}): RecordingSink {
+  let dir: DirHandle | null = null;
+  let writable: FsWritable | null = null;
+  let file: string | null = null;
+  let previous: string | null = null;
+  let keepCurrent = false;
+  let ext: 'mp4' | 'webm' = 'webm';
+  let presetName = '';
+
+  const openSegment = async (manual: boolean): Promise<string | null> => {
+    if (!dir) return null;
+    let startedAt = new Date();
+    let name = recordingFileName({ baseName: cfg.baseName, presetName, startedAt, ext, manual });
+    // התנגשות שם באותה שנייה - אותה הגנה כמו בכותב של ה-Node
+    for (let i = 0; i < 120; i++) {
+      const taken = await dir.getFileHandle(name).then(() => true).catch(() => false);
+      if (!taken) break;
+      startedAt = new Date(startedAt.getTime() + 1000);
+      name = recordingFileName({ baseName: cfg.baseName, presetName, startedAt, ext, manual });
+    }
+    const handle = (await dir.getFileHandle(name, { create: true })) as FsFileHandle;
+    writable = await handle.createWritable();
+    file = name;
+    keepCurrent = false;
+    return name;
+  };
+
+  const closeSegment = async () => {
+    if (!writable) return;
+    await writable.close().catch(() => {});
+    writable = null;
+    if (!dir || !file) return;
+    if (keepCurrent) {
+      await moveToKeep(dir, file);
+      previous = null;
+    } else {
+      previous = file;
+    }
+    file = null;
+  };
+
+  const moveToKeep = async (d: DirHandle, name: string) => {
+    try {
+      const keepDir = await d.getDirectoryHandle(KEEP_DIR, { create: true });
+      const src = (await d.getFileHandle(name)) as FsFileHandle;
+      const mv = src.move;
+      if (typeof mv === 'function') { await mv.call(src, keepDir, name); return; }
+      // דפדפן בלי move() - מעתיקים ומוחקים
+      const blob = await src.getFile();
+      const dest = (await keepDir.getFileHandle(name, { create: true })) as FsFileHandle;
+      const w = await dest.createWritable();
+      await w.write(blob);
+      await w.close();
+      await d.removeEntry(name);
+    } catch { /* שמירה שנכשלה מדווחת ב-kept=0 */ }
+  };
+
+  return {
+    mode: 'localFolder',
+    needsGesture: true,
+    async start(a) {
+      if (!canPickFolder()) return { ok: false, reason: 'noFolderApi' };
+      presetName = a.presetName;
+      ext = a.ext === 'mp4' ? 'mp4' : 'webm';
+      // בלי בורר כאן: הוא היה צורך את לחיצת המשתמש שדרושה לשיתוף המסך
+      dir = await grantedDir();
+      if (!dir) return { ok: false, reason: 'noFolder' };
+      const name = await openSegment(a.manual).catch(() => null);
+      if (!name) return { ok: false, reason: 'writeFailed' };
+      void sweepDir(dir, cfg.retentionDays, name);
+      return {
+        ok: true, file: name,
+        segmentMs: cfg.segmentMinutes * 60_000,
+        fps: cfg.fps, bitrate: cfg.bitrate, retentionDays: cfg.retentionDays,
+      };
+    },
+    async chunk(bytes) {
+      if (!writable) return { ok: false, reason: 'notRecording' };
+      try {
+        await writable.write(bytes);
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, reason: 'writeFailed', detail: (e as Error).message };
+      }
+    },
+    async rotate() {
+      if (!writable) return { ok: false, reason: 'notRecording' };
+      const manual = false;
+      await closeSegment();
+      const name = await openSegment(manual).catch(() => null);
+      return name ? { ok: true, file: name } : { ok: false, reason: 'writeFailed' };
+    },
+    async keep() {
+      let kept = 0;
+      if (writable && file) { keepCurrent = true; kept++; }
+      if (dir && previous) { await moveToKeep(dir, previous); previous = null; kept++; }
+      return { ok: kept > 0, kept };
+    },
+    async stop() {
+      await closeSegment();
+      dir = null;
+    },
+  };
+}
+
+/**
+ * מי יכתוב לדיסק בעמדה הזו. טהורה, כדי שתהיה בדיקה ולא ניחוש.
+ *
+ * `serverSeesPath === null` = התצורה עדיין לא נטענה → מניחים שרת, כמו קודם.
+ */
+export const pickRecordingMode = (
+  { hasBridge, serverSeesPath }: { hasBridge: boolean; serverSeesPath: boolean | null },
+): RecordingMode => {
+  if (hasBridge) return 'station';
+  return serverSeesPath === false ? 'localFolder' : 'server';
+};
+
+/**
+ * המקבל למקטע הבא. התצורה נדרשת רק למצב התיקייה המקומית, שבו הדפדפן
+ * בונה בעצמו את שם הקובץ ומנהל בעצמו את הקטעים.
+ */
+function sink(cfg?: StartArgs['config']): RecordingSink {
   const api = bridge();
-  return api ? stationSink(api) : serverSink();
+  const mode = pickRecordingMode({ hasBridge: api !== null, serverSeesPath: cfg?.serverSeesPath ?? null });
+  if (mode === 'station' && api) return stationSink(api);
+  if (mode === 'localFolder') {
+    return localFolderSink({
+      baseName: cfg?.baseName || '',
+      segmentMinutes: cfg?.segmentMinutes ?? 15,
+      retentionDays: cfg?.retentionDays ?? 7,
+      fps: cfg?.fps ?? 5,
+      bitrate: cfg?.bitrate ?? 1_500_000,
+    });
+  }
+  return serverSink();
 }
 
 /** באיזה מצב העמדה הזו מקליטה */
-export const recordingMode = (): RecordingMode => pickRecordingMode(bridge() !== null);
+export const recordingMode = (serverSeesPath: boolean | null = null): RecordingMode =>
+  pickRecordingMode({ hasBridge: bridge() !== null, serverSeesPath });
 
 /**
  * האם אפשר להקליט. **תמיד true** מאז שמסלול השרת קיים - גם דפדפן מקליט.
@@ -217,7 +497,7 @@ export const recordingMode = (): RecordingMode => pickRecordingMode(bridge() !==
 export const canRecordScreen = (): boolean => true;
 
 /** בדפדפן: ההקלטה לא מתחילה לבד, כי הדפדפן דורש אישור שיתוף מסך בלחיצה */
-export const recordingNeedsGesture = (): boolean => sink().needsGesture;
+export const recordingNeedsGesture = (): boolean => bridge() === null;
 
 /** למה אי-אפשר להקליט, מעבר לתצורת הבסיס. null = אפשר. */
 export type RecorderUnavailable = RecordingBlockReason
@@ -228,6 +508,8 @@ export type RecorderUnavailable = RecordingBlockReason
   | 'pathUnreachable'    // הנתיב מוגדר אך אינו נגיש מהעמדה
   | 'configUnavailable'  // התצורה לא נטענה מהשרת
   | 'browserNeedsClick'  // דפדפן: מוגדר ודולק, אבל צריך לחיצה כדי להתחיל
+  | 'noFolderApi'        // הדפדפן אינו תומך בבחירת תיקייה (Firefox / Safari)
+  | 'noFolder'           // המפעיל ביטל את בחירת התיקייה
   | 'alreadyRecording'
   | 'writeFailed'
   | 'forbidden';
@@ -261,8 +543,15 @@ interface StartArgs {
   presetName: string;
   token: string;
   manual: boolean;
-  /** התצורה כפי שנקראה מהשרת - לזיהוי מוקדם של "כבוי" / "בלי נתיב" */
-  config: { enabled: boolean; path: string } | null;
+  /**
+   * התצורה כפי שנקראה מהשרת - לזיהוי מוקדם של "כבוי" / "בלי נתיב",
+   * ולפרמטרי הקידוד במצב שבו **הדפדפן** הוא שכותב.
+   */
+  config: {
+    enabled: boolean; path: string;
+    baseName?: string; segmentMinutes?: number; retentionDays?: number;
+    fps?: number; bitrate?: number; serverSeesPath?: boolean | null;
+  } | null;
   onState: (patch: Partial<RecorderState>) => void;
 }
 
@@ -295,13 +584,17 @@ class ScreenRecorder {
     this.onState = args.onState;
     if (this.state.recording) return null;
 
-    const out = sink();
+    const out = sink(args.config);
     this.out = out;
     if (!args.baseId) { this.set({ blocked: 'noBase' }); return 'noBase'; }
 
     // הקלטה ידנית מותרת גם כשהקופסה השחורה כבויה בבסיס - מה שחייב להיות מוגדר
     // הוא הנתיב. הבדיקה כאן חוסכת בקשת שיתוף מסך שתיפול בכל מקרה.
-    const cfgReason = recordingBlockReason(args.config ?? { enabled: false, path: '' });
+    // במצב התיקייה המקומית ה-PATH שבניהול הטכני אינו בשימוש, ולכן
+    // בודקים רק מה שרלוונטי: האם ההקלטה דולקת לבסיס.
+    const cfgReason: RecordingBlockReason = out.mode === 'localFolder'
+      ? (args.config?.enabled ? null : 'disabled')
+      : recordingBlockReason(args.config ?? { enabled: false, path: '' });
     if (cfgReason && !(args.manual && cfgReason === 'disabled')) { this.set({ blocked: cfgReason }); return cfgReason; }
 
     const mime = pickRecordingMime(m => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(m));

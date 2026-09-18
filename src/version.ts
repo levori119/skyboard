@@ -2,5 +2,5 @@
 // מוצג ב-**מסך הכניסה** (App.tsx, פוטר) וב-**חלון העזרה** בעמדה (SectorDashboard, "גרסה נוכחית").
 // מתעדכן ב-`npm run version:bump` - חובה לפני כל דחיפה ל-main. ראה CLAUDE.md §גרסת המערכת.
 // אין לקודד מספר גרסה קשיח ב-JSX - תמיד לייבא מכאן.
-export const APP_VERSION = '1.0.254';
-export const APP_VERSION_DATE = '2026-09-17 23:07';
+export const APP_VERSION = '1.0.255';
+export const APP_VERSION_DATE = '2026-09-18 11:47';

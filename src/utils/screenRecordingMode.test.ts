@@ -8,9 +8,24 @@ import {
 import { bypassesOfflineLayer, classifyWrite } from '../offline/policy';
 
 describe('pickRecordingMode', () => {
-  it('עמדת Electron כותבת בעצמה, דפדפן דרך השרת', () => {
-    expect(pickRecordingMode(true)).toBe('station');
-    expect(pickRecordingMode(false)).toBe('server');
+  it('אפליקציית העמדה כותבת בעצמה - ללא תלות בשרת', () => {
+    expect(pickRecordingMode({ hasBridge: true, serverSeesPath: true })).toBe('station');
+    expect(pickRecordingMode({ hasBridge: true, serverSeesPath: false })).toBe('station');
+  });
+
+  it('דפדפן והשרת רואה את הנתיב → השרת כותב ל-PATH שהוגדר', () => {
+    expect(pickRecordingMode({ hasBridge: false, serverSeesPath: true })).toBe('server');
+  });
+
+  // המצב שהתקלה הולידה (2026-09-18): דפדפן מול שרת בענן. אין ולא
+  // תהיה הגדרה שתגרום ל-Railway לראות `C:\` של עמדה, ולכן הדפדפן
+  // כותב בעצמו לתיקייה שהמפעיל בוחר פעם אחת.
+  it('דפדפן והשרת אינו רואה את הנתיב → כתיבה לתיקייה מקומית', () => {
+    expect(pickRecordingMode({ hasBridge: false, serverSeesPath: false })).toBe('localFolder');
+  });
+
+  it('לא ידוע אם השרת רואה (התצורה לא נטענה) → מניחים שרת, כמו קודם', () => {
+    expect(pickRecordingMode({ hasBridge: false, serverSeesPath: null })).toBe('server');
   });
 });
 
@@ -111,5 +126,25 @@ describe('recordingBlockKey', () => {
     expect(recordingBlockKey('alreadyRecording', 'station')).toBe('');
     expect(recordingBlockKey('writeFailed', 'server')).toBe('');
     expect(recordingBlockKey(null, 'station')).toBe('');
+  });
+});
+
+describe('הודעות במצב כתיבה לתיקייה מקומית', () => {
+  it('הדפדפן לא תומך ב-API התיקיות (Firefox / Safari)', () => {
+    expect(recordingBlockKey('noFolderApi', 'localFolder')).toBe('screenRec.whyNoFolderApi');
+  });
+
+  it('המפעיל ביטל את בחירת התיקייה', () => {
+    expect(recordingBlockKey('noFolder', 'localFolder')).toBe('screenRec.whyNoFolder');
+  });
+
+  it('במצב הזה הנתיב שבניהול הטכני אינו רלוונטי, ולכן גם לא הכשלים שלו', () => {
+    expect(recordingBlockKey('noPath', 'localFolder')).toBe('');
+    expect(recordingBlockKey('badPath', 'localFolder')).toBe('');
+    expect(recordingBlockKey('pathUnreachable', 'localFolder')).toBe('');
+  });
+
+  it('כבויה בבסיס - הודעה זהה בכל המצבים', () => {
+    expect(recordingBlockKey('disabled', 'localFolder')).toBe('screenRec.whyDisabled');
   });
 });

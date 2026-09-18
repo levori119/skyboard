@@ -15,11 +15,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { API_URL } from '../config';
 import { getAuthToken } from '../utils/authToken';
 import {
-  IDLE_STATE, canRecordScreen, recordingMode, recordingNeedsGesture, screenRecorder,
+  IDLE_STATE, canPickFolder, canRecordScreen, pickRecordingFolder, recordingFolderReady,
+  recordingMode, recordingNeedsGesture, screenRecorder,
   shouldResetRecorderBlock,
   type RecorderState, type RecorderUnavailable, type RecordingMode,
 } from '../utils/screenRecording';
-import { normalizeRecordingConfig, recordingPathErrorKey, type RecordingConfig } from '../../shared/screenRecording';
+import {
+  normalizeRecordingConfig, recordingBitrate, recordingPathErrorKey, type RecordingConfig,
+} from '../../shared/screenRecording';
 
 /** קריאה חוזרת של התצורה: שינוי בניהול הטכני נתפס בלי לרענן את העמדה */
 const CONFIG_POLL_MS = 5 * 60 * 1000;
@@ -41,6 +44,10 @@ export interface ScreenRecorderApi {
   mode: RecordingMode;
   /** בדפדפן: ההקלטה מתחילה בלחיצה ולא לבד */
   needsGesture: boolean;
+  /** במצב התיקייה המקומית: האם נבחרה כבר תיקייה מורשת */
+  folderReady: boolean;
+  /** בוחר תיקיית שמירה (צעד נפרד - צורך את לחיצת המשתמש) */
+  pickFolder: () => Promise<boolean>;
   /** למה אי-אפשר להקליט כרגע, או null */
   blocked: RecorderUnavailable;
   /** האם הכפתור הידני יכול לעשות משהו בפועל */
@@ -54,6 +61,19 @@ export function useScreenRecorder({ baseId, presetName, ready }: Args): ScreenRe
   const [state, setState] = useState<RecorderState>(IDLE_STATE);
   const [config, setConfig] = useState<RecordingConfig | null>(null);
   const [pathValid, setPathValid] = useState(false);
+  /** שם הבסיס מה-DB - נכנס לשם הקובץ גם כשהדפדפן הוא שכותב */
+  const [baseName, setBaseName] = useState('');
+  /** האם **השרת** רואה את הנתיב. null = התצורה טרם נטענה */
+  const [serverSeesPath, setServerSeesPath] = useState<boolean | null>(null);
+  /** במצב התיקייה המקומית: האם כבר יש תיקייה שמותר לכתוב אליה */
+  const [folderReady, setFolderReady] = useState(false);
+
+  // בדיקה שקטה של ההרשאה הזכורה - בלי לשאול את המפעיל שום דבר
+  useEffect(() => {
+    let alive = true;
+    void recordingFolderReady().then(ok => { if (alive) setFolderReady(ok); });
+    return () => { alive = false; };
+  }, []);
   const autoTried = useRef(false);
   /** הנתיב שלפיו נעשה הניסיון האחרון - לזיהוי תצורה שהוחלפה */
   const triedPath = useRef('');
@@ -74,6 +94,8 @@ export function useScreenRecorder({ baseId, presetName, ready }: Args): ScreenRe
         if (!alive) return;
         setConfig(normalizeRecordingConfig(data));
         setPathValid(Boolean(data?.pathValid));
+        setBaseName(String(data?.base_name || ''));
+        setServerSeesPath(typeof data?.server_root_ok === 'boolean' ? data.server_root_ok : null);
       } catch { /* נתק - נשארים עם התצורה האחרונה שנקראה */ }
     };
     void load();
@@ -90,11 +112,18 @@ export function useScreenRecorder({ baseId, presetName, ready }: Args): ScreenRe
       presetName,
       token: getAuthToken() || '',
       manual,
-      config,
+      // המצב של "הדפדפן כותב בעצמו" בונה שם קובץ ומנהל קטעים לבד, ולכן
+      // הוא צריך את כל מה שהכותב בצד השני מקבל מהשרת.
+      config: config && {
+        ...config,
+        baseName,
+        bitrate: recordingBitrate(config),
+        serverSeesPath,
+      },
       onState,
     });
     setState(screenRecorder.snapshot);
-  }, [baseId, presetName, config, onState]);
+  }, [baseId, presetName, config, baseName, serverSeesPath, onState]);
 
   // ── תצורה שהוחלפה → ניקוי הכשל הקודם וניסיון חדש ──────────
   // המנהל הטכני מתקן את הנתיב, והעמדה אמורה להתאושש לבד בדגימה הבאה -
@@ -124,13 +153,17 @@ export function useScreenRecorder({ baseId, presetName, ready }: Args): ScreenRe
   // יציאה מהעמדה מסיימת את הקובץ מסודר, כדי שהקטע האחרון יישאר נגין
   useEffect(() => () => { void screenRecorder.stop(); }, []);
 
+  const mode = recordingMode(serverSeesPath);
   const blocked: RecorderUnavailable = !canRecordScreen() ? 'noElectron'
     : !baseId ? 'noBase'
     : state.blocked ? state.blocked
+    // במצב התיקייה המקומית הנתיב שבניהול הטכני אינו בשימוש, והחסימה
+    // היחידה הרלוונטית היא דפדפן שאינו יודע לבחור תיקייה
+    : mode === 'localFolder' ? (!canPickFolder() ? 'noFolderApi' : (folderReady ? null : 'noFolder'))
     : !config?.path ? 'noPath'
     : !pathValid ? 'badPath'
     // אחרון במכוון: זו אינה תקלה אלא הסבר למה ההקלטה לא עלתה לבד
-    : (config.enabled && recordingNeedsGesture() && !state.recording) ? 'browserNeedsClick'
+    : (config?.enabled && recordingNeedsGesture() && !state.recording) ? 'browserNeedsClick'
     : null;
 
   return {
@@ -139,11 +172,22 @@ export function useScreenRecorder({ baseId, presetName, ready }: Args): ScreenRe
     // הסיבה הטכנית מוצגת **ליד** הסיבה התפעולית: "הנתיב אינו נגיש" לבד שולח
     // את המפעיל לחפש את התקלה במקום הלא נכון
     pathError: state.blockedDetail ? recordingPathErrorKey(state.blockedDetail) : null,
-    mode: recordingMode(),
+    mode: recordingMode(serverSeesPath),
     needsGesture: recordingNeedsGesture(),
+    folderReady,
+    pickFolder: async () => {
+      const ok = await pickRecordingFolder();
+      setFolderReady(ok);
+      return ok;
+    },
     blocked,
     // ידני מותר גם כשהקופסה השחורה כבויה בבסיס - מה שנדרש הוא נתיב תקין
-    canStart: Boolean(baseId) && Boolean(config?.path) && pathValid,
+    // במצב התיקייה המקומית ה-PATH שבניהול הטכני אינו תנאי - המפעיל בוחר תיקייה
+    canStart: Boolean(baseId) && (
+      recordingMode(serverSeesPath) === 'localFolder'
+        ? canPickFolder() && folderReady
+        : Boolean(config?.path) && pathValid
+    ),
     start: () => startWith(true),
     stop: async () => { await screenRecorder.stop(); setState(screenRecorder.snapshot); },
     keep: () => screenRecorder.keep(),

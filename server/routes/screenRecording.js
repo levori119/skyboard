@@ -117,6 +117,9 @@ router.get('/api/screen-recording/config/:baseId', async (req, res) => {
       base_id: row.id,
       base_name: row.name,
       ...cfg,
+      // האם **השרת** רואה את הנתיב. בדפדפן זה מה שמכריע בין "השרת
+      // כותב ל-PATH" ל"הדפדפן כותב לתיקייה שהמפעיל בוחר" (§7 באפיון).
+      server_root_ok: await serverSeesRoot(row.recording_path),
       // נתיב שנשמר לפני שהאימות נוסף, או שיתוף שהוסר מאז - ההקלטה תיכבה עם סיבה
       pathValid: cfg.path ? isSafeRecordingPath(cfg.path) : false,
       limits: RECORDING_LIMITS,
