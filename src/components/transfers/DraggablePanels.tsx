@@ -538,10 +538,11 @@ export const DraggableNeighborPanel = ({
                 if (outs.length > 0 && ins.length > 0) {
                   return (
                     <div key={ri} style={{ display: 'flex', direction: 'rtl', gap: '3px', alignItems: 'flex-start' }}>
-                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      {/* minWidth:0 - בלעדיו עמודה עם או"ק ארוך מתרחבת ודוחפת את השכנה (ואת ה-✓ שלה) מחוץ לחלון */}
+                      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '2px' }}>
                         {outs.map(({ t }) => renderCard(t, 'out', true))}
                       </div>
-                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '2px' }}>
                         {ins.map(({ t }) => renderCard(t, 'in', true))}
                       </div>
                     </div>

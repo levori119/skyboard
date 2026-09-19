@@ -217,11 +217,12 @@ export const CompactTransferRow = ({ t, dir, isConflict, isAltViolation = false,
     <>
       <div title={isOut ? 'מוסר — ✕ לביטול · לחץ גובה לעדכון' : 'מקבל — ✓ לקבלה · לחץ גובה לעדכון'}
         style={{ display: 'flex', alignItems: 'center', gap: '4px', direction: 'rtl', padding: shrunk ? '0px 4px' : '1px 6px', borderRadius: '5px', border: `1px solid ${main}${isAltViolation && !isConflict ? '66' : '99'}`, background: bg, opacity: isAltViolation && !isConflict ? 0.6 : 1, whiteSpace: 'nowrap', overflow: 'hidden' }}>
-        {/* או"ק — לא נחתך (flexShrink:0). הטייסת/מס"מ הוא שנחתך אם השורה ארוכה */}
-        <span style={{ fontWeight: 'bold', color: txt, fontSize: shrunk ? '9px' : '11px', flexShrink: 0, whiteSpace: 'nowrap' }}>{getTransferLabel(t)}</span>
+        {/* סדר הוויתור כשהשורה צרה (קונפליקט = חצי רוחב): קודם הטייסת/מס"מ, אחר כך האו"ק.
+            הגובה וכפתור ✕/✓ לא נחתכים לעולם - בלעדיהם אי אפשר לקבל/לבטל את הפ"מ */}
+        <span style={{ fontWeight: 'bold', color: txt, fontSize: shrunk ? '9px' : '11px', flex: '0 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getTransferLabel(t)}</span>
         {/* תקלה במטוס - צמודה לאו"ק, כי היא משנה את ההחלטה אם לקבל את המבנה */}
         <FaultBadge faults={t.aircraft_faults} lightMode size={shrunk ? 8 : 9} />
-        {sq && <span style={{ fontSize: shrunk ? '8px' : '9px', opacity: 0.85, color: txt, flex: '0 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{sq}</span>}
+        {sq && <span style={{ fontSize: shrunk ? '8px' : '9px', opacity: 0.85, color: txt, flex: '0 100 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{sq}</span>}
         {/* גובה — צמוד לשמאל, שני מיד אחרי ה-✕ (marginInlineStart:auto יוצר את הרווח לפניו) */}
         <span ref={altRef} title={tr('transfers.clickToUpdateAltitude')}
           onClick={() => { if (altRef.current) setAnchorRect(altRef.current.getBoundingClientRect()); setShowHw(true); }}
