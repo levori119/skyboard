@@ -157,13 +157,24 @@ export function compactWaypoints(raw) {
 // ── אלמנט סוגר את הדרך ───────────────────────────────────────────────────────
 // הכלל של /api/live-runway-conflicts ושל חלון הניווט במגדל, מאוחד.
 
-/** המצב התפעולי (display_state) → התווית שהמנהלן בוחר ב-blocking_statuses */
+/**
+ * המצב התפעולי (display_state) → התווית שהמנהלן בוחר ב-blocking_statuses.
+ * **כל** מצב שהמגדל יכול להגדיר חייב להופיע כאן: מצב חסר אינו מקבל תווית,
+ * ולכן לעולם אינו מתאים לסטטוס חוסם - האלמנט "פתוח" בשקט (ראה `fixed`).
+ */
 export const DISPLAY_STATE_LABEL = {
-  close: 'סגור', open: 'פתוח', off: 'כבוי', stop: 'עצור', go: 'עבור', blink: 'מנצנץ',
+  close: 'סגור', open: 'פתוח', off: 'כבוי', stop: 'עצור', go: 'עבור', blink: 'מנצנץ', fixed: 'קבוע',
 };
 
-/** ברירות המחדל לקטגוריה כשלאלמנט לא הוגדרו סטטוסים חוסמים */
-const CATEGORY_BLOCK_DEFAULT = { 'STOP BAR': 'מנצנץ', 'רמזורים': 'מנצנץ', 'מחסומים': 'סגור' };
+/**
+ * ברירות המחדל לקטגוריה כשלאלמנט לא הוגדרו סטטוסים חוסמים.
+ *
+ * **רמזור אדום סוגר (2026-09-19, תקלה מהשדה).** רמזור רב-נורות מקבל במגדל
+ * ארבעה מצבים - כבוי · מהבהב · 🔴 עצור · 🟢 עבור - ורק 'מנצנץ' היה כאן. נהג
+ * שהתקרב לרמזור ב**אדום** לא קיבל שום התרעה, בשום מרחק: `isElementBlocking`
+ * החזיר false, והרמזור נחשב אלמנט פתוח. המצב ששמו "עצור" חייב לעצור.
+ */
+const CATEGORY_BLOCK_DEFAULT = { 'STOP BAR': ['מנצנץ'], 'רמזורים': ['מנצנץ', 'עצור'], 'מחסומים': ['סגור'] };
 
 const NOT_ON_ROAD = new Set(['camera', 'כלי רכב']);
 
@@ -190,7 +201,7 @@ export function effectiveBlockingStatuses(el) {
   const explicit = jsonList(el?.blocking_statuses).map(String).filter(Boolean);
   if (explicit.length) return explicit;
   const byCategory = CATEGORY_BLOCK_DEFAULT[el?.category];
-  if (byCategory) return [byCategory];
+  if (byCategory) return [...byCategory];
   const allowed = jsonList(el?.type_allowed_statuses ?? el?.allowed_statuses).map(String).filter(Boolean);
   return allowed.length ? [allowed[0]] : [];
 }

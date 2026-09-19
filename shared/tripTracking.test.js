@@ -167,8 +167,34 @@ describe('אלמנט סוגר את הדרך - כלל אחד', () => {
   // אותן ברירות מחדל כמו /api/live-runway-conflicts
   it('ריק - ברירת המחדל לקטגוריה', () => {
     expect(effectiveBlockingStatuses({ category: 'מחסומים' })).toEqual(['סגור']);
-    expect(effectiveBlockingStatuses({ category: 'רמזורים' })).toEqual(['מנצנץ']);
+    expect(effectiveBlockingStatuses({ category: 'רמזורים' })).toEqual(['מנצנץ', 'עצור']);
     expect(effectiveBlockingStatuses({ category: 'STOP BAR' })).toEqual(['מנצנץ']);
+  });
+
+  // תקלה מהשדה 2026-09-19: נהג התקרב לרמזור אדום ולא קיבל שום התרעה.
+  // המגדל מגדיר רמזור רב-נורות ב-display_state='stop' ("🔴 עצור"), וברירת
+  // המחדל לקטגוריה הכירה רק ב'מנצנץ' - ולכן אדום נחשב אלמנט פתוח.
+  it('רמזור אדום (stop) סוגר את הדרך, ירוק (go) לא', () => {
+    expect(isElementBlocking({ category: 'רמזורים', display_state: 'stop', status: 'תקין' })).toBe(true);
+    expect(isElementBlocking({ category: 'רמזורים', display_state: 'blink', status: 'תקין' })).toBe(true);
+    expect(isElementBlocking({ category: 'רמזורים', display_state: 'go', status: 'תקין' })).toBe(false);
+    expect(isElementBlocking({ category: 'רמזורים', display_state: 'off', status: 'תקין' })).toBe(false);
+  });
+
+  it('רמזור אדום שאינו שמיש - עדיין אינו סוגר', () => {
+    expect(isElementBlocking({ category: 'רמזורים', display_state: 'stop', status: 'לא שמיש' })).toBe(false);
+  });
+
+  it('blocking_statuses מפורש גובר גם על ברירת המחדל החדשה', () => {
+    expect(effectiveBlockingStatuses({ category: 'רמזורים', blocking_statuses: ['מנצנץ'] })).toEqual(['מנצנץ']);
+    expect(isElementBlocking({ category: 'רמזורים', blocking_statuses: ['מנצנץ'], display_state: 'stop', status: 'תקין' })).toBe(false);
+  });
+
+  // 'fixed' (נורה אחת / STOP BAR "קבוע") לא היה ב-DISPLAY_STATE_LABEL, ולכן
+  // לא היה לו שום ערך שאפשר לרשום מולו ב-blocking_statuses
+  it('המצב "קבוע" (fixed) מקבל תווית וניתן להגדירו כחוסם', () => {
+    expect(DISPLAY_STATE_LABEL.fixed).toBe('קבוע');
+    expect(isElementBlocking({ category: 'רמזורים', blocking_statuses: ['קבוע'], display_state: 'fixed', status: 'תקין' })).toBe(true);
   });
 
   it('ריק ואין ברירת מחדל - הסטטוס המותר הראשון', () => {
@@ -306,6 +332,13 @@ describe('findHazards - מה קרוב לנהג עכשיו', () => {
   it('אלמנט סוגר בתוך 50 מ\' - התרעה; אותו אלמנט פתוח - לא', () => {
     const h = findHazards(pos, { runways: [], taxiways: [], elements: [closedBarrier, openBarrier] });
     expect(h.map(x => x.key)).toEqual(['element:31']);
+  });
+
+  // תקלה מהשדה 2026-09-19: רמזור אדום לא הקפיץ התרעה בשום מרחק
+  it('רמזור אדום (stop) ב-75 מ\' - התרעה; ירוק - לא', () => {
+    const red = { ...lightMid, display_state: 'stop' };
+    expect(findHazards(pos, { elements: [red] }).map(x => x.key)).toEqual(['element:41']);
+    expect(findHazards(pos, { elements: [{ ...red, display_state: 'go' }] })).toEqual([]);
   });
 
   // הכרעת אורי 2026-09-19: לרמזור צריך מרחק עצירה גדול יותר
