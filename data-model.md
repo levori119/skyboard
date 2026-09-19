@@ -3254,6 +3254,28 @@ REFACTOR_LOG #045.
 
 ---
 
+## לקיחת פ"מ שכבר בנקודת העברה — `transfer_takeover_requests`
+
+טבלה **תפעולית** (מבודדת פר-סביבה). שורה = עמדה גררה לנקודת העברה פ"מ שכבר ממתין
+בנקודת העברה מעמדה אחרת. ההעברה **לא** נשלחת עד הכרעה; ההכרעה הראשונה (מכל צד) קובעת.
+ברשימת החסימה של הביטול (CTRL+Z): ביטול שקט היה מחזיר לתור בקשה ששתי העמדות כבר סגרו.
+
+| עמודה | טיפוס | הערות |
+|---|---|---|
+| `strip_id` | INTEGER | בלי FK בכוונה - הבקשה נשארת בהיסטוריה גם אחרי מיזוג/מחיקה |
+| `existing_transfer_id` | INTEGER | ההעברה הפתוחה שהייתה בזמן הבקשה. באישור - `cancelled` |
+| `holder_preset_id` / `holder_name` | INTEGER / VARCHAR | העמדה ששלחה את ההעברה הקיימת (מקבלת התראה) |
+| `requester_preset_id` / `requester_name` | INTEGER / VARCHAR | העמדה הגוררת (מקבלת טופס תיאום) |
+| `existing_point_label` / `existing_dest_name` | VARCHAR | הנקודה והיעד של ההעברה הקיימת - **צילום מצב** של מה שהוצג |
+| `new_point_label` / `new_dest_name` | VARCHAR | הנקודה והיעד של ההעברה המבוקשת. ריק = העברה ישירה לעמדה |
+| `kind` | VARCHAR(10) | `sector` (נקודת העברה) / `preset` (ישירה לעמדה) |
+| `payload` | JSONB | גוף הבקשה שהיה נשלח ל-`/transfer` או `/transfer-to-preset` - נשלח כמו שהוא באישור |
+| `status` | VARCHAR(12) | `pending` / `approved` / `denied` / `stale` (ההעברה הקיימת נסגרה בינתיים) / `expired` (10 דק') / `cancelled` (גרירה חוזרת החליפה) |
+| `decided_side` / `decided_by_preset_id` | VARCHAR / INTEGER | `holder` / `requester` |
+| `new_transfer_id` | INTEGER | ההעברה שנשלחה באישור |
+| `holder_seen` / `requester_seen` | BOOLEAN | הודעת התוצאה לצד שלא הכריע נראתה |
+| `created_at` / `decided_at` | TIMESTAMPTZ | |
+
 ## FLOW של פ"מ — `strip_flow_events`
 
 יומן השלבים של כל פ"מ: יצא מהדת"ק, הסיע, המריא, נשלח לנקודת העברה, **התקבל בעמדה**, נחת.

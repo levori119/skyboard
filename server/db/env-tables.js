@@ -31,6 +31,8 @@ export const OPERATIONAL_TABLES = [
   // העברות עמדה
   'strip_transfers',
   'provisional_transfer_points',
+  // תיאום לקיחת פ"מ שכבר בנקודת העברה מעמדה אחרת - אירוע חי בין שתי עמדות
+  'transfer_takeover_requests',
   // ספרורים
   'serials',
   'strip_serial_selections',

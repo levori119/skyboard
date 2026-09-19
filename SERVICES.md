@@ -170,6 +170,13 @@
 **מה השרת לא עושה כאן, בכוונה:** גיאומטריה וחישוב כיסוי - הם נשענים על המפה והעוגנים של העמדה ולכן יושבים בליבה הטהורה [`src/utils/airDefense.ts`](src/utils/airDefense.ts) (44 בדיקות), מימוש אחד שמשרת את הטופס, את התצוגה ואת חישוב הפערים. השרת כן אוכף את חוקי ה**נתונים**: טווח האחוזים 0-100 (דוחה, לא מהדק), נרמול טווח גובה הפוך, וחסימת מחיקת סוג איום שיש לו הערכות. הכתיבה היא **STAFF** ([`server/middleware/auth.js`](server/middleware/auth.js)); הקריאה נשארת USER כי העמדה תצטרך את הדגמים לתצוגה על המפה.
 **מאומת:** [`server/routes/airDefense.test.js`](server/routes/airDefense.test.js) - 21 בדיקות מול Postgres אמיתי (PGlite בזיכרון).
 
+### `server/routes/transferTakeovers.js` — 3 routes
+**תפקיד:** **לקיחת פ"מ שכבר בנקודת העברה** - עמדה גוררת לנקודת העברה פ"מ שכבר ממתין בנקודת העברה מעמדה אחרת. הגרירה **לא נשלחת**: נפתחת בקשה (`transfer_takeover_requests`) - טופס תיאום בעמדה הגוררת ("בוצע תיאום ומאושר להעביר" / "לא אושר") והתראה בעמדה המחזיקה ("אשר" / "אל תאשר"). **ההכרעה הראשונה קובעת**, מכל צד. אישור רץ בטרנזקציה אחת: ההעברה הקיימת `cancelled` (ההקצאה של המחזיקה בנקודה נמחקת) והחדשה נשלחת דרך `initiateSectorTransferTx` / `initiatePresetTransferTx` - **אותה ליבת שליחה** של `transfers.js`. הצד שלא הכריע מקבל הודעת תוצאה (`holder_seen` / `requester_seen`). העברה פתוחה שנסגרה בינתיים (התקבלה) - `stale`, לא לוקחים. בקשה פגה אחרי 10 דקות.
+**Endpoints:** `POST /api/transfer-takeovers` (מחזיר `request:null` כשאין התנגשות - והלקוח שולח כרגיל), `GET /api/transfer-takeovers?presetId=`, `POST /api/transfer-takeovers/:id/decide`, `POST /api/transfer-takeovers/:id/seen`.
+**מייצא:** `findConflictingTransfer`, `decideTakeoverTx`, `transferHolderPresetId`, `TAKEOVER_TTL_MINUTES`. בדיקות: `transferTakeovers.test.js`.
+**הלקוח:** `src/components/transfers/useTransferTakeovers.ts` (`tryRequest` נקרא מ-`handleTransfer` ומ-`handleClassicTransfer` לפני כל שליחה) + `TransferTakeoverDialog.tsx`. הלוגיקה הטהורה ב-`src/utils/transferTakeover.ts`.
+**"שים לב - נמצא גם בעמדה":** באותו קובץ עזר - `diffHeldElsewhere` משווה את תמונת "מה אצלי" (`table_preset_ids` / `at_preset_names`) בין סבבי polling, ופ"מ שנכנס אליי **לא** דרך קבלת העברה ומוחזק גם בעמדה אחרת מקבל הודעה (`HeldElsewhereNotices`, לא חוסמת, נסגרת לבד). זיהוי אחד ולא בכל אתר גרירה.
+
 ### `server/routes/tempZoneSeizures.js` — 9 routes
 **תפקיד:** **הלאמת אזור זמני** - מרחב שעמדה תופסת לזמן קצוב, מציירת ביד על המפה ומפיצה לשאר העמדות. אפיון מלא: [TEMP_ZONE_SEIZURE_SPEC.md](TEMP_ZONE_SEIZURE_SPEC.md).
 **Endpoints עיקריים:** `/api/temp-zone-seizures`, `/api/temp-zone-seizures/candidates`, `/api/temp-zone-seizures/:id/ack`, `/api/temp-zone-seizures/:id/end`.
@@ -1789,6 +1796,12 @@ POST /api/zone-altitude-ranges
 PUT /api/closures/:id
 PUT /api/map-zones/:id
 PUT /api/zone-altitude-ranges/:id
+
+#### transferTakeovers.js
+GET /api/transfer-takeovers
+POST /api/transfer-takeovers
+POST /api/transfer-takeovers/:id/decide
+POST /api/transfer-takeovers/:id/seen
 
 #### tempZoneSeizures.js
 DELETE /api/temp-zone-seizures/:id

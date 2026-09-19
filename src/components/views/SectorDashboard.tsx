@@ -55,6 +55,9 @@ import { useTempZoneSeizures, type SeizurePinInput, type SeizureZoneInput } from
 import SeizureDrawLayer, { SeizureDrawToolbar, type DrawPt } from '../seizure/SeizureDrawLayer';
 import SeizureForm from '../seizure/SeizureForm';
 import SeizureAlert from '../seizure/SeizureAlert';
+import TransferTakeoverDialog, { HeldElsewhereNotices } from '../transfers/TransferTakeoverDialog';
+import { useTransferTakeovers } from '../transfers/useTransferTakeovers';
+import { diffHeldElsewhere, stripKeyOfTransfer, type HeldElsewhereNotice } from '../../utils/transferTakeover';
 import SeizureStatusPanel from '../seizure/SeizureStatusPanel';
 import SeizureMapWindow from '../seizure/SeizureMapWindow';
 import SeizureLayer from '../seizure/SeizureLayer';
@@ -3086,6 +3089,49 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   /** ההלאמה שמוצגת עכשיו בהתראה המתפרצת - התור מוצג אחת-אחת. */
   const seizureAlertNow = seizure.endedNotices[0] ?? seizure.pendingAlerts[0] ?? null;
   const seizureAlertIsEnd = seizure.endedNotices.length > 0;
+
+  // ── פ"מ שנמצא בכמה עמדות ────────────────────────────────────────────────
+  // (1) לקיחת פ"מ שכבר בנקודת העברה מעמדה אחרת - טופס תיאום / התראה, ראה
+  //     server/routes/transferTakeovers.js. handleTransfer ו-handleClassicTransfer
+  //     שואלים את tryRequest לפני כל שליחה.
+  const takeover = useTransferTakeovers({
+    apiUrl: API_URL,
+    presetId: seizurePresetId,
+    onChanged: () => { loadData(); },
+  });
+  // (2) "שים לב - נמצא גם בעמדה": פ"מ שנכנס אליי **לא** דרך קבלת העברה (גרירה
+  //     מחלון הפ"מים / מנקודת העברה לדסק או למפה) ומוחזק גם בעמדה אחרת.
+  //     זיהוי אחד על תמונת "מה אצלי" ולא בכל אתר גרירה - יש עשרות כאלה (מפה,
+  //     טבלה, קלאסי, מגדל, דסק משימה), ואתר שישכח את הקריאה ישתוק בשקט.
+  const [heldNotices, setHeldNotices] = useState<HeldElsewhereNotice[]>([]);
+  const heldPrevRef = useRef<Set<string> | null>(null);
+  /** פ"מים שהופיעו בהעברות הנכנסות אליי - אם יגיעו לדסק, זה דרך קבלה. strip → זמן */
+  const viaTransferRef = useRef<Map<string, number>>(new Map());
+  useEffect(() => {
+    const now = Date.now();
+    for (const t of [...incomingTransfers, ...classicIncomingTransfers]) {
+      const k = stripKeyOfTransfer(t);
+      if (k) viaTransferRef.current.set(k, now);
+    }
+  }, [incomingTransfers, classicIncomingTransfers]);
+  useEffect(() => { heldPrevRef.current = null; }, [seizurePresetId]);
+  useEffect(() => {
+    if (seizurePresetId == null || !initialDataLoaded) return;
+    // עדיין לא הגיע אף פ"מ - לא ללמוד "אצלי כלום", אחרת הטעינה הבאה תציף הודעות
+    if (heldPrevRef.current === null && strips.length === 0) return;
+    const now = Date.now();
+    viaTransferRef.current.forEach((ts, k) => { if (now - ts > 120000) viaTransferRef.current.delete(k); });
+    const myName = presetsForMerge.find((p: any) => Number(p.id) === seizurePresetId)?.name
+      || session?.workstationName || '';
+    const { held, notices } = diffHeldElsewhere(
+      heldPrevRef.current, strips as any[], seizurePresetId, myName, new Set(viaTransferRef.current.keys()));
+    heldPrevRef.current = held;
+    if (notices.length > 0) {
+      setHeldNotices(prev => [...prev.filter(p => !notices.some(n => n.stripId === p.stripId)), ...notices]);
+      const ids = notices.map(n => n.stripId);
+      setTimeout(() => setHeldNotices(prev => prev.filter(p => !ids.includes(p.stripId))), 12000);
+    }
+  }, [strips, seizurePresetId, initialDataLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── פתיחת חלון הלאמה = גם העלאה לראש הערימה ───────────────────────────────
   // הפתיחה וההעלאה נוסעות יחד **תמיד**, ולכן הן פונקציה אחת ולא שתי קריאות
@@ -6664,6 +6710,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       ].filter((v: any) => v != null),
     }));
     const fromPreset = resolveTransferFromPreset(toSectorId, session.presetId, positionMerges, _coveredPresetSectors);
+    // הפ"מ כבר בנקודת העברה מעמדה אחרת - לא שולחים, פותחים תיאום (טופס כאן, התראה שם)
+    const takeoverOpened = await takeover.tryRequest(stripId, 'sector', {
+      toSectorId, workstationId: session.workstationId, targetX: targetX || 0, targetY: targetY || 0,
+      subSectorLabel, fromWorkstationId: fromPreset, toWorkstationId: toWorkstationId || null, etaMinutes: etaMinutes || null,
+    });
+    if (takeoverOpened) return;
     try {
       await fetch(`${API_URL}/strips/${stripId}/transfer`, {
         method: 'POST',
@@ -8128,6 +8180,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   };
 
   const handleClassicTransfer = async (stripId: string, toPresetId: number) => {
+    // כמו handleTransfer: פ"מ שכבר בנקודת העברה מעמדה אחרת - תיאום במקום שליחה
+    if (await takeover.tryRequest(stripId, 'preset', { fromPresetId: session.presetId, toPresetId })) return;
     try {
       await fetch(`${API_URL}/strips/${stripId}/transfer-to-preset`, {
         method: 'POST',
@@ -13291,6 +13345,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {/* ── הלאמת אזור זמני: התראה · טופס · אישורים · חלון מפה ─────────────
           ההתראה המתפרצת קודמת לכל השאר על המסך. סדר התור: הודעת "יצאה מתוקף"
           לפני הלאמה חדשה - כי מרחב שכבר שוחרר הוא המידע שמבטל פעולה מיותרת. */}
+      {/* פ"מ בכמה עמדות: תיאום לקיחה מנקודת העברה + "נמצא גם בעמדה" */}
+      {takeover.current && seizurePresetId != null && (
+        <TransferTakeoverDialog
+          request={takeover.current}
+          presetId={seizurePresetId}
+          themeMode={themeMode}
+          queued={takeover.queued}
+          busy={takeover.busy}
+          onDecide={d => takeover.decide(takeover.current!.id, d)}
+          onAckOutcome={() => takeover.ackOutcome(takeover.current!.id)}
+        />
+      )}
+      <HeldElsewhereNotices
+        notices={heldNotices}
+        themeMode={themeMode}
+        onDismiss={id => setHeldNotices(prev => prev.filter(p => p.stripId !== id))}
+      />
       {seizureAlertNow && (
         <SeizureAlert
           variant={seizureAlertIsEnd ? 'ended' : 'incoming'}

@@ -826,6 +826,38 @@ async function applySchemaOnce() {
   )`);
   await sq(`CREATE INDEX IF NOT EXISTS idx_tzs_targets_preset ON temp_zone_seizure_targets(preset_id)`);
 
+  // ── לקיחת פ"מ שכבר בנקודת העברה (TRANSFER_TAKEOVER) ─────────────────────
+  // עמדה גוררת לנקודת העברה פ"מ שכבר ממתין בנקודת העברה מעמדה אחרת. הגרירה לא
+  // נשלחת אלא נפתחת בקשה: טופס תיאום אצל הגוררת, התראה אצל המחזיקה, וההכרעה
+  // הראשונה (מכל צד) קובעת. השמות נשמרים כצילום מצב - הם מה שהוצג בזמן ההחלטה.
+  // בלי FK ל-strips בכוונה: הבקשה היא חלק מהסיפור גם אחרי מיזוג/מחיקה.
+  await sq(`CREATE TABLE IF NOT EXISTS transfer_takeover_requests (
+    id SERIAL PRIMARY KEY,
+    strip_id INTEGER NOT NULL,
+    callsign VARCHAR(64) DEFAULT '',
+    existing_transfer_id INTEGER,
+    holder_preset_id INTEGER,
+    holder_name VARCHAR(255) DEFAULT '',
+    existing_point_label VARCHAR(255) DEFAULT '',
+    existing_dest_name VARCHAR(255) DEFAULT '',
+    requester_preset_id INTEGER NOT NULL,
+    requester_name VARCHAR(255) DEFAULT '',
+    new_point_label VARCHAR(255) DEFAULT '',
+    new_dest_name VARCHAR(255) DEFAULT '',
+    kind VARCHAR(10) NOT NULL DEFAULT 'sector',
+    payload JSONB NOT NULL DEFAULT '{}',
+    status VARCHAR(12) NOT NULL DEFAULT 'pending',
+    decided_side VARCHAR(10),
+    decided_by_preset_id INTEGER,
+    new_transfer_id INTEGER,
+    holder_seen BOOLEAN NOT NULL DEFAULT false,
+    requester_seen BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    decided_at TIMESTAMPTZ
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_ttr_holder ON transfer_takeover_requests(holder_preset_id, status)`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_ttr_requester ON transfer_takeover_requests(requester_preset_id, status)`);
+
   await sq(`CREATE TABLE IF NOT EXISTS strip_zone_extra_zones (
     id SERIAL PRIMARY KEY,
     strip_id INTEGER NOT NULL REFERENCES strips(id) ON DELETE CASCADE,

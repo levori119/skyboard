@@ -105,66 +105,86 @@ async function restoreStripToSender(db, stripId, fromWorkstationId) {
   );
 }
 
+// ─── שליחת העברה - הליבה ──────────────────────────────────────────────────────
+// חולצה מה-route כדי שגם אישור "לקיחת פ"מ שכבר בנקודת העברה" (transferTakeovers.js)
+// ישלח **באותו קוד בדיוק** - בתוך הטרנזקציה שמבטלת את ההעברה הקודמת.
+// מחזירה את שורת ההעברה החדשה, או null אם הפ"מ לא נמצא.
+export async function initiateSectorTransferTx(db, stripId, body) {
+  const { toSectorId, workstationId, targetX, targetY, subSectorLabel, fromWorkstationId, toWorkstationId, etaMinutes } = body || {};
+
+  const strip = await db.query('SELECT * FROM strips WHERE id = $1', [stripId]);
+  if (strip.rows.length === 0) return null;
+
+  let fromSectorId = strip.rows[0].sector_id;
+
+  if (!fromSectorId && fromWorkstationId) {
+    const senderPreset = await db.query('SELECT relevant_sectors FROM workstation_presets WHERE id = $1', [fromWorkstationId]);
+    if (senderPreset.rows.length > 0) {
+      let senderSectors = senderPreset.rows[0].relevant_sectors;
+      if (typeof senderSectors === 'string') senderSectors = JSON.parse(senderSectors);
+      if (Array.isArray(senderSectors) && senderSectors.length > 0) {
+        fromSectorId = senderSectors[0];
+      }
+    }
+  }
+
+  let resolvedToWorkstationId = toWorkstationId;
+  if (!resolvedToWorkstationId && fromWorkstationId) {
+    const presetsResult = await db.query('SELECT * FROM workstation_presets ORDER BY name');
+    const presetsWithSector = presetsResult.rows
+      .map(row => {
+        const relevant = Array.isArray(row.relevant_sectors) ? row.relevant_sectors :
+          (typeof row.relevant_sectors === 'string' ? JSON.parse(row.relevant_sectors) : []);
+        const recvPts = Array.isArray(row.classic_receive_points) ? row.classic_receive_points :
+          (typeof row.classic_receive_points === 'string' ? JSON.parse(row.classic_receive_points) : []);
+        const recvSectorIds = recvPts.map(p => Number(p.sector_id)).filter(Number.isFinite);
+        return { ...row, relevant_sectors: relevant, recv_sector_ids: recvSectorIds };
+      })
+      .filter(preset =>
+        (preset.relevant_sectors.includes(toSectorId) || preset.recv_sector_ids.includes(Number(toSectorId))) &&
+        preset.id !== fromWorkstationId
+      );
+
+    if (presetsWithSector.length > 0) {
+      resolvedToWorkstationId = presetsWithSector[0].id;
+    }
+  }
+
+  await db.query(
+    'UPDATE strips SET status = $1, workstation_preset_id = $2 WHERE id = $3',
+    ['pending_transfer', resolvedToWorkstationId || null, stripId]
+  );
+
+  const etaSetAt = (etaMinutes != null && etaMinutes > 0) ? new Date() : null;
+  const result = await db.query(
+    `INSERT INTO strip_transfers (strip_id, from_sector_id, to_sector_id, initiated_by, status, target_x, target_y, sub_sector_label, from_workstation_id, to_workstation_id, eta_minutes, eta_set_at)
+     VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+    [stripId, fromSectorId, toSectorId, workstationId, targetX || 0, targetY || 0, subSectorLabel || null, fromWorkstationId || null, resolvedToWorkstationId || null, etaMinutes || null, etaSetAt]
+  );
+  return result.rows[0];
+}
+
+/** העברה ישירה לעמדה (קלאסי / נקודת העברה זמנית) - אותו עיקרון כמו למעלה. */
+export async function initiatePresetTransferTx(db, stripId, { fromPresetId, toPresetId } = {}) {
+  await db.query('UPDATE strips SET status = $1 WHERE id = $2', ['pending_transfer', stripId]);
+  const result = await db.query(
+    `INSERT INTO strip_transfers (strip_id, from_preset_id, to_preset_id, status)
+     VALUES ($1, $2, $3, 'pending') RETURNING *`,
+    [stripId, fromPresetId, toPresetId]
+  );
+  return result.rows[0];
+}
+
+export { recordTransferSentFlow, recordTransferClosedFlow };
+
 router.post('/api/strips/:id/transfer', async (req, res) => {
   try {
     const stripId = parseInt(String(req.params.id).replace(/^s/, ''));
     if (isNaN(stripId)) return res.status(400).json({ error: 'Invalid strip id' });
-    const { toSectorId, workstationId, targetX, targetY, subSectorLabel, fromWorkstationId, toWorkstationId, etaMinutes } = req.body;
-
-    const strip = await pool.query('SELECT * FROM strips WHERE id = $1', [stripId]);
-    if (strip.rows.length === 0) {
-      return res.status(404).json({ error: 'Strip not found' });
-    }
-
-    let fromSectorId = strip.rows[0].sector_id;
-
-    if (!fromSectorId && fromWorkstationId) {
-      const senderPreset = await pool.query('SELECT relevant_sectors FROM workstation_presets WHERE id = $1', [fromWorkstationId]);
-      if (senderPreset.rows.length > 0) {
-        let senderSectors = senderPreset.rows[0].relevant_sectors;
-        if (typeof senderSectors === 'string') senderSectors = JSON.parse(senderSectors);
-        if (Array.isArray(senderSectors) && senderSectors.length > 0) {
-          fromSectorId = senderSectors[0];
-        }
-      }
-    }
-
-    let resolvedToWorkstationId = toWorkstationId;
-    if (!resolvedToWorkstationId && fromWorkstationId) {
-      const presetsResult = await pool.query('SELECT * FROM workstation_presets ORDER BY name');
-      const presetsWithSector = presetsResult.rows
-        .map(row => {
-          const relevant = Array.isArray(row.relevant_sectors) ? row.relevant_sectors :
-            (typeof row.relevant_sectors === 'string' ? JSON.parse(row.relevant_sectors) : []);
-          const recvPts = Array.isArray(row.classic_receive_points) ? row.classic_receive_points :
-            (typeof row.classic_receive_points === 'string' ? JSON.parse(row.classic_receive_points) : []);
-          const recvSectorIds = recvPts.map(p => Number(p.sector_id)).filter(Number.isFinite);
-          return { ...row, relevant_sectors: relevant, recv_sector_ids: recvSectorIds };
-        })
-        .filter(preset =>
-          (preset.relevant_sectors.includes(toSectorId) || preset.recv_sector_ids.includes(Number(toSectorId))) &&
-          preset.id !== fromWorkstationId
-        );
-
-      if (presetsWithSector.length > 0) {
-        resolvedToWorkstationId = presetsWithSector[0].id;
-      }
-    }
-
-    await pool.query(
-      'UPDATE strips SET status = $1, workstation_preset_id = $2 WHERE id = $3',
-      ['pending_transfer', resolvedToWorkstationId || null, stripId]
-    );
-
-    const etaSetAt = (etaMinutes != null && etaMinutes > 0) ? new Date() : null;
-    const result = await pool.query(
-      `INSERT INTO strip_transfers (strip_id, from_sector_id, to_sector_id, initiated_by, status, target_x, target_y, sub_sector_label, from_workstation_id, to_workstation_id, eta_minutes, eta_set_at)
-       VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
-      [stripId, fromSectorId, toSectorId, workstationId, targetX || 0, targetY || 0, subSectorLabel || null, fromWorkstationId || null, resolvedToWorkstationId || null, etaMinutes || null, etaSetAt]
-    );
-
-    await recordTransferSentFlow(result.rows[0], req.user);
-    res.json({ transfer: result.rows[0] });
+    const transfer = await initiateSectorTransferTx(pool, stripId, req.body);
+    if (!transfer) return res.status(404).json({ error: 'Strip not found' });
+    await recordTransferSentFlow(transfer, req.user);
+    res.json({ transfer });
   } catch (err) {
     console.error('Error initiating transfer:', err);
     res.status(500).json({ error: 'Failed to initiate transfer' });
@@ -260,15 +280,9 @@ router.get('/api/transfers/pending-all', async (req, res) => {
 router.post('/api/strips/:id/transfer-to-preset', async (req, res) => {
   try {
     const stripId = parseInt(req.params.id.replace('s', ''));
-    const { fromPresetId, toPresetId } = req.body;
-    await pool.query('UPDATE strips SET status = $1 WHERE id = $2', ['pending_transfer', stripId]);
-    const result = await pool.query(
-      `INSERT INTO strip_transfers (strip_id, from_preset_id, to_preset_id, status)
-       VALUES ($1, $2, $3, 'pending') RETURNING *`,
-      [stripId, fromPresetId, toPresetId]
-    );
-    await recordTransferSentFlow(result.rows[0], req.user);
-    res.json({ transfer: result.rows[0] });
+    const transfer = await initiatePresetTransferTx(pool, stripId, req.body || {});
+    await recordTransferSentFlow(transfer, req.user);
+    res.json({ transfer });
   } catch (err) {
     console.error('Error initiating classic transfer:', err);
     res.status(500).json({ error: 'Failed to initiate transfer' });

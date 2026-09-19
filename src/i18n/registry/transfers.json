@@ -197,6 +197,86 @@
     "writeHere": {
       "he": "כתוב כאן...",
       "en": "Write here..."
+    },
+    "takeoverTitleRequester": {
+      "he": "פ\"מ כבר בנקודת העברה - נדרש תיאום",
+      "en": "Strip already at a transfer point - coordination required"
+    },
+    "takeoverTitleHolder": {
+      "he": "עמדה אחרת מבקשת להעביר פ\"מ שאצלך",
+      "en": "Another position wants to transfer your strip"
+    },
+    "takeoverRequesterBody": {
+      "he": "פ\"מ {{cs}} נמצא בעמדה {{holder}} ונגרר לנקודת העברה {{point}} בדרך לעמדה {{dest}} - בבקשה תאם עם עמדה {{holder}} האם לאשר לך להעביר לעמדה אחרת או לא",
+      "en": "Strip {{cs}} is at position {{holder}} and was sent to transfer point {{point}} on its way to position {{dest}} - please coordinate with position {{holder}} whether you may transfer it elsewhere"
+    },
+    "takeoverRequesterMine": {
+      "he": "ההעברה שלך: לנקודת העברה {{point}} ולעמדה {{dest}}",
+      "en": "Your transfer: to transfer point {{point}} and position {{dest}}"
+    },
+    "takeoverRequesterWaiting": {
+      "he": "עמדה {{holder}} קיבלה את הבקשה ויכולה לאשר גם מצידה",
+      "en": "Position {{holder}} received the request and may approve from its side"
+    },
+    "takeoverHolderBody": {
+      "he": "פ\"מ {{cs}} נמצא בעמדה {{requester}} ונגרר לנקודת העברה {{point}} בדרך לעמדה {{dest}} - הפ\"מ נמצא אצלך בדרך לנקודת העברה {{myPoint}} ולעמדה {{myDest}}. האם לאשר לעמדה השנייה את ההעברה?",
+      "en": "Strip {{cs}} is at position {{requester}} and was sent to transfer point {{point}} on its way to position {{dest}} - the strip is with you on its way to transfer point {{myPoint}} and position {{myDest}}. Approve the other position's transfer?"
+    },
+    "takeoverApprovedCoordinated": {
+      "he": "בוצע תיאום ומאושר להעביר",
+      "en": "Coordinated - approved to transfer"
+    },
+    "takeoverNotApproved": {
+      "he": "לא אושר",
+      "en": "Not approved"
+    },
+    "takeoverApprove": {
+      "he": "אשר",
+      "en": "Approve"
+    },
+    "takeoverDontApprove": {
+      "he": "אל תאשר",
+      "en": "Do not approve"
+    },
+    "takeoverDirect": {
+      "he": "העברה ישירה",
+      "en": "direct transfer"
+    },
+    "takeoverOutcomeApprovedByHolder": {
+      "he": "עמדה {{holder}} אישרה - פ\"מ {{cs}} הועבר לנקודת העברה {{point}} בדרך לעמדה {{dest}}",
+      "en": "Position {{holder}} approved - strip {{cs}} was sent to transfer point {{point}} on its way to position {{dest}}"
+    },
+    "takeoverOutcomeDeniedByHolder": {
+      "he": "עמדה {{holder}} לא אישרה - ההעברה של פ\"מ {{cs}} לא בוצעה",
+      "en": "Position {{holder}} did not approve - the transfer of strip {{cs}} was not made"
+    },
+    "takeoverOutcomeApprovedByRequester": {
+      "he": "פ\"מ {{cs}} הועבר ע\"י עמדה {{requester}} (בוצע תיאום) לנקודת העברה {{point}} בדרך לעמדה {{dest}} - ההקצאה שלך בנקודת העברה {{myPoint}} בוטלה",
+      "en": "Strip {{cs}} was transferred by position {{requester}} (coordinated) to transfer point {{point}} on its way to position {{dest}} - your assignment at transfer point {{myPoint}} was cancelled"
+    },
+    "takeoverOutcomeDeniedByRequester": {
+      "he": "עמדה {{requester}} סימנה שההעברה של פ\"מ {{cs}} לא אושרה - ההעברה שלך נשארת",
+      "en": "Position {{requester}} marked the transfer of strip {{cs}} as not approved - your transfer stands"
+    },
+    "takeoverOutcomeStale": {
+      "he": "ההעברה הקודמת של פ\"מ {{cs}} כבר נסגרה (התקבלה או בוטלה) - ההעברה לא בוצעה. גרור שוב אם עדיין נדרש",
+      "en": "The previous transfer of strip {{cs}} was already closed (accepted or cancelled) - nothing was sent. Drag again if still needed"
+    },
+    "takeoverOutcomeExpired": {
+      "he": "הבקשה על פ\"מ {{cs}} פגה - ההעברה לא בוצעה",
+      "en": "The request for strip {{cs}} expired - nothing was sent"
+    },
+    "takeoverTitleOutcome": {
+      "he": "תיאום העברה - תוצאה",
+      "en": "Transfer coordination - outcome"
+    },
+    "heldElsewhereTitle": {
+      "he": "שים לב",
+      "en": "Note"
+    },
+    "heldElsewhereBody": {
+      "he": "שים לב פ\"מ {{cs}} נמצא גם בעמדה {{stations}}",
+      "en": "Note: strip {{cs}} is also at position {{stations}}"
     }
   }
 }

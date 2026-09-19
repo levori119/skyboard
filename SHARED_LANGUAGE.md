@@ -55,6 +55,7 @@
 **Endpoints:** `/api/strips/:id/transfer`, `/api/transfers/:id/accept`, `/api/transfers/:id/acknowledge`, `/api/transfers/:id/reject` (body: `note`), `/api/transfers/:id/dismiss`, `/api/transfers/:id/cancel`, `/api/transfers/:id/set-eta`.
 **מצבי סטטוס:** `pending → acknowledged → accepted` / `rejected`. אצל המוסר: אושר=ירוק, נדחה=כתום, קונפליקט=אדום.
 **מונחים:** מוסר, מקבל, נקודת העברה (שלמה/חץ), אשר, דחה, העברה חלקית, station-to-station.
+**פ"מ שכבר בנקודת העברה מעמדה אחרת:** גרירה שלו לנקודת העברה לא נשלחת - טופס תיאום בעמדה הגוררת ("בוצע תיאום ומאושר להעביר" / "לא אושר") והתראה בעמדה ששלחה ("אשר" / "אל תאשר"); ההכרעה הראשונה קובעת, ובאישור ההעברה הקודמת מבוטלת. פ"מ שנגרר לעמדה/מפה (לא דרך קבלה) ומוחזק גם בעמדה אחרת - "שים לב פ"מ X נמצא גם בעמדה Y". `server/routes/transferTakeovers.js`, `src/utils/transferTakeover.ts`.
 
 ### 3. נקודות העברה (סקטורים)
 **מה:** הגדרת סקטורים (נקודות העברה) וקשרי שכנות ביניהם; פאנל מוסר/מקבל לכל נקודה.
