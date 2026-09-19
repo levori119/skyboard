@@ -28,6 +28,7 @@ export const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false, bases 
   const [newMapBaseId, setNewMapBaseId] = useState('');
   const [newMapData, setNewMapData] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [pasted, setPasted] = useState(false); // התמונה הגיעה מהלוח ולא מקובץ
   // שיכפול מפה — הטופס נפתח בשורת המפה עצמה (בלי חלון נוסף): שם העותק ואישור
   const [dup, setDup] = useState<{ id: number; name: string } | null>(null);
   const [dupBusy, setDupBusy] = useState(false);
@@ -72,7 +73,55 @@ export const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false, bases 
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = ''; // בחירה חוזרת של אותו קובץ אחרי הדבקה עדיין תפעיל onChange
     if (!file) return;
+    setPasted(false);
+    await loadFile(file);
+  };
+
+  // הדבקה מהלוח — גזירת אזור במסך (Win+Shift+S) ו-Ctrl+V, בלי לשמור קובץ קודם.
+  const loadPastedBlob = (blob: Blob) => {
+    setPasted(true);
+    loadFile(new File([blob], 'pasted.png', { type: blob.type || 'image/png' }));
+  };
+
+  // Ctrl+V בכל מקום במסך ניהול המפות. רק תמונה נתפסת — הדבקת טקסט לשדה השם
+  // ממשיכה כרגיל (בלוח עם טקסט ותמונה, כשהפוקוס בשדה טקסט, הטקסט גובר).
+  useEffect(() => {
+    if (zoneEditorMapId !== null) return; // עורך האזורים פתוח מעל - ההדבקה לא שלנו
+    const onPaste = (ev: Event) => {
+      const e = ev as ClipboardEvent;
+      const items = Array.from(e.clipboardData?.items || []);
+      const img = items.find(it => it.kind === 'file' && it.type.startsWith('image/'));
+      if (!img) return;
+      const t = e.target as HTMLElement | null;
+      const inText = !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+      if (inText && items.some(it => it.kind === 'string' && it.type === 'text/plain')) return;
+      const blob = img.getAsFile();
+      if (!blob) return;
+      e.preventDefault();
+      loadPastedBlob(blob);
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [zoneEditorMapId]);
+
+  // כפתור "הדבק" — למסך מגע/עט בלי מקלדת. navigator.clipboard.read דורש הקשר מאובטח.
+  const handlePasteClick = async () => {
+    try {
+      const items = await navigator.clipboard.read();
+      for (const it of items) {
+        const type = it.types.find(ty => ty.startsWith('image/'));
+        if (type) { loadPastedBlob(await it.getType(type)); return; }
+      }
+      alert(tr('map.pasteImageNone'));
+    } catch (err) {
+      console.error('Clipboard read failed:', err);
+      alert(tr('map.pasteImageNone'));
+    }
+  };
+
+  const loadFile = async (file: File) => {
     if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
       setIsPdf(true);
       setPdfDoc(null);
@@ -124,6 +173,7 @@ export const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false, bases 
         setNewMapName('');
         setNewMapBaseId('');
         setNewMapData(null);
+        setPasted(false);
         setIsPdf(false);
         setPdfDoc(null);
         setPdfPageCount(0);
@@ -220,9 +270,17 @@ export const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false, bases 
             <ParentBaseSelect value={newMapBaseId} bases={baseOptions} onChange={setNewMapBaseId} />
           )}
           <label style={{ background: '#475569', color: 'white', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
-            {pdfRendering ? '⏳ טוען PDF...' : newMapData ? (isPdf ? `📄 PDF — עמוד ${pdfCurrentPage}/${pdfPageCount} ✓` : '🖼 תמונה נבחרה ✓') : '📂 בחר תמונה / PDF'}
+            {pdfRendering ? '⏳ טוען PDF...' : newMapData ? (isPdf ? `📄 PDF — עמוד ${pdfCurrentPage}/${pdfPageCount} ✓` : pasted ? tr('map.pastedImageReady') : '🖼 תמונה נבחרה ✓') : '📂 בחר תמונה / PDF'}
             <input type="file" accept="image/*,.pdf,application/pdf" onChange={handleFileSelect} style={{ display: 'none' }} />
           </label>
+          <button
+            type="button"
+            onClick={handlePasteClick}
+            title={tr('map.pasteImageHint')}
+            style={{ background: '#475569', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
+          >
+            {tr('map.pasteImage')}
+          </button>
           <button
             onClick={handleUpload}
             disabled={!newMapName.trim() || !newMapData || uploading || pdfRendering}
@@ -239,6 +297,11 @@ export const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false, bases 
             {uploading ? 'מעלה...' : 'העלה'}
           </button>
         </div>
+        <div style={{ marginTop: '8px', fontSize: '12px', color: isEmbedded ? '#94a3b8' : '#64748b' }}>{tr('map.pasteImageHint')}</div>
+        {/* תצוגה מקדימה — במיוחד בהדבקה, לוודא שנגזר האזור הנכון לפני ההעלאה */}
+        {newMapData && !pdfRendering && (
+          <img src={newMapData} alt="" style={{ marginTop: '10px', display: 'block', maxWidth: '100%', maxHeight: '160px', objectFit: 'contain', borderRadius: '6px', border: `1px solid ${isEmbedded ? '#475569' : '#cbd5e1'}` }} />
+        )}
         {/* PDF page navigator */}
         {isPdf && pdfPageCount > 1 && (
           <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px', direction: 'rtl' }}>
