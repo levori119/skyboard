@@ -654,6 +654,14 @@
       "he": "ממתין למיקום",
       "en": "Waiting for location"
     },
+    "liveBackground": {
+      "he": "📱 האפליקציה ברקע אצל הנהג (מ-{{since}}) - המיקום לא מתעדכן",
+      "en": "📱 Driver app in background (since {{since}}) - position not updating"
+    },
+    "liveStaleBackground": {
+      "he": "אות אבד - האפליקציה ברקע אצל הנהג (מ-{{since}})",
+      "en": "Signal lost - driver app in background (since {{since}})"
+    },
     "liveStale": {
       "he": "אות אבד",
       "en": "Signal lost"

@@ -66,12 +66,22 @@ function routePct(t: LiveTrip, anchor: MapGeoAnchor | null): { x: number; y: num
   return out.length >= 2 ? out : [];
 }
 
+/** שעה מקומית HH:MM - ממתי האפליקציה ברקע */
+function hhmm(iso: string): string {
+  const d = new Date(iso);
+  return Number.isFinite(d.getTime())
+    ? `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` : '';
+}
+
 /** השורה שמתחת לשם - מה שהפקח צריך לדעת עכשיו על הרכב. מיוצא: גם המפה הצפה מציגה אותה */
 export function detailText(t: LiveTrip, tone: LiveTone, anchored: boolean): string {
   if (!anchored) return tr('trips.liveNoAnchor');
+  // האפליקציה ברקע אצל הנהג: המיקום נעצר בגלל הדפדפן ולא בגלל קליטה - הפקח
+  // צריך לדעת להתקשר לנהג, ולא לחפש תקלה
+  const bgSince = t.app_background && t.app_background_at ? hhmm(t.app_background_at) : '';
   switch (tone) {
-    case 'waiting': return tr('trips.liveWaiting');
-    case 'stale': return tr('trips.liveStale');
+    case 'waiting': return t.app_background ? tr('trips.liveBackground', { since: bgSince }) : tr('trips.liveWaiting');
+    case 'stale': return t.app_background ? tr('trips.liveStaleBackground', { since: bgSince }) : tr('trips.liveStale');
     case 'blocked':
       return tr('trips.liveBlocked', {
         element: t.blocking_element?.name || '',
@@ -79,6 +89,7 @@ export function detailText(t: LiveTrip, tone: LiveTone, anchored: boolean): stri
       });
     case 'deviating': return tr('trips.liveDeviation', { meters: Math.round(t.deviation_m ?? 0) });
     default:
+      if (t.app_background) return tr('trips.liveBackground', { since: bgSince });
       return t.position?.speed_kmh != null ? tr('trips.liveSpeed', { speed: Math.round(t.position.speed_kmh) }) : '';
   }
 }

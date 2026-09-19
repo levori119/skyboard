@@ -3121,6 +3121,7 @@ REFACTOR_LOG #045.
 | `driver_id` | INT → `entry_permit_drivers` | CASCADE, **NULL-able**: נסיעה יכולה להירשם לנהג מזדמן שאינו במרשם |
 | `driver_name` / `driver_phone` | VARCHAR | שם וטלפון הנהג כשאינו במרשם, או כפי שנרשמו לנסיעה |
 | `driver_started_at` | TIMESTAMPTZ | הנהג לחץ "הפעל נסיעה" (`POST /api/driver-trips/:id/start`) - מותר רק לנסיעה מאושרת, מחצי שעה לפני עד חצי שעה אחרי `scheduled_at`. מקפיץ למגדל התראה. **אינה** עוברת לעותק |
+| `driver_app_background_at` | TIMESTAMPTZ | אפליקציית הנהג ברקע מאז (2026-09-19). נכתב ב-`POST /api/driver-trips/:id/app-state` ובקריאת GPS עם `background:true`, מתנקה בחזרה לחזית. NULL = בחזית. המגדל מציג "האפליקציה ברקע אצל הנהג" במקום "אות אבד" עמום |
 | `pending_change_prev_status` | VARCHAR(20) | עדכון מהנהג מחזיר את הנסיעה ל-`pending` (גם אם אושרה), וכאן נשמר הסטטוס שלפניו - פעם אחת, עדכון נוסף אינו דורס. אישור העדכון מחזיר אותו (אלא אם השתנו תחנות - אז הנתיב נמחק ונשאר `pending`); דחייה מחזירה אותו. NULL = אין עדכון ממתין. **אינה** עוברת לעותק |
 | `driver_requested_at` | TIMESTAMPTZ | מתי הנהג שלח את הנסיעה כ**בקשה** מאפליקציית DRIVER (`POST /api/driver-trips`). NULL = המגדל רשם אותה. מקפיץ למגדל התראת "בקשת נסיעה חדשה" כל עוד היא טרייה (30 דק') וממתינה. **אינה** עוברת לעותק בשכפול |
 | `driver_national_id` | VARCHAR(20) | ת"ז של **נהג מזדמן**, מנורמלת ל-9 ספרות (ריק = לא הוזנה). לפיה הנסיעה מגיעה לאפליקציית DRIVER שלו. נהג מהמרשם מזוהה דרך `driver_id` → `entry_permit_drivers.national_id`, ולכן כשיש `driver_id` הלקוח שולח כאן ריק. עוברת לעותק בשכפול |

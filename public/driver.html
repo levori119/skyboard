@@ -1831,12 +1831,12 @@ function whenLogic(fn) {
   else window.addEventListener('driverlogic', fn, { once: true });
 }
 
-function showToast(text) {
+function showToast(text, ms = 3200) {
   const el = document.getElementById('toast');
   el.textContent = text;
   el.style.display = 'block';
   clearTimeout(showToast.t);
-  showToast.t = setTimeout(() => { el.style.display = 'none'; }, 3200);
+  showToast.t = setTimeout(() => { el.style.display = 'none'; }, ms);
 }
 
 /** ברכה מלאת מסך מיד אחרי כניסה - פעם אחת, לא בכל רענון. */
@@ -2637,7 +2637,7 @@ async function openLiveTrip(id) {
     tripId: id, data: null, watchId: null, fix: null, pendingFix: null, sending: false, sendFailed: false,
     alertState: { inside: [], lastAt: {} }, nearest: null, pollTimer: null, sendTimer: null,
     mapMode: 'airfield', follow: true, zoom: LIVE_ZOOM_DEFAULT, center: null, view: null, wakeLock: null,
-    gmap: null, gmapObjs: null, gmapsKey: undefined, gpsState: 'waiting', loadedMapId: null,
+    gmap: null, gmapObjs: null, gmapsKey: undefined, gpsState: 'waiting', loadedMapId: null, bgSince: null, lastSentAt: 0,
   };
   setLiveMapTabs('airfield');
   liveEl('ltFollow').classList.add('on');
@@ -2647,6 +2647,8 @@ async function openLiveTrip(id) {
   if (!ok || !live || live.tripId !== id) return;
   startLiveGps();
   acquireWakeLock();
+  // דפדפן לא משדר מיקום ברקע - הנהג צריך לדעת את זה לפני שהוא מכניס את הטלפון לכיס
+  showToast('📱 השאר את המסך פתוח - כשהאפליקציה ברקע או המסך כבוי, המגדל לא רואה אותך', 7000);
   live.pollTimer = setInterval(refreshLiveData, LIVE_POLL_MS);
   live.sendTimer = setInterval(sendPendingFix, LIVE_SEND_MS);
   checkGoogleAvailability();
@@ -2774,6 +2776,12 @@ function onLiveFix(p) {
   live.pendingFix = live.fix;
   live.fixAt = Date.now();
   live.gpsState = 'ok';
+  // ברקע הדפדפן מאט את הטיימרים (עד פעם בדקה) - קריאה שבכל זאת הגיעה נשלחת מיד,
+  // ולא מחכה לטיימר של שידור שאולי לא ירוץ
+  if (document.visibilityState === 'hidden') {
+    if (!live.lastSentAt || Date.now() - live.lastSentAt >= LIVE_SEND_MS) sendPendingFix();
+    return;
+  }
   renderLiveMap();
   checkLiveHazards();
   renderLiveStatus();
@@ -2811,8 +2819,12 @@ async function sendPendingFix() {
   try {
     const res = await fetch(`${BASE}/api/driver-trips/${id}/gps`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lat: fix.lat, lng: fix.lon, accuracy: fix.accuracy, heading: fix.heading, speed_kmh: fix.speed_kmh }),
+      // הקריאה נשלחה מהרקע? המגדל ישאיר "האפליקציה ברקע" - הבאה לא מובטחת
+      body: JSON.stringify({ lat: fix.lat, lng: fix.lon, accuracy: fix.accuracy, heading: fix.heading, speed_kmh: fix.speed_kmh,
+        background: document.visibilityState === 'hidden' }),
+      keepalive: document.visibilityState === 'hidden',
     });
+    if (live) live.lastSentAt = Date.now();
     if (!live || live.tripId !== id) return;
     if (res.status === 409) {
       const b = await res.json().catch(() => ({}));
@@ -2846,10 +2858,60 @@ function releaseWakeLock() {
   }
 }
 
+// ── האפליקציה ברקע ───────────────────────────────────────────────────────────
+// דף אינטרנט לא מקבל GPS כשהמסך כבוי או כשעוברים לאפליקציה אחרת (אייפון עוצר
+// את הדף כולו; אנדרואיד מקצץ את הטיימרים והמיקום). מה שכן אפשר:
+//   - לומר למגדל ברגע היציאה שהאפליקציה ברקע (keepalive - עובר גם כשהדף נעצר),
+//     כדי שיראה "האפליקציה ברקע אצל הנהג" ולא "אות אבד" עמום
+//   - לשלוח כל קריאה שהדפדפן בכל זאת נותן ברקע, מיד
+//   - בחזרה: לחדש את ה-GPS, לשלוח מיקום מיד, ולומר לנהג כמה זמן לא שודר
+
+/** רווח מעליו אומרים לנהג שהמיקום לא שודר - קצר מזה הוא מעבר רגעי */
+const BG_WARN_AFTER_MS = 10_000;
+
+function postAppState(state) {
+  if (!live) return;
+  fetch(`${BASE}/api/driver-trips/${live.tripId}/app-state`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ state }), keepalive: true,
+  }).catch(() => { /* אין קליטה - הקריאה הבאה תעדכן */ });
+}
+
+function onAppHidden() {
+  if (!live || live.bgSince) return;
+  live.bgSince = Date.now();
+  postAppState('background');
+}
+
+function onAppVisible() {
+  // הדפדפן משחרר את נעילת המסך כשהדף מוסתר; כשחוזרים - מבקשים שוב
+  if (live && (!live.wakeLock || live.wakeLock.released)) acquireWakeLock();
+  if (!live || !live.bgSince) return;
+  const gap = Date.now() - live.bgSince;
+  live.bgSince = null;
+  postAppState('foreground');
+  // חלק מהדפדפנים מבטלים את מעקב המיקום ברקע ולא מחדשים אותו - מתחילים מחדש
+  if (navigator.geolocation) {
+    if (live.watchId != null) navigator.geolocation.clearWatch(live.watchId);
+    live.watchId = navigator.geolocation.watchPosition(onLiveFix, onLiveGpsError, {
+      enableHighAccuracy: true, maximumAge: 2000, timeout: 20000,
+    });
+    navigator.geolocation.getCurrentPosition(p => { onLiveFix(p); sendPendingFix(); }, () => {}, {
+      enableHighAccuracy: true, maximumAge: 5000, timeout: 15000,
+    });
+  }
+  refreshLiveData();
+  if (gap >= BG_WARN_AFTER_MS) {
+    showToast(`⚠ המיקום לא שודר למגדל ${Math.round(gap / 1000)} שניות בזמן שהאפליקציה הייתה ברקע. השאר את המסך פתוח במהלך הנסיעה`, 8000);
+  }
+}
+
 document.addEventListener('visibilitychange', () => {
-  // הדפדפן משחרר את הנעילה כשהדף מוסתר; כשחוזרים - מבקשים שוב
-  if (document.visibilityState === 'visible' && live && (!live.wakeLock || live.wakeLock.released)) acquireWakeLock();
+  if (document.visibilityState === 'hidden') onAppHidden();
+  else onAppVisible();
 });
+// אייפון לא תמיד שולח visibilitychange כשסוגרים את הלשונית - pagehide כן
+window.addEventListener('pagehide', onAppHidden);
 
 window.addEventListener('resize', () => {
   if (live && liveEl('liveTripScreen').style.display !== 'none') renderLiveMap();

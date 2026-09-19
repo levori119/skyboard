@@ -14,7 +14,7 @@ import type { MapGeoAnchor } from '../../utils/geo';
 const registry = vi.hoisted(() => ({ register: vi.fn(), unregister: vi.fn() }));
 vi.mock('../../hooks/usePollingRegistry', () => ({ pollingRegistry: registry, usePolling: vi.fn() }));
 
-const { TripLiveVehicles } = await import('./TripLiveVehicles');
+const { TripLiveVehicles, detailText } = await import('./TripLiveVehicles');
 const { subscribeLiveTrips, __liveTripsSubscriberCount } = await import('../../hooks/useLiveTrips');
 
 // אותו עוגן של בדיקות השרת: x 0..100 ↔ lon 34.60..34.70, y 0..100 ↔ lat 31.30..31.20
@@ -200,5 +200,26 @@ describe('החיווט במגדל', () => {
 
   it('סכנה פיזית בראש הערימה', () => {
     expect(ALERTS).toContain('[...liveAlerts, ...out]');
+  });
+});
+
+// "תמשיך לשדר גם כשהיא ברקע" - דפדפן לא משדר GPS ברקע, ולכן המגדל אומר *למה*
+// הרכב נעלם: "האפליקציה ברקע" שולח את הפקח להתקשר לנהג, "אות אבד" - לחפש תקלה.
+describe('האפליקציה ברקע אצל הנהג', () => {
+  const bg = { app_background: true, app_background_at: new Date(2026, 8, 19, 14, 5).toISOString() };
+
+  it('אות אבד בזמן שהאפליקציה ברקע - אומר את שניהם, עם השעה', () => {
+    const txt = detailText(trip({ stale: true, ...bg }), 'stale', true);
+    expect(txt).toContain('ברקע');
+    expect(txt).toContain('14:05');
+  });
+
+  it('עוד לא אות אבד, אבל ברקע - כבר מסומן', () => {
+    expect(detailText(trip(bg), 'normal', true)).toContain('ברקע');
+  });
+
+  it('בחזית - הטקסט הרגיל', () => {
+    expect(detailText(trip({ stale: true }), 'stale', true)).not.toContain('ברקע');
+    expect(detailText(trip(), 'normal', true)).not.toContain('ברקע');
   });
 });

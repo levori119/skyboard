@@ -125,7 +125,7 @@ beforeAll(async () => {
     suggested_route_ids JSONB DEFAULT '[]', route_options JSONB DEFAULT '[]',
     selected_route_ids JSONB DEFAULT '[]', selected_route_label VARCHAR(300) NOT NULL DEFAULT '',
     driver_ack_at TIMESTAMPTZ, pending_change JSONB, pending_change_at TIMESTAMPTZ,
-    departure_alerted_at TIMESTAMPTZ, driver_requested_at TIMESTAMPTZ, driver_started_at TIMESTAMPTZ,
+    departure_alerted_at TIMESTAMPTZ, driver_requested_at TIMESTAMPTZ, driver_started_at TIMESTAMPTZ, driver_app_background_at TIMESTAMPTZ,
     pending_change_prev_status VARCHAR(20),
     updated_at TIMESTAMPTZ DEFAULT NOW(), created_at TIMESTAMPTZ DEFAULT NOW())`);
   await pool.query(`CREATE TABLE public.airfield_element_types (
@@ -556,6 +556,65 @@ describe('GET /api/trips/live - המגדל', () => {
 
   it('בלי airfield_id - רשימה ריקה', async () => {
     expect(await (await get('/api/trips/live')).json()).toEqual([]);
+  });
+});
+
+// "תעשה שאפליקציית נהג תמשיך לשדר ולעקוב גם כשהיא ברקע": דף אינטרנט אינו מקבל GPS
+// ברקע (מגבלת דפדפן), ולכן לפחות המגדל יודע **למה** הרכב נעלם - ולא רק "אות אבד".
+describe('POST /api/driver-trips/:id/app-state - האפליקציה ברקע', () => {
+  const liveRow = async () => (await (await get(`/api/trips/live?airfield_id=${AF}`)).json())[0];
+
+  it('ברקע - המגדל רואה app_background, וחזרה מנקה', async () => {
+    const t = await mkStarted();
+    expect((await dpost(`/api/driver-trips/${t.id}/app-state`, MY_TZ, { state: 'background' })).status).toBe(200);
+    let r = await liveRow();
+    expect(r.app_background).toBe(true);
+    expect(r.app_background_at).toBeTruthy();
+    expect((await dpost(`/api/driver-trips/${t.id}/app-state`, MY_TZ, { state: 'foreground' })).status).toBe(200);
+    r = await liveRow();
+    expect(r.app_background).toBe(false);
+  });
+
+  it('גם לפני הקריאה הראשונה - הנסיעה עצמה נושאת את המצב', async () => {
+    const t = await mkStarted();
+    await dpost(`/api/driver-trips/${t.id}/app-state`, MY_TZ, { state: 'background' });
+    const r = await liveRow();
+    expect(r.position).toBeNull();
+    expect(r.app_background).toBe(true);
+  });
+
+  it('יציאה חוזרת לרקע אינה מזיזה את שעת היציאה הראשונה', async () => {
+    const t = await mkStarted();
+    await dpost(`/api/driver-trips/${t.id}/app-state`, MY_TZ, { state: 'background' });
+    const first = (await pool.query('SELECT driver_app_background_at a FROM entry_permit_trips WHERE id=$1', [t.id])).rows[0].a;
+    await dpost(`/api/driver-trips/${t.id}/app-state`, MY_TZ, { state: 'background' });
+    const again = (await pool.query('SELECT driver_app_background_at a FROM entry_permit_trips WHERE id=$1', [t.id])).rows[0].a;
+    expect(new Date(again).getTime()).toBe(new Date(first).getTime());
+  });
+
+  it('קריאת GPS רגילה (לא מהרקע) מחזירה את האפליקציה לחזית', async () => {
+    const t = await mkStarted();
+    await dpost(`/api/driver-trips/${t.id}/app-state`, MY_TZ, { state: 'background' });
+    await dpost(`/api/driver-trips/${t.id}/gps`, MY_TZ, ON_ROUTE);
+    expect((await liveRow()).app_background).toBe(false);
+  });
+
+  it('קריאת GPS שנשלחה מהרקע - נשמרת, והמצב נשאר ברקע', async () => {
+    const t = await mkStarted();
+    await dpost(`/api/driver-trips/${t.id}/app-state`, MY_TZ, { state: 'background' });
+    await dpost(`/api/driver-trips/${t.id}/gps`, MY_TZ, { ...ON_ROUTE, background: true });
+    const r = await liveRow();
+    expect(r.position).not.toBeNull();
+    expect(r.app_background).toBe(true);
+  });
+
+  it('מצב לא מוכר - 400; נהג אחר - 404; נסיעה שלא הופעלה - 409', async () => {
+    const t = await mkStarted();
+    expect((await dpost(`/api/driver-trips/${t.id}/app-state`, MY_TZ, { state: 'x' })).status).toBe(400);
+    expect((await dpost(`/api/driver-trips/${t.id}/app-state`, OTHER_TZ, { state: 'background' })).status).toBe(404);
+    await dpost(`/api/driver-trips/${t.id}/end`, MY_TZ);
+    const n = await mkTrip();
+    expect((await dpost(`/api/driver-trips/${n.id}/app-state`, MY_TZ, { state: 'background' })).status).toBe(409);
   });
 });
 

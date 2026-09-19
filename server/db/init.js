@@ -2206,6 +2206,9 @@ async function applySchemaOnce() {
   // דחייה של העדכון יחזירו אותו. NULL = אין עדכון ממתין
   await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS pending_change_prev_status VARCHAR(20)`);
   await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`);
+  // אפליקציית הנהג יצאה לרקע (מסך כבוי / אפליקציה אחרת) - דף אינטרנט אינו מקבל
+  // GPS ברקע, ולכן המגדל מציג "האפליקציה ברקע" ולא "אות אבד" עמום. NULL = בחזית.
+  await sq(`ALTER TABLE entry_permit_trips ADD COLUMN IF NOT EXISTS driver_app_background_at TIMESTAMPTZ`);
   await sq(`CREATE INDEX IF NOT EXISTS idx_entry_permit_trips_airfield ON entry_permit_trips(airfield_id, scheduled_at DESC)`);
 
   // ── מעקב נסיעה חי (TRIP_LIVE_TRACKING_SPEC.md) ─────────────────────────────

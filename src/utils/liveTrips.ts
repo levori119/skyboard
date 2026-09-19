@@ -21,6 +21,9 @@ export interface LiveTrip {
   has_anchor: boolean;
   position: { lat: number; lng: number; accuracy_m: number | null; heading: number | null; speed_kmh: number | null; fix_at: string } | null;
   stale: boolean;
+  /** אפליקציית הנהג ברקע (מסך כבוי / אפליקציה אחרת) - הדפדפן לא משדר GPS ברקע */
+  app_background?: boolean;
+  app_background_at?: string | null;
   deviation_m: number | null;
   deviating: boolean;
   blocking_element: { id: number; name: string; display_state: string | null; state_label?: string; distance_m: number | null } | null;

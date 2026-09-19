@@ -1361,7 +1361,45 @@ router.post('/api/driver-trips/:id/gps', async (req, res) => {
          blocking_distance_m=EXCLUDED.blocking_distance_m, updated_at=NOW()`,
       [t.id, lat, lng, accuracy, heading, speed, deviationM, streak, blocking?.id ?? null, blocking?.distance_m ?? null]);
 
+    // קריאה מהחזית מחזירה את האפליקציה לחזית. קריאה שהדפדפן הספיק לשלוח מהרקע
+    // (אנדרואיד מאפשר לעתים) נשמרת - אבל המצב נשאר "ברקע", כי הקריאה הבאה לא מובטחת.
+    if (b.background !== undefined) {
+      await pool.query(
+        `UPDATE entry_permit_trips SET driver_app_background_at =
+           CASE WHEN $2 THEN COALESCE(driver_app_background_at, NOW()) ELSE NULL END WHERE id = $1`,
+        [t.id, b.background === true]);
+    } else if (t.driver_app_background_at) {
+      await pool.query('UPDATE entry_permit_trips SET driver_app_background_at = NULL WHERE id = $1', [t.id]);
+    }
+
     res.json({ deviation_m: deviationM, deviation_streak: streak, deviating: isDeviating(streak), blocking_element: blocking });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+/**
+ * אפליקציית הנהג יצאה לרקע / חזרה לחזית (D13).
+ *
+ * דף אינטרנט אינו מקבל GPS כשהמסך כבוי או כשהנהג עבר לאפליקציה אחרת - מגבלת
+ * דפדפן שאין לעקוף. מה שכן אפשר: שהמגדל ידע **למה** הרכב נעלם. "אות אבד" שולח
+ * את הפקח לחפש תקלת קליטה; "האפליקציה ברקע" אומר לו להתקשר לנהג.
+ * יציאה חוזרת לרקע אינה מזיזה את השעה - היא אומרת ממתי המיקום לא מתעדכן.
+ */
+router.post('/api/driver-trips/:id/app-state', async (req, res) => {
+  try {
+    const scope = driverScope(req, res);
+    if (!scope) return;
+    const state = req.body?.state;
+    if (state !== 'background' && state !== 'foreground') return res.status(400).json({ error: 'invalid_state' });
+    if (!(await ownsTrip(req.params.id, scope))) return res.status(404).json({ error: 'trip_not_found' });
+    const t = await oneTrip(req.params.id);
+    if (!t) return res.status(404).json({ error: 'trip_not_found' });
+    if (!t.driver_started_at) return res.status(409).json({ error: 'not_started' });
+    if (!isLiveTrip(t)) return res.status(409).json({ error: 'trip_ended' });
+    await pool.query(
+      `UPDATE entry_permit_trips SET driver_app_background_at =
+         CASE WHEN $2 THEN COALESCE(driver_app_background_at, NOW()) ELSE NULL END WHERE id = $1`,
+      [t.id, state === 'background']);
+    res.json({ ok: true, state });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1415,6 +1453,9 @@ router.get('/api/trips/live', async (req, res) => {
         has_anchor: !!geo.anchor,
         position: l ? { lat: l.lat, lng: l.lng, accuracy_m: l.accuracy_m, heading: l.heading, speed_kmh: l.speed_kmh, fix_at: l.fix_at } : null,
         stale: isFixStale(l?.fix_at ?? null, now),
+        // האפליקציה ברקע אצל הנהג - המגדל אומר את זה במקום "אות אבד" עמום
+        app_background: !!t.driver_app_background_at,
+        app_background_at: t.driver_app_background_at ?? null,
         deviation_m: l?.deviation_m ?? null,
         deviating: isDeviating(l?.deviation_streak ?? 0),
         blocking_element: l?.blocking_element_id
