@@ -115,6 +115,8 @@ import { parseParentRect, sectorFocusView, FULL_MAP_VIEW } from '../../utils/sec
 import type { RectPct } from '../../utils/sectorFocus';
 import type { MapPan } from '../../utils/mapPan';
 import { STRIP_FIELD_DEFS, EDITABLE_LABELS, STICKY_COLORS } from '../../types/stripFields';
+import { TableTransferAcceptCell } from '../transfers/TableTransferAcceptCell';
+import { indexTransfersByStrip, transferCellState, acceptFlashCss, ACCEPT_FLASH_TABLE_MS, ACCEPT_FLASH_DEFAULT_MS } from '../../utils/tableTransferCell';
 import { formatFaultsText, formatFaultsHint, formatFaultWhat, faultRedFor } from '../../utils/faults';
 import { useFaultTypes } from '../shared/AircraftFaultFields';
 import { FaultBadge } from '../shared/FaultBadge';
@@ -1741,21 +1743,25 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [sessionContacts, setSessionContacts] = useState<{ id?: number; mahut: string; oketz: string; frequency: string; note: string; device_type: string; priority: string; sort_order: number; _key: number }[]>([]);
   const [contactsSummaryOpen, setContactsSummaryOpen] = useState(false);
   const [contactsSummaryFlashing, setContactsSummaryFlashing] = useState(false);
-  const [acceptFlashStripId, setAcceptFlashStripId] = useState<string | null>(null);
-  const acceptFlashTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  // פ"מים שהתקבלו לאחרונה ומהבהבים בירוק. **רשימה** ולא פ"מ יחיד: במוד טבלה
+  // ההבהוב נמשך 20 שניות, וקבלה שנייה בתוכן לא אמורה לכבות את הראשונה.
+  const [acceptFlashIds, setAcceptFlashIds] = useState<string[]>([]);
+  const acceptFlashTimers = React.useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const acceptFlashMsRef = React.useRef(ACCEPT_FLASH_DEFAULT_MS);
   const [transferredOutIds, setTransferredOutIds] = useState<Set<string>>(new Set());
   const transferredOutTimers = React.useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const prevOutgoingTransfersRef = React.useRef<any[]>([]);
   React.useEffect(() => {
     const existing = document.getElementById('accept-flash-style');
     if (existing) existing.remove();
-    if (!acceptFlashStripId) return;
+    if (acceptFlashIds.length === 0) return;
     const el = document.createElement('style');
     el.id = 'accept-flash-style';
-    el.textContent = `@keyframes accept-green-flash{0%,100%{outline:3px solid #22c55e!important;outline-offset:2px;box-shadow:0 0 14px rgba(34,197,94,0.8)}50%{outline:3px solid transparent!important;outline-offset:2px;box-shadow:none}}[data-strip-id="${acceptFlashStripId}"]{animation:accept-green-flash 0.55s ease-in-out 9;outline:3px solid #22c55e!important;outline-offset:2px;position:relative;z-index:10;}`;
+    el.textContent = acceptFlashCss(acceptFlashIds, acceptFlashMsRef.current);
     document.head.appendChild(el);
     return () => { el.remove(); };
-  }, [acceptFlashStripId]);
+  }, [acceptFlashIds]);
+  useEffect(() => () => { acceptFlashTimers.current.forEach(clearTimeout); }, []);
   const contactsAutoCloseTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [contactsSummaryData, setContactsSummaryData] = useState<any[]>([]);
   const [contactsSummaryPos, setContactsSummaryPos] = useState({ x: 60, y: 80 });
@@ -4953,11 +4959,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     prevLoadLevelRef.current = loadLevel;
   }, [loadLevel]);
 
+  // ── שדה "העברה/קבלה" ───────────────────────────────────────────────────────
+  // העברות נכנסות/יוצאות לפי פ"מ, לתא בטבלה. פ"מ שבנקודת העברה **אליי** נשאר
+  // גלוי בטבלה גם כש"הצג פ"מ בהעברה" כבוי - אחרת כפתור "קבל" שלו לא היה נראה
+  // לעולם. זה חל רק כשבמוד הטבלה הפעיל יש את העמודה, כדי לא לשנות מוד בלעדיה.
+  const incomingByStrip = React.useMemo(() => indexTransfersByStrip(incomingTransfers), [incomingTransfers]);
+  const outgoingByStrip = React.useMemo(() => indexTransfersByStrip(outgoingTransfers), [outgoingTransfers]);
+  const tableHasTransferAcceptCol = !!availableTableModes
+    .find((tm: any) => tm.id === selectedTableModeId)?.columns
+    ?.some((c: any) => (c.key || c.field) === 'transfer_accept');
+  const tableShowsPending = (s: any) =>
+    showPendingTransfer || s.status !== 'pending_transfer'
+    || (tableHasTransferAcceptCol && incomingByStrip.has(String(s.id).replace(/^s/, '')));
+
   // Computed strips order for table display (tableOnBoard = strips ON the board / center table)
   const tableDisplayStrips = (() => {
     const visStrips = showFullPicture
       ? fullPictureStrips.filter((s: any) => showPendingTransfer || s.status !== 'pending_transfer')
-      : myTableStrips.filter(s => tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer'));
+      : myTableStrips.filter(s => tableOnBoard.has(s.id) && tableShowsPending(s));
     if (tableSortBySector) {
       return [...visStrips].sort((a, b) => {
         const sA = allSectors.find(sec => sec.id === a.sectorId)?.name || '';
@@ -5040,7 +5059,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const tableDisplayItems: any[] = (() => {
     const visStrips = showFullPicture
       ? fullPictureStrips.filter((s: any) => showPendingTransfer || s.status !== 'pending_transfer')
-      : myTableStrips.filter(s => tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer'));
+      : myTableStrips.filter(s => tableOnBoard.has(s.id) && tableShowsPending(s));
     if (!tableGroupByKey) {
       if (tableSortKey) {
         return [...visStrips].sort((a, b) => {
@@ -7596,6 +7615,30 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     };
   }, []);
 
+  /**
+   * הבהוב ירוק של פ"מ שהתקבל. במוד טבלה 20 שניות, והשורה נגללת לתצוגה - כך
+   * שמי שקיבל מנקודת ההעברה רואה מיד *איפה* הפ"מ נחת בטבלה. בשאר התצוגות 5
+   * שניות, כפי שהיה.
+   */
+  const flashAcceptedStrip = (stripKey: string) => {
+    const ms = tableModeRef.current ? ACCEPT_FLASH_TABLE_MS : ACCEPT_FLASH_DEFAULT_MS;
+    acceptFlashMsRef.current = ms;
+    const prevTimer = acceptFlashTimers.current.get(stripKey);
+    if (prevTimer) clearTimeout(prevTimer);
+    setAcceptFlashIds(prev => [...prev.filter(id => id !== stripKey), stripKey]);
+    acceptFlashTimers.current.set(stripKey, setTimeout(() => {
+      acceptFlashTimers.current.delete(stripKey);
+      setAcceptFlashIds(prev => prev.filter(id => id !== stripKey));
+    }, ms));
+    if (tableModeRef.current) {
+      // השורה נוספת לטבלה ברינדור הבא - מחכים לו לפני הגלילה
+      setTimeout(() => {
+        const row = document.querySelector(`#map-area tr[data-strip-id="${stripKey}"]`);
+        row?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }, 150);
+    }
+  };
+
   const handleAcceptTransfer = async (transferId: string) => {
     const t = incomingTransfers.find((x: any) => String(x.id) === String(transferId));
     try {
@@ -7605,6 +7648,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         body: JSON.stringify({ receivingPresetId: session?.presetId ?? null })
       });
       const data = res.ok ? await res.json() : {};
+      if (!res.ok) throw new Error(`accept failed: ${res.status}`);
+      // קבלה שמוזגה לאח קיים - הפ"מ הנכנס נמחק, והפ"מ שמוצג (ומהבהב) הוא האח
+      const shownKey = data?.mergedIntoId ? 's' + String(data.mergedIntoId).replace(/^s/, '') : (t?.strip_id ? 's' + t.strip_id : null);
       // Optimistic update: immediately place strip in table and record assignment
       if (t?.strip_id && session?.presetId) {
         const stripKey = 's' + t.strip_id;
@@ -7614,7 +7660,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           const ids: number[] = Array.isArray((s as any).table_preset_ids) ? (s as any).table_preset_ids : [];
           return { ...s, status: 'active', inTable: true, workstation_preset_id: session.presetId, table_preset_ids: ids.includes(pid) ? ids : [...ids, pid] };
         }));
-        setTableOnBoard(prev => new Set([...prev, stripKey]));
+        // פ"מ שלא היה בטבלה נכנס אליה (וגם האח שאליו מוזג, אם לא היה בה)
+        setTableOnBoard(prev => new Set([...prev, stripKey, ...(shownKey ? [shownKey] : [])]));
         setIncomingTransfers((prev: any[]) => prev.filter((x: any) => String(x.id) !== String(transferId)));
       }
       logActivity('transfer_accepted', {
@@ -7622,12 +7669,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         stripCallsign: t?.callsign || t?.callSign,
         details: { fromPresetId: t?.from_workstation_id }
       });
-      if (t?.strip_id) {
-        const fid = 's' + t.strip_id;
-        if (acceptFlashTimer.current) clearTimeout(acceptFlashTimer.current);
-        setAcceptFlashStripId(fid);
-        acceptFlashTimer.current = setTimeout(() => setAcceptFlashStripId(null), 5000);
-      }
+      if (shownKey) flashAcceptedStrip(shownKey);
       loadData();
     } catch (err) {
       console.error('Failed to accept transfer:', err);
@@ -7973,12 +8015,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         stripCallsign: t?.callsign || t?.callSign,
         details: { fromPresetId: t?.from_workstation_id, x, y }
       });
-      if (t?.strip_id) {
-        const fid = 's' + t.strip_id;
-        if (acceptFlashTimer.current) clearTimeout(acceptFlashTimer.current);
-        setAcceptFlashStripId(fid);
-        acceptFlashTimer.current = setTimeout(() => setAcceptFlashStripId(null), 5000);
-      }
+      if (t?.strip_id) flashAcceptedStrip('s' + t.strip_id);
       loadData();
     } catch (err) {
       console.error('Failed to accept transfer to map:', err);
@@ -15853,6 +15890,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </td>
                   );
                 }
+                // שדה מערכת "העברה/קבלה": קבל (ירוק + זמן הגעה) / העבר לעמדה.
+                // הקבלה - אותו handler של נקודת ההעברה; השליחה - אותו מסלול של
+                // גרירת שורה לנקודת העברה (בורר עמדות כשיש כמה, ואישור עם זמן).
+                case 'transfer_accept':
+                  return (
+                    <td key={colKey} style={{ padding: '6px 8px', verticalAlign: 'middle', direction: dir }}>
+                      <TableTransferAcceptCell
+                        state={transferCellState(s, incomingByStrip, outgoingByStrip)}
+                        transferPoints={allSectors.map((sec: any) => ({ id: Number(sec.id), name: String(sec.name ?? sec.id) }))}
+                        onAccept={handleAcceptTransfer}
+                        onPickPoint={sectorId => handleTransferWithWorkstationPick(String(s.id), sectorId)}
+                        themeMode={themeMode}
+                      />
+                    </td>
+                  );
                 case 'transfer': {
                   const isAlreadyPending = s.status === 'pending_transfer';
                   if (isAlreadyPending) {
@@ -16314,7 +16366,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       </tr>
                       <tr
                         data-strip-id={s.id}
-                        className={[isRowAltConflict ? 'alt-conflict-flash' : (isRowDeviation && !isRowDeviationAck ? 'block-deviation-flash' : ''), acceptFlashStripId && String(s.id) === acceptFlashStripId ? 'accept-green-flash' : '', (s as any)._transferredOut ? 'transfer-out-flash' : '', isPlainRow ? (isEven ? 'sk-row-a' : 'sk-row-b') : '', hasFrameFloor ? 'sk-frame-floor' : ''].filter(Boolean).join(' ') || undefined}
+                        className={[isRowAltConflict ? 'alt-conflict-flash' : (isRowDeviation && !isRowDeviationAck ? 'block-deviation-flash' : ''), acceptFlashIds.includes(String(s.id)) ? 'accept-green-flash' : '', (s as any)._transferredOut ? 'transfer-out-flash' : '', isPlainRow ? (isEven ? 'sk-row-a' : 'sk-row-b') : '', hasFrameFloor ? 'sk-frame-floor' : ''].filter(Boolean).join(' ') || undefined}
                         draggable
                         onDragStart={e => { e.dataTransfer.setData('text/strip-id-for-transfer', s.id); setTableDragRow(s.id); }}
                         onDragOver={e => {

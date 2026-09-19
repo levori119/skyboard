@@ -10,6 +10,7 @@ import OnScreenKeyboard from '../shared/OnScreenKeyboard';
 import HandwritingOverlay from '../shared/HandwritingOverlay';
 import { FaultBadge } from '../shared/FaultBadge';
 import { OutgoingTransferCard, IncomingTransferCard, CompactTransferRow } from './TransferCards';
+import { useEtaCountdown } from '../../hooks/useEtaCountdown';
 
 export const DraggableNeighborPanel = ({ 
   neighbor, 
@@ -648,23 +649,9 @@ export const DraggableIncomingTransferMini = ({
   const altRef = useRef<HTMLSpanElement>(null);
   const hasExternalNote = !!transfer.note && String(transfer.note_by_preset_id) !== String(presetId);
   const openNote = () => { setEditBuffer(transfer.note || ''); setNoteOpen(true); };
-  const [etaCountdown, setEtaCountdown] = useState<string | null>(null);
-  const [etaOver, setEtaOver] = useState(false);
-  useEffect(() => {
-    if (!transfer.eta_minutes || !transfer.eta_set_at) { setEtaCountdown(null); return; }
-    const update = () => {
-      const end = new Date(transfer.eta_set_at).getTime() + Number(transfer.eta_minutes) * 60000;
-      const rem = end - Date.now();
-      if (rem <= 0) { setEtaCountdown('00:00'); setEtaOver(true); return; }
-      setEtaOver(false);
-      const m = Math.floor(rem / 60000);
-      const s = Math.floor((rem % 60000) / 1000);
-      setEtaCountdown(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
-    };
-    update();
-    const iv = setInterval(update, 1000);
-    return () => clearInterval(iv);
-  }, [transfer.eta_minutes, transfer.eta_set_at]);
+  const eta = useEtaCountdown(transfer.eta_minutes, transfer.eta_set_at);
+  const etaCountdown = eta?.text ?? null;
+  const etaOver = !!eta?.over;
 
   const handlePointerDown = (e: React.PointerEvent) => {
     e.preventDefault();

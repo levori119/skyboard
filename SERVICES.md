@@ -1054,6 +1054,12 @@ DB מנוהל היה נופל יחד עם העמדה.
 ### `src/components/transfers/DraggablePanels.tsx`
 **תפקיד:** פאנלי העברה ניתנים לגרירה. **מייצא:** `DraggableNeighborPanel` (נקודת העברה מוסר/מקבל), `DraggableIncomingTransferMini`, `DraggableMapMarker` (סמן מפה), `DraggableIncomingTransfer`, `TableHandwritingCanvas`.
 
+### `src/components/transfers/TableTransferAcceptCell.tsx`
+**תפקיד:** תא שדה המערכת **"העברה/קבלה"** (`transfer_accept`) במוד הטבלה. פ"מ בנקודת העברה אליי → כפתור **קבל** ירוק + ⏱ זמן ההגעה; פ"מ אצלי → **העבר לעמדה** (רשימת נקודות ההעברה, ואז אותו מסלול של גרירת שורה לנקודה - בורר עמדות כשיש כמה); בדרך ממני → "ממתין לקבלה" / "נדחה". הקבלה עוברת ב-`handleAcceptTransfer` - אותו handler של הקבלה בנקודת ההעברה - ולכן ההבהוב הירוק (20 שניות בטבלה) והכנסת הפ"מ לטבלה זהים בשני המקומות. הלוגיקה הטהורה ב-`src/utils/tableTransferCell.ts` (`transferCellState`, `etaCountdown`, `acceptFlashCss`). **מייצא:** `TableTransferAcceptCell`. **שימוש:** `SectorDashboard` (מוד טבלה).
+
+### `src/hooks/useEtaCountdown.ts`
+**תפקיד:** ספירה לאחור עד ההגעה לנקודת ההעברה (MM:SS, כל שנייה). מקור אחד לכרטיס ההעברה הנכנסת, לשורה המקוצרת ולתא "העברה/קבלה". **מייצא:** `useEtaCountdown`.
+
 ### `src/components/map/MapZoneEditor.tsx`
 **תפקיד:** עורך אזורי מפה — ציור polygons, כיול גיאו (anchors/DMS), זיהוי אזורים אוטומטי (OCR), טווחי גובה, **ניהול הסקטורים של המפה** (יצירה, שינוי שם, תיחום מחדש, מחיקה), ו**מיקום קבוע של נקודות העברה** (מצב 🔀). פאנל "סקטורים במפה זו" בתפריט הצד מציג את מפות-הבת של המפה; בחירה מדגישה את התחום על המפה, ו"תיחום מחדש" חותך תמונה חדשה, מעדכן `parent_rect` ומסנכרן את האזורים מהאב. כשנפתח מהגדרת עמדה (props `presetId`/`presetName`/`transferSectorIds`) הקטלוג מצטמצם לנקודות ההעברה של אותה עמדה וניתן לשמור דריסה ייחודית לה. פאנל האזור (חדש ובעריכה) מציג את **רשימת הנ"צ** של הקודקודים וניתן לעדכן אותה - `ZoneCoordList`. **מייצא:** `MapZoneEditor` (default). **שימוש:** admin (ניהול מפות + הגדרת עמדה).
 

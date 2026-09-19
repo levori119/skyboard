@@ -45,6 +45,9 @@ export const STRIP_FIELD_DEFS = [
   { key: 'serials',           label: 'ספרורים',       editableOptions: ['none'] as string[] },
   { key: 'transfer',          label: 'העבר',          editableOptions: ['none'] as string[] },
   { key: 'transfer_to',       label: 'העבר אל (מ"מי)', editableOptions: ['none'] as string[] },
+  // שדה מערכת של מוד הטבלה: "קבל" ירוק + זמן הגעה כשהפ"מ בנקודת העברה אליי,
+  // ו"העבר לעמדה" (נקודת העברה ← עמדה) כשהוא אצלי. ראה utils/tableTransferCell.ts
+  { key: 'transfer_accept',   label: 'העברה/קבלה',    labelKey: 'strips.transferAccept', editableOptions: ['none'] as string[] },
   { key: 'sid',               label: 'SID',           editableOptions: ['none', 'keyboard', 'both'] },
   { key: 'star',              label: 'STAR',          editableOptions: ['none', 'keyboard', 'both'] },
 ];

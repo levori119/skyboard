@@ -4,6 +4,7 @@ import { normalizeAlt, getTransferSq, getTransferLabel } from '../../utils/strip
 import { parseNoteValue, serializeNoteValue } from '../../utils/notes';
 import HandwritingOverlay from '../shared/HandwritingOverlay';
 import { FaultBadge } from '../shared/FaultBadge';
+import { useEtaCountdown } from '../../hooks/useEtaCountdown';
 
 export const TransferStripEditor = ({ transfer, onAltUpdate, onCancel }: { 
   transfer: any; 
@@ -249,30 +250,15 @@ export const IncomingTransferCard = ({ t, isConflict, onAccept, onReject, onAckn
   onReply?: () => void;
   onSendDirectReply?: (transfer: any, text: string) => void;
 }) => {
-  const [countdown, setCountdown] = useState<string | null>(null);
-  const [countdownOver, setCountdownOver] = useState(false);
+  const eta = useEtaCountdown(t.eta_minutes, t.eta_set_at);
+  const countdown = eta?.text ?? null;
+  const countdownOver = !!eta?.over;
   const [showReplyBox, setShowReplyBox] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [showRejectBox, setShowRejectBox] = useState(false);
   const [rejectNote, setRejectNote] = useState('');
   const isAck = t.status === 'acknowledged';
   const sq = getTransferSq(t);
-
-  useEffect(() => {
-    if (!t.eta_minutes || !t.eta_set_at) { setCountdown(null); return; }
-    const update = () => {
-      const end = new Date(t.eta_set_at).getTime() + Number(t.eta_minutes) * 60000;
-      const rem = end - Date.now();
-      if (rem <= 0) { setCountdown('00:00'); setCountdownOver(true); return; }
-      setCountdownOver(false);
-      const m = Math.floor(rem / 60000);
-      const s = Math.floor((rem % 60000) / 1000);
-      setCountdown(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
-    };
-    update();
-    const iv = setInterval(update, 1000);
-    return () => clearInterval(iv);
-  }, [t.eta_minutes, t.eta_set_at]);
 
   const [editingAlt, setEditingAlt] = useState(false);
   const [altAnchor, setAltAnchor] = useState<DOMRect | null>(null);

@@ -134,6 +134,34 @@
       "he": "טייסת:",
       "en": "Squadron:"
     },
+    "tableAccept": {
+      "he": "קבל",
+      "en": "Accept"
+    },
+    "tableAcceptHint": {
+      "he": "הפ\"מ בנקודת העברה וממתין לקבלה שלך",
+      "en": "The formation is at a transfer point, awaiting your acceptance"
+    },
+    "tableAwaitingAccept": {
+      "he": "ממתין לקבלה",
+      "en": "Awaiting acceptance"
+    },
+    "tableNoTransferPoints": {
+      "he": "אין נקודות העברה לעמדה",
+      "en": "No transfer points for this station"
+    },
+    "tablePickTransferPoint": {
+      "he": "בחר נקודת העברה",
+      "en": "Pick a transfer point"
+    },
+    "tableTransferRejected": {
+      "he": "נדחה",
+      "en": "Rejected"
+    },
+    "tableTransferToStation": {
+      "he": "העבר לעמדה",
+      "en": "Transfer to station"
+    },
     "text": {
       "he": "⌨️ טקסט",
       "en": "⌨️ Text"

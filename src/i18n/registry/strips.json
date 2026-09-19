@@ -381,6 +381,10 @@
     "civAirline": {
       "he": "חברת תעופה",
       "en": "Airline"
+    },
+    "transferAccept": {
+      "he": "העברה/קבלה",
+      "en": "Transfer/Accept"
     }
   }
 }
