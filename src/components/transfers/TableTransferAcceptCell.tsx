@@ -46,7 +46,7 @@ export function TableTransferAcceptCell({
       || t.to_sector_name || '';
     const rejected = state.kind === 'rejected';
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '11px', whiteSpace: 'nowrap' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '11px', lineHeight: 1.2 }}>
         <span style={{ fontWeight: 'bold', color: rejected ? '#ef4444' : (light ? '#b45309' : '#fbbf24') }}>
           {rejected ? tr('transfers.tableTransferRejected') : tr('transfers.tableAwaitingAccept')}
         </span>
@@ -62,7 +62,8 @@ function AcceptButton({ transfer, onAccept }: { transfer: any; onAccept: (id: st
   const eta = useEtaCountdown(transfer.eta_minutes, transfer.eta_set_at);
   const [busy, setBusy] = useState(false);
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
+    // קבל והשעון זה מעל זה - כך העמודה נשארת צרה
+    <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: '3px', whiteSpace: 'nowrap' }}>
       <button
         title={tr('transfers.tableAcceptHint')}
         disabled={busy}
@@ -76,7 +77,7 @@ function AcceptButton({ transfer, onAccept }: { transfer: any; onAccept: (id: st
         }}
         style={{
           background: '#16a34a', color: '#ffffff', border: '1px solid #22c55e', borderRadius: '5px',
-          padding: '4px 14px', fontSize: '12px', fontWeight: 'bold', cursor: busy ? 'wait' : 'pointer',
+          padding: '4px 10px', fontSize: '12px', fontWeight: 'bold', cursor: busy ? 'wait' : 'pointer',
           opacity: busy ? 0.6 : 1, touchAction: 'manipulation',
         }}
       >{tr('transfers.tableAccept')}</button>
@@ -168,10 +169,16 @@ function SendButton({ transferPoints, onPickPoint, themeMode }: {
         style={{
           background: open ? (light ? '#dbeafe' : '#1e3a5f') : (light ? '#eff6ff' : '#172554'),
           color: light ? '#1d4ed8' : '#93c5fd', border: `1px solid ${light ? '#93c5fd' : '#2563eb'}`,
-          borderRadius: '5px', padding: '4px 10px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer',
-          whiteSpace: 'nowrap', touchAction: 'manipulation',
+          borderRadius: '5px', padding: '3px 7px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer',
+          touchAction: 'manipulation', display: 'inline-flex', alignItems: 'center', gap: '4px',
         }}
-      >{tr('transfers.tableTransferToStation')} {menu?.side === 'above' ? '▴' : '▾'}</button>
+      >
+        {/* הטקסט נשבר לשתי שורות ("העבר" / "לעמדה") כדי שהעמודה תהיה צרה */}
+        <span style={{ whiteSpace: 'normal', maxWidth: '4.2em', lineHeight: 1.15, textAlign: 'center' }}>
+          {tr('transfers.tableTransferToStation')}
+        </span>
+        <span style={{ fontSize: '10px' }}>{menu?.side === 'above' ? '▴' : '▾'}</span>
+      </button>
       {menu && createPortal(
         <div
           ref={menuRef}
