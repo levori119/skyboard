@@ -502,6 +502,42 @@
       "he": "ברירת מחדל להצגה על המפה",
       "en": "Default map display"
     },
+    "deskBg": {
+      "he": "רקע הדסק - שורות או משבצות",
+      "en": "Desk background - lines or grid"
+    },
+    "deskBgCellSize": {
+      "he": "גודל משבצת",
+      "en": "Cell size"
+    },
+    "deskBgDashed": {
+      "he": "קו מקווקו",
+      "en": "Dashed line"
+    },
+    "deskBgDotted": {
+      "he": "קו מנוקד",
+      "en": "Dotted line"
+    },
+    "deskBgGrid": {
+      "he": "משבצות",
+      "en": "Grid"
+    },
+    "deskBgLines": {
+      "he": "שורות",
+      "en": "Lines"
+    },
+    "deskBgNone": {
+      "he": "ללא רקע",
+      "en": "No background"
+    },
+    "deskBgRowHeight": {
+      "he": "גובה שורה",
+      "en": "Row height"
+    },
+    "deskBgSolid": {
+      "he": "קו רציף",
+      "en": "Solid line"
+    },
     "deleteAll": {
       "he": "מחק הכל",
       "en": "Delete all"

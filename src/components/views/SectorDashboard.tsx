@@ -79,6 +79,7 @@ import polygonClipping from 'polygon-clipping';
 import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
 import { useDragPosition } from '../../hooks/useDragPosition';
 import { windowFrame, frameColor } from '../../utils/windowFrame';
+import { deskBackgroundStyle, normalizeDeskBackground, DESK_BG_MIN_SIZE, DESK_BG_MAX_SIZE, type DeskBackground } from '../../utils/deskBackground';
 import { AimPointsSummary, AimPointsWindow } from '../strips/AimPointsTable';
 import { AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY, COORD_PLACEHOLDER, aimFieldText, isValidCoord, normalizeCoord, toAimPoints, type AimPoint } from '../../types/aimPoints';
 import { getSubTable, isSubTableColumn, subTableAccent, subTableRows, subTableFrozenCount, subTableFrozenLayout } from '../../types/subTables';
@@ -1929,6 +1930,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [notepadTool, setNotepadTool] = useState<'pen' | 'eraser' | 'rect' | 'circle'>('pen');
   const [notepadColor, setNotepadColor] = useState('#000000');
   const [notepadPenSize, setNotepadPenSize] = useState(2);
+  // רקע הדסק (שורות/משבצות) - העדפה אישית של המפעיל, נזכרת בדפדפן בלבד
+  const [notepadBg, setNotepadBg] = useState<DeskBackground>(() => {
+    try { return normalizeDeskBackground(JSON.parse(localStorage.getItem('skyking.freeDesk.bg') || 'null')); }
+    catch { return normalizeDeskBackground(null); }
+  });
+  const [showNotepadBgBar, setShowNotepadBgBar] = useState(false);
+  useEffect(() => {
+    try { localStorage.setItem('skyking.freeDesk.bg', JSON.stringify(notepadBg)); } catch { /* מצב פרטי */ }
+  }, [notepadBg]);
   const notepadShapeStartRef = useRef<{ x: number; y: number } | null>(null);
   const notepadSnapshotRef = useRef<ImageData | null>(null);
 
@@ -20006,6 +20016,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             >
               <span style={{ fontSize: '12px', fontWeight: 'bold' }}>{tr('ctrl.freeDesk')}</span>
               <div style={{ display: 'flex', gap: '4px' }}>
+                <button
+                  data-testid="notepad-bg-toggle"
+                  onClick={() => setShowNotepadBgBar(v => !v)}
+                  title={tr('ctrl.deskBg')}
+                  style={{ padding: '2px 7px', fontSize: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', background: showNotepadBgBar ? '#3b82f6' : '#334155', color: 'white', marginInlineEnd: '4px' }}
+                >▦</button>
                 {(['keyboard', 'handwriting', 'both'] as const).map(m => (
                   <button
                     key={m}
@@ -20031,6 +20047,35 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 </button>
               </div>
             </div>
+
+            {/* סרגל רקע - סוג (ללא/שורות/משבצות), סגנון קו, גובה שורה / גודל משבצת */}
+            {showNotepadBgBar && (() => {
+              const seg = (active: boolean): React.CSSProperties => ({ padding: '2px 8px', fontSize: '12px', borderRadius: '4px', border: `1px solid ${active ? '#2563eb' : '#cbd5e1'}`, background: active ? '#2563eb' : 'white', color: active ? 'white' : '#475569', cursor: 'pointer', minWidth: 30 });
+              return (
+                <div data-testid="notepad-bg-bar" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '4px 8px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', flexWrap: 'wrap', direction: dir, flexShrink: 0, color: '#475569', fontSize: '11px' }}>
+                  <div style={{ display: 'flex', gap: '3px' }}>
+                    {([['none', '▢', 'ctrl.deskBgNone'], ['lines', '☰', 'ctrl.deskBgLines'], ['grid', '▦', 'ctrl.deskBgGrid']] as const).map(([k, icon, key]) => (
+                      <button key={k} title={tr(key)} onClick={() => setNotepadBg(b => ({ ...b, kind: k }))} style={seg(notepadBg.kind === k)}>{icon}</button>
+                    ))}
+                  </div>
+                  {notepadBg.kind !== 'none' && (<>
+                    <div style={{ display: 'flex', gap: '3px' }}>
+                      {([['solid', '───', 'ctrl.deskBgSolid'], ['dashed', '- - -', 'ctrl.deskBgDashed'], ['dotted', '·····', 'ctrl.deskBgDotted']] as const).map(([k, icon, key]) => (
+                        <button key={k} title={tr(key)} onClick={() => setNotepadBg(b => ({ ...b, line: k }))} style={{ ...seg(notepadBg.line === k), fontWeight: 'bold', letterSpacing: '-1px' }}>{icon}</button>
+                      ))}
+                    </div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                      {tr(notepadBg.kind === 'lines' ? 'ctrl.deskBgRowHeight' : 'ctrl.deskBgCellSize')}
+                      <button onClick={() => setNotepadBg(b => normalizeDeskBackground({ ...b, size: b.size - 2 }))} style={seg(false)}>−</button>
+                      <input type="range" min={DESK_BG_MIN_SIZE} max={DESK_BG_MAX_SIZE} value={notepadBg.size}
+                        onChange={e => setNotepadBg(b => normalizeDeskBackground({ ...b, size: Number(e.target.value) }))} style={{ width: '80px', touchAction: 'none' }} />
+                      <button onClick={() => setNotepadBg(b => normalizeDeskBackground({ ...b, size: b.size + 2 }))} style={seg(false)}>+</button>
+                      <span style={{ minWidth: 22, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{notepadBg.size}</span>
+                    </label>
+                  </>)}
+                </div>
+              );
+            })()}
 
             {/* Content area */}
             <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -20060,7 +20105,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   fontFamily: 'inherit',
                   background: 'white',
                   boxSizing: 'border-box',
-                  display: notepadMode === 'handwriting' ? 'none' : undefined
+                  display: notepadMode === 'handwriting' ? 'none' : undefined,
+                  // ברקע שורות הטקסט יושב על השורות: גובה שורה = גובה השורה ברקע,
+                  // והרקע נגלל עם הטקסט (local) ומתחיל מתחת ל-padding העליון
+                  ...deskBackgroundStyle(notepadBg),
+                  ...(notepadBg.kind !== 'none' && { backgroundColor: 'white', backgroundAttachment: 'local', backgroundPosition: '0 10px' }),
+                  ...(notepadBg.kind === 'lines' && { lineHeight: `${notepadBg.size}px` }),
                 }}
               />
               {showNotepadOSK && notepadMode !== 'handwriting' && (
@@ -20094,7 +20144,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   width: '100%',
                   display: notepadMode === 'keyboard' ? 'none' : 'block',
                   cursor: 'crosshair',
-                  touchAction: 'none'
+                  touchAction: 'none',
+                  // רקע CSS ולא ציור על ה-canvas - המחק ו"נקה" לא נוגעים בו
+                  ...deskBackgroundStyle(notepadBg),
                 }}
                 onPointerDown={(e) => {
                   e.preventDefault();

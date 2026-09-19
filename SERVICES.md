@@ -722,6 +722,10 @@ DB מנוהל היה נופל יחד עם העמדה.
 **תפקיד:** קריאת **תמת התצוגה השמורה** של העמדה (אור / שחור / כחול) מ-`localStorage`. מקור אמת יחיד, כדי שמסך שעולה **לפני** העמדה — מסך הטעינה של הכניסה — ייצבע באותה תמה שהעמדה תיפתח בה ולא יבזיק בצבע אחר. `bt-lightMode` הוא המפתח הישן (בוליאני, לפני התמה הכחולה) ונקרא רק כשאין `bt-themeMode`.
 **מייצא:** `ThemeMode`, `THEME_STORAGE_KEY`, `readStoredThemeMode()`.
 
+### `src/utils/deskBackground.ts`
+**תפקיד:** רקע **הדסק החופשי** - שורות (כמו מחברת) או משבצות, בקו רציף / מקווקו / מנוקד, בגובה שורה / גודל משבצת מתכוונן (16-80). הרקע הוא אריח SVG ב-CSS על ה-canvas וה-textarea ולא ציור, ולכן המחק ו"נקה" לא נוגעים בו והוא לא נשמר עם הציור. מחזור הקווקוו מחושב כך שמחלק את צלע האריח בדיוק, אחרת הקו נשבר בתפר. ההעדפה נשמרת ב-`localStorage` (`skyking.freeDesk.bg`) ועוברת נרמול.
+**מייצא:** `deskBackgroundStyle(bg)`, `dashPattern(line, size)`, `normalizeDeskBackground(raw)`, `DEFAULT_DESK_BACKGROUND`, `DESK_BG_MIN_SIZE`, `DESK_BG_MAX_SIZE`, `DeskBackground`.
+
 ### `src/utils/windowFrame.ts`
 **תפקיד:** קוד הצבע של מסגרות החלונות הצפים — **כתום = חלון עריכה**, **תורכיז = חלון צפייה ותפעול** — בשלוש התמות (ocean היא תמה כהה ולכן צבעיה בהירים כמו dark). מקור אמת יחיד: חלון צף לא מקודד צבע מסגרת משלו (CLAUDE.md §מסגרת חלון). **חריג:** חלון שצבעו מזהה *ישות* (נקודת הצטרפות, חלון נתונים, פתק) שומר על צבעו.
 **מייצא:** `frameColor(kind, themeMode)`, `windowFrame(kind, themeMode, radius)`, `FRAME_WIDTH`, `WindowKind`, `FrameTheme`.
