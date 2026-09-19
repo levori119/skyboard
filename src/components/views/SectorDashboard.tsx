@@ -1446,10 +1446,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [selectedTableModeId, setSelectedTableModeId] = useState<number | null>(null);
   const [tableGroupByKey, setTableGroupByKey] = useState<string | null>(null);
   const [tableGroupOrder, setTableGroupOrder] = useState<string[]>([]);
-  const tableElRef = useRef<HTMLTableElement>(null);
+  const tableElRef = useRef<HTMLTableElement | null>(null);
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const [tableStickyOffsets, setTableStickyOffsets] = useState<number[]>([]);
-  const frozenColCountRef = useRef(0);
+  // הטבלה נטענת אחרי המעבר למצב טבלה - state ולא רק ref, כדי שהמדידה תתחבר אליה כשהיא עולה
+  const [tableEl, setTableEl] = useState<HTMLTableElement | null>(null);
+  const setTableElRef = useCallback((el: HTMLTableElement | null) => { tableElRef.current = el; setTableEl(el); }, []);
   const [tableSortKey, setTableSortKey] = useState<string | null>(null);
   const [tableSortDir, setTableSortDir] = useState<'asc' | 'desc'>('asc');
   const [tableHeaderMenuKey, setTableHeaderMenuKey] = useState<string | null>(null);
@@ -6165,29 +6167,41 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     });
   }, [strips, dashboardBlocks, activeBlockTableId, effectiveBlockTableId]);
 
-  // Measure frozen column offsets after table mode changes
+  // מדידת ההיסטים של העמודות המקובעות - חיה, ולא פעם אחת במעבר לטבלה.
+  // המדידה החד-פעמית התיישנה בכל פעם שרוחב עמודה השתנה אחריה: הגדרות
+  // הטבלאות נטענות אחרי המעבר (ואז נמדד 0 עמודות מקובעות והן גללו עם השאר),
+  // פ"מים נכנסים, גודל הגופן משתנה, טבלת בן נפרסת. ResizeObserver על כל כותרת
+  // מודד מחדש בכל שינוי כזה, ו-MutationObserver מוסיף לתצפית כותרות חדשות.
+  const tableFrozenCount = tableMode
+    ? (availableTableModes.find(tm => tm.id === selectedTableModeId)?.frozenColumns || 0) : 0;
   useEffect(() => {
+    const table = tableEl;
+    if (!tableMode || !table || tableFrozenCount === 0) {
+      setTableStickyOffsets(prev => prev.length === 0 ? prev : []);
+      return;
+    }
     const measure = () => {
-      if (!tableMode || !tableElRef.current || frozenColCountRef.current === 0) {
-        setTableStickyOffsets(prev => prev.length === 0 ? prev : []);
-        return;
-      }
-      const thead = tableElRef.current.querySelector('thead tr');
-      if (!thead) { setTableStickyOffsets(prev => prev.length === 0 ? prev : []); return; }
-      const ths = Array.from(thead.querySelectorAll('th')) as HTMLTableCellElement[];
-      const fc = frozenColCountRef.current;
+      const ths = Array.from(table.querySelectorAll('thead tr:first-child > th')) as HTMLTableCellElement[];
       const offsets: number[] = [];
-      let right = 0;
-      for (let i = 0; i <= fc + 1 && i < ths.length; i++) {
-        offsets.push(right);
-        right += ths[i]?.offsetWidth || 0;
+      let start = 0;
+      for (let i = 0; i <= tableFrozenCount + 1 && i < ths.length; i++) {
+        offsets.push(start);
+        start += ths[i].offsetWidth || 0;
       }
-      setTableStickyOffsets(offsets);
+      setTableStickyOffsets(prev => prev.length === offsets.length && prev.every((v, i) => v === offsets[i]) ? prev : offsets);
     };
-    // Small delay to let the DOM settle
-    const t = requestAnimationFrame(measure);
-    return () => cancelAnimationFrame(t);
-  }, [tableMode, selectedTableModeId]); // eslint-disable-line
+    const ro = new ResizeObserver(measure);
+    const observeAll = () => {
+      ro.disconnect();
+      table.querySelectorAll('thead tr:first-child > th').forEach(th => ro.observe(th));
+    };
+    const mo = new MutationObserver(() => { observeAll(); measure(); });
+    const thead = table.querySelector('thead');
+    if (thead) mo.observe(thead, { childList: true, subtree: true });
+    observeAll();
+    measure();
+    return () => { ro.disconnect(); mo.disconnect(); };
+  }, [tableMode, tableEl, tableFrozenCount]);
 
   const handleAltUpdate = async (id: string, alt: string) => {
     setStrips(prev => prev.map(item => item.id === id ? {...item, alt} : item));
@@ -16100,7 +16114,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             };
 
             const frozenCount = activeMode?.frozenColumns || 0;
-            frozenColCountRef.current = frozenCount;
             const hasFrozen = frozenCount > 0;
 
             // רווח דק בין פ"מ לפ"מ: שורה ריקה בצבע הלוח, אחרי הפ"מ ואחרי
@@ -16111,14 +16124,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             return (
               <>
               <table
-                ref={tableElRef}
+                ref={setTableElRef}
                 style={{ width: hasFrozen ? 'max-content' : '100%', minWidth: '100%', borderCollapse: 'collapse', fontSize: `${tableFontSize}px`, direction: dir }}
                 onDragOver={e => e.preventDefault()}
                 onClick={() => tableHeaderMenuKey && setTableHeaderMenuKey(null)}
               >
                 <thead>
                   <tr style={{ background: lightMode ? '#e2e8f0' : '#1e293b' }}>
-                    <th style={{ padding: '4px 6px', position: 'sticky', top: 0, right: tableStickyOffsets[0] ?? 0, zIndex: hasFrozen ? 15 : 10, background: lightMode ? '#e2e8f0' : '#1e293b', borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, fontSize: '11px', whiteSpace: 'nowrap' }}>
+                    <th style={{ padding: '4px 6px', position: 'sticky', top: 0, insetInlineStart: tableStickyOffsets[0] ?? 0, zIndex: hasFrozen ? 15 : 10, background: lightMode ? '#e2e8f0' : '#1e293b', borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, fontSize: '11px', whiteSpace: 'nowrap' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
                         <button onClick={() => setTableFontSize(s => Math.min(22, s + 1))} title={tr('ctrl.increaseTextSize')} style={{ background: lightMode ? '#f1f5f9' : '#334155', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, color: lightMode ? '#1e293b' : '#e2e8f0', borderRadius: '3px', cursor: 'pointer', padding: '0px 5px', fontSize: '15px', fontWeight: 'bold', lineHeight: 1.4, minWidth: '22px' }}>A</button>
                         <button onClick={() => setTableFontSize(s => Math.max(9, s - 1))} title={tr('ctrl.decreaseTextSize')} style={{ background: lightMode ? '#f1f5f9' : '#334155', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, color: lightMode ? '#1e293b' : '#e2e8f0', borderRadius: '3px', cursor: 'pointer', padding: '0px 5px', fontSize: '11px', fontWeight: 'bold', lineHeight: 1.4, minWidth: '20px' }}>A</button>
@@ -16130,7 +16143,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       style={{
                         padding: '8px 6px', width: '28px', color: T.muted, borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`,
                         position: 'sticky', top: 0, zIndex: hasFrozen ? 15 : 10, fontSize: '11px',
-                        ...(hasFrozen ? { right: tableStickyOffsets[1] ?? 0, background: lightMode ? '#e2e8f0' : '#1e293b' } : {})
+                        ...(hasFrozen ? { insetInlineStart: tableStickyOffsets[1] ?? 0, background: lightMode ? '#e2e8f0' : '#1e293b' } : {})
                       }}
                       title={tr('ctrl.dragToReorder')}
                     >⠿</th>
@@ -16143,7 +16156,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       const isLastFrozen = isFrozen && colIdx === frozenCount - 1;
                       const frozenRight = isFrozen ? (tableStickyOffsets[colIdx + 2] ?? undefined) : undefined;
                       return (
-                        <th key={colKey} className={isFrozen ? (isLastFrozen ? 'frozen-col-last' : 'frozen-col') : undefined} style={{ padding: '8px 12px', textAlign: 'start', color: isGrouped ? '#a78bfa' : isSorted ? '#38bdf8' : (T.muted), borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, minWidth: '80px', userSelect: 'none', zIndex: isFrozen ? 12 : 10, fontSize: '11px', ...(isFrozen ? { right: frozenRight, background: lightMode ? '#e2e8f0' : '#1e293b', borderLeft: isLastFrozen ? '2px solid #7c3aed' : undefined } : {}) }}>
+                        <th key={colKey} className={isFrozen ? (isLastFrozen ? 'frozen-col-last' : 'frozen-col') : undefined} style={{ padding: '8px 12px', textAlign: 'start', color: isGrouped ? '#a78bfa' : isSorted ? '#38bdf8' : (T.muted), borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, minWidth: '80px', userSelect: 'none', zIndex: isFrozen ? 12 : 10, fontSize: '11px', background: 'inherit', ...(isFrozen ? { insetInlineStart: frozenRight, background: lightMode ? '#e2e8f0' : '#1e293b', borderInlineEnd: isLastFrozen ? '2px solid #7c3aed' : undefined } : {}) }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-start' }}>
                             <span>{col.label}</span>
                             {isGrouped && <span style={{ fontSize: '9px', background: '#4c1d95', color: '#c4b5fd', padding: '1px 4px', borderRadius: '3px' }}>⊞</span>}
@@ -16205,7 +16218,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       );
                     })}
                     {showFullPicture && (
-                      <th style={{ padding: '8px 10px', textAlign: 'start', color: T.muted, borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, zIndex: 10, fontSize: '11px', whiteSpace: 'nowrap', minWidth: '120px' }}>
+                      <th style={{ padding: '8px 10px', textAlign: 'start', color: T.muted, borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, zIndex: 10, background: 'inherit', fontSize: '11px', whiteSpace: 'nowrap', minWidth: '120px' }}>
                         {tr('ctrl.whoseDesk')}
                       </th>
                     )}
@@ -16359,7 +16372,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           transition: 'background 0.1s'
                         }}
                       >
-                        <td style={{ padding: '1px 0', whiteSpace: 'nowrap', verticalAlign: 'middle', background: rowBg ?? (lightMode ? '#e2e8f0' : '#1e293b'), position: 'sticky', right: tableStickyOffsets[0] ?? 0, zIndex: 5, width: '16px', minWidth: '16px', maxWidth: '16px',
+                        <td style={{ padding: '1px 0', whiteSpace: 'nowrap', verticalAlign: 'middle', background: rowBg ?? (lightMode ? '#e2e8f0' : '#1e293b'), position: 'sticky', insetInlineStart: tableStickyOffsets[0] ?? 0, zIndex: 5, width: '16px', minWidth: '16px', maxWidth: '16px',
                           // דופן המסגרת בצד הפ"מ. על התא הדביק - כך היא נשארת
                           // גלויה גם כשגוללים את הטבלה לצדדים.
                           borderInlineStart: `2px solid ${SUB_ACC}` }}>
@@ -16395,7 +16408,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         </td>
                         <td
                           className={hasFrozen ? 'frozen-col' : undefined}
-                          style={{ padding: '6px 4px', color: '#475569', textAlign: 'center', cursor: (tableSortBySector || tableSortKey) ? 'default' : 'grab', fontSize: '16px', verticalAlign: 'middle', touchAction: 'none', ...(hasFrozen ? { position: 'sticky', right: tableStickyOffsets[1] ?? 0, background: rowBg, zIndex: 3 } : {}) }}
+                          style={{ padding: '6px 4px', color: '#475569', textAlign: 'center', cursor: (tableSortBySector || tableSortKey) ? 'default' : 'grab', fontSize: '16px', verticalAlign: 'middle', touchAction: 'none', ...(hasFrozen ? { position: 'sticky', insetInlineStart: tableStickyOffsets[1] ?? 0, background: rowBg ?? 'inherit', zIndex: 3 } : {}) }}
                           onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setTableRowCtxMenu({ stripId: s.id, x: e.clientX, y: e.clientY }); }}
                           onPointerDown={e => {
                             if (tableSortBySector || tableSortKey) return;
@@ -16474,7 +16487,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             const isLastFrozenTd = colIdx === frozenCount - 1;
                             return React.cloneElement(cell, {
                               className: isLastFrozenTd ? 'frozen-col-last' : 'frozen-col',
-                              style: { ...cell.props.style, position: 'sticky', right: fr, background: rowBg, zIndex: 3, ...(isLastFrozenTd ? { borderLeft: '2px solid #7c3aed' } : {}) }
+                              style: { ...cell.props.style, position: 'sticky', insetInlineStart: fr, background: rowBg ?? 'inherit', zIndex: 3, ...(isLastFrozenTd ? { borderInlineEnd: '2px solid #7c3aed' } : {}) }
                             });
                           }
                           return cell;
@@ -16497,7 +16510,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             </td>
                           );
                         })()}
-                        <td style={{ position: 'sticky', left: 0, zIndex: 10, width: 0, padding: 0, border: 'none', background: 'transparent', overflow: 'visible', verticalAlign: 'middle' }}>
+                        <td style={{ position: 'sticky', left: 0, zIndex: 9, width: 0, padding: 0, border: 'none', background: 'transparent', overflow: 'visible', verticalAlign: 'middle' }}>
                           {isPendingTransfer && (
                             <div style={{ position: 'absolute', left: 2, top: '50%', transform: 'translateY(-50%)', width: 0, height: 0, borderTop: '16px solid transparent', borderBottom: '16px solid transparent', borderRight: '26px solid #22c55e', zIndex: 50, filter: 'drop-shadow(0 0 5px rgba(34,197,94,0.7))', pointerEvents: 'none' }} />
                           )}
