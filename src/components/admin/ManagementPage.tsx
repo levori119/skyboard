@@ -36,6 +36,7 @@ import { CLASSIC_STRIP_FIELDS, classicFieldLabel } from '../../types/stripGrid';
 import { AIM_POINT_COLUMNS, parseAimPointsCell } from '../../types/aimPoints';
 import { GROUND_POINT_MARKERS, toEmbedUrl } from '../ground/groundShared';
 import { geoToImagePct, imagePctToGeo, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
+import { useAnchorCoordPaste } from '../../hooks/useAnchorCoordPaste';
 import { filterDocsByKind, DOC_KIND_BDH, DOC_KIND_CHECKLIST } from '../../utils/bdhDocs';
 import { allowedBaseKeys, filterByAllowedBases, groupItemsByBase, groupPresetsByBase } from '../../utils/presetGroups';
 import { BaseGroupList, ParentBaseSelect } from './BaseGroupList';
@@ -412,6 +413,14 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
   const [afPendingDmsLat2, setAfPendingDmsLat2] = useState({ deg: '', min: '', sec: '', dir: 'N' });
   const [afPendingDmsLon2, setAfPendingDmsLon2] = useState({ deg: '', min: '', sec: '', dir: 'E' });
   const [afSavingAnchors, setAfSavingAnchors] = useState(false);
+  // הדבקת נ"צ מ-Google Earth לעוגן (Ctrl+V / כפתור) - מומר לשדות N/E מעלות-דקות-שניות
+  const afCoordPaste = useAnchorCoordPaste({
+    enabled: afAnchorMode, pin1: afPendingAnchor1, pin2: afPendingAnchor2, activeStep: afAnchorStep,
+    apply: (step, lat, lon) => {
+      (step === 1 ? setAfPendingDmsLat1 : setAfPendingDmsLat2)(lat);
+      (step === 1 ? setAfPendingDmsLon1 : setAfPendingDmsLon2)(lon);
+    },
+  });
   const [adminMapImgBounds, setAdminMapImgBounds] = React.useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [adminMapZoom, setAdminMapZoom] = React.useState(1.0);
   const adminMapScrollRef = React.useRef<HTMLDivElement>(null);
@@ -7027,6 +7036,7 @@ CHARLIE,1,301,`}
                     return (
                       <div style={{ background:'#0a1628', borderBottom:'1px solid #1e3a5f', padding:'8px 10px', display:'flex', flexDirection:'column', gap:'6px', flexShrink:0 }}>
                         <div style={{ color:'#7dd3fc', fontSize:'11px', fontWeight:'bold', marginBottom:'2px' }}>{tr('admin.kyvlGyavgrpyLchtsAl')}</div>
+                        <div style={{ color:'#94a3b8', fontSize:'10px', marginBottom:'2px' }}>{tr('map.pasteCoordHint')}</div>
                         {([1,2] as const).map(step => {
                           const isActive = afAnchorStep === step;
                           const lat = step===1 ? afPendingDmsLat1 : afPendingDmsLat2;
@@ -7037,12 +7047,14 @@ CHARLIE,1,301,`}
                           const inStyle = { padding:'3px 4px', borderRadius:'4px', border:`1px solid ${isActive?'#3b82f6':'#475569'}`, background:isActive?'#172554':'#1e293b', color:'white', fontSize:'11px', textAlign:'center' as const };
                           const selStyle = { padding:'3px 4px', borderRadius:'4px', border:`1px solid ${isActive?'#3b82f6':'#475569'}`, background:isActive?'#172554':'#0f172a', color:'#67e8f9', fontSize:'11px', fontWeight:'bold' as const, cursor:'pointer' };
                           return (
-                            <div key={step} onClick={() => setAfAnchorStep(step)}
+                            <div key={step} data-anchor-step={step} onClick={() => setAfAnchorStep(step)}
                               style={{ border:`1px solid ${isActive?'#3b82f6':'#334155'}`, borderRadius:'6px', padding:'6px 8px', background:isActive?'#0f1f3d':'#0f172a', cursor:'pointer', display:'flex', flexDirection:'column', gap:'5px' }}>
                               <div style={{ display:'flex', alignItems:'center', gap:'5px', marginBottom:'2px' }}>
                                 <span style={{ fontSize:'11px', fontWeight:'bold', color:isActive?'#60a5fa':'#64748b' }}>{isActive?'▶ ':''}{tr('shared.anchor')} {step} (A{step})</span>
                                 {hasPin && <span style={{ fontSize:'10px', color:'#34d399' }}>📍</span>}
                                 {isActive && <span style={{ fontSize:'10px', color:'#fbbf24', marginRight:'auto' }}>{tr('shared.clickOnTheMap')}</span>}
+                                <button type="button" onClick={e=>{e.stopPropagation();afCoordPaste.pasteFromClipboard(step);}} title={tr('map.pasteCoordHint')}
+                                  style={{ marginInlineStart: isActive ? 0 : 'auto', background:'#1e293b', color:'#93c5fd', border:'1px solid #334155', borderRadius:'4px', padding:'1px 6px', cursor:'pointer', fontSize:'10px' }}>{tr('map.pasteCoord')}</button>
                               </div>
                               <div style={{ display:'flex', gap:'3px', alignItems:'center', direction:'ltr' }}>
                                 <select value={lat.dir} onClick={e=>e.stopPropagation()} onChange={e=>{setAfAnchorStep(step);setLat(p=>({...p,dir:e.target.value}));}} style={selStyle}>
@@ -7052,7 +7064,7 @@ CHARLIE,1,301,`}
                                 <span style={{color:'#475569',fontSize:'10px'}}>°</span>
                                 <input type="number" min="0" max="59" value={lat.min} onClick={e=>e.stopPropagation()} onChange={e=>{setAfAnchorStep(step);setLat(p=>({...p,min:e.target.value}));}} placeholder="'" style={{...inStyle,width:'34px'}} />
                                 <span style={{color:'#475569',fontSize:'10px'}}>'</span>
-                                <input type="number" min="0" max="59.99" step="0.1" value={lat.sec} onClick={e=>e.stopPropagation()} onChange={e=>{setAfAnchorStep(step);setLat(p=>({...p,sec:e.target.value}));}} placeholder="''" style={{...inStyle,width:'42px'}} />
+                                <input type="number" min="0" max="59.99" step="0.01" value={lat.sec} onClick={e=>e.stopPropagation()} onChange={e=>{setAfAnchorStep(step);setLat(p=>({...p,sec:e.target.value}));}} placeholder="''" style={{...inStyle,width:'42px'}} />
                                 <span style={{color:'#475569',fontSize:'10px'}}>''</span>
                               </div>
                               <div style={{ display:'flex', gap:'3px', alignItems:'center', direction:'ltr' }}>
@@ -7063,7 +7075,7 @@ CHARLIE,1,301,`}
                                 <span style={{color:'#475569',fontSize:'10px'}}>°</span>
                                 <input type="number" min="0" max="59" value={lon.min} onClick={e=>e.stopPropagation()} onChange={e=>{setAfAnchorStep(step);setLon(p=>({...p,min:e.target.value}));}} placeholder="'" style={{...inStyle,width:'34px'}} />
                                 <span style={{color:'#475569',fontSize:'10px'}}>'</span>
-                                <input type="number" min="0" max="59.99" step="0.1" value={lon.sec} onClick={e=>e.stopPropagation()} onChange={e=>{setAfAnchorStep(step);setLon(p=>({...p,sec:e.target.value}));}} placeholder="''" style={{...inStyle,width:'42px'}} />
+                                <input type="number" min="0" max="59.99" step="0.01" value={lon.sec} onClick={e=>e.stopPropagation()} onChange={e=>{setAfAnchorStep(step);setLon(p=>({...p,sec:e.target.value}));}} placeholder="''" style={{...inStyle,width:'42px'}} />
                                 <span style={{color:'#475569',fontSize:'10px'}}>''</span>
                               </div>
                             </div>

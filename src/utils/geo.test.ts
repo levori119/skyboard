@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildGeoAnchor, geoToImagePct, imagePctToGeo, fmtDms, fmtDdm, fmtCoordPair, parseDdm, parseCoordPair, type MapGeoAnchor } from './geo';
+import { buildGeoAnchor, geoToImagePct, imagePctToGeo, fmtDms, fmtDdm, fmtCoordPair, parseDdm, parseCoordPair, parseAnyCoordPair, decimalToDmsFields, type MapGeoAnchor } from './geo';
 
 const anchor: MapGeoAnchor = {
   x1: 0, y1: 0, lat1: 32, lon1: 34,
@@ -177,5 +177,45 @@ describe('נ"צ מוקלד → קודקוד על התמונה', () => {
     const back = geoToImagePct(parsed.lat, parsed.lon, a);
     expect(back.x).toBeCloseTo(42, 2);
     expect(back.y).toBeCloseTo(63, 2);
+  });
+});
+
+describe('parseAnyCoordPair - הדבקת נ"צ לעיגון', () => {
+  it('עשרוני בפורמט Google Earth / Maps', () => {
+    for (const s of ['31.819509, 34.796090', '31.819509 34.796090', ' 31.819509,34.796090 ', '31.819509°N 34.796090°E']) {
+      const p = parseAnyCoordPair(s);
+      expect(p?.lat).toBeCloseTo(31.819509, 6);
+      expect(p?.lon).toBeCloseTo(34.79609, 6);
+    }
+  });
+  it('עשרוני שלילי ומחצית S/W', () => {
+    expect(parseAnyCoordPair('-12.5, -100.25')).toEqual({ lat: -12.5, lon: -100.25 });
+    expect(parseAnyCoordPair('12.5S 100.25W')).toEqual({ lat: -12.5, lon: -100.25 });
+  });
+  it('מעלות-דקות-שניות של Google Earth Pro', () => {
+    for (const s of [`31°49'10.23"N, 34°47'45.92"E`, `N31°49'10.23" E34°47'45.92"`, `31° 49' 10.23" N 34° 47' 45.92" E`]) {
+      const p = parseAnyCoordPair(s);
+      expect(p?.lat).toBeCloseTo(31 + 49 / 60 + 10.23 / 3600, 6);
+      expect(p?.lon).toBeCloseTo(34 + 47 / 60 + 45.92 / 3600, 6);
+    }
+  });
+  it('פורמט DDM הקיים ממשיך לעבוד', () => {
+    expect(parseAnyCoordPair('N3212.450 E03456.820')?.lat).toBeCloseTo(32.2075, 6);
+  });
+  it('פוסל טקסט לא תקין ומחוץ לטווח', () => {
+    for (const s of ['', 'שלום', '31.8', '95.1, 34.7', '31.8, 190.2', `31°75'10"N 34°47'45"E`]) {
+      expect(parseAnyCoordPair(s)).toBeNull();
+    }
+  });
+});
+
+describe('decimalToDmsFields - מילוי שדות העוגן', () => {
+  it('ממיר לשדות N/E מעלות-דקות-שניות', () => {
+    expect(decimalToDmsFields(31.819509, true)).toEqual({ deg: '31', min: '49', sec: '10.23', dir: 'N' });
+    expect(decimalToDmsFields(34.79609, false)).toEqual({ deg: '34', min: '47', sec: '45.92', dir: 'E' });
+    expect(decimalToDmsFields(-12.5, true).dir).toBe('S');
+  });
+  it('עיגול ל-60 שניות נושא לדקה (ולמעלה)', () => {
+    expect(decimalToDmsFields(31 + 59 / 60 + 59.999 / 3600, true)).toEqual({ deg: '32', min: '0', sec: '0.00', dir: 'N' });
   });
 });

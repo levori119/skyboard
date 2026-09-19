@@ -9,6 +9,7 @@ import { bidiAuto } from '../../utils/bidi';
 import { customConfirm } from '../shared/ConfirmModal';
 import { parseParentRect } from '../../utils/sectorFocus';
 import { windowFrame } from '../../utils/windowFrame';
+import { useAnchorCoordPaste } from '../../hooks/useAnchorCoordPaste';
 import ZoneCoordList from './ZoneCoordList';
 import type { RectPct } from '../../utils/sectorFocus';
 import type { ZoneAltRange } from '../../types';
@@ -67,6 +68,14 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
   const [pendingDmsLat2, setPendingDmsLat2] = useState({ deg: '', min: '', sec: '', dir: 'N' });
   const [pendingDmsLon2, setPendingDmsLon2] = useState({ deg: '', min: '', sec: '', dir: 'E' });
   const [savingAnchors, setSavingAnchors] = useState(false);
+  // הדבקת נ"צ מ-Google Earth לעוגן (Ctrl+V / כפתור) - מומר לשדות N/E מעלות-דקות-שניות
+  const coordPaste = useAnchorCoordPaste({
+    enabled: anchorMode, pin1: pendingAnchor1, pin2: pendingAnchor2, activeStep: anchorStep,
+    apply: (step, lat, lon) => {
+      (step === 1 ? setPendingDmsLat1 : setPendingDmsLat2)(lat);
+      (step === 1 ? setPendingDmsLon1 : setPendingDmsLon2)(lon);
+    },
+  });
   const currentAnchor = getAnchorFromMapData(localMapData);
   const isCalibrated = currentAnchor !== null;
 
@@ -1369,6 +1378,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
                 </button>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ color: '#94a3b8', fontSize: '10px' }}>{tr('map.pasteCoordHint')}</div>
                   {([1, 2] as const).map(step => {
                     const isActive = anchorStep === step;
                     const lat = step === 1 ? pendingDmsLat1 : pendingDmsLat2;
@@ -1379,7 +1389,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
                     const inStyle = { padding: '3px 4px', borderRadius: '4px', border: `1px solid ${isActive ? '#3b82f6' : '#475569'}`, background: isActive ? '#172554' : '#1e293b', color: 'white', fontSize: '11px', textAlign: 'center' as const };
                     const selStyle = { padding: '3px 4px', borderRadius: '4px', border: `1px solid ${isActive ? '#3b82f6' : '#475569'}`, background: isActive ? '#172554' : '#0f172a', color: '#67e8f9', fontSize: '11px', fontWeight: 'bold' as const, cursor: 'pointer' };
                     return (
-                      <div key={step} onClick={() => setAnchorStep(step)}
+                      <div key={step} data-anchor-step={step} onClick={() => setAnchorStep(step)}
                         style={{ border: `1px solid ${isActive ? '#3b82f6' : '#334155'}`, borderRadius: '6px', padding: '6px 8px', background: isActive ? '#0f1f3d' : '#0f172a', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '5px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '2px' }}>
                           <span style={{ fontSize: '11px', fontWeight: 'bold', color: isActive ? '#60a5fa' : '#64748b' }}>
@@ -1387,6 +1397,8 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
                           </span>
                           {hasPin && <span style={{ fontSize: '10px', color: '#34d399' }}>📍</span>}
                           {isActive && <span style={{ fontSize: '10px', color: '#fbbf24', marginRight: 'auto' }}>{tr('shared.clickOnTheMap')}</span>}
+                          <button type="button" onClick={e => { e.stopPropagation(); coordPaste.pasteFromClipboard(step); }} title={tr('map.pasteCoordHint')}
+                            style={{ marginInlineStart: isActive ? 0 : 'auto', background: '#1e293b', color: '#93c5fd', border: '1px solid #334155', borderRadius: '4px', padding: '1px 6px', cursor: 'pointer', fontSize: '10px' }}>{tr('map.pasteCoord')}</button>
                         </div>
                         {/* Latitude row — direction:ltr so deg is leftmost, min center, sec rightmost */}
                         <div style={{ display: 'flex', gap: '3px', alignItems: 'center', direction: 'ltr' }}>
@@ -1398,7 +1410,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
                           <span style={{ color: '#475569', fontSize: '10px' }}>°</span>
                           <input type="number" min="0" max="59" value={lat.min} onClick={e => e.stopPropagation()} onChange={e => { setAnchorStep(step); setLat(p => ({ ...p, min: e.target.value })); }} placeholder="'" style={{ ...inStyle, width: '34px' }} />
                           <span style={{ color: '#475569', fontSize: '10px' }}>'</span>
-                          <input type="number" min="0" max="59.99" step="0.1" value={lat.sec} onClick={e => e.stopPropagation()} onChange={e => { setAnchorStep(step); setLat(p => ({ ...p, sec: e.target.value })); }} placeholder="''" style={{ ...inStyle, width: '42px' }} />
+                          <input type="number" min="0" max="59.99" step="0.01" value={lat.sec} onClick={e => e.stopPropagation()} onChange={e => { setAnchorStep(step); setLat(p => ({ ...p, sec: e.target.value })); }} placeholder="''" style={{ ...inStyle, width: '42px' }} />
                           <span style={{ color: '#475569', fontSize: '10px' }}>''</span>
                         </div>
                         {/* Longitude row — direction:ltr so deg is leftmost, min center, sec rightmost */}
@@ -1411,7 +1423,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
                           <span style={{ color: '#475569', fontSize: '10px' }}>°</span>
                           <input type="number" min="0" max="59" value={lon.min} onClick={e => e.stopPropagation()} onChange={e => { setAnchorStep(step); setLon(p => ({ ...p, min: e.target.value })); }} placeholder="'" style={{ ...inStyle, width: '34px' }} />
                           <span style={{ color: '#475569', fontSize: '10px' }}>'</span>
-                          <input type="number" min="0" max="59.99" step="0.1" value={lon.sec} onClick={e => e.stopPropagation()} onChange={e => { setAnchorStep(step); setLon(p => ({ ...p, sec: e.target.value })); }} placeholder="''" style={{ ...inStyle, width: '42px' }} />
+                          <input type="number" min="0" max="59.99" step="0.01" value={lon.sec} onClick={e => e.stopPropagation()} onChange={e => { setAnchorStep(step); setLon(p => ({ ...p, sec: e.target.value })); }} placeholder="''" style={{ ...inStyle, width: '42px' }} />
                           <span style={{ color: '#475569', fontSize: '10px' }}>''</span>
                         </div>
                       </div>

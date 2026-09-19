@@ -129,3 +129,67 @@ export const parseCoordPair = (text: string): { lat: number; lon: number } | nul
   const lon = parseDdm(m[2], false);
   return lat === null || lon === null ? null : { lat, lon };
 };
+
+// ── הדבקת נ"צ לעיגון מפה ─────────────────────────────────────────────────────
+//
+// הנ"צ של נקודת העוגן מגיע בדרך כלל מ-Google Earth / Google Maps (לחיצה ימנית
+// מעתיקה `31.819509, 34.796090`), או מ-Google Earth Pro במעלות-דקות-שניות
+// (`31°49'10.23"N, 34°47'45.92"E`). במקום להקליד שש תיבות ביד - מדביקים את השורה
+// והיא מתפרקת לשדות N/E מעלות-דקות-שניות (פורמט חה"א).
+
+const inRange = (lat: number, lon: number) =>
+  Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
+
+/** `31.819509, 34.796090` (גם עם `°N`/`°E` או מינוס) → `{lat, lon}` או `null` */
+const parseDecimalPair = (raw: string): { lat: number; lon: number } | null => {
+  const m = /^([NS])?\s*(-?\d+(?:\.\d+)?)\s*°?\s*([NS])?\s*(?:[,;/]\s*|\s+)([EW])?\s*(-?\d+(?:\.\d+)?)\s*°?\s*([EW])?$/.exec(raw);
+  if (!m) return null;
+  let lat = Number(m[2]), lon = Number(m[5]);
+  if ((m[1] || m[3]) === 'S') lat = -Math.abs(lat);
+  if ((m[4] || m[6]) === 'W') lon = -Math.abs(lon);
+  return inRange(lat, lon) ? { lat, lon } : null;
+};
+
+/** `31°49'10.23"N, 34°47'45.92"E` (אות המחצית לפני או אחרי) → `{lat, lon}` או `null` */
+const parseDmsPair = (raw: string): { lat: number; lon: number } | null => {
+  const re = /([NSEW])?\s*(\d+)\s*°\s*(\d+)\s*['′]\s*(\d+(?:\.\d+)?)\s*(?:"|″|'')?\s*([NSEW])?/g;
+  const parts = [...raw.matchAll(re)];
+  if (parts.length !== 2) return null;
+  // השארית (מפרידים בלבד) - לא לבלוע משפט שרק מכיל נ"צ בתוכו
+  if (raw.replace(re, '').replace(/[\s,;/]/g, '')) return null;
+  const val = (p: RegExpMatchArray) => {
+    const d = Number(p[2]), mi = Number(p[3]), s = Number(p[4]);
+    if (mi >= 60 || s >= 60) return NaN;
+    const dec = d + mi / 60 + s / 3600;
+    const h = p[1] || p[5];
+    return h === 'S' || h === 'W' ? -dec : dec;
+  };
+  const lat = val(parts[0]), lon = val(parts[1]);
+  return inRange(lat, lon) ? { lat, lon } : null;
+};
+
+/**
+ * שורת נ"צ בכל פורמט נפוץ → `{lat, lon}`, או `null`:
+ * עשרוני (Google Earth / Maps), מעלות-דקות-שניות (Google Earth Pro) או DDM (`N3212.450 E03456.820`).
+ */
+export const parseAnyCoordPair = (text: string): { lat: number; lon: number } | null => {
+  const raw = String(text || '').trim().toUpperCase();
+  if (!raw) return null;
+  return parseDecimalPair(raw) ?? parseDmsPair(raw) ?? parseCoordPair(raw);
+};
+
+/**
+ * מעלות עשרוניות → שדות העוגן `{deg, min, sec, dir}` (מחרוזות, כמו ב-state של הטופס).
+ * השניות בשתי ספרות אחרי הנקודה (~30 ס"מ) כדי לא לאבד את הדיוק של Google Earth.
+ */
+export const decimalToDmsFields = (dec: number, isLat: boolean) => {
+  const dir = isLat ? (dec >= 0 ? 'N' : 'S') : (dec >= 0 ? 'E' : 'W');
+  const abs = Math.abs(dec);
+  let d = Math.floor(abs);
+  let m = Math.floor((abs - d) * 60);
+  let s = +((((abs - d) * 60) - m) * 60).toFixed(2);
+  // עיגול עלול להגיע ל-60.00 שניות / 60 דקות - נשיאה למעלה
+  if (s >= 60) { s = 0; m += 1; }
+  if (m >= 60) { m = 0; d += 1; }
+  return { deg: String(d), min: String(m), sec: s.toFixed(2), dir };
+};

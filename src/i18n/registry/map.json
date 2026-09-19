@@ -174,6 +174,18 @@
       "he": "(חלק ממפת",
       "en": "(part of map"
     },
+    "pasteCoord": {
+      "he": "📋 הדבק נ\"צ",
+      "en": "📋 Paste coord"
+    },
+    "pasteCoordHint": {
+      "he": "אפשר להדביק נ\"צ מ-Google Earth / Maps (Ctrl+V) - הוא יומר לפורמט חה\"א. בלי פוקוס בשדה, ההדבקה נכנסת לעוגן שסומן אחרון על המפה",
+      "en": "Paste a coordinate from Google Earth / Maps (Ctrl+V) - it is converted to DMS. Without a focused field, it goes to the anchor last marked on the map"
+    },
+    "pasteCoordNone": {
+      "he": "אין נ\"צ תקין בלוח ההעתקה. דוגמה: 31.819509, 34.796090",
+      "en": "No valid coordinate on the clipboard. Example: 31.819509, 34.796090"
+    },
     "pasteImage": {
       "he": "📋 הדבק",
       "en": "📋 Paste"
