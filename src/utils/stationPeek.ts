@@ -51,6 +51,16 @@ export function visibleViewStations(stations: ViewStation[], approved?: number[]
     .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.id - b.id);
 }
 
+// האם יש מה להציג בסרגל - קובע אם "תצוגת עמדות אחרות" לחיץ בתפריט "תצוגה".
+// פקד שנדלק בלי שקורה כלום נקרא כתקלה, ולכן הפריט כבוי כשאין מה להציג, והסיבה
+// נבדלת כי הפעולה המתקנת שונה: להגדיר עמדות במסך הניהול, או לבקש הרשאה.
+export type PeekAvailability = 'ready' | 'none_configured' | 'none_permitted';
+
+export function peekAvailability(stations: ViewStation[] | null | undefined, approved?: number[] | null): PeekAvailability {
+  if (!Array.isArray(stations) || stations.length === 0) return 'none_configured';
+  return visibleViewStations(stations, approved).length > 0 ? 'ready' : 'none_permitted';
+}
+
 export function stationLabel(s: ViewStation): string {
   const label = (s.label || '').trim();
   return label || s.target_name || '';

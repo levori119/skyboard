@@ -5,7 +5,7 @@ import {
   PEEK_PARAM, TILE_WIDTHS, DEFAULT_TILE_IDX, PEEK_POLL_FACTOR,
   canViewStation, visibleViewStations, stationLabel,
   stepTileIdx, tileHeight, peekUrl, parsePeekPresetId, isPeekMode,
-  reorderStations, peekFetchGuard, peekIntervalDelay, type ViewStation,
+  reorderStations, peekFetchGuard, peekIntervalDelay, peekAvailability, type ViewStation,
 } from './stationPeek';
 
 const st = (id: number, target: number, extra: Partial<ViewStation> = {}): ViewStation => ({
@@ -232,5 +232,27 @@ describe('reorderStations — שינוי סדר בגרירה', () => {
 
   it('מזהה שלא קיים — הרשימה חוזרת כמות שהיא', () => {
     expect(reorderStations(list, 99, 1).map(s => s.id)).toEqual([1, 2, 3]);
+  });
+});
+
+describe('peekAvailability - האם "תצוגת עמדות אחרות" זמין בתפריט', () => {
+  it('לא הוגדרו לעמדה עמדות לצפייה → none_configured (הפריט לא לחיץ)', () => {
+    expect(peekAvailability([], [])).toBe('none_configured');
+  });
+
+  it('הרשימה טרם נטענה (null) → none_configured', () => {
+    expect(peekAvailability(null, [])).toBe('none_configured');
+  });
+
+  it('הוגדרו עמדות אבל לאיש הצוות אין הרשאה לאף אחת → none_permitted', () => {
+    expect(peekAvailability([st(1, 7), st(2, 8)], [3])).toBe('none_permitted');
+  });
+
+  it('הוגדרה לפחות עמדה אחת מורשית → ready (הפריט לחיץ)', () => {
+    expect(peekAvailability([st(1, 7), st(2, 8)], [8])).toBe('ready');
+  });
+
+  it('בלי הגבלת מיראז ועם עמדות מוגדרות → ready', () => {
+    expect(peekAvailability([st(1, 7)], undefined)).toBe('ready');
   });
 });

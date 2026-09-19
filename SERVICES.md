@@ -760,7 +760,8 @@ DB מנוהל היה נופל יחד עם העמדה.
 
 ### `src/utils/stationPeek.ts`
 **תפקיד:** הלוגיקה של **תצוגת עמדות אחרות בעמדה** — מי מוצג (סינון מול הרשאות המיראז'), באיזה סדר, באיזה גודל, ובאיזה URL. כולל את שתי ההגנות של מצב הצפייה: `installPeekWriteGuard` (חוסם כל כתיבה ל-API במסגרת peek — נקודה אחת במקום 149 אתרי כתיבה ב-SectorDashboard) ו-`installPeekPollThrottle` (מכפיל מרווחי פולינג ≥2ש' ב-`PEEK_POLL_FACTOR`; טיימרים מהירים כמו שעון העמדה נשארים מדויקים). שתיהן מותקנות ב-`src/index.tsx` ופעילות **רק** במסמך שנטען עם `?peek=`.
-**מייצא:** `canViewStation`, `visibleViewStations`, `stationLabel`, `stepTileIdx`, `tileHeight`, `peekUrl`, `parsePeekPresetId`, `isPeekMode`, `IS_PEEK_FRAME`, `peekFetchGuard`, `installPeekWriteGuard`, `peekIntervalDelay`, `installPeekPollThrottle`, `reorderStations`, `TILE_WIDTHS`, `DEFAULT_TILE_IDX`, `PEEK_POLL_FACTOR`, `PEEK_PARAM`, `ViewStation`.
+`peekAvailability` (`ready` / `none_configured` / `none_permitted`) מכריע אם "תצוגת עמדות אחרות" לחיץ בתפריט "תצוגה".
+**מייצא:** `canViewStation`, `visibleViewStations`, `peekAvailability`, `PeekAvailability`, `stationLabel`, `stepTileIdx`, `tileHeight`, `peekUrl`, `parsePeekPresetId`, `isPeekMode`, `IS_PEEK_FRAME`, `peekFetchGuard`, `installPeekWriteGuard`, `peekIntervalDelay`, `installPeekPollThrottle`, `reorderStations`, `TILE_WIDTHS`, `DEFAULT_TILE_IDX`, `PEEK_POLL_FACTOR`, `PEEK_PARAM`, `ViewStation`.
 
 ### `src/utils/presetGroups.ts`
 **תפקיד:** קיבוץ עמדות לפי **בסיס אב** ומיון "האחרון שעודכן/נוצר ראשון" — הלוגיקה הטהורה שמאחורי בורר העמדה במסך הכניסה, בקובץ נפרד כדי שתיבדק בלי DOM ותשמש גם מסכים נוספים (הפצת בד"ח). החותמת הקובעת היא `updated_at` ובהיעדרה `created_at`; עמדה בלי חותמת מקבלת 0 ויורדת לסוף. קבוצת "ללא בסיס אב" תמיד אחרונה (סל שאריות, לא בסיס), ובסיס שנמחק (מזהה בלי שם מוכר) מאוחד אליה במקום להציג מזהה גולמי. `shouldShowGroupHeaders` מחזיר `false` לקבוצה יחידה — אז אין מה לקבץ והכותרת רק מוסיפה קליק.
@@ -950,7 +951,7 @@ DB מנוהל היה נופל יחד עם העמדה.
 **איך המסך האמיתי מוצג:** כל ריבוע הוא `<iframe src="/?peek=<presetId>">` של האפליקציה עצמה, מוקטן ב-`transform: scale()` מגודל לוגי 1600×900 — דרך הרכיב המשותף `StationScreenFrame` (אותו רכיב משרת גם את "מסך לדוגמה" במסך הניהול). כך מוצגת העמדה הנצפית **כמו שהיא**, מכל סוג, ומתעדכנת בזמן אמת מעצמה — בלי לשכפל שורת רינדור, ובלי instance שני באותו מסמך שיתנגש על הגלובלים של העמדה החיה (תמה, מסך מלא, קיצורי מקלדת, 88 אפקטים).
 **קריאה בלבד (שתי שכבות):** `pointer-events: none` על המסגרת + חסימת כל כתיבה ל-API במסמך ה-peek (`installPeekWriteGuard`). מאומת ב-e2e: מסגרת צפייה לא שולחת ולו בקשה אחת שאינה GET.
 **הרשאה:** הרשימה מוגדרת במסך הניהול, אבל מי שרשאי להיכנס לעמדה במיראז' הוא שרשאי לצפות בה — סינון מול `crewMember.approved_workstations`. עמדה בלי הרשאה: הריבוע **לא מרונדר כלל** (לא מוצג נעול).
-**אין מה להציג — אבל לא בשקט:** כשהמתג דלוק ואין ולו ריבוע אחד, מוצגת לשונית עם הסיבה, כי הפעולה המתקנת שונה בין השתיים: `ctrl.peekNoneConfigured` ("לא הוגדרו עמדות לצפייה לעמדה זו") מול `ctrl.peekNonePermitted` ("אין לך הרשאה לעמדות שהוגדרו"). קודם הרכיב החזיר `null`, והבקר שבחר בתפריט וראה מסך שלא משתנה קרא את זה כתקלה במערכת.
+**אין מה להציג - הפריט בתפריט כבוי:** הרשימה נטענת פעם אחת בעמדה (`src/hooks/useViewStations.ts`, פולינג 30ש') ומועברת לסרגל כ-prop, כך שהתפריט והסרגל רואים אותה רשימה. בלי עמדה מוגדרת ומורשית (`peekAvailability`) הפריט "תצוגת עמדות אחרות" **לא לחיץ**, ומתחתיו הסיבה: `ctrl.peekNoneConfigured` (להגדיר בניהול) מול `ctrl.peekNonePermitted` (לבקש הרשאה). הבחירה השמורה ב-localStorage נשמרת, והסרגל חוזר מעצמו כשמגדירים עמדות.
 **שכבות z-index:** 8850 כסרגל (מתחת להודעות 9000 ולדסק החופשי 9500 — הוא רצועה תחתונה ואסור שיחסום אותם), 9600 בהגדלה.
 **מייצא:** `StationPeekBar` (default).
 

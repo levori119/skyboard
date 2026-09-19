@@ -311,8 +311,8 @@
       "en": "Other stations view"
     },
     "viewMenu_peekBody": {
-      "he": "סרגל בתחתית המסך עם תצוגה מוקטנת של העמדות שהוגדרו לך לצפייה. מוצג רק אם הוגדרו עמדות כאלה ויש הרשאה מתאימה.",
-      "en": "A bar at the bottom of the screen with a miniature view of the stations you are allowed to watch. Shown only if such stations are configured and you have permission."
+      "he": "סרגל בתחתית המסך עם תצוגה מוקטנת של העמדות שהוגדרו לך לצפייה. הפריט לחיץ רק אם הוגדרו לעמדה עמדות כאלה ויש הרשאה מתאימה - אחרת הוא כבוי ומתחתיו הסיבה.",
+      "en": "A bar at the bottom of the screen with a miniature view of the stations you are allowed to watch. The item is clickable only if such stations are configured and you have permission - otherwise it is disabled and shows why."
     },
     "viewMenu_mapTitle": {
       "he": "מפה",

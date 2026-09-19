@@ -152,6 +152,8 @@ import { MapDrawToolbar } from '../map/MapDrawLayer';
 import { isFrac, fracToPx, pxToFrac, drawStrokeFrac, applyStrokeStyle, syncCanvasBitmap, type PenStroke, type MapShape } from '../../utils/mapDrawing';
 import { isLoadRelevant } from '../../utils/loadRelevance';
 import StationPeekBar from '../shared/StationPeekBar';
+import { useViewStations } from '../../hooks/useViewStations';
+import { peekAvailability } from '../../utils/stationPeek';
 import FitScaleBox from '../shared/FitScaleBox';
 import VerticalView from './VerticalView';
 import Strip from '../strips/Strip';
@@ -1189,6 +1191,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // תצוגת עמדות אחרות — סרגל הריבועים התחתון. נבחר מתפריט "תצוגה" ונזכר לעמדה.
   const [showPeekBar, setShowPeekBar] = useState<boolean>(() => localStorage.getItem(`bt-peek-show-${session.presetId}`) === '1');
   useEffect(() => { localStorage.setItem(`bt-peek-show-${session.presetId}`, showPeekBar ? '1' : '0'); }, [showPeekBar, session.presetId]);
+  // הפריט בתפריט לחיץ רק כשיש מה להציג. הבחירה השמורה נשמרת גם כשהוא כבוי,
+  // כך שהסרגל חוזר מעצמו כשמגדירים לעמדה עמדות בניהול.
+  const viewStations = useViewStations(session.presetId ? Number(session.presetId) : null);
+  const peekAvail = peekAvailability(viewStations, session.crewMember?.approved_workstations);
+  const peekReady = peekAvail === 'ready';
+  const peekShown = peekReady && showPeekBar;
+  const peekReason = peekAvail === 'none_permitted' ? tr('ctrl.peekNonePermitted') : tr('ctrl.peekNoneConfigured');
   // אותה קריאה בדיוק משמשת את מסך הטעינה של הכניסה (utils/themeMode), כדי
   // שהעמדה תיפתח בתמה שמסך הטעינה כבר נצבע בה
   const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'ocean'>(readStoredThemeMode);
@@ -11894,17 +11903,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   >
                     {tr('ctrl.messageBoard')}
                   </div>}
-                  {/* תצוגת עמדות אחרות — סרגל הריבועים בתחתית המסך. מוצג רק
-                      אם הוגדרו לעמדה עמדות לצפייה (StationPeekBar מסתיר את עצמו
-                      כשאין מה להציג או שאין הרשאת מיראז'). */}
+                  {/* תצוגת עמדות אחרות — סרגל הריבועים בתחתית המסך. לחיץ רק אם
+                      הוגדרו לעמדה עמדות לצפייה שאיש הצוות מורשה להן; אחרת כבוי,
+                      ומתחתיו הסיבה (הגדרה חסרה בניהול / אין הרשאת מיראז'). */}
                   <div
-                    onClick={() => { setShowPeekBar(v => !v); setShowViewMenu(false); }}
-                    style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: showPeekBar ? menuAcc('#93c5fd', '#2563eb') : menuText, borderBottom: `1px solid ${menuBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', fontWeight: showPeekBar ? 'bold' : 'normal' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
-                    onMouseLeave={e => (e.currentTarget.style.background = '')}
+                    data-testid="peek-menu-toggle"
+                    aria-disabled={!peekReady}
+                    onClick={peekReady ? () => { setShowPeekBar(v => !v); setShowViewMenu(false); } : undefined}
+                    title={peekReady ? undefined : peekReason}
+                    style={{ padding: '8px 12px', cursor: peekReady ? 'pointer' : 'not-allowed', opacity: peekReady ? 1 : 0.5, fontSize: '13px', color: peekShown ? menuAcc('#93c5fd', '#2563eb') : menuText, borderBottom: `1px solid ${menuBorder}`, display: 'flex', flexDirection: 'column', gap: '2px', fontWeight: peekShown ? 'bold' : 'normal' }}
+                    onMouseEnter={peekReady ? (e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))) : undefined}
+                    onMouseLeave={peekReady ? (e => (e.currentTarget.style.background = '')) : undefined}
                   >
-                    <span>🖥 {tr('ctrl.peekToggle')}</span>
-                    {showPeekBar && <span style={{ fontSize: '10px', color: menuAcc('#60a5fa', '#2563eb') }}>{tr('ctrl.active')}</span>}
+                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                      <span>🖥 {tr('ctrl.peekToggle')}</span>
+                      {peekShown && <span style={{ fontSize: '10px', color: menuAcc('#60a5fa', '#2563eb') }}>{tr('ctrl.active')}</span>}
+                    </span>
+                    {!peekReady && <span style={{ fontSize: '10px', color: menuMuted, fontWeight: 'normal' }}>{peekReason}</span>}
                   </div>
                   {/* קונטיינר החלונות - זמין ב**כל** עמדה. ההגדרה בניהול קובעת
                       רק אם הוא פתוח בעליית העמדה, לא אם הוא קיים. */}
@@ -22346,9 +22361,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {session.presetId && (
         <StationPeekBar
           presetId={Number(session.presetId)}
+          stations={viewStations}
           approvedWorkstations={session.crewMember?.approved_workstations}
           themeMode={themeMode}
-          visible={showPeekBar}
+          visible={peekShown}
         />
       )}
 

@@ -12,19 +12,14 @@
 // שרשאי לצפות בה. עמדה שאין לאיש הצוות המחובר הרשאה אליה — הריבוע לא מרונדר.
 //
 // רכיב משותף: אותו סרגל, אותה התנהגות, בכל סוגי העמדות (עקרון DRY).
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
-import { API_URL } from '../../config';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import StationScreenFrame from './StationScreenFrame';
 import { tr } from '../../i18n/tr';
 import {
   TILE_WIDTHS, DEFAULT_TILE_IDX, IS_PEEK_FRAME,
-  visibleViewStations, stationLabel, stepTileIdx, tileHeight, peekUrl,
+  visibleViewStations, stationLabel, stepTileIdx, tileHeight,
   type ViewStation,
 } from '../../utils/stationPeek';
-
-// רענון רשימת העמדות עצמה (לא התוכן — הוא מתעדכן בתוך המסגרת): שינוי הגדרה
-// במסך הניהול מגיע לעמדה בלי צורך ברענון דף.
-const LIST_POLL_MS = 30000;
 
 // גובה כותרת החלון המוגדל (שם העמדה · קריאה בלבד · סגירה)
 const EXPANDED_HEADER_H = 27;
@@ -33,6 +28,8 @@ type ThemeMode = 'light' | 'dark' | 'ocean';
 
 interface Props {
   presetId: number;
+  /** העמדות שהוגדרו לצפייה - נטענות פעם אחת בעמדה (useViewStations) ומשותפות לתפריט */
+  stations: ViewStation[];
   approvedWorkstations?: number[];   // הרשאות המיראז' של איש הצוות המחובר
   themeMode?: ThemeMode;
   /** מוצג/מוסתר מתפריט "תצוגה" של העמדה */
@@ -55,9 +52,8 @@ const peekTheme = (mode: ThemeMode) => mode === 'ocean' ? {
 const Z_BAR = 8850;
 const Z_BAR_EXPANDED = 9600;
 
-export default function StationPeekBar({ presetId, approvedWorkstations, themeMode = 'dark', visible }: Props) {
+export default function StationPeekBar({ presetId, stations, approvedWorkstations, themeMode = 'dark', visible }: Props) {
   const T = peekTheme(themeMode);
-  const [stations, setStations] = useState<ViewStation[]>([]);
   const [collapsed, setCollapsed] = useState<boolean>(() => localStorage.getItem(`bt-peek-collapsed-${presetId}`) === '1');
   const [sizeIdx, setSizeIdx] = useState<number>(() => {
     const v = Number(localStorage.getItem(`bt-peek-size-${presetId}`));
@@ -66,23 +62,6 @@ export default function StationPeekBar({ presetId, approvedWorkstations, themeMo
   // העמדה שהוגדלה לקריאה (2/3 מסך). המסגרת שלה אינה נטענת מחדש — רק ממוקמת אחרת.
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const barRef = useRef<HTMLDivElement>(null);
-
-  const load = useCallback(async () => {
-    try {
-      const r = await fetch(`${API_URL}/preset-view-stations/${presetId}`);
-      if (r.ok) {
-        const data = await r.json();
-        setStations(Array.isArray(data) ? data : []);
-      }
-    } catch { /* מנותק — נשארים עם הרשימה הקיימת */ }
-  }, [presetId]);
-
-  useEffect(() => {
-    if (IS_PEEK_FRAME || !presetId) return;   // גארד נגד קינון: מסגרת לא מציגה סרגל משלה
-    load();
-    const iv = setInterval(load, LIST_POLL_MS);
-    return () => clearInterval(iv);
-  }, [presetId, load]);
 
   useEffect(() => { localStorage.setItem(`bt-peek-collapsed-${presetId}`, collapsed ? '1' : '0'); }, [collapsed, presetId]);
   useEffect(() => { localStorage.setItem(`bt-peek-size-${presetId}`, String(sizeIdx)); }, [sizeIdx, presetId]);
@@ -97,28 +76,10 @@ export default function StationPeekBar({ presetId, approvedWorkstations, themeMo
 
   if (IS_PEEK_FRAME || !visible) return null;
 
+  // אין מה להציג - הסרגל לא מרונדר. ההסבר ("לא הוגדרו" / "אין הרשאה") מוצג
+  // בתפריט "תצוגה", שבו הפריט כבוי במצב הזה (peekAvailability).
   const shown = visibleViewStations(stations, approvedWorkstations);
-  // אין מה להציג — אבל **לא בשקט**. הבקר בחר "תצוגת עמדות אחרות" מהתפריט; מסך
-  // שלא משתנה קורא כתקלה במערכת ולא כהגדרה חסרה, והוא מחפש את הבאג במקום הלא
-  // נכון. שתי הסיבות נבדלות זו מזו כי הפעולה המתקנת שונה: להגדיר עמדות במסך
-  // הניהול, או לבקש הרשאה לעמדות שכבר הוגדרו.
-  if (shown.length === 0) {
-    return (
-      <div style={{
-        position: 'fixed', insetInlineStart: 0, insetInlineEnd: 0, bottom: 0, zIndex: Z_BAR,
-        display: 'flex', justifyContent: 'center', pointerEvents: 'none',
-      }}>
-        <div style={{
-          pointerEvents: 'auto', background: T.surface, color: T.muted,
-          border: `1px solid ${T.border}`, borderBottom: 'none',
-          borderStartStartRadius: '6px', borderStartEndRadius: '6px',
-          padding: '3px 14px', fontSize: '11px', lineHeight: 1.6,
-        }}>
-          {stations.length === 0 ? tr('ctrl.peekNoneConfigured') : tr('ctrl.peekNonePermitted')}
-        </div>
-      </div>
-    );
-  }
+  if (shown.length === 0) return null;
 
   const width = TILE_WIDTHS[sizeIdx];
   const height = tileHeight(width);
