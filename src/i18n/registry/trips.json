@@ -306,6 +306,38 @@
       "he": "{{meters}} מ'",
       "en": "{{meters}} m"
     },
+    "previewShow": {
+      "he": "🗺 הצג על מפה",
+      "en": "🗺 Show on map"
+    },
+    "previewShown": {
+      "he": "🗺 מוצג - הסתר",
+      "en": "🗺 Shown - hide"
+    },
+    "previewShowHint": {
+      "he": "מצייר את הנתיב על המפה הראשית. לחיצה נוספת מסתירה",
+      "en": "Draws the route on the main map. Click again to hide"
+    },
+    "previewNoGeometry": {
+      "he": "לנתיב הזה לא נשמרו נקודות - חשב מחדש כדי להציג אותו על המפה",
+      "en": "No points were saved for this route - recompute to show it on the map"
+    },
+    "previewRoute": {
+      "he": "נתיב נסיעה",
+      "en": "Driving route"
+    },
+    "previewStart": {
+      "he": "מוצא",
+      "en": "Origin"
+    },
+    "previewEnd": {
+      "he": "יעד",
+      "en": "Destination"
+    },
+    "previewHide": {
+      "he": "הסתר את הנתיב מהמפה",
+      "en": "Hide the route from the map"
+    },
     "routeShortest": {
       "he": "הקצר ביותר",
       "en": "Shortest"

@@ -11207,7 +11207,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           // key לפי עמדת המקור: החלפת עמדה בהגדרה מרכיבה את החלון מחדש ולא
           // משאירה בו רשימה ומצב עריכה של השדה הקודם
           case 'trips':
-            return <TripsManagementWindow key={`trips-${src.presetId}`} airfieldId={src.airfieldId} themeMode={themeMode} onClose={noop} {...liveMapPropsFor(src.airfieldId)} />;
+            return <TripsManagementWindow key={`trips-${src.presetId}`} airfieldId={src.airfieldId} themeMode={themeMode} onClose={noop} mainMapPreview={isGroundMode} {...liveMapPropsFor(src.airfieldId)} />;
           case 'drivers':
             return <VehiclePermitsWindow key={`drivers-${src.presetId}`} airfieldId={src.airfieldId} themeMode={themeMode} onClose={noop} />;
           case 'quantities':
@@ -12387,6 +12387,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               themeMode={themeMode}
               focusTripId={tripsFocusId}
               onClose={() => setShowTripsWindow(false)}
+              // "🗺 הצג על מפה" מצייר על מפת השדה הראשית (GroundView)
+              mainMapPreview
               // "פתח במפה צפה" פותח מפה לנסיעה הזו; "הוסף" מצרף אותה למפה הפתוחה
               {...liveMapPropsFor(myPresetConfig?.airfield_id ?? null)}
             />

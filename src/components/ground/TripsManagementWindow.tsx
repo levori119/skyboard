@@ -45,6 +45,9 @@ import {
   routeOptionsFromPlan, ROUTE_ALTERNATIVES,
   type RouteWaypoint, type TripEscort, type TripGroupKey, type TripStatus, type TripStop,
 } from '../../utils/trips';
+import {
+  clearTripRoutePreview, getTripRoutePreview, hasDrawableRoute, toggleTripRoutePreview, useTripRoutePreview,
+} from '../../utils/tripRoutePreview';
 
 /** שדות שהנהג רשאי לעדכן -> מפתח התווית שלהם */
 const PENDING_FIELD_KEY: Record<string, string> = {
@@ -236,6 +239,46 @@ const ROUTE_VARIANTS: { key: RouteOption['key']; permissions: string[]; labelKey
 const variantLabel = (key: string) =>
   tr(ROUTE_VARIANTS.find(v => v.key === key)?.labelKey ?? 'trips.routePermVehicle');
 
+/** הנקודות של הנתיב **שנבחר** לנסיעה, מתוך האפשרויות שנשמרו עליה */
+const selectedRouteWaypoints = (t: Trip): RouteWaypoint[] | undefined => {
+  const sig = savedRouteSig(asNumArray(t.selected_route_ids), t.selected_route_label || '');
+  if (!sig) return undefined;
+  return asRouteOptions(t.route_options).find(o => isRouteChosen(o, sig))?.waypoints;
+};
+
+/**
+ * "🗺 הצג על מפה" - מצייר את הנתיב על המפה הראשית (TripRoutePreviewLayer).
+ * לחיצה נוספת מסתירה. נתיב שלא נשמרו לו נקודות (נסיעה ישנה) - הכפתור כבוי
+ * ואומר למה, במקום להידלק בלי שקורה דבר.
+ */
+const PreviewButton: React.FC<{
+  id: string; airfieldId: number | null; label: string;
+  waypoints: RouteWaypoint[] | undefined; C: WindowPalette; compact?: boolean;
+}> = ({ id, airfieldId, label, waypoints, C, compact }) => {
+  const shown = useTripRoutePreview()?.id === id;
+  const drawable = hasDrawableRoute(waypoints);
+  return (
+    <button
+      data-testid="trip-route-show-on-map"
+      disabled={!drawable}
+      aria-pressed={shown}
+      title={drawable ? tr('trips.previewShowHint') : tr('trips.previewNoGeometry')}
+      onClick={e => {
+        // השורה עצמה בוחרת נתיב - הצגה על המפה אינה בחירה
+        e.stopPropagation();
+        if (drawable) toggleTripRoutePreview({ id, airfieldId, label, waypoints: waypoints! });
+      }}
+      style={{
+        flexShrink: 0, height: 20, padding: compact ? '0 5px' : '0 7px', borderRadius: 4, fontSize: 10,
+        fontWeight: 'bold', whiteSpace: 'nowrap', cursor: drawable ? 'pointer' : 'not-allowed',
+        opacity: drawable ? 1 : 0.45,
+        background: shown ? '#a21caf' : 'transparent', color: shown ? '#fff' : '#d946ef',
+        border: `1px solid ${shown ? '#a21caf' : C.border}`,
+      }}
+    >{compact ? '🗺' : (shown ? tr('trips.previewShown') : tr('trips.previewShow'))}</button>
+  );
+};
+
 /**
  * דיאלוג השכפול - לנסיעה אחת ולקבוצה כאחת.
  *
@@ -358,13 +401,25 @@ export interface TripsManagementWindowProps {
   liveMapTripIds?: number[];
   onOpenLiveMap?: (tripId: number) => void;
   onAddToLiveMap?: (tripId: number) => void;
+  /**
+   * יש מפת שדה ראשית (GroundView) שעליה "🗺 הצג על מפה" מצייר. בלעדיה (דסק
+   * משימה) הכפתורים אינם מוצגים - כפתור שנדלק בלי שקורה דבר נראה כמו תקלה.
+   */
+  mainMapPreview?: boolean;
 }
 
 export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
   airfieldId, themeMode, onClose, focusTripId, liveMapTripIds = [], onOpenLiveMap, onAddToLiveMap,
+  mainMapPreview = false,
 }) => {
   const C = windowPalette(themeMode);
   const dir = i18n.dir();
+  // נתיב טיוטה (טרם נשמר) שהוצג על המפה יורד כשהחלון נסגר - אין לו מקור עוד.
+  // נתיב של נסיעה שמורה נשאר עד ה-✕ שעל המפה: הפקח סגר את החלון כדי לראות אותו.
+  useEffect(() => () => {
+    const p = getTripRoutePreview();
+    if (p?.id.startsWith('draft:')) clearTripRoutePreview(p.id);
+  }, []);
   const winRef = useRef<HTMLDivElement | null>(null);
   const drag = useDragPosition(winRef);
   const { inputStyle, dateStyle, areaStyle, labelStyle, sectionStyle, btn } = formStyles(C, themeMode);
@@ -914,7 +969,16 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
                     {/* הנתיב שאושר לנהג - העמודה שאומרת אם בכלל הוכרע משהו */}
                     <td style={{ ...td, maxWidth: 220 }}>
                       {t.selected_route_label
-                        ? <span style={{ fontSize: 10, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.selected_route_label}</span>
+                        ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <span style={{ flex: 1, minWidth: 0, fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.selected_route_label}</span>
+                            {mainMapPreview && <PreviewButton
+                              id={`trip:${t.id}`} airfieldId={t.airfield_id ?? airfieldId}
+                              label={`${tripLabel(t)} · ${t.selected_route_label}`}
+                              waypoints={selectedRouteWaypoints(t)} C={C} compact
+                            />}
+                          </div>
+                        )
                         : <span style={{ fontSize: 10, color: '#f87171' }}>{tr('trips.routeNoneSelected')}</span>}
                     </td>
                     <td style={td}>
@@ -1348,6 +1412,10 @@ export const TripsManagementWindow: React.FC<TripsManagementWindowProps> = ({
                     </div>
                     <div style={{ fontSize: 9, color: C.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.label}</div>
                   </div>
+                  {mainMapPreview && <PreviewButton
+                    id={`draft:${routeSignature(o)}`} airfieldId={airfieldId} label={`${variantLabel(o.key)} · ${o.label}`}
+                    waypoints={o.waypoints} C={C}
+                  />}
                   <span style={{ fontSize: 9, color: C.muted, whiteSpace: 'nowrap' }}>{tr('trips.routeDistance', { meters: o.dist_m })}</span>
                   {o.crossings > 0 && (
                     <span style={{ fontSize: 9, color: '#fbbf24', whiteSpace: 'nowrap' }}>{tr('trips.routeCrossings', { count: o.crossings })}</span>
