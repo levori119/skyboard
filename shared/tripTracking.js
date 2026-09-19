@@ -20,6 +20,9 @@ export const RUNWAY_ALERT_M = 150;
 export const TAXIWAY_ALERT_M = 100;
 /** נהג ומגדל: התקרבות לאלמנט שסוגר את הדרך */
 export const ELEMENT_ALERT_M = 50;
+/** נהג: התקרבות לרמזור שסוגר את הדרך (הכרעת אורי, 2026-09-19 - 50 מ' לא הספיקו
+ *  לעצור מול רמזור אדום). קטגוריית `רמזורים` בלבד; שאר האלמנטים ב-`ELEMENT_ALERT_M`. */
+export const TRAFFIC_LIGHT_ALERT_M = 100;
 /** מגדל: מרחק מהנתיב שנחשב סטייה */
 export const DEVIATION_M = 200;
 /** מגדל: קריאות רצופות מעל הסף עד שמתריעים (~10 ש' בקצב 5 ש'). קפיצת GPS בודדת
@@ -164,6 +167,18 @@ const CATEGORY_BLOCK_DEFAULT = { 'STOP BAR': 'מנצנץ', 'רמזורים': 'מ
 
 const NOT_ON_ROAD = new Set(['camera', 'כלי רכב']);
 
+/** קטגוריית הרמזורים - הסף שלה אצל הנהג רחוק יותר (`TRAFFIC_LIGHT_ALERT_M`) */
+export const TRAFFIC_LIGHT_CATEGORY = 'רמזורים';
+
+/**
+ * סף ההתרעה **לנהג** על אלמנט שסוגר את הדרך, לפי סוגו.
+ * רמזור - 100 מ', כל השאר - 50 מ'. הרמזור מתחלף מול הנהג הנוסע, וב-50 מ'
+ * הוא כבר בתוך הצומת; מחסום סגור עומד סגור, ו-50 מ' מספיקים לו.
+ */
+export function elementAlertM(el) {
+  return el?.category === TRAFFIC_LIGHT_CATEGORY ? TRAFFIC_LIGHT_ALERT_M : ELEMENT_ALERT_M;
+}
+
 const jsonList = v => {
   if (Array.isArray(v)) return v;
   if (typeof v === 'string' && v.trim()) { try { const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch { return []; } }
@@ -241,7 +256,8 @@ export const isDeviating = streak => (Number(streak) || 0) >= DEVIATION_STREAK;
 /**
  * מה קרוב לנהג עכשיו, מהקרוב לרחוק. כל פריט: `{ key, kind, id, name, meters }`.
  * `data`: `{ runways: [{id,name,line}], taxiways: [{id,name,line}], elements: [{id,name,lat,lon,...}] }`.
- * אלמנט מופיע **רק כשהוא סוגר את הדרך** (הכרעת אורי). דיוק גרוע - אין התרעות.
+ * אלמנט מופיע **רק כשהוא סוגר את הדרך** (הכרעת אורי), בסף לפי סוגו
+ * (`elementAlertM` - רמזור 100 מ', שאר האלמנטים 50 מ'). דיוק גרוע - אין התרעות.
  */
 export function findHazards(pos, data) {
   if (!validPt(pos) || !data) return [];
@@ -258,7 +274,7 @@ export function findHazards(pos, data) {
   for (const el of Array.isArray(data.elements) ? data.elements : []) {
     if (!validPt(el) || !isElementBlocking(el)) continue;
     const d = metersToSegment(pos, el, el);
-    if (d <= ELEMENT_ALERT_M) out.push({ key: `element:${el.id}`, kind: 'element', id: el.id, name: el.name || '', meters: d });
+    if (d <= elementAlertM(el)) out.push({ key: `element:${el.id}`, kind: 'element', id: el.id, name: el.name || '', meters: d });
   }
   return out.sort((a, b) => a.meters - b.meters);
 }

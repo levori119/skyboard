@@ -8,7 +8,8 @@ import {
   anchorFrom, pctToLatLon, latLonToPct, metersToSegment, metersToPolyline,
   DISPLAY_STATE_LABEL, effectiveBlockingStatuses, isElementBlocking,
   nextDeviationStreak, isDeviating, roadControlElements, compactWaypoints, findHazards, cooldownOver, nextAlertState,
-  RUNWAY_ALERT_M, TAXIWAY_ALERT_M, ELEMENT_ALERT_M, DEVIATION_M, DEVIATION_STREAK,
+  RUNWAY_ALERT_M, TAXIWAY_ALERT_M, ELEMENT_ALERT_M, TRAFFIC_LIGHT_ALERT_M, elementAlertM,
+  DEVIATION_M, DEVIATION_STREAK,
   ROUTE_CORRIDOR_M, MAX_ACCURACY_M, STALE_FIX_MS, ALERT_COOLDOWN_MS, isFixStale,
 } from './tripTracking.js';
 import { distanceMeters } from './driverLogic.js';
@@ -26,6 +27,13 @@ describe('הספים - הכרעות אורי 2026-09-13', () => {
     expect(RUNWAY_ALERT_M).toBe(150);
     expect(TAXIWAY_ALERT_M).toBe(100);
     expect(ELEMENT_ALERT_M).toBe(50);
+  });
+  it('נהג: רמזור 100 מ\' (הכרעת אורי 2026-09-19), שאר האלמנטים 50', () => {
+    expect(TRAFFIC_LIGHT_ALERT_M).toBe(100);
+    expect(elementAlertM({ category: 'רמזורים' })).toBe(TRAFFIC_LIGHT_ALERT_M);
+    expect(elementAlertM({ category: 'מחסומים' })).toBe(ELEMENT_ALERT_M);
+    expect(elementAlertM({ category: 'STOP BAR' })).toBe(ELEMENT_ALERT_M);
+    expect(elementAlertM(null)).toBe(ELEMENT_ALERT_M);
   });
   it('מגדל: סטייה 200 מ\', שתי קריאות רצופות', () => {
     expect(DEVIATION_M).toBe(200);
@@ -276,6 +284,11 @@ describe('findHazards - מה קרוב לנהג עכשיו', () => {
   const taxiNear = { id: 21, name: 'A', line: [{ lat: 31.2508, lon: 34.64 }, { lat: 31.2508, lon: 34.66 }] }; // ~89 מ'
   const closedBarrier = { id: 31, name: 'מחסום צפוני', category: 'מחסומים', display_state: 'close', status: 'שמיש', lat: 31.2503, lon: 34.65 }; // ~33 מ'
   const openBarrier = { ...closedBarrier, id: 32, name: 'מחסום פתוח', display_state: 'open' };
+  // ~75 מ' - בתוך סף הרמזור (100) ומחוץ לסף שאר האלמנטים (50)
+  const lightMid = { id: 41, name: 'רמזור צומת דרום', category: 'רמזורים', display_state: 'blink', status: 'שמיש', lat: 31.25067, lon: 34.65 };
+  const barrierMid = { ...lightMid, id: 42, name: 'מחסום אמצע', category: 'מחסומים', display_state: 'close' };
+  // ~133 מ' - מעבר גם לסף הרמזור
+  const lightFar = { ...lightMid, id: 43, name: 'רמזור רחוק', lat: 31.2512 };
 
   it('מסלול טיסה בתוך 150 מ\' - התרעה; מעבר - לא', () => {
     const h = findHazards(pos, { runways: [runwayNear, runwayFar], taxiways: [], elements: [] });
@@ -293,6 +306,20 @@ describe('findHazards - מה קרוב לנהג עכשיו', () => {
   it('אלמנט סוגר בתוך 50 מ\' - התרעה; אותו אלמנט פתוח - לא', () => {
     const h = findHazards(pos, { runways: [], taxiways: [], elements: [closedBarrier, openBarrier] });
     expect(h.map(x => x.key)).toEqual(['element:31']);
+  });
+
+  // הכרעת אורי 2026-09-19: לרמזור צריך מרחק עצירה גדול יותר
+  it('רמזור סוגר ב-75 מ\' - התרעה; מחסום סגור באותו מרחק - לא', () => {
+    expect(findHazards(pos, { elements: [lightMid] }).map(x => x.key)).toEqual(['element:41']);
+    expect(findHazards(pos, { elements: [barrierMid] })).toEqual([]);
+  });
+
+  it('רמזור סוגר מעבר ל-100 מ\' - אין התרעה', () => {
+    expect(findHazards(pos, { elements: [lightFar] })).toEqual([]);
+  });
+
+  it('רמזור פתוח ב-75 מ\' - אין התרעה', () => {
+    expect(findHazards(pos, { elements: [{ ...lightMid, display_state: 'go' }] })).toEqual([]);
   });
 
   it('כמה סכנות - הקרובה ראשונה', () => {
