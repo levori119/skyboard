@@ -3046,6 +3046,26 @@
       "he": "סוג מסלול:",
       "en": "Route type:"
     },
+    "routeDirection": {
+      "he": "כיוון נסיעה:",
+      "en": "Driving direction:"
+    },
+    "routeDirBoth": {
+      "he": "⇄ דו-כיווני",
+      "en": "⇄ Two-way"
+    },
+    "routeDirForward": {
+      "he": "→ חד-כיווני - בכיוון הציור",
+      "en": "→ One-way - drawing direction"
+    },
+    "routeDirBackward": {
+      "he": "← חד-כיווני - נגד כיוון הציור",
+      "en": "← One-way - against drawing direction"
+    },
+    "routeDirToggleHint": {
+      "he": "כיוון נסיעה - לחיצה מחליפה: דו-כיווני / בכיוון הציור / נגד כיוון הציור. חישוב הנתיב לא נוסע נגד הכיוון",
+      "en": "Driving direction - click to switch: two-way / drawing direction / against it. Route planning never drives against it"
+    },
     "svgySttvsMbtsay": {
       "he": "🏷️ סוגי סטטוס מבצעי",
       "en": "🏷️ Operational status types"

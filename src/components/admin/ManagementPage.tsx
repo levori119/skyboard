@@ -58,6 +58,7 @@ import type { DocKind } from '../../utils/bdhDocs';
 import { ELEMENT_AUDIENCES, DEFAULT_RELEVANT_FOR, relevantFor, type ElementAudience } from '../../../shared/elementRelevance';
 import { parseLandingPriority } from '../../../shared/landingPriority';
 import { LandingPriorityEditor, runwayEndsOf } from './LandingPriorityEditor';
+import { nextRouteDirection, routeDirectionGlyph, routeDirectionArrows } from '../../utils/routeDirection';
 
 /** טופס אלמנט בבסיס ריק. אלמנט חדש רלוונטי לרכבים ולמטוסים עד שבוחרים אחרת. */
 const emptyElementForm = () => ({
@@ -562,7 +563,7 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
   // Base vehicle routes state (per-airfield, map-based waypoints)
   const [bRoutes, setBRoutes] = useState<any[]>([]);
   const [editingRoute, setEditingRoute] = useState<any | null>(null);
-  const [routeForm, setRouteForm] = useState({ name: '', color: '#f97316', route_type: 'vehicle' });
+  const [routeForm, setRouteForm] = useState({ name: '', color: '#f97316', route_type: 'vehicle', direction: 'both' });
   const [drawingVehicleRouteId, setDrawingVehicleRouteId] = useState<number | null>(null);
   const [vehicleRouteDraftPoints, setVehicleRouteDraftPoints] = useState<{x: number; y: number; lat?: number; lon?: number}[]>([]);
   const [showVehicleRouteForm, setShowVehicleRouteForm] = useState(false);
@@ -6771,7 +6772,7 @@ CHARLIE,1,301,`}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', marginBottom: adminAFExpanded.has('vehicle_routes') ? '6px' : 0 }} onClick={() => toggleAFSec('vehicle_routes')}>
                           <div style={{ color: '#fb923c', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>{tr('admin.taxiRoutes')}{bRoutes.length})</div>
                           {adminAFExpanded.has('vehicle_routes') && !showVehicleRouteForm && !drawingVehicleRouteId && (
-                            <button onClick={e => { e.stopPropagation(); setEditingRoute(null); setRouteForm({ name: '', color: '#f97316', route_type: 'vehicle' }); setShowVehicleRouteForm(true); }}
+                            <button onClick={e => { e.stopPropagation(); setEditingRoute(null); setRouteForm({ name: '', color: '#f97316', route_type: 'vehicle', direction: 'both' }); setShowVehicleRouteForm(true); }}
                               style={{ padding: '2px 8px', background: '#c2410c', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', marginLeft: '4px' }}>{tr('admin.ntyb')}</button>
                           )}
                           {adminAFExpanded.has('vehicle_routes') && !drawingVehicleRouteId && (() => {
@@ -6815,6 +6816,15 @@ CHARLIE,1,301,`}
                                   <option value="runway">{tr('admin.mslvlTysh2')}</option>
                                 </select>
                               </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                                <label style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>{tr('admin.routeDirection')}</label>
+                                <select data-testid="route-direction-select" value={routeForm.direction} onChange={e => setRouteForm(p => ({ ...p, direction: e.target.value }))}
+                                  style={{ flex: 1, padding: '3px 6px', background: '#1e293b', border: '1px solid #7c2d12', borderRadius: '4px', color: 'white', fontSize: '11px' }}>
+                                  <option value="both">{tr('admin.routeDirBoth')}</option>
+                                  <option value="forward">{tr('admin.routeDirForward')}</option>
+                                  <option value="backward">{tr('admin.routeDirBackward')}</option>
+                                </select>
+                              </div>
                               <div style={{ display: 'flex', gap: '5px' }}>
                                 {hasMap ? (
                                   <button onClick={() => {
@@ -6840,10 +6850,10 @@ CHARLIE,1,301,`}
                                   if (vehicleRouteDraftPoints.length < 1) { alert('יש לסמן לפחות נקודה אחת'); return; }
                                   const url = drawingVehicleRouteId === -1 ? `${API_URL}/base-routes` : `${API_URL}/base-routes/${drawingVehicleRouteId}`;
                                   const method = drawingVehicleRouteId === -1 ? 'POST' : 'PUT';
-                                  const body: any = { name: routeForm.name, color: routeForm.color, waypoints: vehicleRouteDraftPoints, notes: '', route_type: routeForm.route_type || 'vehicle' };
+                                  const body: any = { name: routeForm.name, color: routeForm.color, waypoints: vehicleRouteDraftPoints, notes: '', route_type: routeForm.route_type || 'vehicle', direction: routeForm.direction || 'both' };
                                   if (drawingVehicleRouteId === -1) body.airfield_id = selectedAdminAirfieldId;
                                   await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-                                  setDrawingVehicleRouteId(null); setVehicleRouteDraftPoints([]); setEditingRoute(null); setRouteForm({ name: '', color: '#f97316', route_type: 'vehicle' });
+                                  setDrawingVehicleRouteId(null); setVehicleRouteDraftPoints([]); setEditingRoute(null); setRouteForm({ name: '', color: '#f97316', route_type: 'vehicle', direction: 'both' });
                                   fetch(`${API_URL}/base-routes?airfield_id=${selectedAdminAirfieldId}`).then(r => r.ok ? r.json() : []).then(setBRoutes);
                                 }} style={{ flex: 1, padding: '3px', background: '#059669', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{tr('admin.save')}{vehicleRouteDraftPoints.length})</button>
                                 <button onClick={() => setVehicleRouteDraftPoints(prev => prev.slice(0, -1))} disabled={vehicleRouteDraftPoints.length === 0}
@@ -6859,10 +6869,21 @@ CHARLIE,1,301,`}
                               <span style={{ flex: 1, fontSize: '11px', color: '#e2e8f0', direction: 'rtl', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{vr.name}</span>
                               {vr.route_type === 'taxiway' && <span title={tr('admin.mslvlHsah')} style={{ fontSize: '9px', background: '#1d4ed8', color: '#bfdbfe', borderRadius: '3px', padding: '0 4px' }}>{tr('admin.hsah')}</span>}
                               {vr.route_type === 'runway' && <span title={tr('admin.mslvlTysh')} style={{ fontSize: '9px', background: '#7c3aed', color: '#ddd6fe', borderRadius: '3px', padding: '0 4px' }}>{tr('admin.tysh')}</span>}
+                              {/* כיוון נסיעה - לחיצה אחת מחליפה, בלי לפתוח את הטופס ולצייר מחדש */}
+                              <button data-testid="route-direction-toggle" title={tr('admin.routeDirToggleHint')} disabled={!!drawingVehicleRouteId}
+                                onClick={async e => {
+                                  e.stopPropagation();
+                                  const next = nextRouteDirection(vr.direction);
+                                  setBRoutes(prev => prev.map((r: any) => r.id === vr.id ? { ...r, direction: next } : r));
+                                  await fetch(`${API_URL}/base-routes/${vr.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ direction: next }) });
+                                }}
+                                style={{ padding: '0 5px', background: (vr.direction || 'both') === 'both' ? '#1e293b' : '#78350f', color: (vr.direction || 'both') === 'both' ? '#94a3b8' : '#fcd34d', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', lineHeight: '16px' }}>
+                                {routeDirectionGlyph(vr.direction)}
+                              </button>
                               <span style={{ fontSize: '10px', color: '#64748b' }}>{Array.isArray(vr.waypoints) ? vr.waypoints.length : 0} {tr('admin.pts2')}</span>
                               {(() => { const wps = Array.isArray(vr.waypoints) ? vr.waypoints : []; const hasGeo = wps.length > 0 && wps.every((p: any) => p.lat != null && p.lon != null); const partialGeo = !hasGeo && wps.some((p: any) => p.lat != null); return hasGeo ? <span title={tr('admin.klHnkvdvtMavgnvtLn')} style={{ fontSize: '10px', color: '#4ade80' }}>⚓</span> : partialGeo ? <span title={tr('admin.chlkMhnkvdvtMavgnvtLn')} style={{ fontSize: '10px', color: '#fbbf24' }}>⚓</span> : wps.length > 0 ? <span title={tr('admin.llaNQuotTs')} style={{ fontSize: '10px', color: '#475569' }}>—</span> : null; })()}
                               {!drawingVehicleRouteId && (<>
-                                <button onClick={e => { e.stopPropagation(); setEditingRoute(vr); setRouteForm({ name: vr.name, color: vr.color || '#f97316', route_type: vr.route_type || 'vehicle' }); setShowVehicleRouteForm(true); }}
+                                <button onClick={e => { e.stopPropagation(); setEditingRoute(vr); setRouteForm({ name: vr.name, color: vr.color || '#f97316', route_type: vr.route_type || 'vehicle', direction: vr.direction || 'both' }); setShowVehicleRouteForm(true); }}
                                   style={{ padding: '1px 5px', background: '#1e3a5f', color: '#7dd3fc', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✏️</button>
                                 <button onClick={async () => { if (!await customConfirm('למחוק נתיב זה?')) return; await fetch(`${API_URL}/base-routes/${vr.id}`, { method: 'DELETE' }); setBRoutes(prev => prev.filter((r: any) => r.id !== vr.id)); }}
                                   style={{ padding: '1px 5px', background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>🗑</button>
@@ -7378,6 +7399,11 @@ CHARLIE,1,301,`}
                         return (
                           <g key={`vr-saved-${vr.id}`}>
                             {pts.length >= 2 && <polyline points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={col} strokeWidth="0.7" />}
+                            {/* חץ כיוון באמצע כל קטע של נתיב חד-כיווני */}
+                            {routeDirectionArrows(pts, vr.direction).map((a, i) => (
+                              <polygon key={`dir-${i}`} points="-1.1,-0.8 1.1,0 -1.1,0.8" fill={col} stroke="white" strokeWidth="0.2"
+                                transform={`translate(${a.x},${a.y}) rotate(${a.angle})`} />
+                            ))}
                             {pts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="0.9" fill={col} stroke="white" strokeWidth="0.25" />)}
                             {pts.length >= 1 && <text x={pts[0].x + 1.2} y={pts[0].y - 1.5} fontSize="2.5" fill={col} fontWeight="bold" style={{ userSelect: 'none' }}>🚗 {vr.name}</text>}
                           </g>

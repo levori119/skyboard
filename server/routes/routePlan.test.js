@@ -34,6 +34,7 @@ const post = (p, body) => fetch(`${base}${p}`, {
 const AF = 1;
 const A = 20, B = 21, S = 22;
 const C = 30, D = 31;
+const E = 40, F = 41, G = 42, H = 43;
 
 /** נקודות לאורך קו, בצעדי 5% - צמתים סמוכים תמיד מחוברים באותו מסלול. */
 const line = (x1, y1, x2, y2) => {
@@ -64,7 +65,7 @@ beforeAll(async () => {
     name VARCHAR(100), x_pct REAL, y_pct REAL)`);
   await pool.query(`CREATE TABLE public.base_routes (
     id SERIAL PRIMARY KEY, airfield_id INTEGER REFERENCES airfields(id),
-    name VARCHAR(200), route_type VARCHAR(20), waypoints JSONB)`);
+    name VARCHAR(200), route_type VARCHAR(20), waypoints JSONB, direction VARCHAR(10) DEFAULT 'both')`);
   await pool.query(`CREATE TABLE public.airfield_routes (
     id SERIAL PRIMARY KEY, airfield_id INTEGER REFERENCES airfields(id),
     name VARCHAR(200), is_runway BOOLEAN DEFAULT FALSE, route_path JSONB)`);
@@ -101,6 +102,26 @@ beforeAll(async () => {
   await pool.query(
     `INSERT INTO base_routes (airfield_id, name, route_type, waypoints) VALUES (2, 'ישר', 'vehicle', $1), (2, 'עוקף', 'vehicle', $2)`,
     [JSON.stringify(line(10, 80, 90, 80)), JSON.stringify([...line(10, 80, 10, 95), ...line(10, 95, 90, 95).slice(1), ...line(90, 95, 90, 80).slice(1)])]
+  );
+
+  // שדה 3 - "אופקי" ו"אנכי" נחצים ב-(50,50) באמצע קטע, בלי קודקוד ליד החיתוך
+  // (קטעים ארוכים - שתי נקודות לכל נתיב). "חד" (60,80)->(90,80) חד-כיווני קדימה.
+  //
+  //                   │ אנכי (50,20)->(50,95)
+  //   (10,50) ────────┼──────── (90,50)  אופקי
+  //                   │
+  //   E(30,58)         F(50,95)
+  await pool.query(`INSERT INTO airfields (id, name, map_id) VALUES (3, 'שדה חיתוך', 1)`);
+  await pool.query(
+    `INSERT INTO airfield_points (id, airfield_id, name, x_pct, y_pct) VALUES
+      ($1, 3, 'E', 30, 58), ($2, 3, 'F', 50, 95), ($3, 3, 'G', 62, 83), ($4, 3, 'H', 88, 83)`,
+    [E, F, G, H]
+  );
+  await pool.query(
+    `INSERT INTO base_routes (airfield_id, name, route_type, waypoints, direction) VALUES
+      (3, 'אופקי', 'vehicle', $1, 'both'), (3, 'אנכי', 'vehicle', $2, 'both'), (3, 'חד', 'vehicle', $3, 'forward')`,
+    [JSON.stringify([{ x: 10, y: 50 }, { x: 90, y: 50 }]), JSON.stringify([{ x: 50, y: 20 }, { x: 50, y: 95 }]),
+     JSON.stringify([{ x: 60, y: 80 }, { x: 90, y: 80 }])]
   );
 
   const app = express();
@@ -228,5 +249,41 @@ describe('תכנון נתיב - חלופות', () => {
   it('תקרה של 3 חלופות', async () => {
     const res = await planAt(2, { from_point_id: C, to_point_id: D, alternatives: 99 });
     expect(res.alternatives.length).toBeLessThanOrEqual(3);
+  });
+});
+
+// "זה אמור לקחת מנקודת היציאה לנתיב הכי קרוב ב-90 מעלות, ומשם לעשות את כל
+// החיתוכים בין הנקודות עד נקודה אחרונה - בפועל זה חותך בין הנקודות."
+describe('תכנון נתיב - ניצב לנתיב הקרוב ומעבר בחיתוך', () => {
+  const planAt = (af, body) => post('/api/route-plan', { airfield_id: af, permissions: ['vehicle'], ...body }).then(r => r.json());
+
+  it('מוצא ליד "אופקי" ויעד על "אנכי" - עוברים בחיתוך (50,50)', async () => {
+    const res = await planAt(3, { from_point_id: E, to_point_id: F });
+    expect(res.error).toBeUndefined();
+    expect(segNames(res)).toEqual(['אופקי', 'אנכי']);
+    const atCross = res.waypoints.some(w => Math.abs(w.xPct - 50) < 0.1 && Math.abs(w.yPct - 50) < 0.1);
+    expect(atCross).toBe(true);
+  });
+
+  it('הנקודה השנייה היא רגל הניצב מהמוצא על "אופקי" - (30,50)', async () => {
+    const res = await planAt(3, { from_point_id: E, to_point_id: F });
+    expect(res.waypoints[1].xPct).toBeCloseTo(30, 1);
+    expect(res.waypoints[1].yPct).toBeCloseTo(50, 1);
+  });
+
+  it('אין נקודה כפולה בחיתוך (הוראת פנייה אחת)', async () => {
+    const res = await planAt(3, { from_point_id: E, to_point_id: F });
+    for (let i = 1; i < res.waypoints.length; i++) {
+      const a = res.waypoints[i - 1], b = res.waypoints[i];
+      expect(Math.hypot(a.xPct - b.xPct, a.yPct - b.yPct)).toBeGreaterThan(0.01);
+    }
+  });
+
+  it('נתיב חד-כיווני: עם הכיוון יש נתיב, נגדו אין', async () => {
+    const withDir = await planAt(3, { from_point_id: G, to_point_id: H });
+    expect(withDir.error).toBeUndefined();
+    expect(segNames(withDir)).toEqual(['חד']);
+    const against = await planAt(3, { from_point_id: H, to_point_id: G });
+    expect(against.error).toBeTruthy();
   });
 });

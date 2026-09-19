@@ -1954,6 +1954,9 @@ async function applySchemaOnce() {
   await sq(`ALTER TABLE base_routes ADD COLUMN IF NOT EXISTS airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE`);
   await sq(`ALTER TABLE base_routes ADD COLUMN IF NOT EXISTS color VARCHAR(20) DEFAULT '#f97316'`);
   await sq(`ALTER TABLE base_routes ADD COLUMN IF NOT EXISTS route_type VARCHAR(20) DEFAULT 'vehicle'`);
+  // כיוון נסיעה בנתיב: both = דו-כיווני, forward = רק בסדר שבו צויר, backward = רק הפוך.
+  // תכנון הנתיב (utils/roadGraph.js) לא נוסע נגד הכיוון. ברירת המחדל שומרת על ההתנהגות הקיימת.
+  await sq(`ALTER TABLE base_routes ADD COLUMN IF NOT EXISTS direction VARCHAR(10) DEFAULT 'both'`);
 
   await sq(`CREATE TABLE IF NOT EXISTS vehicle_requests (
     id SERIAL PRIMARY KEY,

@@ -6,6 +6,7 @@ import { DRIVER_CSP, LIVE_MAP_CSP } from '../middleware/securityHeaders.js';
 import { driverScopeOf, driverMayUseBase } from '../auth/driverIdentity.js';
 import { metersToPolyline } from '../../shared/tripTracking.js';
 import { onlyRelevantFor } from '../../shared/elementRelevance.js';
+import { buildRoadGraph, astarPath, haversineM, normalizeDirection } from '../utils/roadGraph.js';
 const router = new Router();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -117,17 +118,17 @@ router.get('/api/base-routes', async (req, res) => {
 });
 router.post('/api/base-routes', async (req, res) => {
   try {
-    const { name, waypoints = [], notes = '', airfield_id, route_type = 'vehicle' } = req.body;
+    const { name, waypoints = [], notes = '', airfield_id, route_type = 'vehicle', direction } = req.body;
     const r = await pool.query(
-      'INSERT INTO base_routes(name, waypoints, notes, airfield_id, route_type) VALUES($1,$2,$3,$4,$5) RETURNING *',
-      [name, JSON.stringify(waypoints), notes, airfield_id || null, route_type]
+      'INSERT INTO base_routes(name, waypoints, notes, airfield_id, route_type, direction) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',
+      [name, JSON.stringify(waypoints), notes, airfield_id || null, route_type, normalizeDirection(direction)]
     );
     res.json(r.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 router.put('/api/base-routes/:id', async (req, res) => {
   try {
-    const { name, waypoints, notes, color, route_type } = req.body;
+    const { name, waypoints, notes, color, route_type, direction } = req.body;
     const fields = [], vals = [];
     let idx = 1;
     if (name !== undefined)       { fields.push(`name=$${idx++}`);       vals.push(name); }
@@ -135,6 +136,8 @@ router.put('/api/base-routes/:id', async (req, res) => {
     if (notes !== undefined)      { fields.push(`notes=$${idx++}`);      vals.push(notes); }
     if (color !== undefined)      { fields.push(`color=$${idx++}`);      vals.push(color); }
     if (route_type !== undefined) { fields.push(`route_type=$${idx++}`); vals.push(route_type); }
+    // כיוון נסיעה: both / forward (בסדר שבו צויר) / backward. ערך זר נשמר כדו-כיווני
+    if (direction !== undefined)  { fields.push(`direction=$${idx++}`);  vals.push(normalizeDirection(direction)); }
     if (!fields.length) return res.json({ ok: true });
     vals.push(req.params.id);
     const r = await pool.query(`UPDATE base_routes SET ${fields.join(',')} WHERE id=$${idx} RETURNING *`, vals);
@@ -406,14 +409,6 @@ function turnLabel(b1, b2) {
   if (delta < -25) return 'שמאלה';
   return 'ישר';
 }
-function haversineM(lat1, lon1, lat2, lon2) {
-  const R = 6371000;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
 function pctToGeo(xPct, yPct, mapRow) {
   const { anchor1_x_img: x1, anchor1_y_img: y1, anchor1_lat: lat1, anchor1_lon: lon1,
           anchor2_x_img: x2, anchor2_y_img: y2, anchor2_lat: lat2, anchor2_lon: lon2 } = mapRow;
@@ -422,34 +417,6 @@ function pctToGeo(xPct, yPct, mapRow) {
   const tx = (xPct - x1) / (x2 - x1);
   const ty = (yPct - y1) / (y2 - y1);
   return { lat: Number(lat1) + ty * (Number(lat2) - Number(lat1)), lon: Number(lon1) + tx * (Number(lon2) - Number(lon1)) };
-}
-
-/** `edgeCost(from, to, cost)` - עלות מותאמת לקשת (חלופות נתיב: קנס על מקטע). בלעדיו - המרחק. */
-function astarPath(graph, nodes, startId, endId, edgeCost = null) {
-  const open = new Map([[startId, haversineM(nodes[startId].lat, nodes[startId].lon, nodes[endId].lat, nodes[endId].lon)]]);
-  const cameFrom = {};
-  const gScore = { [startId]: 0 };
-  while (open.size > 0) {
-    let current = null, lowestF = Infinity;
-    for (const [id, f] of open) { if (f < lowestF) { lowestF = f; current = id; } }
-    if (current === endId) {
-      const path = [];
-      let c = current;
-      while (c !== undefined) { path.unshift(c); c = cameFrom[c]; }
-      return path;
-    }
-    open.delete(current);
-    for (const { to, cost } of (graph[current] || [])) {
-      if (!nodes[to]) continue;
-      const tg = (gScore[current] || 0) + (edgeCost ? edgeCost(current, to, cost) : cost);
-      if (tg < (gScore[to] != null ? gScore[to] : Infinity)) {
-        cameFrom[to] = current;
-        gScore[to] = tg;
-        open.set(to, tg + haversineM(nodes[to].lat, nodes[to].lon, nodes[endId].lat, nodes[endId].lon));
-      }
-    }
-  }
-  return null;
 }
 
 /** קנס על קשת במקטע שנחסם בחיפוש חלופה - גבוה מספיק כדי שכל עקיפה סבירה תעדיף דרך אחרת */
@@ -508,44 +475,6 @@ export async function planRoute(body) {
     }
   }
 
-  const CONNECTION_RADIUS = 80;
-  const START_RADIUS = 300;
-  const TOP_K_CONNECT = 8;
-  const nodes = {};
-  const graph = {};
-
-  for (const route of usableRoutes) {
-    for (let i = 0; i < route.waypoints.length; i++) {
-      const wp = route.waypoints[i];
-      const lat = wp.lat; const lon = wp.lon ?? wp.lng;
-      if (lat == null || lon == null) continue;
-      const id = `r${route.id}_${i}`;
-      nodes[id] = { lat, lon, xPct: wp.x ?? wp.x_pct ?? null, yPct: wp.y ?? wp.y_pct ?? null, routeId: route.id, routeType: route.route_type, routeName: route.name, wpIndex: i };
-      graph[id] = graph[id] || [];
-      if (i > 0) {
-        const prevId = `r${route.id}_${i - 1}`;
-        if (nodes[prevId]) {
-          const cost = haversineM(nodes[prevId].lat, nodes[prevId].lon, lat, lon);
-          graph[prevId].push({ to: id, cost });
-          graph[id].push({ to: prevId, cost });
-        }
-      }
-    }
-  }
-
-  const nodeIds = Object.keys(nodes);
-  for (let i = 0; i < nodeIds.length; i++) {
-    for (let j = i + 1; j < nodeIds.length; j++) {
-      const a = nodes[nodeIds[i]], b = nodes[nodeIds[j]];
-      if (a.routeId === b.routeId) continue;
-      const d = haversineM(a.lat, a.lon, b.lat, b.lon);
-      if (d <= CONNECTION_RADIUS) {
-        graph[nodeIds[i]].push({ to: nodeIds[j], cost: d });
-        graph[nodeIds[j]].push({ to: nodeIds[i], cost: d });
-      }
-    }
-  }
-
   // ── רגלי הנסיעה: מוצא -> תחנות ביניים -> יעד ─────────────────────────────
   //
   // הנתיב חייב לעבור **בתחנות**, ולא רק לחבר מוצא ליעד: תחנה שאינה על הנתיב
@@ -566,41 +495,30 @@ export async function planRoute(body) {
   const fromGeo = geoOf(fromPt);
   const toGeo   = geoOf(toPt);
 
-  if (!fromGeo || !toGeo || !nodeIds.length) {
+  if (!fromGeo || !toGeo) {
     return { waypoints: [], crossings: [], elements: [], error: 'לא נמצאו נקודות GPS לתכנון מסלול' };
   }
 
   // תחנה בלי נ"צ אינה מוסיפה רגל: עדיף נתיב שמדלג עליה על נתיב שלא חושב כלל
   const stopLegs = orderedVia
-    .map(p => ({ name: p.name, geo: geoOf(p) }))
+    .map(p => ({ name: p.name, geo: geoOf(p), xPct: p.x_pct, yPct: p.y_pct }))
     .filter(x => x.geo);
 
   const chain = [
-    { key: '_p0', geo: fromGeo, name: fromPt?.name || 'מוצא' },
-    ...stopLegs.map((s, i) => ({ key: `_p${i + 1}`, geo: s.geo, name: s.name, isStop: true })),
-    { key: `_p${stopLegs.length + 1}`, geo: toGeo, name: toPt?.name || 'יעד' },
+    { key: '_p0', geo: fromGeo, name: fromPt?.name || 'מוצא', xPct: fromPt?.x_pct, yPct: fromPt?.y_pct },
+    ...stopLegs.map((s, i) => ({ key: `_p${i + 1}`, geo: s.geo, name: s.name, isStop: true, xPct: s.xPct, yPct: s.yPct })),
+    { key: `_p${stopLegs.length + 1}`, geo: toGeo, name: toPt?.name || 'יעד', xPct: toPt?.x_pct, yPct: toPt?.y_pct },
   ];
 
-  // צומת וירטואלי לכל נקודה בשרשרת. **דו-כיווני**, בשונה מהמודל הקודם שבו
-  // למוצא היו רק קשתות יוצאות וליעד רק נכנסות: לתחנת ביניים צריך גם להיכנס
-  // וגם לצאת, אחרת הרגל שאחריה לא מתחילה בכלל.
-  for (const wp of chain) {
-    nodes[wp.key] = {
-      lat: wp.geo.lat, lon: wp.geo.lon, routeType: 'virtual',
-      isStop: !!wp.isStop, stopName: wp.name,
-    };
-    graph[wp.key] = graph[wp.key] || [];
-    const dists = nodeIds
-      .map(id => ({ id, d: haversineM(wp.geo.lat, wp.geo.lon, nodes[id].lat, nodes[id].lon) }))
-      .sort((a, b) => a.d - b.d);
-    const connect = new Set(dists.filter(e => e.d <= START_RADIUS).map(e => e.id));
-    dists.slice(0, TOP_K_CONNECT).forEach(e => connect.add(e.id));
-    for (const e of dists) {
-      if (!connect.has(e.id)) continue;
-      graph[wp.key].push({ to: e.id, cost: e.d });
-      graph[e.id] = graph[e.id] || [];
-      graph[e.id].push({ to: wp.key, cost: e.d });
-    }
+  // הגרף נבנה כאן, אחרי שהשרשרת ידועה: המוצא, התחנות והיעד מתחברים **בניצב**
+  // לנתיב הקרוב, והמעבר בין נתיבים הוא רק בחיתוך ביניהם. ראה utils/roadGraph.js.
+  const { nodes, graph } = buildRoadGraph(usableRoutes, chain.map(p => ({
+    key: p.key, geo: p.geo, xPct: p.xPct ?? null, yPct: p.yPct ?? null,
+    isStop: !!p.isStop, stopName: p.name,
+  })));
+  const nodeIds = Object.keys(nodes).filter(id => nodes[id].routeType !== 'virtual');
+  if (!nodeIds.length) {
+    return { waypoints: [], crossings: [], elements: [], error: 'לא נמצאו נקודות GPS לתכנון מסלול' };
   }
 
   /**
@@ -636,7 +554,19 @@ export async function planRoute(body) {
   ).then(r => ({ rows: onlyRelevantFor(r.rows, 'vehicles') })));
 
   /** נתיב (שרשרת צמתים) -> הוראות, חציות, אלמנטים לתפעול, אורך ותיאור המקטעים */
-  const describePath = async (pathIds) => {
+  const describePath = async (rawIds) => {
+    // בחיתוך יש צומת לכל אחד משני הנתיבים באותה נקודה בדיוק (וכך גם נקודה
+    // שיושבת על הכביש ורגל הניצב שלה). שתי נקודות זהות ברצף נותנות כיוון נסיעה
+    // אקראי והוראת פנייה שגויה - ולכן מתאחדות. תחנה לא נבלעת באיחוד.
+    const pathIds = [];
+    for (const id of rawIds) {
+      const last = pathIds[pathIds.length - 1];
+      if (last != null && !(nodes[id].isStop && nodes[last].isStop) && haversineM(nodes[last].lat, nodes[last].lon, nodes[id].lat, nodes[id].lon) < 0.5) {
+        if (nodes[id].isStop && !nodes[last].isStop) pathIds[pathIds.length - 1] = id;
+        continue;
+      }
+      pathIds.push(id);
+    }
     const waypoints = pathIds.map(id => {
       const n = nodes[id];
       return {
