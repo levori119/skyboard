@@ -1,7 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import i18n from '../../i18n';
 import { tr } from '../../i18n/tr';
 import { useEtaCountdown } from '../../hooks/useEtaCountdown';
-import type { TransferCellState } from '../../utils/tableTransferCell';
+import { transferMenuPlacement, type TransferCellState } from '../../utils/tableTransferCell';
+import { frameColor } from '../../utils/windowFrame';
 
 type ThemeMode = 'light' | 'dark' | 'ocean';
 
@@ -96,73 +99,123 @@ function SendButton({ transferPoints, onPickPoint, themeMode }: {
   onPickPoint: (sectorId: number) => void;
   themeMode: ThemeMode;
 }) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
+  // פתוחה = המיקום שחושב ברגע הפתיחה (ביחידות מוגדלות, אחרי חלוקה ב---s)
+  const [menu, setMenu] = useState<null | {
+    side: 'below' | 'above'; top?: number; bottom?: number; maxHeight: number;
+    left?: number; right?: number; scale: number;
+  }>(null);
+  const open = menu !== null;
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const light = themeMode === 'light';
 
-  // סגירה בלחיצה מחוץ לרשימה - pointerdown כדי שיעבוד גם באצבע ובעט
+  // הרשימה יושבת ב-portal ולא בתוך התא: בתוך התא השורות שמתחת והעמודות
+  // המקובעות (sticky) ציירו מעליה, והטבלה (overflow) חתכה אותה בתחתית.
+  const openMenu = () => {
+    const btn = btnRef.current;
+    if (!btn) return;
+    const s = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--s')) || 1;
+    const r = btn.getBoundingClientRect();
+    const viewW = window.innerWidth / s;
+    const viewH = window.innerHeight / s;
+    // כותרת + שורה לכל נקודה (או שורת "אין נקודות")
+    const needed = 34 + Math.max(1, transferPoints.length) * 36;
+    const place = transferMenuPlacement({ top: r.top / s, bottom: r.bottom / s }, viewH, needed);
+    // מיושרת לקצה ה"התחלה" של הכפתור - ימין בעברית, שמאל באנגלית
+    const rtl = i18n.dir() === 'rtl';
+    setMenu({
+      ...place,
+      ...(rtl ? { right: Math.max(8, viewW - r.right / s) } : { left: Math.max(8, r.left / s) }),
+      scale: s,
+    });
+  };
+
+  // סגירה: לחיצה מחוץ לכפתור ולרשימה (pointerdown - גם באצבע ובעט), Esc,
+  // וגלילה/שינוי גודל - הרשימה ממוקמת fixed ולא הייתה זזה עם השורה.
   useEffect(() => {
     if (!open) return;
+    const close = () => setMenu(null);
     const onDown = (e: PointerEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+      close();
     };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    const onScroll = (e: Event) => { if (!menuRef.current?.contains(e.target as Node)) close(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
     document.addEventListener('pointerdown', onDown);
     document.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('pointerdown', onDown); document.removeEventListener('keydown', onKey); };
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', close);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', close);
+    };
   }, [open]);
 
   const menuBg = light ? '#ffffff' : themeMode === 'ocean' ? '#0c2a40' : '#0f172a';
-  const menuBorder = light ? '#93c5fd' : '#3b82f6';
   const itemColor = light ? '#1e293b' : '#e2e8f0';
   const itemHover = light ? '#dbeafe' : '#1e3a5f';
+  const dir = i18n.dir();
 
   return (
-    <div ref={rootRef} style={{ position: 'relative', display: 'inline-block' }}>
+    <>
       <button
+        ref={btnRef}
         onPointerDown={e => e.stopPropagation()}
-        onClick={e => { e.stopPropagation(); setOpen(o => !o); }}
+        onClick={e => { e.stopPropagation(); if (open) setMenu(null); else openMenu(); }}
         style={{
           background: open ? (light ? '#dbeafe' : '#1e3a5f') : (light ? '#eff6ff' : '#172554'),
           color: light ? '#1d4ed8' : '#93c5fd', border: `1px solid ${light ? '#93c5fd' : '#2563eb'}`,
           borderRadius: '5px', padding: '4px 10px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer',
           whiteSpace: 'nowrap', touchAction: 'manipulation',
         }}
-      >{tr('transfers.tableTransferToStation')} ▾</button>
-      {open && (
+      >{tr('transfers.tableTransferToStation')} {menu?.side === 'above' ? '▴' : '▾'}</button>
+      {menu && createPortal(
         <div
+          ref={menuRef}
+          dir={dir}
           onPointerDown={e => e.stopPropagation()}
           onClick={e => e.stopPropagation()}
           style={{
-            position: 'absolute', top: '100%', insetInlineStart: 0, marginBlockStart: '3px', zIndex: 9999,
-            background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '6px', minWidth: '190px',
-            maxHeight: '260px', overflowY: 'auto', boxShadow: '0 6px 20px rgba(0,0,0,0.45)', padding: '4px',
+            position: 'fixed', zIndex: 100050,
+            // מחוץ ל-#root אין את הזום הגלובלי - מחזירים אותו ידנית (ראה /ui-adapt)
+            zoom: 'var(--s)' as any,
+            top: menu.top, bottom: menu.bottom, left: menu.left, right: menu.right,
+            maxHeight: menu.maxHeight, overflowY: 'auto', minWidth: '210px',
+            background: menuBg,
+            // מסגרת מודגשת: הרשימה צפה מעל הטבלה וחייבת להיבדל ממנה במבט אחד
+            border: `3px solid ${frameColor('view', themeMode)}`, borderRadius: '8px',
+            boxShadow: light ? '0 10px 28px rgba(15,23,42,0.35)' : '0 10px 32px rgba(0,0,0,0.75)',
+            padding: '4px',
           }}
         >
-          <div style={{ padding: '4px 8px 6px', fontSize: '10px', fontWeight: 'bold', color: light ? '#64748b' : '#94a3b8' }}>
+          <div style={{ padding: '6px 10px 6px', fontSize: '11px', fontWeight: 'bold', color: frameColor('view', themeMode), borderBlockEnd: `1px solid ${light ? '#cbd5e1' : '#334155'}`, marginBlockEnd: '3px' }}>
             {tr('transfers.tablePickTransferPoint')}
           </div>
           {transferPoints.length === 0 && (
-            <div style={{ padding: '8px', fontSize: '11px', color: light ? '#64748b' : '#94a3b8', fontStyle: 'italic' }}>
+            <div style={{ padding: '8px', fontSize: '12px', color: light ? '#64748b' : '#94a3b8', fontStyle: 'italic' }}>
               {tr('transfers.tableNoTransferPoints')}
             </div>
           )}
           {transferPoints.map(p => (
             <button
               key={p.id}
-              onClick={() => { setOpen(false); onPickPoint(Number(p.id)); }}
+              onClick={() => { setMenu(null); onPickPoint(Number(p.id)); }}
               onMouseEnter={e => { e.currentTarget.style.background = itemHover; }}
               onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
               style={{
                 display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: itemColor,
-                border: 'none', padding: '8px 10px', cursor: 'pointer', fontSize: '12px', borderRadius: '4px',
+                border: 'none', padding: '9px 12px', cursor: 'pointer', fontSize: '13px', borderRadius: '4px',
                 touchAction: 'manipulation',
               }}
             >↔ {p.name}</button>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
-    </div>
+    </>
   );
 }
 

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   stripKeyOf, indexTransfersByStrip, transferCellState, etaCountdown,
-  acceptFlashCss, ACCEPT_FLASH_TABLE_MS, ACCEPT_FLASH_DEFAULT_MS,
+  acceptFlashCss, ACCEPT_FLASH_TABLE_MS, ACCEPT_FLASH_DEFAULT_MS, transferMenuPlacement,
 } from './tableTransferCell';
 
 describe('stripKeyOf', () => {
@@ -60,6 +60,27 @@ describe('etaCountdown', () => {
 
   it('אחרי הזמן - 00:00 ומסומן שעבר', () => {
     expect(etaCountdown(1, setAt, t0 + 61_000)).toEqual({ text: '00:00', over: true });
+  });
+});
+
+describe('transferMenuPlacement', () => {
+  it('יש מקום מתחת - נפתחת מתחת לכפתור', () => {
+    const p = transferMenuPlacement({ top: 100, bottom: 130 }, 800, 200);
+    expect(p.side).toBe('below');
+    expect(p.top).toBe(134);
+  });
+
+  it('שורה בתחתית המסך - נפתחת מעל הכפתור ולא מוסתרת', () => {
+    const p = transferMenuPlacement({ top: 700, bottom: 730 }, 800, 200);
+    expect(p.side).toBe('above');
+    expect(p.bottom).toBe(800 - 700 + 4);
+    expect(p.maxHeight).toBeGreaterThanOrEqual(200);
+  });
+
+  it('אין מקום באף צד - הצד הגדול יותר, והרשימה נגללת בתוכו', () => {
+    const p = transferMenuPlacement({ top: 150, bottom: 180 }, 400, 500);
+    expect(p.side).toBe('below');
+    expect(p.maxHeight).toBe(400 - 180 - 4 - 8);
   });
 });
 

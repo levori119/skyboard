@@ -73,6 +73,32 @@ export function etaCountdown(
   return { text: `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`, over: false };
 }
 
+// ─── מיקום רשימת "העבר לעמדה" ───────────────────────────────────────────────
+
+/** גובה מקסימלי של הרשימה, והמרווח מקצה המסך */
+export const TRANSFER_MENU_MAX_H = 280;
+const MENU_GAP = 4;
+const MENU_EDGE = 8;
+
+/**
+ * לאן נפתחת הרשימה: מתחת לכפתור, ואם אין שם מקום (שורה בתחתית המסך) - מעליו.
+ * כל הערכים ביחידות שבהן ממקמים (אחרי חלוקה ב---s).
+ * `needed` - הגובה שהרשימה צריכה כדי להיראות כולה.
+ */
+export function transferMenuPlacement(
+  anchor: { top: number; bottom: number },
+  viewH: number,
+  needed: number,
+): { side: 'below' | 'above'; top?: number; bottom?: number; maxHeight: number } {
+  const want = Math.min(needed, TRANSFER_MENU_MAX_H);
+  const spaceBelow = viewH - anchor.bottom - MENU_GAP - MENU_EDGE;
+  const spaceAbove = anchor.top - MENU_GAP - MENU_EDGE;
+  if (spaceBelow >= want || spaceBelow >= spaceAbove) {
+    return { side: 'below', top: anchor.bottom + MENU_GAP, maxHeight: Math.max(60, Math.min(TRANSFER_MENU_MAX_H, spaceBelow)) };
+  }
+  return { side: 'above', bottom: viewH - anchor.top + MENU_GAP, maxHeight: Math.max(60, Math.min(TRANSFER_MENU_MAX_H, spaceAbove)) };
+}
+
 // ─── הבהוב קבלה ─────────────────────────────────────────────────────────────
 
 /** משך ההבהוב הירוק אחרי קבלה במוד טבלה (דרישה: 20 שניות) */
