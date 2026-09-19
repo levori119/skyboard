@@ -6,8 +6,9 @@ import { useDragPosition } from '../../hooks/useDragPosition';
 import { windowFrame } from '../../utils/windowFrame';
 import { readRootScale } from '../../utils/pointerDrag';
 import {
-  DRAW_PALETTE, applyStrokeStyle, pxToFrac, redrawStrokes, shapeFromDrag, shapeToPx, syncCanvasBitmap,
-  type DrawTool, type MapShape, type PenStroke,
+  DRAW_PALETTE, POLY_MIN_POINTS, POLY_SNAP_SCREEN_PX, applyStrokeStyle, isPolyTool, polyPointsToPx, polyShapeFromPoints,
+  polyTapAction, pxToFrac, redrawStrokes, shapeFromDrag, shapeToPx, syncCanvasBitmap,
+  type DrawTool, type MapShape, type PenStroke, type PolyTool,
 } from '../../utils/mapDrawing';
 
 /**
@@ -41,10 +42,12 @@ const TOOL_LABELS: Record<DrawTool, string> = {
   eraser: 'map.drawEraser',
   circle: 'map.drawCircle',
   rect: 'map.drawRect',
+  polygon: 'map.drawPolygon',
+  polyline: 'map.drawPolyline',
   recognize: 'map.drawRecognize',
 };
 
-export const DEFAULT_DRAW_TOOLS: DrawTool[] = ['pen', 'eraser', 'circle', 'rect'];
+export const DEFAULT_DRAW_TOOLS: DrawTool[] = ['pen', 'eraser', 'circle', 'rect', 'polygon', 'polyline'];
 
 /** סמן העט/המחק על הקנבס. */
 export const drawCursor = (tool: DrawTool): string =>
@@ -72,6 +75,8 @@ export type MapDrawToolbarProps = {
   tools?: DrawTool[];
   /** כפתורים נוספים בשורת הכלים (למשל בדיקת זיהוי בעמדת המפה). */
   toolsExtra?: React.ReactNode;
+  /** טיוטת הפוליגון בציור: כמה נקודות נדקרו + סיום / נקודה אחורה. */
+  polyDraft?: { count: number; onFinish: () => void; onUndo: () => void };
   /** שורות נוספות מעל "נקה/סגור" (למשל הסבר או"ק, שיתוף עמדה). */
   children?: React.ReactNode;
   /** מיקום הסרגל על המפה. */
@@ -80,7 +85,7 @@ export type MapDrawToolbarProps = {
 
 export const MapDrawToolbar: React.FC<MapDrawToolbarProps> = ({
   tool, onToolChange, color, onColorChange, size, onSizeChange, filled, onFilledChange,
-  onClear, onClose, themeMode = 'dark', tools = DEFAULT_DRAW_TOOLS, toolsExtra, children, style,
+  onClear, onClose, themeMode = 'dark', tools = DEFAULT_DRAW_TOOLS, toolsExtra, polyDraft, children, style,
 }) => {
   const C = toolbarColors(themeMode);
   const tb = useToolbarScale();
@@ -159,13 +164,34 @@ export const MapDrawToolbar: React.FC<MapDrawToolbarProps> = ({
         <span style={{ fontSize: '10px', color: C.value, width: 18, textAlign: 'center' }}>{size}</span>
       </div>
 
-      {/* מילוי - רק לצורות */}
-      {(tool === 'circle' || tool === 'rect') && (
+      {/* מילוי - רק לצורות שהן שטח (פוליגון פתוח הוא קו, לא שטח) */}
+      {(tool === 'circle' || tool === 'rect' || tool === 'polygon') && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span style={{ fontSize: '10px', color: C.label }}>{tr('ctrl.fill')}</span>
           <button onClick={() => onFilledChange(!filled)} style={{ ...chip(filled), padding: `${tbPx(2, tb)} ${tbPx(8, tb)}`, fontSize: tbPx(10, tb) }}>
             {filled ? tr('map.drawFilled') : tr('map.drawOutline')}
           </button>
+        </div>
+      )}
+
+      {/* פוליגון: איך מסיימים + סיום / נקודה אחורה. בעט ובאצבע אין דאבל-קליק
+          אמין ואין מקלדת בהישג יד, ולכן כפתורים ולא רק Enter/Backspace. */}
+      {isPolyTool(tool) && (
+        <div data-poly-hint="" style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderTop: `1px solid ${C.sep}`, paddingTop: '6px' }}>
+          <div style={{ fontSize: '10px', color: C.label, lineHeight: 1.4, maxWidth: '260px' }}>
+            {tr(tool === 'polygon' ? 'map.drawPolyHintClosed' : 'map.drawPolyHintOpen')}
+          </div>
+          {polyDraft && polyDraft.count > 0 && (
+            <div style={{ display: 'flex', gap: '4px' }}>
+              <button onClick={polyDraft.onFinish} disabled={polyDraft.count < POLY_MIN_POINTS[tool]}
+                style={{ ...chip(true), flex: 1, opacity: polyDraft.count < POLY_MIN_POINTS[tool] ? 0.5 : 1 }}>
+                {tr('map.drawPolyFinish', { count: polyDraft.count })}
+              </button>
+              <button onClick={polyDraft.onUndo} style={{ ...chip(false), flex: 1 }}>
+                {tr('map.drawPolyUndo')}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -224,6 +250,132 @@ export const MapDrawToggle: React.FC<{
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// רינדור צורה + טיוטת פוליגון - משותף לשתי העמדות
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** צורה שמורה (בשברים) כאלמנט SVG בגודל המשטח הנוכחי. */
+export const MapShapeSvg: React.FC<{ shape: MapShape; size: { w: number; h: number } }> = ({ shape: s, size }) => {
+  const fill = s.filled ? s.color + '55' : 'none';
+  if (s.type === 'polygon') {
+    return <polygon points={polyPointsToPx(s, size)} fill={fill} stroke={s.color}
+      strokeWidth={s.strokeWidth} strokeLinejoin="round" />;
+  }
+  if (s.type === 'polyline') {
+    return <polyline points={polyPointsToPx(s, size)} fill="none" stroke={s.color}
+      strokeWidth={s.strokeWidth} strokeLinejoin="round" strokeLinecap="round" />;
+  }
+  const p = shapeToPx(s, size);
+  return s.type === 'rect'
+    ? <rect x={p.x} y={p.y} width={p.w} height={p.h} rx={2} fill={fill} stroke={s.color} strokeWidth={s.strokeWidth} />
+    : <ellipse cx={p.x + p.w / 2} cy={p.y + p.h / 2} rx={p.w / 2} ry={p.h / 2} fill={fill} stroke={s.color} strokeWidth={s.strokeWidth} />;
+};
+
+type Pt = { x: number; y: number };
+
+/**
+ * הפוליגון בזמן הדקירה: הצלעות שנדקרו + "גומייה" עד המצביע, ובסגור - קו סגירה
+ * מקווקו לנקודה הראשונה, כדי שיהיה ברור מראש איך הצורה תיסגר. הנקודה הראשונה
+ * מוגדלת בסגור - דקירה עליה סוגרת.
+ *
+ * `scale` ממיר את יחידות הנקודות ליחידות ה-SVG (בעמדת השדה הנקודות בפיקסלי
+ * bitmap וה-SVG בפיקסלי פריסה).
+ */
+export const PolyDraftSvg: React.FC<{
+  type: PolyTool; points: Pt[]; cursor: Pt | null;
+  color: string; strokeWidth: number; filled: boolean; scale?: number;
+}> = ({ type, points, cursor, color, strokeWidth, filled, scale = 1 }) => {
+  if (!points.length) return null;
+  const sc = (p: Pt) => `${p.x * scale},${p.y * scale}`;
+  const path = [...points, ...(cursor ? [cursor] : [])];
+  const first = points[0];
+  const last = path[path.length - 1];
+  const r = Math.max(3, strokeWidth + 1.5);
+  return (
+    <g data-poly-draft="" opacity={0.9}>
+      {type === 'polygon' && filled && path.length >= 3 && (
+        <polygon points={path.map(sc).join(' ')} fill={color + '33'} stroke="none" />
+      )}
+      <polyline points={path.map(sc).join(' ')} fill="none" stroke={color} strokeWidth={strokeWidth}
+        strokeLinejoin="round" strokeLinecap="round" />
+      {type === 'polygon' && path.length >= 2 && (
+        <line data-poly-closing="" x1={last.x * scale} y1={last.y * scale} x2={first.x * scale} y2={first.y * scale}
+          stroke={color} strokeWidth={Math.max(1, strokeWidth * 0.75)} strokeDasharray="6 4" />
+      )}
+      {points.map((p, i) => (
+        <circle key={i} cx={p.x * scale} cy={p.y * scale}
+          r={i === 0 && type === 'polygon' ? r * 1.6 : r}
+          fill={i === 0 ? '#ffffff' : color} stroke={color} strokeWidth={1.5} />
+      ))}
+    </g>
+  );
+};
+
+/** מרחק ה"הצמדה" לנקודה קיימת ביחידות התוכן - קבוע על המסך בכל זום. */
+export const polySnapTol = (contentPerScreenPx: number) => POLY_SNAP_SCREEN_PX * contentPerScreenPx;
+
+/**
+ * טיוטת פוליגון - הדקירות, המצביע ואיך מסיימים. משותף למנוע של עמדת השדה
+ * (`useMapDrawing`) ולמנוע של עמדת המפה, כדי שהכלי יתנהג זהה בשתיהן.
+ *
+ * הנקודות ביחידות שהמנוע בוחר (פיקסלי תוכן); `commit` מקבל אותן בסיום.
+ * מקלדת (רק כשיש טיוטה): Enter מסיים, Backspace מוחק נקודה, Esc מבטל את
+ * הטיוטה **בלבד** - בלי לסגור את מצב הציור (ה-listener ב-capture ועוצר).
+ */
+export function usePolyDraft(type: PolyTool | null, commit: (points: Pt[], type: PolyTool) => void) {
+  const [points, setPoints] = React.useState<Pt[]>([]);
+  const [cursor, setCursor] = React.useState<Pt | null>(null);
+  const pointsRef = React.useRef(points);
+  pointsRef.current = points;
+  const commitRef = React.useRef(commit);
+  commitRef.current = commit;
+
+  const cancel = React.useCallback(() => { pointsRef.current = []; setPoints([]); setCursor(null); }, []);
+  // החלפת כלי זורקת טיוטה פתוחה - אחרת הדקירה הבאה בכלי אחר "ממשיכה" אותה
+  React.useEffect(cancel, [type, cancel]);
+
+  const finish = React.useCallback(() => {
+    const cur = pointsRef.current;
+    if (type && cur.length >= POLY_MIN_POINTS[type]) commitRef.current(cur, type);
+    cancel();
+  }, [type, cancel]);
+
+  const undo = React.useCallback(() => {
+    pointsRef.current = pointsRef.current.slice(0, -1);
+    setPoints(pointsRef.current);
+    if (!pointsRef.current.length) setCursor(null);
+  }, []);
+
+  /** דקירה: מוסיפה נקודה, או מסיימת (על האחרונה / על הראשונה בסגור). `tol` ביחידות הנקודות. */
+  const tap = (p: Pt, tol: number) => {
+    if (!type) return;
+    const action = polyTapAction(pointsRef.current, p, type, tol);
+    if (action === 'add') { pointsRef.current = [...pointsRef.current, p]; setPoints(pointsRef.current); }
+    else if (action === 'finish') finish();
+  };
+
+  const move = (p: Pt) => { if (pointsRef.current.length) setCursor(p); };
+
+  const hasDraft = points.length > 0;
+  React.useEffect(() => {
+    if (!hasDraft) return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      if (e.key === 'Enter') finish();
+      else if (e.key === 'Backspace') undo();
+      else if (e.key === 'Escape') cancel();
+      else return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [hasDraft, finish, undo, cancel]);
+
+  return { points, cursor, tap, move, finish, undo, cancel };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // מנוע הציור
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -254,6 +406,14 @@ export function useMapDrawing() {
   const seqRef = React.useRef(0);
 
   const isShapeTool = tool === 'circle' || tool === 'rect';
+  const poly = usePolyDraft(isPolyTool(tool) ? tool : null, (pts, type) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const shape = polyShapeFromPoints(pts, canvas.width, canvas.height, {
+      id: `g${++seqRef.current}`, type, color, filled, strokeWidth: size,
+    });
+    if (shape) setShapes(prev => [...prev, shape]);
+  });
 
   // גודל ה-bitmap = הקופסה של **הקנבס עצמו**, נמדדת ב-clientWidth (פיקסלי
   // פריסה - כך הזום/פאן של המפה, שהוא CSS transform, לא מנפח אותה) ומוכפלת
@@ -311,6 +471,11 @@ export function useMapDrawing() {
     // בלי preventDefault - בעט/מגע הוא מבטל את אירועי העכבר התואמים.
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* ignore */ }
     const p = toCanvasPx(e);
+    if (isPolyTool(tool)) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      poly.tap(p, polySnapTol(rect.width ? e.currentTarget.width / rect.width : 1));
+      return;
+    }
     if (isShapeTool) {
       shapeStartRef.current = p;
       setPreview({ x1: p.x, y1: p.y, x2: p.x, y2: p.y });
@@ -324,6 +489,7 @@ export function useMapDrawing() {
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!active) return;
     const p = toCanvasPx(e);
+    if (isPolyTool(tool)) { e.stopPropagation(); poly.move(p); return; }
     if (shapeStartRef.current) {
       e.stopPropagation();
       setPreview(prev => (prev ? { ...prev, x2: p.x, y2: p.y } : prev));
@@ -383,11 +549,12 @@ export function useMapDrawing() {
     strokesRef.current = [];
     setShapes([]);
     setPreview(null);
+    poly.cancel();
   };
 
   return {
     active, setActive, tool, setTool, color, setColor, size, setSize, filled, setFilled,
-    shapes, preview, surface, canvasRef, clear,
+    shapes, preview, surface, canvasRef, clear, poly,
     handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerLeave: onPointerUp, onPointerCancel },
   };
 }
@@ -406,7 +573,10 @@ export function useMapDrawing() {
  */
 export const MapDrawSurface: React.FC<{ engine: MapDrawingEngine; zIndex?: number }> = ({ engine, zIndex = 200 }) => {
   const { active, tool, color, size, filled, shapes, preview, surface } = engine;
-  const hasShapes = shapes.length > 0 || (preview && (tool === 'circle' || tool === 'rect'));
+  const polyTool = isPolyTool(tool) ? tool : null;
+  const hasShapes = shapes.length > 0 || (preview && (tool === 'circle' || tool === 'rect')) || (polyTool && engine.poly.points.length > 0);
+  // נקודות הטיוטה בפיקסלי bitmap, ה-SVG בפיקסלי פריסה (ראה bitmapPx)
+  const bmpW = engine.canvasRef.current?.width || surface.w || 1;
   return (
     <>
       <canvas
@@ -422,14 +592,11 @@ export const MapDrawSurface: React.FC<{ engine: MapDrawingEngine; zIndex?: numbe
       />
       {hasShapes && (
         <svg data-draw-shapes="" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: zIndex + 1, overflow: 'visible' }}>
-          {shapes.map(s => {
-            const p = shapeToPx(s, surface);
-            return s.type === 'rect'
-              ? <rect key={s.id} x={p.x} y={p.y} width={p.w} height={p.h} rx={2}
-                  fill={s.filled ? s.color + '55' : 'none'} stroke={s.color} strokeWidth={s.strokeWidth} />
-              : <ellipse key={s.id} cx={p.x + p.w / 2} cy={p.y + p.h / 2} rx={p.w / 2} ry={p.h / 2}
-                  fill={s.filled ? s.color + '55' : 'none'} stroke={s.color} strokeWidth={s.strokeWidth} />;
-          })}
+          {shapes.map(s => <MapShapeSvg key={s.id} shape={s} size={surface} />)}
+          {polyTool && (
+            <PolyDraftSvg type={polyTool} points={engine.poly.points} cursor={engine.poly.cursor}
+              color={color} strokeWidth={size} filled={filled} scale={surface.w / bmpW} />
+          )}
           {preview && (tool === 'circle' || tool === 'rect') && (() => {
             const x = Math.min(preview.x1, preview.x2), y = Math.min(preview.y1, preview.y2);
             const w = Math.abs(preview.x2 - preview.x1), h = Math.abs(preview.y2 - preview.y1);

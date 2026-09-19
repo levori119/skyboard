@@ -3216,6 +3216,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               filled={draw.filled} onFilledChange={draw.setFilled}
               onClear={draw.clear}
               onClose={() => draw.setActive(false)}
+              polyDraft={{ count: draw.poly.points.length, onFinish: draw.poly.finish, onUndo: draw.poly.undo }}
             />
           )}
 

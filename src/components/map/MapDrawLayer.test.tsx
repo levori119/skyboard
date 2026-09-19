@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { MapDrawToolbar, MapDrawToggle, toolbarColors, type ThemeMode } from './MapDrawLayer';
+import { MapDrawToolbar, MapDrawToggle, MapShapeSvg, PolyDraftSvg, toolbarColors, type ThemeMode } from './MapDrawLayer';
 import { DRAW_PALETTE, type DrawTool } from '../../utils/mapDrawing';
 
 // סרגל הציור הוא **רכיב משותף** לעמדת המפה ולעמדת השדה. הבדיקות כאן שומרות על
@@ -72,6 +72,68 @@ describe('MapDrawToolbar - כלי הציור', () => {
     const m = render({ toolsExtra: <button>MyScript</button>, children: <span>share</span> });
     expect(m).toContain('MyScript');
     expect(m).toContain('share');
+  });
+});
+
+describe('MapDrawToolbar - פוליגון סגור ופתוח', () => {
+  it('שני כלי הפוליגון מוצגים כברירת מחדל, ליד העיגול והמלבן', () => {
+    const m = render();
+    expect(m).toContain('פוליגון סגור');
+    expect(m).toContain('פוליגון פתוח');
+    expect(m.indexOf('מלבן')).toBeLessThan(m.indexOf('פוליגון סגור'));
+  });
+
+  it('מילוי מוצג לפוליגון סגור ולא לפתוח (קו שבור אינו שטח)', () => {
+    expect(render({ tool: 'polygon' })).toContain('קווי');
+    expect(render({ tool: 'polyline' })).not.toContain('קווי');
+  });
+
+  it('בכלי פוליגון מוצג הסבר, וכפתורי סיום/נקודה אחורה כשיש נקודות', () => {
+    const idle = render({ tool: 'polygon', polyDraft: { count: 0, onFinish: noop, onUndo: noop } });
+    expect(idle).toContain('דקור נקודות');
+    expect(idle).not.toContain('סיום');
+    const busy = render({ tool: 'polyline', polyDraft: { count: 2, onFinish: noop, onUndo: noop } });
+    expect(busy).toContain('סיום');
+    expect(busy).toContain('נקודה אחורה');
+  });
+
+  it('בכלי אחר אין הסבר פוליגון', () => {
+    expect(render({ tool: 'pen', polyDraft: { count: 0, onFinish: noop, onUndo: noop } })).not.toContain('דקור נקודות');
+  });
+});
+
+describe('MapShapeSvg / PolyDraftSvg - רינדור', () => {
+  const svg = (el: React.ReactElement) => renderToStaticMarkup(<svg>{el}</svg>);
+  const base = { id: 'a', color: '#ef4444', filled: false, strokeWidth: 2, x: 0, y: 0, w: 0.5, h: 0.5 };
+
+  it('פוליגון סגור מרונדר כ-polygon (סוגר את האחרונה לראשונה)', () => {
+    const m = svg(<MapShapeSvg shape={{ ...base, type: 'polygon', points: [{ x: 0, y: 0 }, { x: 0.5, y: 0 }, { x: 0.5, y: 0.5 }] }} size={{ w: 100, h: 100 }} />);
+    expect(m).toContain('<polygon');
+    expect(m).toContain('points="0,0 50,0 50,50"');
+  });
+
+  it('פוליגון פתוח מרונדר כ-polyline בלי מילוי', () => {
+    const m = svg(<MapShapeSvg shape={{ ...base, type: 'polyline', filled: true, points: [{ x: 0, y: 0 }, { x: 0.5, y: 0.5 }] }} size={{ w: 100, h: 100 }} />);
+    expect(m).toContain('<polyline');
+    expect(m).toContain('fill="none"');
+  });
+
+  it('מלבן ועיגול ממשיכים להתרנדר כמו קודם', () => {
+    expect(svg(<MapShapeSvg shape={{ ...base, type: 'rect' }} size={{ w: 100, h: 100 }} />)).toContain('<rect');
+    expect(svg(<MapShapeSvg shape={{ ...base, type: 'circle' }} size={{ w: 100, h: 100 }} />)).toContain('<ellipse');
+  });
+
+  it('טיוטה: הקו עד המצביע, ובסגור - קו סגירה מקווקו לנקודה הראשונה', () => {
+    const pts = [{ x: 0, y: 0 }, { x: 10, y: 0 }];
+    const closed = svg(<PolyDraftSvg type="polygon" points={pts} cursor={{ x: 10, y: 10 }} color="#ef4444" strokeWidth={2} filled={false} />);
+    expect(closed).toContain('points="0,0 10,0 10,10"');
+    expect(closed).toContain('data-poly-closing');
+    const open = svg(<PolyDraftSvg type="polyline" points={pts} cursor={{ x: 10, y: 10 }} color="#ef4444" strokeWidth={2} filled={false} />);
+    expect(open).not.toContain('data-poly-closing');
+  });
+
+  it('טיוטה ריקה לא מרנדרת כלום', () => {
+    expect(svg(<PolyDraftSvg type="polygon" points={[]} cursor={null} color="#ef4444" strokeWidth={2} filled={false} />)).toBe('<svg></svg>');
   });
 });
 

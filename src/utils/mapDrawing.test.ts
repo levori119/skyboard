@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   isFrac, fracToPx, pxToFrac, shapeFromDrag, strokeLineWidth, DRAW_PALETTE,
   bitmapPx, syncCanvasBitmap,
+  isPolyTool, polyShapeFromPoints, polyTapAction, polyPointsToPx, POLY_MIN_POINTS,
   type PenStroke,
 } from './mapDrawing';
 
@@ -107,5 +108,74 @@ describe('mapDrawing - יצירת צורה מגרירה', () => {
 describe('mapDrawing - פלטה', () => {
   it('הפלטה מכילה צבעים ייחודיים בלבד', () => {
     expect(new Set(DRAW_PALETTE).size).toBe(DRAW_PALETTE.length);
+  });
+});
+
+describe('mapDrawing - פוליגון סגור ופתוח', () => {
+  const opts = (type: 'polygon' | 'polyline') => ({ id: 'p1', type, color: '#ef4444', filled: false, strokeWidth: 2 });
+
+  it('isPolyTool מזהה רק את שני כלי הפוליגון', () => {
+    expect(isPolyTool('polygon')).toBe(true);
+    expect(isPolyTool('polyline')).toBe(true);
+    expect(isPolyTool('rect')).toBe(false);
+    expect(isPolyTool('pen')).toBe(false);
+  });
+
+  it('מינימום נקודות: סגור 3, פתוח 2', () => {
+    expect(POLY_MIN_POINTS.polygon).toBe(3);
+    expect(POLY_MIN_POINTS.polyline).toBe(2);
+  });
+
+  it('פוליגון נשמר בשברים + מלבן תוחם', () => {
+    const s = polyShapeFromPoints([{ x: 100, y: 100 }, { x: 300, y: 100 }, { x: 200, y: 300 }], 400, 400, opts('polygon'))!;
+    expect(s.type).toBe('polygon');
+    expect(s.points).toEqual([{ x: 0.25, y: 0.25 }, { x: 0.75, y: 0.25 }, { x: 0.5, y: 0.75 }]);
+    expect({ x: s.x, y: s.y, w: s.w, h: s.h }).toEqual({ x: 0.25, y: 0.25, w: 0.5, h: 0.5 });
+  });
+
+  it('פוליגון סגור עם פחות מ-3 נקודות - null', () => {
+    expect(polyShapeFromPoints([{ x: 0, y: 0 }, { x: 50, y: 50 }], 400, 400, opts('polygon'))).toBeNull();
+  });
+
+  it('פוליגון פתוח עם 2 נקודות - תקין, ועם 1 - null', () => {
+    expect(polyShapeFromPoints([{ x: 0, y: 0 }, { x: 50, y: 50 }], 400, 400, opts('polyline'))?.type).toBe('polyline');
+    expect(polyShapeFromPoints([{ x: 0, y: 0 }], 400, 400, opts('polyline'))).toBeNull();
+  });
+
+  it('נקודות כפולות (דקירה חוזרת באותו מקום) לא נספרות', () => {
+    expect(polyShapeFromPoints([{ x: 0, y: 0 }, { x: 1, y: 1 }], 400, 400, opts('polyline'))).toBeNull();
+  });
+
+  it('פתוח לא מקבל מילוי גם אם נבחר', () => {
+    expect(polyShapeFromPoints([{ x: 0, y: 0 }, { x: 50, y: 50 }], 400, 400, { ...opts('polyline'), filled: true })!.filled).toBe(false);
+  });
+
+  it('polyTapAction: נקודה חדשה רחוקה - add', () => {
+    expect(polyTapAction([{ x: 0, y: 0 }], { x: 100, y: 0 }, 'polyline', 10)).toBe('add');
+  });
+
+  it('polyTapAction: דקירה על הנקודה האחרונה - finish (כשיש מספיק נקודות)', () => {
+    const pts = [{ x: 0, y: 0 }, { x: 100, y: 0 }];
+    expect(polyTapAction(pts, { x: 103, y: 2 }, 'polyline', 10)).toBe('finish');
+  });
+
+  it('polyTapAction: דקירה על האחרונה בלי מספיק נקודות - ignore', () => {
+    expect(polyTapAction([{ x: 0, y: 0 }], { x: 2, y: 2 }, 'polyline', 10)).toBe('ignore');
+    expect(polyTapAction([{ x: 0, y: 0 }, { x: 100, y: 0 }], { x: 100, y: 2 }, 'polygon', 10)).toBe('ignore');
+  });
+
+  it('polyTapAction: בסגור - דקירה על הנקודה הראשונה סוגרת', () => {
+    const pts = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 50, y: 100 }];
+    expect(polyTapAction(pts, { x: 3, y: 3 }, 'polygon', 10)).toBe('finish');
+  });
+
+  it('polyTapAction: בפתוח - דקירה על הראשונה היא נקודה רגילה', () => {
+    const pts = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 50, y: 100 }];
+    expect(polyTapAction(pts, { x: 3, y: 3 }, 'polyline', 10)).toBe('add');
+  });
+
+  it('polyPointsToPx מחזיר מחרוזת points ל-SVG בגודל הנוכחי', () => {
+    const s = polyShapeFromPoints([{ x: 100, y: 100 }, { x: 300, y: 100 }], 400, 400, opts('polyline'))!;
+    expect(polyPointsToPx(s, { w: 800, h: 200 })).toBe('200,50 600,50');
   });
 });

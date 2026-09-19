@@ -66,6 +66,30 @@
       "he": "🖊 עט",
       "en": "🖊 Pen"
     },
+    "drawPolyFinish": {
+      "he": "✓ סיום ({{count}})",
+      "en": "✓ Finish ({{count}})"
+    },
+    "drawPolyHintClosed": {
+      "he": "דקור נקודות על המפה - הן מתחברות בקו. דקירה על הנקודה הראשונה או שוב על האחרונה סוגרת את הפוליגון (Enter)",
+      "en": "Tap points on the map - they connect with a line. Tap the first point, or the last one again, to close the polygon (Enter)"
+    },
+    "drawPolyHintOpen": {
+      "he": "דקור נקודות על המפה - הן מתחברות בקו. דקירה שוב על הנקודה האחרונה מסיימת (Enter)",
+      "en": "Tap points on the map - they connect with a line. Tap the last point again to finish (Enter)"
+    },
+    "drawPolyUndo": {
+      "he": "↶ נקודה אחורה",
+      "en": "↶ Undo point"
+    },
+    "drawPolygon": {
+      "he": "⬠ פוליגון סגור",
+      "en": "⬠ Closed polygon"
+    },
+    "drawPolyline": {
+      "he": "〽 פוליגון פתוח",
+      "en": "〽 Open polygon"
+    },
     "drawRecognize": {
       "he": "✍️ או\"ק",
       "en": "✍️ Callsign"

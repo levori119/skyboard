@@ -10,7 +10,10 @@
  * `src/components/map/MapDrawLayer.tsx` לרכיבי התצוגה.
  */
 
-export type DrawTool = 'pen' | 'eraser' | 'circle' | 'rect' | 'recognize';
+export type DrawTool = 'pen' | 'eraser' | 'circle' | 'rect' | 'polygon' | 'polyline' | 'recognize';
+
+/** פוליגון סגור (האחרונה מתחברת לראשונה) או פתוח (קו שבור). */
+export type PolyTool = 'polygon' | 'polyline';
 
 export type PenStroke = {
   id: string;
@@ -22,8 +25,11 @@ export type PenStroke = {
 
 export type MapShape = {
   id: string;
-  type: 'circle' | 'rect';
+  type: 'circle' | 'rect' | PolyTool;
+  /** בפוליגון - המלבן התוחם, כדי שקוד שמכיר רק x/y/w/h ימשיך לעבוד. */
   x: number; y: number; w: number; h: number;
+  /** קודקודי הפוליגון בשברים (0..1). רק ב-polygon/polyline. */
+  points?: { x: number; y: number }[];
   color: string;
   filled: boolean;
   strokeWidth: number;
@@ -154,3 +160,69 @@ export const shapeToPx = (s: MapShape, size: { w: number; h: number }) => ({
   w: isFrac(s.w) ? s.w * size.w : s.w,
   h: isFrac(s.h) ? s.h * size.h : s.h,
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// פוליגון סגור / פתוח - דוקרים נקודות, והן מתחברות בקו
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const isPolyTool = (t: string): t is PolyTool => t === 'polygon' || t === 'polyline';
+
+/** פחות מזה אין צורה: סגור צריך משולש, פתוח צריך קטע. */
+export const POLY_MIN_POINTS: Record<PolyTool, number> = { polygon: 3, polyline: 2 };
+
+/** מרחק הדקירה (בפיקסלי מסך) שנחשב "על" נקודה קיימת - מותאם לעט ולאצבע. */
+export const POLY_SNAP_SCREEN_PX = 14;
+
+const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
+
+/** מסיר נקודות צמודות (רעד / דקירה כפולה) - הן לא מוסיפות צלע. */
+const dedupe = (pts: { x: number; y: number }[]) =>
+  pts.filter((p, i) => i === 0 || dist(p, pts[i - 1]) > MIN_DRAG_PX);
+
+/**
+ * מה עושה דקירה בזמן ציור פוליגון:
+ * - על הנקודה האחרונה (דקירה כפולה) → `finish`
+ * - בסגור, על הנקודה הראשונה → `finish` (סוגר את הצורה)
+ * - כשאין עדיין מספיק נקודות לסיום → `ignore`
+ * - אחרת → `add`
+ */
+export function polyTapAction(
+  points: { x: number; y: number }[],
+  p: { x: number; y: number },
+  type: PolyTool,
+  tol: number,
+): 'add' | 'finish' | 'ignore' {
+  if (!points.length) return 'add';
+  const enough = points.length >= POLY_MIN_POINTS[type];
+  if (dist(p, points[points.length - 1]) <= tol) return enough ? 'finish' : 'ignore';
+  if (type === 'polygon' && points.length >= 3 && dist(p, points[0]) <= tol) return 'finish';
+  return 'add';
+}
+
+/** פוליגון מנקודות בפיקסלי תוכן. `null` אם אין מספיק נקודות שונות. */
+export function polyShapeFromPoints(
+  pointsPx: { x: number; y: number }[],
+  W: number,
+  H: number,
+  opts: { id: string; type: PolyTool; color: string; filled: boolean; strokeWidth: number },
+): MapShape | null {
+  const pts = dedupe(pointsPx);
+  if (pts.length < POLY_MIN_POINTS[opts.type]) return null;
+  const sw = W || 1, sh = H || 1;
+  const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+  const minX = Math.min(...xs), minY = Math.min(...ys);
+  return {
+    ...opts,
+    // קו שבור הוא לא שטח - מילוי שלו היה סוגר אותו בעין
+    filled: opts.type === 'polygon' && opts.filled,
+    x: minX / sw, y: minY / sh,
+    w: (Math.max(...xs) - minX) / sw, h: (Math.max(...ys) - minY) / sh,
+    points: pts.map(p => ({ x: p.x / sw, y: p.y / sh })),
+  };
+}
+
+/** קודקודי הפוליגון כמחרוזת `points` ל-SVG, בגודל המשטח הנוכחי. */
+export const polyPointsToPx = (s: MapShape, size: { w: number; h: number }): string =>
+  (s.points || [])
+    .map(p => `${isFrac(p.x) ? p.x * size.w : p.x},${isFrac(p.y) ? p.y * size.h : p.y}`)
+    .join(' ');

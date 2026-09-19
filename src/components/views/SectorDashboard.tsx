@@ -149,8 +149,8 @@ import type { MissionDeskService, MDPresetMapConfig, MDPresetMapSettings, MDNode
 import { mdMapServices, mdMapSettings, mdStripsMapServiceId, MD_VIEW_TABLES, mdViewTablesSettings, mdViewTableOwners, mdViewTableSource } from '../../utils/missionDesk';
 import ViewTablesSlot from '../missiondesk/ViewTablesSlot';
 import MyScriptTestPanel from '../shared/MyScriptTestPanel';
-import { MapDrawToolbar } from '../map/MapDrawLayer';
-import { isFrac, fracToPx, pxToFrac, drawStrokeFrac, applyStrokeStyle, syncCanvasBitmap, type PenStroke, type MapShape } from '../../utils/mapDrawing';
+import { MapDrawToolbar, MapShapeSvg, PolyDraftSvg, polySnapTol, usePolyDraft } from '../map/MapDrawLayer';
+import { isFrac, fracToPx, pxToFrac, drawStrokeFrac, applyStrokeStyle, syncCanvasBitmap, isPolyTool, polyShapeFromPoints, type PenStroke, type MapShape, type DrawTool } from '../../utils/mapDrawing';
 import { isLoadRelevant } from '../../utils/loadRelevance';
 import StationPeekBar from '../shared/StationPeekBar';
 import { useViewStations } from '../../hooks/useViewStations';
@@ -997,7 +997,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [showDrawToolbar, setShowDrawToolbar] = useState(false);
   const [penColor, setPenColor] = useState('#ef4444');
   const [penSize, setPenSize] = useState(1.5); // עט דק (היה 3 — נראה עבה כמו מברשת)
-  const [drawTool, setDrawTool] = useState<'pen'|'eraser'|'circle'|'rect'|'recognize'>('pen');
+  const [drawTool, setDrawTool] = useState<DrawTool>('pen');
   const eraserMode = drawTool === 'eraser';
   // ── Handwriting recognition ("recognize" draw tool) — offline, per crew member
   const hwRecognizer = useHandwritingRecognizer(session.crewMember?.id ?? null);
@@ -1117,6 +1117,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // Current map-area pixel size (updated on resize) — used to convert
   // fraction-based shapes back to pixels at render time.
   const [mapAreaSize, setMapAreaSize] = useState({ w: 0, h: 0 });
+  // פוליגון סגור/פתוח - אותה טיוטה כמו בעמדת השדה (usePolyDraft המשותף). הנקודות
+  // במרחב **התוכן** של המפה, כמו תחילת הגרירה של המלבן/העיגול, ונשמרות בשברים.
+  //
+  // ⚠ בדו-מפה אותו גוף רינדור משרת את שתי המפות (setMapShapes/mapAreaSize מוצללים
+  // פר-מפה), ולכן היעד נקבע **בדקירה** ונשמר ב-ref - אחרת פוליגון שצויר על המפה
+  // השנייה היה נוחת על הראשונה.
+  const polyTargetRef = useRef<{ owner: 'main' | 'secondary'; setShapes: React.Dispatch<React.SetStateAction<MapShape[]>>; w: number; h: number } | null>(null);
+  const polyDraft = usePolyDraft(isPolyTool(drawTool) ? drawTool : null, (pts, type) => {
+    const tgt = polyTargetRef.current;
+    if (!tgt) return;
+    const shape = polyShapeFromPoints(pts, tgt.w, tgt.h, {
+      id: Date.now().toString(), type, color: penColor, filled: shapeFilled, strokeWidth: penSize,
+    });
+    if (shape) tgt.setShapes(prev => [...prev, shape]);
+  });
 
   // ── Map-anchored coordinates ──────────────────────────────────────────────
   // הציור/הצורות נשמרים כשברים (0..1) ולכן נשארים דבוקים למפה. הלוגיקה עצמה
@@ -8516,6 +8531,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const ctx = canvas?.getContext('2d');
     if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
     setMapShapes([]);
+    polyDraft.cancel();
     if (collabEnabled && session.presetId) {
       const clearAt = new Date().toISOString();
       lastCollabClearAt.current = clearAt;
@@ -9487,8 +9503,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <MapDrawToolbar
               style={{ top: 8, left: toolbarGap, direction: dir }}
               themeMode={themeMode}
-              tools={['pen', 'eraser', 'circle', 'rect', 'recognize']}
+              tools={['pen', 'eraser', 'circle', 'rect', 'polygon', 'polyline', 'recognize']}
               tool={drawTool} onToolChange={setDrawTool}
+              polyDraft={{ count: polyDraft.points.length, onFinish: polyDraft.finish, onUndo: polyDraft.undo }}
               color={penColor} onColorChange={setPenColor}
               size={penSize} onSizeChange={setPenSize}
               filled={shapeFilled} onFilledChange={setShapeFilled}
@@ -10763,6 +10780,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               e.preventDefault(); e.stopPropagation();
               if (drawTool === 'pen' || drawTool === 'eraser' || drawTool === 'recognize') {
                 startDrawing(e);
+              } else if (drawingModeRef.current && isPolyTool(drawTool)) {
+                // פוליגון: כל דקירה היא קודקוד (במרחב התוכן, כמו המלבן)
+                const rect = e.currentTarget.getBoundingClientRect();
+                const W = mapAreaSize.w || e.currentTarget.width || rect.width || 1;
+                const H = mapAreaSize.h || e.currentTarget.height || rect.height || 1;
+                const owner = cfg.secondary ? 'secondary' : 'main';
+                // דקירה על המפה השנייה באמצע טיוטה של הראשונה מתחילה טיוטה חדשה
+                if (polyTargetRef.current?.owner !== owner) polyDraft.cancel();
+                polyTargetRef.current = { owner, setShapes: setMapShapes, w: W, h: H };
+                polyDraft.tap(
+                  { x: (e.clientX - rect.left) / (rect.width || 1) * W, y: (e.clientY - rect.top) / (rect.height || 1) * H },
+                  polySnapTol(W / (rect.width || 1)),
+                );
               } else if (drawingModeRef.current) {
                 e.currentTarget.setPointerCapture(e.pointerId);
                 setSelectedShapeId(null);
@@ -10781,6 +10811,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               e.stopPropagation();
               if (drawTool === 'pen' || drawTool === 'eraser' || drawTool === 'recognize') {
                 draw(e);
+              } else if (isPolyTool(drawTool) && polyTargetRef.current?.owner === (cfg.secondary ? 'secondary' : 'main')) {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const W = mapAreaSize.w || e.currentTarget.width || rect.width || 1;
+                const H = mapAreaSize.h || e.currentTarget.height || rect.height || 1;
+                polyDraft.move({ x: (e.clientX - rect.left) / (rect.width || 1) * W, y: (e.clientY - rect.top) / (rect.height || 1) * H });
               } else if (shapeStartRef.current) {
                 const rect = e.currentTarget.getBoundingClientRect();
                 const W = mapAreaSize.w || e.currentTarget.width || rect.width || 1;
@@ -10826,23 +10861,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           />
 
           {/* Shapes SVG overlay — renders circles & rectangles from mapShapes */}
-          {(mapShapes.length > 0 || (shapePreview && (drawTool === 'circle' || drawTool === 'rect'))) && (
+          {(mapShapes.length > 0 || (shapePreview && (drawTool === 'circle' || drawTool === 'rect')) || (polyDraft.points.length > 0 && polyTargetRef.current?.owner === (cfg.secondary ? 'secondary' : 'main'))) && (
             <svg data-map-layer="" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 201, overflow: 'visible', transform: mapLayerTransform(mapPan, mapZoom), transformOrigin: 'center center', transition: MAP_LAYER_TRANSITION }}>
               {(() => {
                 // fraction (0..1) → current px; legacy px values (>1.5) used as-is
                 const W = mapAreaSize.w || canvasRef.current?.width || 1;
                 const H = mapAreaSize.h || canvasRef.current?.height || 1;
-                const sx = (v: number) => (Math.abs(v) <= 1.5 ? v * W : v);
-                const sy = (v: number) => (Math.abs(v) <= 1.5 ? v * H : v);
-                return mapShapes.map(shape => {
-                  const x = sx(shape.x), y = sy(shape.y), w = sx(shape.w), h = sy(shape.h);
-                  return shape.type === 'rect'
-                    ? <rect key={shape.id} x={x} y={y} width={w} height={h}
-                        fill={shape.filled ? shape.color + '55' : 'none'} stroke={shape.color} strokeWidth={shape.strokeWidth} rx={2} />
-                    : <ellipse key={shape.id} cx={x + w / 2} cy={y + h / 2} rx={w / 2} ry={h / 2}
-                        fill={shape.filled ? shape.color + '55' : 'none'} stroke={shape.color} strokeWidth={shape.strokeWidth} />;
-                });
+                return mapShapes.map(shape => <MapShapeSvg key={shape.id} shape={shape} size={{ w: W, h: H }} />);
               })()}
+              {isPolyTool(drawTool) && polyTargetRef.current?.owner === (cfg.secondary ? 'secondary' : 'main') && (
+                <PolyDraftSvg type={drawTool} points={polyDraft.points} cursor={polyDraft.cursor}
+                  color={penColor} strokeWidth={penSize} filled={shapeFilled} />
+              )}
               {shapePreview && (drawTool === 'circle' || drawTool === 'rect') && (() => {
                 const px = Math.min(shapePreview.x1, shapePreview.x2);
                 const py = Math.min(shapePreview.y1, shapePreview.y2);
