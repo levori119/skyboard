@@ -6283,7 +6283,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       const ths = Array.from(table.querySelectorAll('thead tr:first-child > th')) as HTMLTableCellElement[];
       const offsets: number[] = [];
       let start = 0;
-      for (let i = 0; i <= tableFrozenCount + 1 && i < ths.length; i++) {
+      // מודדים היסט אחד יותר מהעמודות המקובעות: האיבר האחרון הוא **הרוחב
+      // הכולל** שלהן, והוא העוגן של טבלאות הבן (הן מתחילות אחריו ולא מתחתיו).
+      for (let i = 0; i <= tableFrozenCount + 2 && i < ths.length; i++) {
         offsets.push(start);
         start += ths[i].offsetWidth || 0;
       }
@@ -6301,6 +6303,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     measure();
     return () => { ro.disconnect(); mo.disconnect(); };
   }, [tableMode, tableEl, tableFrozenCount]);
+
+  // רוחב חלון התצוגה של הטבלה (לא רוחב התוכן). טבלת בן מקבלת בדיוק אותו,
+  // כדי שהגלילה הצידית שלה תהיה שלה בלבד ולא תיסחב עם טבלת הפ"מים.
+  const [tableViewportWidth, setTableViewportWidth] = useState(0);
+  useEffect(() => {
+    const el = tableScrollRef.current;
+    if (!tableMode || !el) { setTableViewportWidth(0); return; }
+    const measure = () => setTableViewportWidth(prev => prev === el.clientWidth ? prev : el.clientWidth);
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    measure();
+    return () => ro.disconnect();
+  }, [tableMode]);
 
   const handleAltUpdate = async (id: string, alt: string) => {
     setStrips(prev => prev.map(item => item.id === id ? {...item, alt} : item));
@@ -16746,6 +16761,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             ? persistAircraftCell(rowIdx, key, val)
                             : persistRows(rows.map((r, i) => i === rowIdx ? { ...r, [key]: val } : r) as unknown as AimPoint[]);
 
+                        // הרוחב הכולל של העמודות המקובעות - שם נעצר הבלוק בגלילה
+                        const subBlockAnchor = hasFrozen ? (tableStickyOffsets[frozenCount + 2] ?? 0) : 0;
+                        const subBlockWidth = tableViewportWidth > 0
+                          ? Math.max(160, tableViewportWidth - subBlockAnchor) : 0;
+
                         return (
                           <tr key={k} data-sub-table-of={s.id} className={isLastOpen ? 'sk-frame-floor' : undefined} style={{
                             background: lightMode ? '#eef7fa' : '#07222c',
@@ -16762,9 +16782,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 style={{ padding: '2px 0 6px', direction: dir,
                                   // בלי תא הזחה (אין עמודת או"ק) הדופן יושבת כאן
                                   ...(subTableIndentCols > 0 ? {} : { borderInlineStart: `2px solid ${SUB_ACC}` }) }}>
+                              {/* גלילה צידית עצמאית: הבלוק **נעגן** לקצה העמודות
+                                  המקובעות ומקבל את רוחב חלון התצוגה, כך שגלילת
+                                  טבלת הפ"מים לא סוחבת אותו, והגלילה הפנימית שלו
+                                  (העוטף שלמטה) לא מזיזה את טבלת הפ"מים. */}
                               <div style={{
                                 display: 'flex', flexDirection: 'column', gap: '5px', minWidth: 0,
                                 paddingInlineStart: '6px',
+                                ...(subBlockWidth > 0
+                                  ? { position: 'sticky' as const, insetInlineStart: subBlockAnchor, width: subBlockWidth, maxWidth: '100%', boxSizing: 'border-box' as const }
+                                  : {}),
                               }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                                   <span style={{ fontSize: '11px', fontWeight: 'bold', color: SUB_ACC }}>
@@ -16807,7 +16834,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                     };
                                   };
                                   return (
-                                  <div style={{ overflowX: 'auto' }}>
+                                  <div style={{ overflowX: 'auto', maxWidth: '100%', overscrollBehaviorX: 'contain' }}>
                                     <table style={{ borderCollapse: 'collapse', fontSize: '12px', minWidth: 'max-content' }}>
                                       <thead>
                                         <tr>
