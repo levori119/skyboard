@@ -62,6 +62,10 @@
       "he": "קווי",
       "en": "Outline"
     },
+    "drawLineStyle": {
+      "he": "סגנון:",
+      "en": "Style:"
+    },
     "drawPen": {
       "he": "🖊 עט",
       "en": "🖊 Pen"
@@ -149,6 +153,26 @@
     "geoCalibration": {
       "he": "📐 כיול גיאוגרפי",
       "en": "📐 Geo calibration"
+    },
+    "lineCross": {
+      "he": "איקסים",
+      "en": "Crosses"
+    },
+    "lineDashDot": {
+      "he": "קו-נקודה",
+      "en": "Dash-dot"
+    },
+    "lineDashed": {
+      "he": "קווים",
+      "en": "Dashed"
+    },
+    "lineDotted": {
+      "he": "נקודות",
+      "en": "Dotted"
+    },
+    "lineSolid": {
+      "he": "רציף",
+      "en": "Solid"
     },
     "loadingMap": {
       "he": "טוען מפה...",

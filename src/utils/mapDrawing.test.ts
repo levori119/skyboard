@@ -3,6 +3,7 @@ import {
   isFrac, fracToPx, pxToFrac, shapeFromDrag, strokeLineWidth, DRAW_PALETTE,
   bitmapPx, syncCanvasBitmap,
   isPolyTool, polyShapeFromPoints, polyTapAction, polyPointsToPx, POLY_MIN_POINTS,
+  dashArray, outlinePoints, crossMarks, LINE_STYLES, type LineStyle,
   type PenStroke,
 } from './mapDrawing';
 
@@ -177,5 +178,56 @@ describe('mapDrawing - פוליגון סגור ופתוח', () => {
   it('polyPointsToPx מחזיר מחרוזת points ל-SVG בגודל הנוכחי', () => {
     const s = polyShapeFromPoints([{ x: 100, y: 100 }, { x: 300, y: 100 }], 400, 400, opts('polyline'))!;
     expect(polyPointsToPx(s, { w: 800, h: 200 })).toBe('200,50 600,50');
+  });
+});
+
+describe('mapDrawing - סגנון הקו', () => {
+  it('רציף אינו מקווקו כלל', () => {
+    expect(dashArray('solid', 2)).toBeUndefined();
+  });
+
+  it('קווים / נקודות / קו-נקודה מקבלים תבנית שגדלה עם עובי הקו', () => {
+    for (const st of ['dashed', 'dotted', 'dashdot'] as LineStyle[]) {
+      const thin = dashArray(st, 1), thick = dashArray(st, 4);
+      expect(thin).toBeTruthy();
+      expect(thick).not.toBe(thin);
+    }
+  });
+
+  it('איקסים אינו נשען על מקוקוו - הוא סימנים על הקו', () => {
+    expect(dashArray('cross', 2)).toBeUndefined();
+    expect(LINE_STYLES).toEqual(['solid', 'dashed', 'dotted', 'dashdot', 'cross']);
+  });
+
+  it('קו המתאר: מלבן = 4 פינות סגורות, פוליגון פתוח = הנקודות כפי שהן', () => {
+    const rect = outlinePoints({ id: 'r', type: 'rect', x: 0, y: 0, w: 0.5, h: 0.5, color: '#fff', filled: false, strokeWidth: 1 }, { w: 100, h: 100 });
+    expect(rect.closed).toBe(true);
+    expect(rect.points).toEqual([{ x: 0, y: 0 }, { x: 50, y: 0 }, { x: 50, y: 50 }, { x: 0, y: 50 }]);
+    const line = outlinePoints({ id: 'l', type: 'polyline', x: 0, y: 0, w: 1, h: 0, color: '#fff', filled: false, strokeWidth: 1, points: [{ x: 0, y: 0 }, { x: 1, y: 0 }] }, { w: 100, h: 100 });
+    expect(line.closed).toBe(false);
+    expect(line.points).toEqual([{ x: 0, y: 0 }, { x: 100, y: 0 }]);
+  });
+
+  it('קו המתאר של עיגול נדגם למצולע צפוף', () => {
+    const el = outlinePoints({ id: 'c', type: 'circle', x: 0, y: 0, w: 1, h: 1, color: '#fff', filled: false, strokeWidth: 1 }, { w: 100, h: 100 });
+    expect(el.closed).toBe(true);
+    expect(el.points.length).toBeGreaterThan(24);
+  });
+
+  it('האיקסים יושבים על הקו, במרווחים קבועים ובזווית הקו', () => {
+    const marks = crossMarks([{ x: 0, y: 0 }, { x: 100, y: 0 }], false, 25);
+    expect(marks.length).toBe(3); // 25, 50, 75 - בלי הקצוות
+    expect(marks[0]).toMatchObject({ x: 25, y: 0 });
+    expect(marks.every(m => Math.abs(m.angle) < 1e-9)).toBe(true);
+  });
+
+  it('קו קצר מהמרווח מקבל איקס יחיד באמצע - אחרת הסגנון נעלם', () => {
+    expect(crossMarks([{ x: 0, y: 0 }, { x: 10, y: 0 }], false, 25)).toEqual([{ x: 5, y: 0, angle: 0 }]);
+  });
+
+  it('בצורה סגורה גם הצלע החוזרת מקבלת איקסים', () => {
+    const open = crossMarks([{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }], false, 50);
+    const closed = crossMarks([{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }], true, 50);
+    expect(closed.length).toBeGreaterThan(open.length);
   });
 });

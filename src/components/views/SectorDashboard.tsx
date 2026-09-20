@@ -153,7 +153,7 @@ import { mdMapServices, mdMapSettings, mdStripsMapServiceId, MD_VIEW_TABLES, mdV
 import ViewTablesSlot from '../missiondesk/ViewTablesSlot';
 import MyScriptTestPanel from '../shared/MyScriptTestPanel';
 import { MapDrawToolbar, MapShapeSvg, PolyDraftSvg, polySnapTol, usePolyDraft } from '../map/MapDrawLayer';
-import { isFrac, fracToPx, pxToFrac, drawStrokeFrac, applyStrokeStyle, syncCanvasBitmap, isPolyTool, polyShapeFromPoints, type PenStroke, type MapShape, type DrawTool } from '../../utils/mapDrawing';
+import { isFrac, fracToPx, pxToFrac, drawStrokeFrac, applyStrokeStyle, syncCanvasBitmap, isPolyTool, polyShapeFromPoints, type PenStroke, type MapShape, type DrawTool, type LineStyle } from '../../utils/mapDrawing';
 import { isLoadRelevant } from '../../utils/loadRelevance';
 import StationPeekBar from '../shared/StationPeekBar';
 import { useViewStations } from '../../hooks/useViewStations';
@@ -1034,6 +1034,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   }, []);
   const [mapShapes, setMapShapes] = useState<MapShape[]>([]);
   const [shapeFilled, setShapeFilled] = useState(false);
+  const [lineStyle, setLineStyle] = useState<LineStyle>('solid');
   const [shapePreview, setShapePreview] = useState<{x1:number;y1:number;x2:number;y2:number}|null>(null);
   const shapeStartRef = useRef<{x:number;y:number}|null>(null);
   const [selectedShapeId, setSelectedShapeId] = useState<string|null>(null);
@@ -1131,7 +1132,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const tgt = polyTargetRef.current;
     if (!tgt) return;
     const shape = polyShapeFromPoints(pts, tgt.w, tgt.h, {
-      id: Date.now().toString(), type, color: penColor, filled: shapeFilled, strokeWidth: penSize,
+      id: Date.now().toString(), type, color: penColor, filled: shapeFilled, strokeWidth: penSize, lineStyle,
     });
     if (shape) tgt.setShapes(prev => [...prev, shape]);
   });
@@ -9578,6 +9579,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               color={penColor} onColorChange={setPenColor}
               size={penSize} onSizeChange={setPenSize}
               filled={shapeFilled} onFilledChange={setShapeFilled}
+              lineStyle={lineStyle} onLineStyleChange={setLineStyle}
               onClear={clearCanvas}
               onClose={() => setDrawingMode(false)}
               toolsExtra={(
@@ -10910,7 +10912,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 const h = Math.abs(y2 - shapeStartRef.current.y);
                 if (w > 5 || h > 5) {
                   // store as fractions (0..1) of the map area → anchored + proportional
-                  setMapShapes(prev => [...prev, { id: Date.now().toString(), type: drawTool as 'circle'|'rect', x: x / W, y: y / H, w: Math.max(w, 10) / W, h: Math.max(h, 10) / H, color: penColor, filled: shapeFilled, strokeWidth: penSize }]);
+                  setMapShapes(prev => [...prev, { id: Date.now().toString(), type: drawTool as 'circle'|'rect', x: x / W, y: y / H, w: Math.max(w, 10) / W, h: Math.max(h, 10) / H, color: penColor, filled: shapeFilled, strokeWidth: penSize, lineStyle }]);
                 }
                 shapeStartRef.current = null; setShapePreview(null);
               }
@@ -10940,7 +10942,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               })()}
               {isPolyTool(drawTool) && polyTargetRef.current?.owner === (cfg.secondary ? 'secondary' : 'main') && (
                 <PolyDraftSvg type={drawTool} points={polyDraft.points} cursor={polyDraft.cursor}
-                  color={penColor} strokeWidth={penSize} filled={shapeFilled} />
+                  color={penColor} strokeWidth={penSize} filled={shapeFilled} lineStyle={lineStyle} />
               )}
               {shapePreview && (drawTool === 'circle' || drawTool === 'rect') && (() => {
                 const px = Math.min(shapePreview.x1, shapePreview.x2);

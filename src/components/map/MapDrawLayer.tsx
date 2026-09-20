@@ -6,9 +6,10 @@ import { useDragPosition } from '../../hooks/useDragPosition';
 import { windowFrame } from '../../utils/windowFrame';
 import { readRootScale } from '../../utils/pointerDrag';
 import {
-  DRAW_PALETTE, POLY_MIN_POINTS, POLY_SNAP_SCREEN_PX, applyStrokeStyle, isPolyTool, polyPointsToPx, polyShapeFromPoints,
+  DRAW_PALETTE, LINE_STYLES, POLY_MIN_POINTS, POLY_SNAP_SCREEN_PX, applyStrokeStyle, crossMarks, crossSize, crossSpacing,
+  dashArray, isPolyTool, outlinePoints, polyPointsToPx, polyShapeFromPoints,
   polyTapAction, pxToFrac, redrawStrokes, shapeFromDrag, shapeToPx, syncCanvasBitmap,
-  type DrawTool, type MapShape, type PenStroke, type PolyTool,
+  type DrawTool, type LineStyle, type MapShape, type PenStroke, type PolyTool,
 } from '../../utils/mapDrawing';
 
 /**
@@ -49,6 +50,33 @@ const TOOL_LABELS: Record<DrawTool, string> = {
 
 export const DEFAULT_DRAW_TOOLS: DrawTool[] = ['pen', 'eraser', 'circle', 'rect', 'polygon', 'polyline'];
 
+/** הכלים שמייצרים **צורה** - להם יש סגנון קו, ולחלקם גם מילוי. */
+export const SHAPE_TOOLS: DrawTool[] = ['circle', 'rect', 'polygon', 'polyline'];
+
+const LINE_STYLE_LABELS: Record<LineStyle, string> = {
+  solid: 'map.lineSolid',
+  dashed: 'map.lineDashed',
+  dotted: 'map.lineDotted',
+  dashdot: 'map.lineDashDot',
+  cross: 'map.lineCross',
+};
+
+/** הסגנון עצמו כקו קטן בתוך הכפתור - כך הבחירה נקראת במבט ולא בקריאת מילה. */
+export const LineStylePreview: React.FC<{ style: LineStyle; color: string; width: number }> = ({ style, color, width }) => {
+  const h = 10, y = h / 2;
+  return (
+    <svg width={width} height={h} viewBox={`0 0 ${width} ${h}`} aria-hidden="true" style={{ display: 'block' }}>
+      <line x1={1} y1={y} x2={width - 1} y2={y} stroke={color} strokeWidth={1.5} strokeDasharray={dashArray(style, 1.5)} strokeLinecap="round" />
+      {style === 'cross' && crossMarks([{ x: 1, y }, { x: width - 1, y }], false, width / 3).map((m, i) => (
+        <g key={i} transform={`translate(${m.x} ${m.y})`}>
+          <line x1={-3} y1={-3} x2={3} y2={3} stroke={color} strokeWidth={1.5} />
+          <line x1={-3} y1={3} x2={3} y2={-3} stroke={color} strokeWidth={1.5} />
+        </g>
+      ))}
+    </svg>
+  );
+};
+
 /** סמן העט/המחק על הקנבס. */
 export const drawCursor = (tool: DrawTool): string =>
   tool === 'eraser'
@@ -68,6 +96,9 @@ export type MapDrawToolbarProps = {
   onSizeChange: (n: number) => void;
   filled: boolean;
   onFilledChange: (v: boolean) => void;
+  /** סגנון הקו של הצורות. בלעדיו הסרגל לא מציג את השורה (תאימות לעמדה ישנה). */
+  lineStyle?: LineStyle;
+  onLineStyleChange?: (s: LineStyle) => void;
   onClear: () => void;
   onClose: () => void;
   themeMode?: ThemeMode;
@@ -85,7 +116,7 @@ export type MapDrawToolbarProps = {
 
 export const MapDrawToolbar: React.FC<MapDrawToolbarProps> = ({
   tool, onToolChange, color, onColorChange, size, onSizeChange, filled, onFilledChange,
-  onClear, onClose, themeMode = 'dark', tools = DEFAULT_DRAW_TOOLS, toolsExtra, polyDraft, children, style,
+  lineStyle = 'solid', onLineStyleChange, onClear, onClose, themeMode = 'dark', tools = DEFAULT_DRAW_TOOLS, toolsExtra, polyDraft, children, style,
 }) => {
   const C = toolbarColors(themeMode);
   const tb = useToolbarScale();
@@ -163,6 +194,21 @@ export const MapDrawToolbar: React.FC<MapDrawToolbarProps> = ({
           style={{ flex: 1, accentColor: C.accent, height: 12 }} />
         <span style={{ fontSize: '10px', color: C.value, width: 18, textAlign: 'center' }}>{size}</span>
       </div>
+
+      {/* סגנון הקו - רק לצורות. העט הוא כתב יד, ושם קו מקווקו רק מקשה על הקריאה.
+          הכפתור מראה את הסגנון עצמו ולא שם שלו - מזוהה במבט אחד, ובלי תרגום. */}
+      {SHAPE_TOOLS.includes(tool) && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '10px', color: C.label, whiteSpace: 'nowrap' }}>{tr('map.drawLineStyle')}</span>
+          {LINE_STYLES.map(s => (
+            <button key={s} data-line-style={s} aria-pressed={lineStyle === s}
+              onClick={() => onLineStyleChange?.(s)} title={tr(LINE_STYLE_LABELS[s])} aria-label={tr(LINE_STYLE_LABELS[s])}
+              style={{ ...chip(lineStyle === s), padding: `${tbPx(2, tb)} ${tbPx(4, tb)}`, lineHeight: 0 }}>
+              <LineStylePreview style={s} color={lineStyle === s ? C.onText : C.offText} width={Math.round(26 * tb)} />
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* מילוי - רק לצורות שהן שטח (פוליגון פתוח הוא קו, לא שטח) */}
       {(tool === 'circle' || tool === 'rect' || tool === 'polygon') && (
@@ -253,24 +299,43 @@ export const MapDrawToggle: React.FC<{
 // רינדור צורה + טיוטת פוליגון - משותף לשתי העמדות
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** צורה שמורה (בשברים) כאלמנט SVG בגודל המשטח הנוכחי. */
-export const MapShapeSvg: React.FC<{ shape: MapShape; size: { w: number; h: number } }> = ({ shape: s, size }) => {
-  const fill = s.filled ? s.color + '55' : 'none';
-  if (s.type === 'polygon') {
-    return <polygon points={polyPointsToPx(s, size)} fill={fill} stroke={s.color}
-      strokeWidth={s.strokeWidth} strokeLinejoin="round" />;
-  }
-  if (s.type === 'polyline') {
-    return <polyline points={polyPointsToPx(s, size)} fill="none" stroke={s.color}
-      strokeWidth={s.strokeWidth} strokeLinejoin="round" strokeLinecap="round" />;
-  }
-  const p = shapeToPx(s, size);
-  return s.type === 'rect'
-    ? <rect x={p.x} y={p.y} width={p.w} height={p.h} rx={2} fill={fill} stroke={s.color} strokeWidth={s.strokeWidth} />
-    : <ellipse cx={p.x + p.w / 2} cy={p.y + p.h / 2} rx={p.w / 2} ry={p.h / 2} fill={fill} stroke={s.color} strokeWidth={s.strokeWidth} />;
+type Pt = { x: number; y: number };
+
+/**
+ * האיקסים שיושבים על קו המתאר. הם **סימנים** ולא תבנית מקווקוות, ולכן הם נבנים
+ * מהגאומטריה של הצורה (`outlinePoints`) ומסתובבים עם כיוון הקו.
+ */
+export const CrossMarksSvg: React.FC<{ points: Pt[]; closed: boolean; color: string; strokeWidth: number }> = ({ points, closed, color, strokeWidth }) => {
+  const r = crossSize(strokeWidth);
+  return (
+    <>
+      {crossMarks(points, closed, crossSpacing(strokeWidth)).map((m, i) => (
+        <g key={i} data-cross-mark="" transform={`translate(${m.x} ${m.y}) rotate(${m.angle * 180 / Math.PI})`}>
+          <line x1={-r} y1={-r} x2={r} y2={r} stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+          <line x1={-r} y1={r} x2={r} y2={-r} stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+        </g>
+      ))}
+    </>
+  );
 };
 
-type Pt = { x: number; y: number };
+/** צורה שמורה (בשברים) כאלמנט SVG בגודל המשטח הנוכחי, בסגנון הקו שלה. */
+export const MapShapeSvg: React.FC<{ shape: MapShape; size: { w: number; h: number } }> = ({ shape: s, size }) => {
+  const fill = s.filled ? s.color + '55' : 'none';
+  const dash = dashArray(s.lineStyle, s.strokeWidth);
+  const line = { stroke: s.color, strokeWidth: s.strokeWidth, strokeDasharray: dash, strokeLinecap: dash ? ('round' as const) : undefined };
+  const outline = s.lineStyle === 'cross' ? outlinePoints(s, size) : null;
+  const p = shapeToPx(s, size);
+  return (
+    <>
+      {s.type === 'polygon' && <polygon points={polyPointsToPx(s, size)} fill={fill} strokeLinejoin="round" {...line} />}
+      {s.type === 'polyline' && <polyline points={polyPointsToPx(s, size)} fill="none" strokeLinejoin="round" {...line} />}
+      {s.type === 'rect' && <rect x={p.x} y={p.y} width={p.w} height={p.h} rx={2} fill={fill} {...line} />}
+      {s.type === 'circle' && <ellipse cx={p.x + p.w / 2} cy={p.y + p.h / 2} rx={p.w / 2} ry={p.h / 2} fill={fill} {...line} />}
+      {outline && <CrossMarksSvg points={outline.points} closed={outline.closed} color={s.color} strokeWidth={s.strokeWidth} />}
+    </>
+  );
+};
 
 /**
  * הפוליגון בזמן הדקירה: הצלעות שנדקרו + "גומייה" עד המצביע, ובסגור - קו סגירה
@@ -282,11 +347,13 @@ type Pt = { x: number; y: number };
  */
 export const PolyDraftSvg: React.FC<{
   type: PolyTool; points: Pt[]; cursor: Pt | null;
-  color: string; strokeWidth: number; filled: boolean; scale?: number;
-}> = ({ type, points, cursor, color, strokeWidth, filled, scale = 1 }) => {
+  color: string; strokeWidth: number; filled: boolean; lineStyle?: LineStyle; scale?: number;
+}> = ({ type, points, cursor, color, strokeWidth, filled, lineStyle = 'solid', scale = 1 }) => {
   if (!points.length) return null;
   const sc = (p: Pt) => `${p.x * scale},${p.y * scale}`;
   const path = [...points, ...(cursor ? [cursor] : [])];
+  const dash = dashArray(lineStyle, strokeWidth);
+  const scaled = path.map(p => ({ x: p.x * scale, y: p.y * scale }));
   const first = points[0];
   const last = path[path.length - 1];
   const r = Math.max(3, strokeWidth + 1.5);
@@ -296,7 +363,11 @@ export const PolyDraftSvg: React.FC<{
         <polygon points={path.map(sc).join(' ')} fill={color + '33'} stroke="none" />
       )}
       <polyline points={path.map(sc).join(' ')} fill="none" stroke={color} strokeWidth={strokeWidth}
-        strokeLinejoin="round" strokeLinecap="round" />
+        strokeDasharray={dash} strokeLinejoin="round" strokeLinecap="round" />
+      {/* הסגנון נראה כבר בזמן הדקירה - אחרת הצורה "משתנה" ברגע הסיום */}
+      {lineStyle === 'cross' && scaled.length >= 2 && (
+        <CrossMarksSvg points={scaled} closed={false} color={color} strokeWidth={strokeWidth} />
+      )}
       {type === 'polygon' && path.length >= 2 && (
         <line data-poly-closing="" x1={last.x * scale} y1={last.y * scale} x2={first.x * scale} y2={first.y * scale}
           stroke={color} strokeWidth={Math.max(1, strokeWidth * 0.75)} strokeDasharray="6 4" />
@@ -393,6 +464,7 @@ export function useMapDrawing() {
   const [color, setColor] = React.useState(DRAW_PALETTE[0]);
   const [size, setSize] = React.useState(1.5);
   const [filled, setFilled] = React.useState(false);
+  const [lineStyle, setLineStyle] = React.useState<LineStyle>('solid');
   const [shapes, setShapes] = React.useState<MapShape[]>([]);
   const [preview, setPreview] = React.useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const [surface, setSurface] = React.useState({ w: 0, h: 0 });
@@ -410,7 +482,7 @@ export function useMapDrawing() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const shape = polyShapeFromPoints(pts, canvas.width, canvas.height, {
-      id: `g${++seqRef.current}`, type, color, filled, strokeWidth: size,
+      id: `g${++seqRef.current}`, type, color, filled, strokeWidth: size, lineStyle,
     });
     if (shape) setShapes(prev => [...prev, shape]);
   });
@@ -515,7 +587,7 @@ export function useMapDrawing() {
     if (shapeStartRef.current) {
       const end = toCanvasPx(e);
       const shape = shapeFromDrag(shapeStartRef.current, end, canvas.width, canvas.height, {
-        id: `g${++seqRef.current}`, type: tool === 'rect' ? 'rect' : 'circle', color, filled, strokeWidth: size,
+        id: `g${++seqRef.current}`, type: tool === 'rect' ? 'rect' : 'circle', color, filled, strokeWidth: size, lineStyle,
       });
       if (shape) setShapes(prev => [...prev, shape]);
       shapeStartRef.current = null;
@@ -554,7 +626,7 @@ export function useMapDrawing() {
 
   return {
     active, setActive, tool, setTool, color, setColor, size, setSize, filled, setFilled,
-    shapes, preview, surface, canvasRef, clear, poly,
+    lineStyle, setLineStyle, shapes, preview, surface, canvasRef, clear, poly,
     handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerLeave: onPointerUp, onPointerCancel },
   };
 }
@@ -572,7 +644,7 @@ export function useMapDrawing() {
  * המפה, הקנבס מכסה את סרגל הציור עצמו, ואי אפשר ללחוץ על כפתוריו.
  */
 export const MapDrawSurface: React.FC<{ engine: MapDrawingEngine; zIndex?: number }> = ({ engine, zIndex = 200 }) => {
-  const { active, tool, color, size, filled, shapes, preview, surface } = engine;
+  const { active, tool, color, size, filled, lineStyle, shapes, preview, surface } = engine;
   const polyTool = isPolyTool(tool) ? tool : null;
   const hasShapes = shapes.length > 0 || (preview && (tool === 'circle' || tool === 'rect')) || (polyTool && engine.poly.points.length > 0);
   // נקודות הטיוטה בפיקסלי bitmap, ה-SVG בפיקסלי פריסה (ראה bitmapPx)
@@ -595,7 +667,7 @@ export const MapDrawSurface: React.FC<{ engine: MapDrawingEngine; zIndex?: numbe
           {shapes.map(s => <MapShapeSvg key={s.id} shape={s} size={surface} />)}
           {polyTool && (
             <PolyDraftSvg type={polyTool} points={engine.poly.points} cursor={engine.poly.cursor}
-              color={color} strokeWidth={size} filled={filled} scale={surface.w / bmpW} />
+              color={color} strokeWidth={size} filled={filled} lineStyle={lineStyle} scale={surface.w / bmpW} />
           )}
           {preview && (tool === 'circle' || tool === 'rect') && (() => {
             const x = Math.min(preview.x1, preview.x2), y = Math.min(preview.y1, preview.y2);

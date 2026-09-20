@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MapDrawToolbar, MapDrawToggle, MapShapeSvg, PolyDraftSvg, toolbarColors, type ThemeMode } from './MapDrawLayer';
+import { LINE_STYLES } from '../../utils/mapDrawing';
 import { DRAW_PALETTE, type DrawTool } from '../../utils/mapDrawing';
 
 // סרגל הציור הוא **רכיב משותף** לעמדת המפה ולעמדת השדה. הבדיקות כאן שומרות על
@@ -84,8 +85,9 @@ describe('MapDrawToolbar - פוליגון סגור ופתוח', () => {
   });
 
   it('מילוי מוצג לפוליגון סגור ולא לפתוח (קו שבור אינו שטח)', () => {
-    expect(render({ tool: 'polygon' })).toContain('קווי');
-    expect(render({ tool: 'polyline' })).not.toContain('קווי');
+    // '>קווי<' ולא 'קווי': שורת סגנון הקו מכילה "קווים", והבדיקה מכוונת לכפתור המילוי
+    expect(render({ tool: 'polygon' })).toContain('>קווי<');
+    expect(render({ tool: 'polyline' })).not.toContain('>קווי<');
   });
 
   it('בכלי פוליגון מוצג הסבר, וכפתורי סיום/נקודה אחורה כשיש נקודות', () => {
@@ -186,5 +188,39 @@ describe('MapDrawToggle - כפתור ההדלקה', () => {
     expect(labeled).toContain('ציור');
     expect(labeled).toContain('✏');
     expect(renderToStaticMarkup(<MapDrawToggle active={false} onToggle={noop} />)).not.toContain('>ציור<');
+  });
+});
+
+describe('סגנון הקו', () => {
+  const svg = (el: React.ReactElement) => renderToStaticMarkup(<svg>{el}</svg>);
+  const base = { id: 'a', color: '#ef4444', filled: false, strokeWidth: 2, x: 0, y: 0, w: 0.5, h: 0.5 };
+
+  it('שורת הסגנון מוצגת לכלי צורה בלבד', () => {
+    expect(render({ tool: 'rect' })).toContain('סגנון');
+    expect(render({ tool: 'polyline' })).toContain('סגנון');
+    expect(render({ tool: 'pen' })).not.toContain('סגנון');
+  });
+
+  it('חמשת הסגנונות מוצגים, והנבחר מסומן', () => {
+    const m = render({ tool: 'rect', lineStyle: 'dotted' });
+    for (const s of LINE_STYLES) expect(m).toContain(`data-line-style="${s}"`);
+    expect(m).toContain('data-line-style="dotted" aria-pressed="true"');
+  });
+
+  it('צורה מקווקוות מקבלת stroke-dasharray, ורציפה לא', () => {
+    expect(svg(<MapShapeSvg shape={{ ...base, type: 'rect', lineStyle: 'dashed' }} size={{ w: 100, h: 100 }} />)).toContain('stroke-dasharray');
+    expect(svg(<MapShapeSvg shape={{ ...base, type: 'rect' }} size={{ w: 100, h: 100 }} />)).not.toContain('stroke-dasharray');
+  });
+
+  it('סגנון איקסים מצייר סימנים על הקו ולא מקווקוות', () => {
+    const m = svg(<MapShapeSvg shape={{ ...base, type: 'rect', lineStyle: 'cross' }} size={{ w: 400, h: 400 }} />);
+    expect(m).not.toContain('stroke-dasharray');
+    expect(m.match(/data-cross-mark/g)?.length).toBeGreaterThan(2);
+  });
+
+  it('טיוטת הפוליגון מציגה את הסגנון שנבחר כבר בזמן הדקירה', () => {
+    const m = svg(<PolyDraftSvg type="polyline" points={[{ x: 0, y: 0 }, { x: 80, y: 0 }]} cursor={null}
+      color="#ef4444" strokeWidth={2} filled={false} lineStyle="cross" />);
+    expect(m).toContain('data-cross-mark');
   });
 });

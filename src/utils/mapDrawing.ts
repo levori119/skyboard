@@ -33,7 +33,17 @@ export type MapShape = {
   color: string;
   filled: boolean;
   strokeWidth: number;
+  /** סגנון הקו. צורות ישנות בלי השדה הזה נשארות רציפות. */
+  lineStyle?: LineStyle;
 };
+
+/**
+ * סגנון הקו של הצורה. ארבעת הראשונים הם תבנית מקווקוות; `cross` הוא **סימנים**
+ * (איקסים) שיושבים על הקו - בלי אפשרות לבטא אותו ב-`stroke-dasharray`.
+ */
+export type LineStyle = 'solid' | 'dashed' | 'dotted' | 'dashdot' | 'cross';
+
+export const LINE_STYLES: LineStyle[] = ['solid', 'dashed', 'dotted', 'dashdot', 'cross'];
 
 /** גודל משטח הציור. `HTMLCanvasElement` מתאים לטיפוס הזה כמו שהוא. */
 export type CanvasSize = { width: number; height: number };
@@ -138,7 +148,7 @@ export function shapeFromDrag(
   end: { x: number; y: number },
   W: number,
   H: number,
-  opts: { id: string; type: 'circle' | 'rect'; color: string; filled: boolean; strokeWidth: number },
+  opts: { id: string; type: 'circle' | 'rect'; color: string; filled: boolean; strokeWidth: number; lineStyle?: LineStyle },
 ): MapShape | null {
   const w = Math.abs(end.x - start.x);
   const h = Math.abs(end.y - start.y);
@@ -204,7 +214,7 @@ export function polyShapeFromPoints(
   pointsPx: { x: number; y: number }[],
   W: number,
   H: number,
-  opts: { id: string; type: PolyTool; color: string; filled: boolean; strokeWidth: number },
+  opts: { id: string; type: PolyTool; color: string; filled: boolean; strokeWidth: number; lineStyle?: LineStyle },
 ): MapShape | null {
   const pts = dedupe(pointsPx);
   if (pts.length < POLY_MIN_POINTS[opts.type]) return null;
@@ -226,3 +236,84 @@ export const polyPointsToPx = (s: MapShape, size: { w: number; h: number }): str
   (s.points || [])
     .map(p => `${isFrac(p.x) ? p.x * size.w : p.x},${isFrac(p.y) ? p.y * size.h : p.y}`)
     .join(' ');
+
+// ─────────────────────────────────────────────────────────────────────────────
+// סגנון הקו - רציף / קווים / נקודות / קו-נקודה / איקסים
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * תבנית ה-`stroke-dasharray` של הסגנון, ביחס **לעובי הקו** - אחרת קו עבה נראה
+ * רציף וקו דק נראה כנקודות בודדות. `undefined` = קו מלא (גם ב-`cross`, שהוא
+ * סימנים על קו רציף ולא תבנית מקווקוות).
+ */
+export function dashArray(style: LineStyle | undefined, width: number): string | undefined {
+  const w = Math.max(1, width);
+  switch (style) {
+    case 'dashed': return `${w * 4} ${w * 3}`;
+    case 'dotted': return `${w * 0.1} ${w * 2.2}`;
+    case 'dashdot': return `${w * 5} ${w * 2.2} ${w * 0.1} ${w * 2.2}`;
+    default: return undefined;
+  }
+}
+
+/** מרווח בין איקס לאיקס, ביחס לעובי הקו - כמו התבניות, כדי שלא יידחסו בקו עבה. */
+export const crossSpacing = (width: number): number => Math.max(14, Math.max(1, width) * 7);
+
+/** חצי אורך הצלע של האיקס. */
+export const crossSize = (width: number): number => Math.max(4, Math.max(1, width) * 2.2);
+
+/** קו המתאר של הצורה כרשימת נקודות בפיקסלים - הבסיס לפיזור האיקסים. */
+export function outlinePoints(s: MapShape, size: { w: number; h: number }): { points: { x: number; y: number }[]; closed: boolean } {
+  if (s.type === 'polygon' || s.type === 'polyline') {
+    const pts = (s.points || []).map(p => ({ x: isFrac(p.x) ? p.x * size.w : p.x, y: isFrac(p.y) ? p.y * size.h : p.y }));
+    return { points: pts, closed: s.type === 'polygon' };
+  }
+  const p = shapeToPx(s, size);
+  if (s.type === 'rect') {
+    return { points: [{ x: p.x, y: p.y }, { x: p.x + p.w, y: p.y }, { x: p.x + p.w, y: p.y + p.h }, { x: p.x, y: p.y + p.h }], closed: true };
+  }
+  // עיגול - נדגם למצולע צפוף, כך שהאיקסים יושבים על ההיקף ובזווית המשיק
+  const N = 64, rx = p.w / 2, ry = p.h / 2, cx = p.x + rx, cy = p.y + ry;
+  return {
+    points: Array.from({ length: N }, (_, i) => {
+      const t = (i / N) * Math.PI * 2;
+      return { x: cx + rx * Math.cos(t), y: cy + ry * Math.sin(t) };
+    }),
+    closed: true,
+  };
+}
+
+/**
+ * מיקומי האיקסים על קו המתאר: כל `spacing` פיקסלים, בזווית הקטע שעליו הם יושבים.
+ * הקצוות נשארים פנויים (איקס על הקודקוד מטשטש את הפינה), וקו קצר מהמרווח מקבל
+ * איקס יחיד באמצע - אחרת הסגנון פשוט נעלם בצורות קטנות.
+ */
+export function crossMarks(
+  points: { x: number; y: number }[],
+  closed: boolean,
+  spacing: number,
+): { x: number; y: number; angle: number }[] {
+  const pts = closed && points.length > 2 ? [...points, points[0]] : points;
+  if (pts.length < 2 || spacing <= 0) return [];
+  const segs = pts.slice(1).map((p, i) => ({ a: pts[i], b: p, len: Math.hypot(p.x - pts[i].x, p.y - pts[i].y) }));
+  const total = segs.reduce((sum, s) => sum + s.len, 0);
+  if (!total) return [];
+  const at = (d: number) => {
+    let left = d;
+    for (const s of segs) {
+      if (left <= s.len || s === segs[segs.length - 1]) {
+        const t = s.len ? left / s.len : 0;
+        return { x: s.a.x + (s.b.x - s.a.x) * t, y: s.a.y + (s.b.y - s.a.y) * t, angle: Math.atan2(s.b.y - s.a.y, s.b.x - s.a.x) };
+      }
+      left -= s.len;
+    }
+    return null;
+  };
+  if (total < spacing) { const m = at(total / 2); return m ? [m] : []; }
+  const out: { x: number; y: number; angle: number }[] = [];
+  for (let d = spacing; d < total - 1e-9; d += spacing) {
+    const m = at(d);
+    if (m) out.push(m);
+  }
+  return out;
+}

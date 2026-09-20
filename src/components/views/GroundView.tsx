@@ -3214,6 +3214,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               color={draw.color} onColorChange={draw.setColor}
               size={draw.size} onSizeChange={draw.setSize}
               filled={draw.filled} onFilledChange={draw.setFilled}
+              lineStyle={draw.lineStyle} onLineStyleChange={draw.setLineStyle}
               onClear={draw.clear}
               onClose={() => draw.setActive(false)}
               polyDraft={{ count: draw.poly.points.length, onFinish: draw.poly.finish, onUndo: draw.poly.undo }}
