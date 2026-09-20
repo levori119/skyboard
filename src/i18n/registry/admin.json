@@ -3850,6 +3850,38 @@
       "he": "אפליקציית הנהג ונתיב הרכב מתייחסים רק לאלמנטים של רכבים. לפחות אחד.",
       "en": "The driver app and vehicle routing use only vehicle elements. At least one."
     },
+    "elemRoadRelevance": {
+      "he": "נתיבי נסיעה שהאלמנט שולט עליהם",
+      "en": "Driving routes this element controls"
+    },
+    "elemRoadRelevanceHint": {
+      "he": "ההגדרה גוברת על המרחק: אלמנט שהוגדר יוצג ויתריע רק לנסיעות שעוברות בנתיב (ובצומת) שנבחר. בלי הגדרה - המערכת מזהה לפי קרבה לנתיב, כמו עד היום.",
+      "en": "This overrides distance: a defined element shows and alerts only on trips using the selected route (and junction). With no definition the system falls back to proximity, as before."
+    },
+    "elemBeforeJunctionWith": {
+      "he": "לפני הצומת עם",
+      "en": "before the junction with"
+    },
+    "elemNoJunction": {
+      "he": "ללא צומת (באמצע הנתיב)",
+      "en": "No junction (mid-route)"
+    },
+    "elemRemoveRoadRelevance": {
+      "he": "הסר נתיב",
+      "en": "Remove route"
+    },
+    "elemAddRoadRelevance": {
+      "he": "הוסף נתיב",
+      "en": "Add route"
+    },
+    "elemNoBaseRoutes": {
+      "he": "לא מוגדרים נתיבי נסיעה בשדה",
+      "en": "No driving routes defined for this airfield"
+    },
+    "elemPickRoute": {
+      "he": "בחר נתיב",
+      "en": "Pick a route"
+    },
     "landingPriority": {
       "he": "סדר עדיפויות לנחיתה",
       "en": "Landing priority"

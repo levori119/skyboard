@@ -2,10 +2,5 @@
 // מוצג ב-**מסך הכניסה** (App.tsx, פוטר) וב-**חלון העזרה** בעמדה (SectorDashboard, "גרסה נוכחית").
 // מתעדכן ב-`npm run version:bump` - חובה לפני כל דחיפה ל-main. ראה CLAUDE.md §גרסת המערכת.
 // אין לקודד מספר גרסה קשיח ב-JSX - תמיד לייבא מכאן.
-<<<<<<< HEAD
-export const APP_VERSION = '1.0.274';
-export const APP_VERSION_DATE = '2026-09-20 12:24';
-=======
-export const APP_VERSION = '1.0.272';
-export const APP_VERSION_DATE = '2026-09-20 12:24';
->>>>>>> f2c87e1 (feat(elements): הגדרת נתיב הנסיעה והצומת שהאלמנט שולט עליהם)
+export const APP_VERSION = '1.0.275';
+export const APP_VERSION_DATE = '2026-09-20 12:26';

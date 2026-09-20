@@ -59,12 +59,16 @@ import { ELEMENT_AUDIENCES, DEFAULT_RELEVANT_FOR, relevantFor, type ElementAudie
 import { parseLandingPriority } from '../../../shared/landingPriority';
 import { LandingPriorityEditor, runwayEndsOf } from './LandingPriorityEditor';
 import { nextRouteDirection, routeDirectionGlyph, routeDirectionArrows } from '../../utils/routeDirection';
+import { parseRoadRelevance, type RoadRelevance } from '../../../shared/elementRoadRelevance';
 
 /** טופס אלמנט בבסיס ריק. אלמנט חדש רלוונטי לרכבים ולמטוסים עד שבוחרים אחרת. */
 const emptyElementForm = () => ({
   name: '', element_type_id: '', status: 'תקין', note: '', category: '',
   relevant_routes: [] as number[], blocking_statuses: [] as string[], show_in_driver: false,
   relevant_for: [...DEFAULT_RELEVANT_FOR] as ElementAudience[],
+  // על איזה נתיב נסיעה האלמנט שולט, ולפני איזה צומת. ריק = בלי הצהרה, והמערכת
+  // ממשיכה לנחש גאומטרית (shared/elementRoadRelevance.js)
+  road_relevance: [] as RoadRelevance[],
 });
 /** טופס עריכה מאלמנט קיים */
 const elementFormFrom = (el: any): ReturnType<typeof emptyElementForm> => ({
@@ -73,6 +77,7 @@ const elementFormFrom = (el: any): ReturnType<typeof emptyElementForm> => ({
   blocking_statuses: Array.isArray(el.blocking_statuses) ? el.blocking_statuses : [],
   show_in_driver: el.show_in_driver || false,
   relevant_for: relevantFor(el),
+  road_relevance: parseRoadRelevance(el.road_relevance),
 });
 
 // onBack = **יציאה** מהמערכת (חזרה למסך ההזדהות, האסימון נסגר).
@@ -552,6 +557,8 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
   const [showAviationBaseForm, setShowAviationBaseForm] = useState(false);
   // Airfield Routes admin state
   const [adminAirfieldRoutes, setAdminAirfieldRoutes] = useState<any[]>([]);
+  // נתיבי הנסיעה (base_routes) - הרשת שעליה הרכב נוסע, ועליה מצהירים באלמנט
+  const [adminBaseRoutes, setAdminBaseRoutes] = useState<any[]>([]);
   const [airfieldRouteForm, setAirfieldRouteForm] = useState({ name: '', airfield_id: '', color: '#3b82f6', notes: '', category: 'general', is_runway: false, end_a_name: '', end_b_name: '' });
   // Airfield Taxiways admin state
   const [adminAirfieldTaxiways, setAdminAirfieldTaxiways] = useState<any[]>([]);
@@ -777,6 +784,7 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
       fetch(`${API_URL}/base-statuses`).then(r => r.ok ? r.json() : []).then(setAdminBaseStatuses).catch(() => {});
       fetch(`${API_URL}/aviation-bases`).then(r => r.ok ? r.json() : []).then(setAdminAviationBases).catch(() => {});
       fetch(`${API_URL}/airfield-routes`).then(r => r.ok ? r.json() : []).then(setAdminAirfieldRoutes).catch(() => {});
+      fetch(`${API_URL}/base-routes`).then(r => r.ok ? r.json() : []).then(setAdminBaseRoutes).catch(() => {});
       fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {});
       const assignRes = await fetch(`${API_URL}/bdh-preset-assignments`);
       if (assignRes.ok) setBdhPresetAssignments(await assignRes.json());
@@ -5843,7 +5851,7 @@ CHARLIE,1,301,`}
                             const selStatus = ELEM_STATUS_OPTIONS.find(s => s.val === elementForm.status) || ELEM_STATUS_OPTIONS[0];
                             const doSave = async () => {
                               if (!elementForm.name.trim()) { setAdminElemFocusField('name'); return; }
-                              const body = { element_type_id: elementForm.element_type_id ? Number(elementForm.element_type_id) : null, name: elementForm.name, status: elementForm.status, note: elementForm.note, category: elementForm.category, relevant_routes: elementForm.relevant_routes, blocking_statuses: elementForm.blocking_statuses, show_in_driver: elementForm.show_in_driver, relevant_for: elementForm.relevant_for };
+                              const body = { element_type_id: elementForm.element_type_id ? Number(elementForm.element_type_id) : null, name: elementForm.name, status: elementForm.status, note: elementForm.note, category: elementForm.category, relevant_routes: elementForm.relevant_routes, blocking_statuses: elementForm.blocking_statuses, show_in_driver: elementForm.show_in_driver, relevant_for: elementForm.relevant_for, road_relevance: elementForm.road_relevance };
                               if (editingElement) {
                                 await fetch(`${API_URL}/airfield-elements/${editingElement.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, x_pct: editingElement.x_pct, y_pct: editingElement.y_pct }) });
                               } else {
@@ -6032,6 +6040,46 @@ CHARLIE,1,301,`}
                                             })}
                                           </div>
                                         }
+                                      </div>
+                                      {/* נתיבי הנסיעה שהאלמנט שולט עליהם - ההצהרה שגוברת על הניחוש הגאומטרי */}
+                                      <div>
+                                        <div style={{ fontSize: '10px', color: '#fbbf24', marginBottom: '4px', fontWeight: 'bold' }}>{tr('admin.elemRoadRelevance')}</div>
+                                        {(() => {
+                                          const baseRoutes = adminBaseRoutes.filter((r: any) => Number(r.airfield_id) === Number(selectedAdminAirfieldId));
+                                          if (baseRoutes.length === 0) return <div style={{ fontSize: '10px', color: '#475569' }}>{tr('admin.elemNoBaseRoutes')}</div>;
+                                          const sel: React.CSSProperties = { background: '#1e293b', color: '#e2e8f0', border: '1px solid #334155', borderRadius: '4px', fontSize: '10px', padding: '2px 4px', maxWidth: '110px' };
+                                          const setRel = (i: number, patch: Partial<RoadRelevance>) => setElementForm(p => ({
+                                            ...p, road_relevance: p.road_relevance.map((r, idx) => idx === i ? { ...r, ...patch } : r),
+                                          }));
+                                          return (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                              {elementForm.road_relevance.map((rel, i) => (
+                                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                                                  <select value={rel.route_id || ''} style={sel}
+                                                    onChange={e => setRel(i, { route_id: Number(e.target.value) || 0 })}>
+                                                    <option value="">{tr('admin.elemPickRoute')}</option>
+                                                    {baseRoutes.map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                                  </select>
+                                                  <span style={{ fontSize: '10px', color: '#94a3b8' }}>{tr('admin.elemBeforeJunctionWith')}</span>
+                                                  <select value={rel.cross_route_id ?? ''} style={sel}
+                                                    onChange={e => setRel(i, { cross_route_id: Number(e.target.value) || null })}>
+                                                    <option value="">{tr('admin.elemNoJunction')}</option>
+                                                    {baseRoutes.filter((r: any) => Number(r.id) !== Number(rel.route_id)).map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                                  </select>
+                                                  <button type="button" title={tr('admin.elemRemoveRoadRelevance')}
+                                                    onClick={() => setElementForm(p => ({ ...p, road_relevance: p.road_relevance.filter((_, idx) => idx !== i) }))}
+                                                    style={{ background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '12px', padding: '0 2px' }}>✕</button>
+                                                </div>
+                                              ))}
+                                              <button type="button"
+                                                onClick={() => setElementForm(p => ({ ...p, road_relevance: [...p.road_relevance, { route_id: Number(baseRoutes[0].id), cross_route_id: null }] }))}
+                                                style={{ alignSelf: 'flex-start', padding: '2px 8px', background: '#1e293b', color: '#fbbf24', border: '1px dashed #78350f', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}>
+                                                + {tr('admin.elemAddRoadRelevance')}
+                                              </button>
+                                              <div style={{ fontSize: '9px', color: '#64748b', lineHeight: 1.5 }}>{tr('admin.elemRoadRelevanceHint')}</div>
+                                            </div>
+                                          );
+                                        })()}
                                       </div>
                                       {/* Blocking statuses */}
                                       <div>

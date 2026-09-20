@@ -1042,6 +1042,10 @@ async function applySchemaOnce() {
   await sq(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS rotation SMALLINT DEFAULT 0`);
   await sq(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS camera_url TEXT DEFAULT NULL`);
   await sq(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS relevant_routes JSONB DEFAULT '[]'`);
+  // על איזה **נתיב נסיעה** (base_routes) האלמנט שולט, ולפני איזה צומת:
+  // [{route_id, cross_route_id}] - cross_route_id null = רמזור באמצע נתיב ולא בצומת.
+  // ההצהרה גוברת על הניחוש הגאומטרי (רדיוס/פרוזדור). ראה shared/elementRoadRelevance.js.
+  await sq(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS road_relevance JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS blocking_statuses JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS hidden_on_map BOOLEAN DEFAULT false`);
   await sq(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS show_in_driver BOOLEAN DEFAULT false`);

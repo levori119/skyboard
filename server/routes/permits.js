@@ -24,6 +24,7 @@ import {
   nextDeviationStreak, isDeviating, isFixStale, ELEMENT_ALERT_M, MAX_ACCURACY_M, DISPLAY_STATE_LABEL,
 } from '../../shared/tripTracking.js';
 import { onlyRelevantFor } from '../../shared/elementRelevance.js';
+import { routeSequenceOf } from '../../shared/elementRoadRelevance.js';
 import { planRoute } from './driver.js';
 
 const router = new Router();
@@ -1105,6 +1106,8 @@ function approvedRoute(trip, anchor) {
       yPct: Number.isFinite(num(w?.yPct)) ? num(w.yPct) : null,
       routeType: w?.routeType || 'vehicle',
       isCrossing: !!w?.isCrossing,
+      // מזהה נתיב הנסיעה - עליו נשענת ההצהרה על האלמנטים (road_relevance)
+      ...(Number.isFinite(num(w?.routeId)) ? { routeId: num(w.routeId) } : {}),
       // התחנות מחלקות את הקו ללגים באפליקציית הנהג
       ...(w?.isStop === true ? { isStop: true } : {}),
     });
@@ -1199,11 +1202,13 @@ async function routeElements(airfieldId, route, anchor, q = pool) {
   const r = await q.query(
     `SELECT ae.id, ae.name, ae.category, ae.status, ae.display_state, ae.blocking_statuses,
             ae.x_pct, ae.y_pct, ae.rotation, ae.blink_rate, ae.open_icon_key, ae.close_icon_key, ae.relevant_for,
+            ae.road_relevance,
             aet.icon AS type_icon, aet.allowed_statuses AS type_allowed_statuses,
             aet.open_icon AS type_open_icon, aet.close_icon AS type_close_icon, aet.status_icons AS type_status_icons
        FROM airfield_elements ae LEFT JOIN airfield_element_types aet ON aet.id = ae.element_type_id
       WHERE ae.airfield_id = $1 AND ae.x_pct IS NOT NULL AND ae.y_pct IS NOT NULL`, [airfieldId]);
-  return roadControlElements(onlyRelevantFor(r.rows, 'vehicles'), route, anchor).map(el => ({
+  // רצף נתיבי הנסיעה של הנתיב שאושר - ההצהרה בניהול מכריעה את on_route
+  return roadControlElements(onlyRelevantFor(r.rows, 'vehicles'), route, anchor, routeSequenceOf(route)).map(el => ({
     id: el.id, name: el.name, category: el.category, status: el.status, display_state: el.display_state,
     blocking_statuses: el.blocking_statuses, type_allowed_statuses: el.type_allowed_statuses,
     // כל מה שהסמל של המגדל צריך (shared/elementSymbols.js) - אותו סמל, מצב והבהוב אצל הנהג
@@ -1211,7 +1216,7 @@ async function routeElements(airfieldId, route, anchor, q = pool) {
     type_status_icons: el.type_status_icons, open_icon_key: el.open_icon_key, close_icon_key: el.close_icon_key,
     blink_rate: el.blink_rate, rotation: el.rotation,
     x_pct: el.x_pct, y_pct: el.y_pct, lat: el.lat, lon: el.lon,
-    route_distance_m: el.route_distance_m, on_route: el.on_route, blocking: isElementBlocking(el),
+    route_distance_m: el.route_distance_m, on_route: el.on_route, declared: el.declared, blocking: isElementBlocking(el),
   }));
 }
 

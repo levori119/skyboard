@@ -8,6 +8,7 @@ import {
   resolveLinkedRouteNotams, resolveNotams,
 } from '../utils/runwayState.js';
 import { parseRelevantFor, onlyRelevantFor, DEFAULT_RELEVANT_FOR } from '../../shared/elementRelevance.js';
+import { parseRoadRelevance } from '../../shared/elementRoadRelevance.js';
 import { parseLandingPriority, effectiveLandingPriority } from '../../shared/landingPriority.js';
 import { baseDatkPoints, syncBaseLandingPriority } from '../utils/baseDatkPoints.js';
 const router = new Router();
@@ -638,7 +639,7 @@ router.post('/api/airfield-elements', async (req, res) => {
 });
 router.put('/api/airfield-elements/:id', async (req, res) => {
   try {
-    const { element_type_id, name, status, note, x_pct, y_pct, category, display_state, blink_rate, blink_colors, open_icon_key, close_icon_key, rotation, camera_url, relevant_routes, blocking_statuses, hidden_on_map, show_in_driver, relevant_for } = req.body;
+    const { element_type_id, name, status, note, x_pct, y_pct, category, display_state, blink_rate, blink_colors, open_icon_key, close_icon_key, rotation, camera_url, relevant_routes, blocking_statuses, hidden_on_map, show_in_driver, relevant_for, road_relevance } = req.body;
     // בחירה ריקה או לא תקינה אינה נשמרת - אלמנט שלא רלוונטי לאף אחד אינו אומר כלום
     const relevantFor = parseRelevantFor(relevant_for);
     const r = await pool.query(
@@ -649,7 +650,8 @@ router.put('/api/airfield-elements/:id', async (req, res) => {
        relevant_routes=COALESCE($16::jsonb,relevant_routes),blocking_statuses=COALESCE($17::jsonb,blocking_statuses),
        hidden_on_map=COALESCE($18,hidden_on_map),
        show_in_driver=COALESCE($19,show_in_driver),
-       relevant_for=COALESCE($20::jsonb,relevant_for)
+       relevant_for=COALESCE($20::jsonb,relevant_for),
+       road_relevance=COALESCE($21::jsonb,road_relevance)
        WHERE id=$13 RETURNING *`,
       [element_type_id || null, name, status || 'תקין', note || null, x_pct ?? null, y_pct ?? null, category || '',
        display_state ?? null, blink_rate ?? null, blink_colors ?? null, open_icon_key ?? null, close_icon_key ?? null,
@@ -658,7 +660,9 @@ router.put('/api/airfield-elements/:id', async (req, res) => {
        blocking_statuses !== undefined ? JSON.stringify(blocking_statuses) : null,
        hidden_on_map !== undefined ? hidden_on_map : null,
        show_in_driver !== undefined ? show_in_driver : null,
-       relevantFor ? JSON.stringify(relevantFor) : null]
+       relevantFor ? JSON.stringify(relevantFor) : null,
+       // מסנן ערכים פגומים ומזהה נתיב שחוצה את עצמו - ההצהרה נשמרת נקייה, לא כפי שהגיעה
+       road_relevance !== undefined ? JSON.stringify(parseRoadRelevance(road_relevance)) : null]
     );
     res.json(r.rows[0] || {});
   } catch (err) { res.status(500).json({ error: 'Failed' }); }

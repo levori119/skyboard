@@ -34,7 +34,8 @@ beforeAll(async () => {
     display_state VARCHAR(20) DEFAULT 'normal', blink_rate FLOAT DEFAULT 1.0, blink_colors VARCHAR(200),
     open_icon_key VARCHAR(200), close_icon_key VARCHAR(200), rotation SMALLINT DEFAULT 0, camera_url TEXT,
     relevant_routes JSONB DEFAULT '[]', blocking_statuses JSONB DEFAULT '[]', hidden_on_map BOOLEAN DEFAULT false,
-    show_in_driver BOOLEAN DEFAULT false, relevant_for JSONB DEFAULT '["vehicles","aircraft"]')`);
+    show_in_driver BOOLEAN DEFAULT false, relevant_for JSONB DEFAULT '["vehicles","aircraft"]',
+    road_relevance JSONB DEFAULT '[]')`);
   await pool.query(`INSERT INTO airfields (id, name, base_id) VALUES (1, 'שדה א', 7)`);
 
   const app = express();

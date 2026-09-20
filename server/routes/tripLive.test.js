@@ -139,7 +139,8 @@ beforeAll(async () => {
     category VARCHAR(100) DEFAULT '', display_state VARCHAR(20) DEFAULT 'normal',
     rotation SMALLINT DEFAULT 0, blocking_statuses JSONB DEFAULT '[]', hidden_on_map BOOLEAN DEFAULT false,
     blink_rate FLOAT DEFAULT 1.0, open_icon_key VARCHAR(200), close_icon_key VARCHAR(200),
-    relevant_for JSONB DEFAULT '["vehicles","aircraft"]')`);
+    relevant_for JSONB DEFAULT '["vehicles","aircraft"]',
+    road_relevance JSONB DEFAULT '[]')`);
   await pool.query(`CREATE TABLE public.airfield_runways (
     id SERIAL PRIMARY KEY, airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
     name VARCHAR(20), start_x_pct FLOAT, start_y_pct FLOAT, end_x_pct FLOAT, end_y_pct FLOAT)`);
@@ -229,6 +230,50 @@ describe('GET /api/driver-trips/:id/live - נתוני המפה לנהג', () => 
     expect(byId[33]).toMatchObject({ blocking: true, on_route: false });
     expect(byId[33].route_distance_m).toBeGreaterThan(1000);
     expect(byId[31].lat).toBeCloseTo(31.2498, 4);
+  });
+
+  // ── ההצהרה בניהול (road_relevance) גוברת על הפרוזדור ──────────────────────
+  // הפרוזדור (40 מ') הוא ניחוש: הרמזור מצויר ליד הצומת ולא על קו הנתיב. כשהמגדיר
+  // הצהיר "האלמנט שולט על נתיב X", המרחק לא נשאל בכלל.
+  const ROUTE_ON_5 = ROUTE.map(p => ({ ...p, routeId: 5 }));
+  const onRouteOpts = wps => ([{ key: 'vehicle', route_ids: [5], label: 'כביש היקפי', dist_m: 1900, crossings: 0, waypoints: wps }]);
+
+  it('אלמנט שהוגדר לנתיב הנסיעה - על הדרך גם כשהוא קילומטר מהקו', async () => {
+    await pool.query(`UPDATE airfield_elements SET road_relevance='[{"route_id":5,"cross_route_id":null}]' WHERE id=33`);
+    const t = await mkStarted({ route_options: onRouteOpts(ROUTE_ON_5) });
+    const d = await (await dget(`/api/driver-trips/${t.id}/live`, MY_TZ)).json();
+    const el = d.elements.find(e => e.id === 33);
+    expect(el).toMatchObject({ on_route: true, declared: true });
+    expect(el.route_distance_m).toBeGreaterThan(1000);
+  });
+
+  it('אלמנט שהוגדר לנתיב אחר - לא על הדרך, גם כשהוא צמוד לקו', async () => {
+    await pool.query(`UPDATE airfield_elements SET road_relevance='[{"route_id":9,"cross_route_id":null}]' WHERE id=31`);
+    const t = await mkStarted({ route_options: onRouteOpts(ROUTE_ON_5) });
+    const d = await (await dget(`/api/driver-trips/${t.id}/live`, MY_TZ)).json();
+    expect(d.elements.find(e => e.id === 31)).toMatchObject({ on_route: false, declared: true });
+  });
+
+  it('רמזור של צומת - רק כשהנסיעה באמת עוברת בין שני הנתיבים', async () => {
+    await pool.query(`UPDATE airfield_elements SET road_relevance='[{"route_id":5,"cross_route_id":6}]' WHERE id=33`);
+    const t1 = await mkStarted({ route_options: onRouteOpts(ROUTE_ON_5) });
+    const d1 = await (await dget(`/api/driver-trips/${t1.id}/live`, MY_TZ)).json();
+    expect(d1.elements.find(e => e.id === 33).on_route).toBe(false);
+    await dpost(`/api/driver-trips/${t1.id}/end`, MY_TZ);   // נהג מפעיל נסיעה אחת בכל רגע
+
+    const crossing = [ROUTE_ON_5[0], { ...ROUTE[1], routeId: 6 }];
+    const t2 = await mkStarted({ route_options: onRouteOpts(crossing) });
+    const d2 = await (await dget(`/api/driver-trips/${t2.id}/live`, MY_TZ)).json();
+    expect(d2.elements.find(e => e.id === 33).on_route).toBe(true);
+  });
+
+  // נתיב שנשמר לפני הפיצ'ר אינו נושא מזהי נתיבים. ההצהרה לא יכולה להכריע,
+  // ולכן חוזרים לפרוזדור - ולא מעלימים בשקט אלמנט שהנהג ראה אתמול.
+  it('נתיב ישן בלי מזהי נתיבים - חוזרים לכלל הגאומטרי', async () => {
+    await pool.query(`UPDATE airfield_elements SET road_relevance='[{"route_id":5,"cross_route_id":null}]' WHERE id=31`);
+    const t = await mkStarted();
+    const d = await (await dget(`/api/driver-trips/${t.id}/live`, MY_TZ)).json();
+    expect(d.elements.find(e => e.id === 31)).toMatchObject({ on_route: true, declared: false });
   });
 
   // הסמל באפליקציית הנהג זהה למגדל (shared/elementSymbols.js) - וצריך את אותם שדות

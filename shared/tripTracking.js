@@ -9,7 +9,9 @@
 // הופכי בשרת) ושלושה עותקים לא עקביים של "אלמנט חוסם". מעקב חי שבו השרת
 // מחשב סטייה בכלל אחד והנהג בכלל אחר הוא מגדל ונהג שחלוקים על המציאות.
 //
-// ES module בלי תלויות: נטען ב-Node, ב-vitest ובדף הנהג (/driver/tracking.js).
+// ES module: נטען ב-Node, ב-vitest ובדף הנהג (/driver/tracking.js). התלות
+// היחידה היא elementRoadRelevance.js, שמוגש לצד הקובץ הזה תחת /driver/.
+import { elementAppliesToPath } from './elementRoadRelevance.js';
 
 // ── הספים ────────────────────────────────────────────────────────────────────
 // ארבעת הראשונים הם הכרעה תפעולית של אורי (2026-09-13) - לא לשנות בלי אישור.
@@ -145,6 +147,9 @@ export function compactWaypoints(raw) {
       xPct: hasPct ? xPct : null, yPct: hasPct ? yPct : null,
       routeType: typeof w.routeType === 'string' && w.routeType ? w.routeType : 'vehicle',
       isCrossing: w.isCrossing === true,
+      // מזהה נתיב הנסיעה נשמר עם הנתיב: בלעדיו אי אפשר לדעת בנסיעה עצמה
+      // באילו נתיבים היא עוברת, וההצהרה על האלמנטים (road_relevance) מתה
+      ...(Number.isFinite(Number(w.routeId)) && Number(w.routeId) > 0 ? { routeId: Number(w.routeId) } : {}),
       ...(w.isStop === true ? { isStop: true } : {}),
     });
   }
@@ -202,8 +207,12 @@ export function isElementBlocking(el) {
  * (הנתיב הוא צמתי כבישים, והרמזור מצויר ליד הצומת), והפרוזדור השאיר את הנהג
  * בלי אף אלמנט על המפה. ההתרעה ממילא נמדדת מהרכב (`ELEMENT_ALERT_M`), לא מהנתיב.
  * בלי עוגן אין דרך למקם אלמנט (הוא שמור באחוזים).
+ *
+ * `routeSequence` - רצף נתיבי הנסיעה של הנתיב השמור. לאלמנט ש**הוגדר** בניהול
+ * ("שולט על נתיב X בצומת עם Y") ההצהרה מכריעה את `on_route`, והפרוזדור אינו
+ * נשאל כלל: זו בדיוק התקלה שהפרוזדור לא ידע לפתור. אלמנט בלי הצהרה - כמקודם.
  */
-export function roadControlElements(elements, route, anchor) {
+export function roadControlElements(elements, route, anchor, routeSequence) {
   if (!anchor || !Array.isArray(elements)) return [];
   const line = Array.isArray(route) && route.some(validPt) ? route : null;
   const out = [];
@@ -212,10 +221,12 @@ export function roadControlElements(elements, route, anchor) {
     const g = pctToLatLon(el.x_pct, el.y_pct, anchor);
     if (!g) continue;
     const d = line ? metersToPolyline(g, line) : null;
+    const declared = elementAppliesToPath(el, routeSequence);
     out.push({
       ...el, lat: g.lat, lon: g.lon,
       route_distance_m: d ? d.meters : null,
-      on_route: !!d && d.meters <= ROUTE_CORRIDOR_M,
+      on_route: declared === null ? (!!d && d.meters <= ROUTE_CORRIDOR_M) : declared,
+      declared: declared !== null,
     });
   }
   return out;

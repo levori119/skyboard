@@ -6,6 +6,7 @@ import { DRIVER_CSP, LIVE_MAP_CSP } from '../middleware/securityHeaders.js';
 import { driverScopeOf, driverMayUseBase } from '../auth/driverIdentity.js';
 import { metersToPolyline } from '../../shared/tripTracking.js';
 import { onlyRelevantFor } from '../../shared/elementRelevance.js';
+import { routeSequenceOf, elementAppliesToPath } from '../../shared/elementRoadRelevance.js';
 import { buildRoadGraph, astarPath, haversineM, normalizeDirection } from '../utils/roadGraph.js';
 const router = new Router();
 
@@ -40,6 +41,12 @@ router.get('/driver/symbols.js', (req, res) => {
 router.get('/driver/tracking.js', (req, res) => {
   res.type('application/javascript');
   res.sendFile(path.join(__dirname, '../../shared', 'tripTracking.js'));
+});
+// tripTracking.js מייבא את זה ביחסי (`./elementRoadRelevance.js`), ולכן הדפדפן
+// מבקש אותו מתוך /driver/ - בלי הנתיב הזה טעינת המעקב נופלת ב-404.
+router.get('/driver/elementRoadRelevance.js', (req, res) => {
+  res.type('application/javascript');
+  res.sendFile(path.join(__dirname, '../../shared', 'elementRoadRelevance.js'));
 });
 
 // המפה הצפה של נסיעות בביצוע, במצב Google - דף נפרד עם CSP משלו, כדי שה-CSP של
@@ -546,7 +553,7 @@ export async function planRoute(body) {
   let controlElementsRes = null;
   // נתיב לרכב: רק אלמנטים שרלוונטיים לרכבים (relevant_for) - תאורת מסלול לא עוצרת רכב
   const controlElements = async () => controlElementsRes || (controlElementsRes = await pool.query(
-    `SELECT ae.id, ae.name, ae.x_pct, ae.y_pct, ae.status, ae.relevant_for,
+    `SELECT ae.id, ae.name, ae.x_pct, ae.y_pct, ae.status, ae.relevant_for, ae.road_relevance,
             aet.name as type_name, aet.icon, aet.can_change_status, aet.open_icon, aet.close_icon
      FROM airfield_elements ae
      JOIN airfield_element_types aet ON aet.id = ae.element_type_id
@@ -571,7 +578,9 @@ export async function planRoute(body) {
       const n = nodes[id];
       return {
         lat: n.lat, lon: n.lon, routeType: n.routeType || 'virtual',
-        routeName: n.routeName || '', nodeId: id,
+        // routeId נושא את מזהה נתיב הנסיעה הלאה אל הנתיב השמור, כדי שהנהג
+        // והמגדל ידעו באילו נתיבים הנסיעה עוברת - ולא רק איפה הקו עובר
+        routeName: n.routeName || '', nodeId: id, routeId: n.routeId ?? null,
         // סימון התחנה עובר הלאה, כדי שההוראה תאמר לנהג לעצור בה
         isStop: !!n.isStop, stopName: n.stopName || '',
       };
@@ -618,17 +627,35 @@ export async function planRoute(body) {
     const ELEMENT_RADIUS = 150;
     const elementsToOperate = [];
     const seenElements = new Set();
-    if (allCrossingPoints.length > 0) {
-      const elsRes = await controlElements();
-      for (const el of elsRes.rows) {
-        const elGeo = mapRow ? pctToGeo(el.x_pct, el.y_pct, mapRow) : null;
-        if (!elGeo) continue;
-        for (const cp of allCrossingPoints) {
+    // רצף נתיבי הנסיעה של הנתיב שנבחר - הבסיס להצהרת המגדיר (road_relevance)
+    const routeSequence = routeSequenceOf(waypoints);
+    const elsRes = await controlElements();
+    for (const el of elsRes.rows) {
+      const elGeo = mapRow ? pctToGeo(el.x_pct, el.y_pct, mapRow) : null;
+      if (!elGeo) continue;
+      // ההצהרה בניהול גוברת על הרדיוס: אלמנט שהוגדר "שולט על נתיב X בצומת עם Y"
+      // נכנס גם כשהוא 228 מ' מקו הנתיב, ואלמנט של צומת אחר לא נכנס גם כשהוא קרוב.
+      const declared = elementAppliesToPath(el, routeSequence);
+      if (declared === true && !seenElements.has(el.id)) {
+        seenElements.add(el.id);
+        const nearest = allCrossingPoints.reduce((best, cp) => {
           const d = haversineM(cp.lat, cp.lon, elGeo.lat, elGeo.lon);
-          if (d <= ELEMENT_RADIUS && !seenElements.has(el.id)) {
-            seenElements.add(el.id);
-            elementsToOperate.push({ ...el, lat: elGeo.lat, lon: elGeo.lon, distance: Math.round(d), crossingType: cp.type });
-          }
+          return !best || d < best.d ? { d, type: cp.type } : best;
+        }, null);
+        elementsToOperate.push({
+          ...el, lat: elGeo.lat, lon: elGeo.lon,
+          distance: nearest ? Math.round(nearest.d) : null,
+          crossingType: nearest ? nearest.type : 'vehicle', declared: true,
+        });
+        continue;
+      }
+      if (declared === false) continue;   // הוגדר, ולא לנסיעה הזו
+      // בלי הצהרה - הכלל הגאומטרי הקיים, כדי שאלמנט ותיק לא ייעלם בשקט
+      for (const cp of allCrossingPoints) {
+        const d = haversineM(cp.lat, cp.lon, elGeo.lat, elGeo.lon);
+        if (d <= ELEMENT_RADIUS && !seenElements.has(el.id)) {
+          seenElements.add(el.id);
+          elementsToOperate.push({ ...el, lat: elGeo.lat, lon: elGeo.lon, distance: Math.round(d), crossingType: cp.type, declared: false });
         }
       }
     }
