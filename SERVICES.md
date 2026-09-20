@@ -879,6 +879,11 @@ DB מנוהל היה נופל יחד עם העמדה.
 ### `src/utils/stripFieldCatalog.ts`
 **תפקיד:** קטלוג השדות המותאמים בצד הלקוח - חנות אחת ברמת המודול שמשרתת את עורך הסטריפ, את מוד הטבלה ואת העמדה, ומרשימה בעצמה את השדות הגלובליים כשדות שאילתא. **מייצא:** `useStripFieldCatalog`, `loadStripFieldCatalog`, `getStripFieldCatalog`, `getStripFieldByKey`, `subscribeStripFieldCatalog`, `createStripField`, `updateStripField`, `deleteStripField`.
 
+### `src/utils/tableCellEdit.ts`
+**תפקיד:** עריכת תא ב**מוד טבלה** - שלושת הכללים המשותפים לכל התאים: קו תחתון מקווקו מתחת לתא שפתוח לעריכה **עכשיו** (אותו תנאי בדיוק שפותח אותו בלחיצה, כדי שהקו לא יבטיח עריכה שלא תיפתח), ENTER שמוציא את הפוקוס ומשאיר את השמירה ל-`onBlur` הקיים של התא (שונה מתא לתא - חימושים ומטרות נשמרים כמערך מפורסר, הערת עמדה ל-`station_notes`, שעת המראה ל-ISO), ו-ALT+ENTER (או SHIFT+ENTER) שיורד שורה **רק** בשדה רב-שורתי. בשדה חד-שורתי ההקשה נבלעת ולא מזריקה `
+` לערך שיישמר כשורה אחת. השדות אינם controlled, ולכן ירידת השורה נכתבת ישירות ל-`value` של האלמנט.
+**מייצא:** `cellEditKeyAction`, `handleCellEditKeyDown`, `insertNewline`, `editableCellUnderline`, `CellEditKeyAction`. **שימוש:** `SectorDashboard` (מוד טבלה).
+
 ### `src/utils/stripWindow.tsx`
 **תפקיד:** טיפוסים + עזרים לחלון סטריפ (Strip Window) — פריסות waypoint. לכל תא (`SWLeaf`) יש `strip_table_id` אופציונלי - **תצוגת הפ"מ של אותו תא** מתוך `classic_strip_tables`; ריק = תצוגת העמדה. `swResolveStripTable` הוא מקור האמת לפתרון הזה (כולל נפילה חזרה כשהתצוגה נמחקה). **מייצא:** `SWLeaf`, `SWSplit`, `SWNode`, `SW_TEXTURES`, `SW_TEMPLATES`, `swGetBgStyle`, `swGenId`, `swDefaultLeaf`, `swRemapIds`, `swUpdate`, `swSplit`, `swRemove`, `swFindLeaf`, `swResolveStripTable`.
 
