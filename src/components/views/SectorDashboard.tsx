@@ -6276,7 +6276,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     ? (availableTableModes.find(tm => tm.id === selectedTableModeId)?.frozenColumns || 0) : 0;
   useEffect(() => {
     const table = tableEl;
-    if (!tableMode || !table || tableFrozenCount === 0) {
+    if (!tableMode || !table) {
       setTableStickyOffsets(prev => prev.length === 0 ? prev : []);
       return;
     }
@@ -6284,9 +6284,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       const ths = Array.from(table.querySelectorAll('thead tr:first-child > th')) as HTMLTableCellElement[];
       const offsets: number[] = [];
       let start = 0;
-      // מודדים היסט אחד יותר מהעמודות המקובעות: האיבר האחרון הוא **הרוחב
-      // הכולל** שלהן, והוא העוגן של טבלאות הבן (הן מתחילות אחריו ולא מתחתיו).
-      for (let i = 0; i <= tableFrozenCount + 2 && i < ths.length; i++) {
+      // כל הכותרות ולא רק המקובעות: `offsets[i]` = המרחק מתחילת השורה עד
+      // העמודה ה-i, וטבלאות הבן נעגנות לפיו גם כשאין עמודות מקובעות בכלל.
+      for (let i = 0; i < ths.length; i++) {
         offsets.push(start);
         start += ths[i].offsetWidth || 0;
       }
@@ -6303,7 +6303,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     observeAll();
     measure();
     return () => { ro.disconnect(); mo.disconnect(); };
-  }, [tableMode, tableEl, tableFrozenCount]);
+  }, [tableMode, tableEl]);
 
   // רוחב חלון התצוגה של הטבלה (לא רוחב התוכן). טבלת בן מקבלת בדיוק אותו,
   // כדי שהגלילה הצידית שלה תהיה שלה בלבד ולא תיסחב עם טבלת הפ"מים.
@@ -15321,11 +15321,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             // עמודות המוד שהן טבלת בן. קיומן הוא שמדליק את ה-+ ליד הפ"מ.
             const subTableColumns: any[] = columns.filter((c: any) => c.isTable && isSubTableColumn(c));
 
-            // כמה תאים לדלג עליהם כדי שהטבלה הנפרסת תתחיל בקו של האו"ק:
-            // שני תאי הידית (סימון קונפליקט + ⠿) ועוד כל עמודה שלפני האו"ק.
-            // אין או"ק בטבלה → מתחילים מיד אחרי הידיות.
-            const callSignIdx = columns.findIndex((c: any) => (c.key || c.field) === 'callSign');
-            const subTableIndentCols = 2 + (callSignIdx > 0 ? callSignIdx : 0);
+            // כמה תאים לדלג עליהם כדי שהטבלה הנפרסת תתחיל **בקו העמודה
+            // השנייה של הפ"מ**: שני תאי הידית (סימון קונפליקט + ⠿) ועוד
+            // העמודה הראשונה. טבלה בת עמודה אחת בלבד → מיד אחרי הידיות.
+            const subTableIndentCols = Math.min(3, 2 + Math.max(0, columns.length - 1));
 
             const renderCell = (s: any, col: any) => {
               const colKey: string = col.key || col.field || '';
@@ -16763,8 +16762,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             ? persistAircraftCell(rowIdx, key, val)
                             : persistRows(rows.map((r, i) => i === rowIdx ? { ...r, [key]: val } : r) as unknown as AimPoint[]);
 
-                        // הרוחב הכולל של העמודות המקובעות - שם נעצר הבלוק בגלילה
-                        const subBlockAnchor = hasFrozen ? (tableStickyOffsets[frozenCount + 2] ?? 0) : 0;
+                        // הקו של העמודה השנייה - שם מתחיל הבלוק, ושם הוא נעצר
+                        // בגלילה הצידית של טבלת הפ"מים
+                        const subBlockAnchor = tableStickyOffsets[subTableIndentCols] ?? 0;
                         const subBlockWidth = tableViewportWidth > 0
                           ? Math.max(160, tableViewportWidth - subBlockAnchor) : 0;
 
