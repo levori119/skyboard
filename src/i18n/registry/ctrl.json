@@ -1966,6 +1966,10 @@
       "he": "📝 פתקיות",
       "en": "📝 Sticky notes"
     },
+    "stripActions": {
+      "he": "פעולות פ״מ",
+      "en": "Formation actions"
+    },
     "strips": {
       "he": "🗑 סטריפים",
       "en": "🗑 Strips"

@@ -16626,6 +16626,28 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           }}
                         >
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                            {/* פעולות הפ"מ במגע. במסך מגע (Cintiq) אין קליק ימני,
+                                ובלעדי הכפתור הזה כל תפריט הפעולות - FLOW, פיצול,
+                                מיזוג, עדכון גובה, הסרה מהלוח ומחיקה - אינו נגיש
+                                בעט ובאצבע. אותו תפריט בדיוק, לא שכפול שלו. */}
+                            <button
+                              data-testid="table-row-actions"
+                              onPointerDown={e => e.stopPropagation()}
+                              onClick={e => {
+                                e.stopPropagation();
+                                const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                setTableRowCtxMenu({ stripId: s.id, x: r.left, y: r.bottom + 2 });
+                              }}
+                              title={tr('ctrl.stripActions')}
+                              style={{
+                                minWidth: '18px', height: '18px', lineHeight: 1, padding: 0,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', borderRadius: '3px',
+                                background: 'transparent',
+                                color: lightMode ? '#475569' : '#94a3b8',
+                                border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`,
+                              }}
+                            >⋮</button>
                             <span style={{ fontSize: '16px', lineHeight: 1 }}>⠿</span>
                             {/* פורס את טבלאות הבן של הפ"מ. יושב **בראש השורה**,
                                 צמוד לפ"מ עצמו, ולא תלוי במקום שבו הוצבה עמודת
@@ -16990,9 +17012,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           })()}
           {/* Table row right-click context menu */}
           {tableRowCtxMenu && (
-            <div
-              style={{ position: 'fixed', ...clampMenuPos(tableRowCtxMenu.x, tableRowCtxMenu.y, 180, 260), background: '#1e293b', border: '1px solid #3b82f6', borderRadius: '6px', zIndex: 9999, minWidth: '160px', boxShadow: '0 4px 16px rgba(0,0,0,0.6)', padding: '4px', direction: dir }}
-              onClick={e => e.stopPropagation()}
+            <AnchoredPopup
+              x={tableRowCtxMenu.x} y={tableRowCtxMenu.y} w={180} h={260}
+              onClose={() => setTableRowCtxMenu(null)}
+              cardStyle={{ background: '#1e293b', border: '1px solid #3b82f6', borderRadius: '6px', minWidth: '160px', boxShadow: '0 4px 16px rgba(0,0,0,0.6)', padding: '4px', direction: dir }}
             >
               <button
                 data-testid="table-row-ctx-flow"
@@ -17099,7 +17122,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 }}
                 style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#f87171', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px', fontWeight: 'bold' }}
               >{tr('shared.delete3')}</button>
-            </div>
+            </AnchoredPopup>
           )}
 
           {/* Vertical view strip context menu */}
@@ -17109,9 +17132,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const ctxAck = ctxS ? !!ctxS.block_deviation : false;
             if (!ctxDev && !ctxAck && !isMmiMode) { setTimeout(() => setVerticalCtxMenu(null), 0); return null; }
             return (
-              <div
-                style={{ position: 'fixed', ...clampMenuPos(verticalCtxMenu.x, verticalCtxMenu.y, 220, isMmiMode ? 200 + mmiConnectedPresets.length * 36 : 140), background: '#1e293b', border: '1px solid #f97316', borderRadius: '6px', zIndex: 9999, minWidth: '200px', boxShadow: '0 4px 16px rgba(0,0,0,0.6)', padding: '4px', direction: dir }}
-                onClick={e => e.stopPropagation()}
+              <AnchoredPopup
+                x={verticalCtxMenu.x} y={verticalCtxMenu.y} w={220} h={isMmiMode ? 200 + mmiConnectedPresets.length * 36 : 140}
+                onClose={() => setVerticalCtxMenu(null)}
+                cardStyle={{ background: '#1e293b', border: '1px solid #f97316', borderRadius: '6px', minWidth: '200px', boxShadow: '0 4px 16px rgba(0,0,0,0.6)', padding: '4px', direction: dir }}
               >
                 {(ctxDev || ctxAck) && <>
                   <button
@@ -17171,15 +17195,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     )}
                   </>
                 )}
-              </div>
+              </AnchoredPopup>
             );
           })()}
 
           {/* Altitude update mini-form */}
           {altUpdateForm && (
-            <div
-              style={{ position: 'fixed', ...clampMenuPos(altUpdateForm.x, altUpdateForm.y, 220, 160), background: '#1e293b', border: '1px solid #3b82f6', borderRadius: '8px', zIndex: 10000, padding: '12px 14px', direction: dir, boxShadow: '0 6px 24px rgba(0,0,0,0.7)', minWidth: '200px' }}
-              onClick={e => e.stopPropagation()}
+            <AnchoredPopup
+              x={altUpdateForm.x} y={altUpdateForm.y} w={220} h={160}
+              onClose={() => setAltUpdateForm(null)}
+              cardStyle={{ background: '#1e293b', border: '1px solid #3b82f6', borderRadius: '8px', padding: '12px 14px', direction: dir, boxShadow: '0 6px 24px rgba(0,0,0,0.7)', minWidth: '200px' }}
             >
               <div style={{ color: '#93c5fd', fontSize: '13px', fontWeight: 'bold', marginBottom: '8px' }}>{tr('ctrl.updateAltitude')}</div>
               {altUpdateForm.currentAlt && <div style={{ color: '#64748b', fontSize: '11px', marginBottom: '6px' }}>{tr('ctrl.currentAltitude')} {altUpdateForm.currentAlt}</div>}
@@ -17218,7 +17243,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   style={{ flex: 1, background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', padding: '6px', cursor: 'pointer', fontSize: '13px' }}
                 >{tr('shared.cancel')}</button>
               </div>
-            </div>
+            </AnchoredPopup>
           )}
 
 
