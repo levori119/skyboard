@@ -1462,6 +1462,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const k = `${stripId}__${tableKey}`;
     setExpandedSubTables(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n; });
   }, []);
+  // שתי רמות: הפ"מ פורס את הטבלה (שורת הכותרת שלה), והכפתור שליד שם הטבלה
+  // פותח את **השורות** עצמן. ב"מ - הטבלה נפרסת מכווצת, כדי שפריסה של כמה
+  // טבלאות לא תציף את הלוח בעשרות שורות בבת אחת.
+  const [expandedSubTableRows, setExpandedSubTableRows] = useState<Set<string>>(new Set());
+  const toggleSubTableRows = React.useCallback((stripId: any, tableKey: string) => {
+    const k = `${stripId}__${tableKey}`;
+    setExpandedSubTableRows(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n; });
+  }, []);
   const [tableEditableCols, setTableEditableCols] = useState<Set<string>>(new Set());
   const [tableSerialViewPopup, setTableSerialViewPopup] = useState<{ x: number; y: number; station: string; stripId: string } | null>(null);
   const [serialPopupKnownUntilId, setSerialPopupKnownUntilId] = useState<string | null>(null);
@@ -16768,6 +16776,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             ? persistAircraftCell(rowIdx, key, val)
                             : persistRows(rows.map((r, i) => i === rowIdx ? { ...r, [key]: val } : r) as unknown as AimPoint[]);
 
+                        // השורות פתוחות? הטבלה עצמה נפרסת מכווצת (רק הכותרת)
+                        const rowsOpen = expandedSubTableRows.has(k);
+
                         // הקו של העמודה השנייה - שם מתחיל הבלוק, ושם הוא נעצר
                         // בגלילה הצידית של טבלת הפ"מים
                         const subBlockAnchor = tableStickyOffsets[subTableIndentCols] ?? 0;
@@ -16802,21 +16813,22 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                   : {}),
                               }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                  {/* סגירה **מהטבלה עצמה**: כשהיא פרוסה הכפתור
-                                      שבעמודה כבר גלול הרחק, והפקח נשאר בלי דרך
-                                      לסגור את מה שהוא רואה */}
+                                  {/* + / − של **הטבלה הזו**: פותח וסוגר את השורות
+                                      שלה בלבד. שורת הכותרת נשארת תמיד, כדי שרואים
+                                      איזו טבלה יש לפ"מ וכמה שורות יש בה */}
                                   <button
-                                    onClick={e => { e.stopPropagation(); toggleSubTable(s.id, col.tableKey); }}
+                                    onClick={e => { e.stopPropagation(); toggleSubTableRows(s.id, col.tableKey); }}
                                     onPointerDown={e => e.stopPropagation()}
-                                    title={tr('ctrl.collapseSubTable')}
+                                    title={rowsOpen ? tr('ctrl.collapseSubTable') : tr('ctrl.expandSubTable')}
                                     style={{
                                       width: '16px', height: '16px', lineHeight: 1, padding: 0, flexShrink: 0,
                                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                                       fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', borderRadius: '3px',
-                                      background: 'transparent', color: SUB_ACC,
+                                      background: rowsOpen ? SUB_ACC : 'transparent',
+                                      color: rowsOpen ? '#062c38' : SUB_ACC,
                                       border: `1px solid ${SUB_ACC}`,
                                     }}
-                                  >−</button>
+                                  >{rowsOpen ? '−' : '+'}</button>
                                   <span style={{ fontSize: '11px', fontWeight: 'bold', color: SUB_ACC }}>
                                     {col.label || tr(subDef.labelKey)}
                                   </span>
@@ -16837,7 +16849,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                   )}
                                 </div>
 
-                                {rows.length === 0 || subCols.length === 0 ? (
+                                {!rowsOpen ? null : rows.length === 0 || subCols.length === 0 ? (
                                   <span style={{ fontSize: '11px', color: T.muted, fontStyle: 'italic' }}>
                                     {subCols.length === 0 ? tr('ctrl.subTableNoColumns') : tr(subDef.emptyKey)}
                                   </span>
