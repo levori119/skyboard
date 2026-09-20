@@ -16643,14 +16643,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                   }}
                                   title={anyOpen ? tr('ctrl.collapseSubTable') : tr('ctrl.expandSubTable')}
                                   style={{
-                                    width: '16px', height: '16px', lineHeight: 1, padding: 0,
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', borderRadius: '3px',
+                                    minWidth: '16px', height: '16px', lineHeight: 1, padding: '0 2px',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px',
+                                    fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', borderRadius: '3px',
                                     background: anyOpen ? SUB_ACC : 'transparent',
                                     color: anyOpen ? '#062c38' : (total ? SUB_ACC : (lightMode ? '#94a3b8' : '#475569')),
                                     border: `1px solid ${anyOpen ? SUB_ACC : (lightMode ? '#cbd5e1' : '#334155')}`,
                                   }}
-                                >{anyOpen ? '−' : '+'}</button>
+                                >
+                                  <span style={{ fontSize: '13px' }}>{anyOpen ? '−' : '+'}</span>
+                                  {/* כמה שורות מסתתרות מאחורי הכפתור - המספר
+                                      לבדו, כי הכפתור צמוד לידית ואין בו מקום */}
+                                  {!anyOpen && total > 0 && <span>{total}</span>}
+                                </button>
                               );
                             })()}
                             {isPendingTransfer && (
@@ -16796,8 +16801,26 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                   : {}),
                               }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                  {/* סגירה **מהטבלה עצמה**: כשהיא פרוסה הכפתור
+                                      שבעמודה כבר גלול הרחק, והפקח נשאר בלי דרך
+                                      לסגור את מה שהוא רואה */}
+                                  <button
+                                    onClick={e => { e.stopPropagation(); toggleSubTable(s.id, col.tableKey); }}
+                                    onPointerDown={e => e.stopPropagation()}
+                                    title={tr('ctrl.collapseSubTable')}
+                                    style={{
+                                      width: '16px', height: '16px', lineHeight: 1, padding: 0, flexShrink: 0,
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                      fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', borderRadius: '3px',
+                                      background: 'transparent', color: SUB_ACC,
+                                      border: `1px solid ${SUB_ACC}`,
+                                    }}
+                                  >−</button>
                                   <span style={{ fontSize: '11px', fontWeight: 'bold', color: SUB_ACC }}>
                                     {col.label || tr(subDef.labelKey)}
+                                  </span>
+                                  <span style={{ fontSize: '10px', color: T.muted }}>
+                                    {tr('ctrl.subTableRowCount', { count: rows.length })}
                                   </span>
                                   {/* שיוך מפורש לפ"מ - השורה רחבה, והכותרת עלולה
                                       להיקרא כשייכת לפ"מ שמעליה או שמתחתיה */}
