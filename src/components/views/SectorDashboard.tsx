@@ -158,7 +158,7 @@ import { isLoadRelevant } from '../../utils/loadRelevance';
 import StationPeekBar from '../shared/StationPeekBar';
 import { useViewStations } from '../../hooks/useViewStations';
 import { peekAvailability } from '../../utils/stationPeek';
-import { handleCellEditKeyDown, editableCellUnderline } from '../../utils/tableCellEdit';
+import { handleCellEditKeyDown, editableCellUnderline, defaultEditableCols } from '../../utils/tableCellEdit';
 import FitScaleBox from '../shared/FitScaleBox';
 import VerticalView from './VerticalView';
 import Strip from '../strips/Strip';
@@ -6251,6 +6251,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     ro.observe(container);
     return () => ro.disconnect();
   }, [map2Img]);
+
+  // עמודה שהוגדרה בר-עריכה במוד הטבלה פתוחה לכתיבה כבר בעלייה. קודם התחילה
+  // הרשימה ריקה, ולכן שדה שהמקנפג הגדיר לעריכה לא נפתח בלחיצה ולא סומן בקו
+  // תחתון עד שהפקח מצא את ה-✏️ בכותרת - בכל רענון מחדש. המנעול נשאר, אבל
+  // תפקידו להגן על עמודה ולא לפתוח אותה.
+  useEffect(() => {
+    const cols = availableTableModes.find(tm => tm.id === selectedTableModeId)?.columns;
+    setTableEditableCols(defaultEditableCols(cols));
+  }, [selectedTableModeId, availableTableModes]);
 
   // Auto-scroll table container to the right when table mode activates
   useEffect(() => {
@@ -15391,6 +15400,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       value={readControlValue(catalogField, s, tableControlValues[s.id])}
                       onChange={next => handleTableControlChange(s, catalogField, next)}
                       lightMode={lightMode}
+                      variant="table"
                     />
                   </td>
                 );
@@ -15446,7 +15456,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     ) : (
                       <div
                         onClick={() => canEdit && (col.editable === 'keyboard' || col.editable === 'both') && setTableEditingCell(cellKey)}
-                        style={{ cursor: canEdit && (col.editable === 'keyboard' || col.editable === 'both') ? 'text' : 'default', minHeight: '28px', padding: '4px 6px', borderRadius: '4px', direction: dir, color: customVal ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), border: '1px solid transparent', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px', ...editableCellUnderline(T.borderLight, canEdit && (col.editable === 'keyboard' || col.editable === 'both')) }}
+                        style={{ cursor: canEdit && (col.editable === 'keyboard' || col.editable === 'both') ? 'text' : 'default', minHeight: '28px', padding: '4px 6px', borderRadius: '4px', direction: dir, color: customVal ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), border: '1px solid transparent', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px', ...editableCellUnderline(T.muted, canEdit && (col.editable === 'keyboard' || col.editable === 'both')) }}
                       >
                         {isImg
                           ? <img src={customVal} alt={tr('shared.handwriting')} style={{ maxWidth: '100%', maxHeight: '32px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />
@@ -15482,7 +15492,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             </div>
                           </div>
                         ) : (
-                          <div onClick={() => canEdit && setTableEditingCell(csCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '14px', fontWeight: 'bold', color: lightMode ? '#1e293b' : 'white', display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none', ...editableCellUnderline(T.borderLight, canEdit) }}>
+                          <div onClick={() => canEdit && setTableEditingCell(csCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '14px', fontWeight: 'bold', color: lightMode ? '#1e293b' : 'white', display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none', ...editableCellUnderline(T.muted, canEdit) }}>
                             <span style={{ flex: 1, ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 6px', display: 'inline-block' } : {}) }}>{getFormationDisplayName(s)}{!(Array.isArray(s.aircraft_indices) && s.aircraft_indices.length > 0) && s.numberOfFormation ? `/${s.numberOfFormation}` : ''}</span>
                             {sectorFormationSummaries[String(s.id)]?.hasShakadia && <span title={tr('shared.shkadiaServiceable')} style={{ fontSize: '11px', flexShrink: 0 }}>🌰</span>}
                             {/* התג צמוד לאו"ק ולא רק בעמודת "תקלות": העמודה
@@ -15546,7 +15556,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             </div>
                           </div>
                         ) : (
-                          <div onClick={() => canEdit && setTableEditingCell(sqCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, color: currentSq ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none', ...editableCellUnderline(T.borderLight, canEdit) }}>
+                          <div onClick={() => canEdit && setTableEditingCell(sqCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, color: currentSq ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none', ...editableCellUnderline(T.muted, canEdit) }}>
                             <span style={{ flex: 1 }}>{currentSq || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{tr('shared.squadron')}</span>}</span>
                             {canEdit && <VKTrigger value={currentSq || ''} onChange={async v => { await saveField(v); }} mode="full" label="טייסת" size={13} style={{ flexShrink: 0 }} />}
                             
@@ -15584,7 +15594,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             </div>
                           </div>
                         ) : (
-                          <div onClick={() => setTableEditingCell(nofCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '12px', color: current ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), userSelect: 'none', ...editableCellUnderline(T.borderLight) }}>
+                          <div onClick={() => setTableEditingCell(nofCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '12px', color: current ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), userSelect: 'none', ...editableCellUnderline(T.muted) }}>
                             {current || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>—</span>}
                           </div>
                         )}
@@ -15627,7 +15637,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             </div>
                           </div>
                         ) : (
-                          <div onClick={() => canEdit && setTableEditingCell(altCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, color: s.alt ? (T.muted) : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none', ...editableCellUnderline(T.borderLight, canEdit) }}>
+                          <div onClick={() => canEdit && setTableEditingCell(altCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, color: s.alt ? (T.muted) : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none', ...editableCellUnderline(T.muted, canEdit) }}>
                             <span style={{ flex: 1 }}>{s.alt || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{tr('ctrl.altitude')}</span>}</span>
                             {canEdit && <VKTrigger value={s.alt || ''} onChange={async v => { await saveField(v); }} mode="numeric" label="גובה" size={13} style={{ flexShrink: 0 }} />}
                             
@@ -15664,7 +15674,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             {weapons.length > 0 && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveWeapons(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', alignSelf: 'flex-start' }}>{tr('shared.clear3')}</button>}
                           </div>
                         ) : (
-                          <div onClick={() => canEdit && setTableEditingCell(wpCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, userSelect: 'none', ...editableCellUnderline(T.borderLight, canEdit) }}>
+                          <div onClick={() => canEdit && setTableEditingCell(wpCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, userSelect: 'none', ...editableCellUnderline(T.muted, canEdit) }}>
                             {weapons.length === 0
                               ? <span style={{ opacity: 0.5, fontStyle: 'italic', color: lightMode ? '#94a3b8' : '#64748b' }}>{tr('ctrl.noArmaments')}</span>
                               : weapons.map((w: any, i: number) => <div key={i} style={{ color: lightMode ? '#92400e' : '#fbbf24' }}>{w.type}{w.quantity ? ` ×${w.quantity}` : ''}</div>)
@@ -15711,7 +15721,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             {targets.length > 0 && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveTargets(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', alignSelf: 'flex-start' }}>{tr('shared.clear3')}</button>}
                           </div>
                         ) : (
-                          <div onClick={() => canEdit && setTableEditingCell(tgCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, userSelect: 'none', ...editableCellUnderline(T.borderLight, canEdit) }}>
+                          <div onClick={() => canEdit && setTableEditingCell(tgCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, userSelect: 'none', ...editableCellUnderline(T.muted, canEdit) }}>
                             {targets.length === 0
                               ? <span style={{ opacity: 0.5, fontStyle: 'italic', color: lightMode ? '#94a3b8' : '#64748b' }}>{tr('ctrl.noTargets')}</span>
                               : targets.map((t: any, i: number) => <div key={i} style={{ color: lightMode ? '#b91c1c' : '#f87171' }}>{t.name}{t.aim_point ? ` / ${t.aim_point}` : ''}</div>)
@@ -15756,7 +15766,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             </div>
                           </div>
                         ) : (
-                          <div onClick={() => canEdit && setTableEditingCell(shkCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, color: s.shkadia ? '#a78bfa' : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none', ...editableCellUnderline(T.borderLight, canEdit) }}>
+                          <div onClick={() => canEdit && setTableEditingCell(shkCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, color: s.shkadia ? '#a78bfa' : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none', ...editableCellUnderline(T.muted, canEdit) }}>
                             <span style={{ flex: 1 }}>{s.shkadia || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{tr('shared.shkadia')}</span>}</span>
                             
                           </div>
@@ -15830,7 +15840,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             </div>
                           </div>
                         ) : (
-                          <div onClick={() => canEdit && setTableEditingCell(notesCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '12px', userSelect: 'none', display: 'flex', flexDirection: 'column', gap: '3px', ...editableCellUnderline(T.borderLight, canEdit) }}>
+                          <div onClick={() => canEdit && setTableEditingCell(notesCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '12px', userSelect: 'none', display: 'flex', flexDirection: 'column', gap: '3px', ...editableCellUnderline(T.muted, canEdit) }}>
                             {noteParsed.text && <div style={{ color: T.text, background: lightMode ? '#e2e8f0' : '#1e293b', borderRadius: '3px', padding: '2px 5px', fontSize: '11px' }}>{noteParsed.text}</div>}
                             {noteParsed.hw && <img src={noteParsed.hw} alt={tr('shared.handwriting')} style={{ maxWidth: '100%', maxHeight: '34px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />}
                             {!hasAnyNote && <span style={{ opacity: 0.5, fontStyle: 'italic', color: lightMode ? '#94a3b8' : '#64748b' }}>{tr('shared.note2')}</span>}
@@ -15895,7 +15905,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         <div
                           onClick={() => canEdit && setTableEditingCell(snCellKey)}
                           title={tr('ctrl.stationNotePrivate')}
-                          style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '12px', userSelect: 'none', ...editableCellUnderline(T.borderLight, canEdit) }}
+                          style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '12px', userSelect: 'none', ...editableCellUnderline(T.muted, canEdit) }}
                         >
                           {myNote ? (
                             <div style={{ color: T.text, background: T.surface2, border: `1px solid ${T.border}`, borderRadius: '3px', padding: '2px 5px', fontSize: '11px' }}>{myNote}</div>
@@ -16178,7 +16188,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             )}
                           </div>
                         ) : (
-                          <div onClick={() => setTableEditingCell(toCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', fontSize: '13px', fontFamily: 'monospace', color: display !== '—' ? (T.muted) : (lightMode ? '#94a3b8' : '#64748b'), userSelect: 'none', ...editableCellUnderline(T.borderLight) }}>
+                          <div onClick={() => setTableEditingCell(toCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', fontSize: '13px', fontFamily: 'monospace', color: display !== '—' ? (T.muted) : (lightMode ? '#94a3b8' : '#64748b'), userSelect: 'none', ...editableCellUnderline(T.muted) }}>
                             {display !== '—' ? display : <span style={{ opacity: 0.5, fontStyle: 'italic', fontSize: '11px' }}>HH:MM</span>}
                           </div>
                         )}
@@ -16209,7 +16219,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             />
                           </div>
                         ) : (
-                          <div onClick={() => setTableEditingCell(sysCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '12px', color: sysText ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), userSelect: 'none', ...editableCellUnderline(T.borderLight) }}>
+                          <div onClick={() => setTableEditingCell(sysCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '12px', color: sysText ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), userSelect: 'none', ...editableCellUnderline(T.muted) }}>
                             {sysText || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>—</span>}
                           </div>
                         )}
@@ -16303,7 +16313,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               </div>
                             </div>
                           ) : (
-                            <div onClick={() => setTableEditingCell(cellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '12px', color: current ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none', ...editableCellUnderline(T.borderLight) }}>
+                            <div onClick={() => setTableEditingCell(cellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '12px', color: current ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none', ...editableCellUnderline(T.muted) }}>
                               <span style={{ flex: 1 }}>{current || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{EDITABLE_TEXT_FIELDS[colKey]}</span>}</span>
                               
                             </div>

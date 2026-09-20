@@ -882,7 +882,8 @@ DB מנוהל היה נופל יחד עם העמדה.
 ### `src/utils/tableCellEdit.ts`
 **תפקיד:** עריכת תא ב**מוד טבלה** - שלושת הכללים המשותפים לכל התאים: קו תחתון מקווקו מתחת לתא שפתוח לעריכה **עכשיו** (אותו תנאי בדיוק שפותח אותו בלחיצה, כדי שהקו לא יבטיח עריכה שלא תיפתח), ENTER שמוציא את הפוקוס ומשאיר את השמירה ל-`onBlur` הקיים של התא (שונה מתא לתא - חימושים ומטרות נשמרים כמערך מפורסר, הערת עמדה ל-`station_notes`, שעת המראה ל-ISO), ו-ALT+ENTER (או SHIFT+ENTER) שיורד שורה **רק** בשדה רב-שורתי. בשדה חד-שורתי ההקשה נבלעת ולא מזריקה `
 ` לערך שיישמר כשורה אחת. השדות אינם controlled, ולכן ירידת השורה נכתבת ישירות ל-`value` של האלמנט.
-**מייצא:** `cellEditKeyAction`, `handleCellEditKeyDown`, `insertNewline`, `editableCellUnderline`, `CellEditKeyAction`. **שימוש:** `SectorDashboard` (מוד טבלה).
+`defaultEditableCols` מכריע אילו עמודות פתוחות לכתיבה בעליית העמדה - **כל** מה שהוגדר בר-עריכה במוד הטבלה. מנעול הכתיבה (✏️ בכותרת) נשאר, אבל תפקידו להגן על עמודה ולא לפתוח אותה: קודם התחילה הרשימה ריקה, ושדה שהוגדר לעריכה לא נפתח בלחיצה עד שהפקח מצא את המנעול - בכל רענון מחדש.
+**מייצא:** `cellEditKeyAction`, `handleCellEditKeyDown`, `insertNewline`, `editableCellUnderline`, `defaultEditableCols`, `CellEditKeyAction`. **שימוש:** `SectorDashboard` (מוד טבלה), `StripControl` (וריאנט טבלה).
 
 ### `src/utils/stripWindow.tsx`
 **תפקיד:** טיפוסים + עזרים לחלון סטריפ (Strip Window) — פריסות waypoint. לכל תא (`SWLeaf`) יש `strip_table_id` אופציונלי - **תצוגת הפ"מ של אותו תא** מתוך `classic_strip_tables`; ריק = תצוגת העמדה. `swResolveStripTable` הוא מקור האמת לפתרון הזה (כולל נפילה חזרה כשהתצוגה נמחקה). **מייצא:** `SWLeaf`, `SWSplit`, `SWNode`, `SW_TEXTURES`, `SW_TEMPLATES`, `swGetBgStyle`, `swGenId`, `swDefaultLeaf`, `swRemapIds`, `swUpdate`, `swSplit`, `swRemove`, `swFindLeaf`, `swResolveStripTable`.
@@ -1201,7 +1202,7 @@ DB מנוהל היה נופל יחד עם העמדה.
 **תפקיד:** רכיבי תצוגה קלאסית ואזרחית. **מייצא:** `ClassicStripCard`, `ClassicView` (3 עמודות: קבלה/שלי/מסירה), `ClassicTransferHelpModal`, `ClassicPartnersAndPointsEditor`, `CivilianStripCard`, `CivilianView`, + טיפוסים `CivCol`/`CivAssignment` + `CIV_STATUSES`.
 
 ### `src/components/classic/StripControl.tsx`
-**תפקיד:** ה**פקד** על הסטריפ - רכיב אחד לחמשת הסוגים (כפתור מחזורי, שדה מקלדת/כתב יד, דגל, תפריט יחיד, תפריט מרובה). אינו יודע איפה הערך נשמר: `onChange` מחזיר את הערך והקורא מחליט לפי ההיקף. **מייצא:** `StripControl`.
+**תפקיד:** ה**פקד** על הסטריפ - רכיב אחד לחמשת הסוגים (כפתור מחזורי, שדה מקלדת/כתב יד, דגל, תפריט יחיד, תפריט מרובה). אינו יודע איפה הערך נשמר: `onChange` מחזיר את הערך והקורא מחליט לפי ההיקף. `variant="table"` (מוד הטבלה) מציג **שדה טקסט** כקו תחתון ולא כקופסה - קופסה בכל תא הופכת את הטבלה לרשת מלבנים; כפתור, דגל ותפריט נשארים קופסה, וכך גם שדה שצבע מותנה צבע אותו (שם הצבע הוא המסר). בשדה הפתוח: ENTER שומר ויוצא, ESC סוגר, ALT+ENTER נבלע (השדה חד-שורתי). **מייצא:** `StripControl`.
 
 ### `src/components/shared/StripInkPad.tsx`
 **תפקיד:** משטח כתיבה בכתב יד לערך של **פקד** - מודל בחצי מסך שמחזיר דיו **רסטר** (`data:image/png`). **אינו** `missiondesk/InkPad`, שהוא משטח מוטבע שמחזיק **וקטורים** (`strokes`) עם עט ומחק - שני מודלי ערך שונים. ב**חצי מסך** (מחולק ב---s בגלל ה-`zoom` של ה-root), Pointer Events + `touchAction:'none'` כדי שיעבוד בעט ובאצבע. קנבס ריק נשמר כערך ריק ולא כתמונה לבנה. **מייצא:** `InkPad`.

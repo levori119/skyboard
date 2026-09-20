@@ -61,3 +61,19 @@ export function handleCellEditKeyDown(
 export function editableCellUnderline(color: string, editable = true): CSSProperties {
   return editable ? { borderBottom: `1px dashed ${color}` } : {};
 }
+
+/**
+ * העמודות שפתוחות לכתיבה כברירת מחדל בעמדה: **כל** מה שהוגדר בר-עריכה במוד
+ * הטבלה. מנעול הכתיבה (✏️ בכותרת) נשאר, אבל הוא מגן על עמודה - ולא תנאי סף
+ * שהפקח צריך למצוא מחדש בכל רענון כדי שהשדה ייפתח בכלל.
+ * עמודת טבלת בן אינה נעולה - ההגדרה בניהול קובעת אילו שדות שלה פתוחים.
+ */
+export function defaultEditableCols(
+  columns: { key?: string; field?: string; editable?: string; isTable?: boolean }[] | null | undefined,
+): Set<string> {
+  const keys = (columns || [])
+    .filter(c => c && c.editable && c.editable !== 'none' && !c.isTable)
+    .map(c => c.key || c.field || '')
+    .filter(Boolean) as string[];
+  return new Set(keys);
+}

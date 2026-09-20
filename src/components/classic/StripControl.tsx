@@ -8,6 +8,7 @@ import {
   controlDisplayText, isHandwritingValue, nextButtonValue, normalizeControlValue,
   resolveControlStyle, toggleFlagValue, toggleMultiValue,
 } from '../../utils/stripControls';
+import { handleCellEditKeyDown, editableCellUnderline } from '../../utils/tableCellEdit';
 
 /**
  * משוב לחיצה וריחוף. `:active`/`:hover` אינם קיימים בסגנון inline, ובלי משוב
@@ -34,12 +35,18 @@ const ensureControlStyle = () => {
  * הרכיב אינו יודע **איפה** הערך נשמר (פנימי ללוח או גלובלי לפ"מ). זו החלטה של
  * הקורא, ולכן `onChange` מקבל את הערך החדש בלבד.
  */
-export const StripControl = ({ control, value, onChange, lightMode, readOnly }: {
+export const StripControl = ({ control, value, onChange, lightMode, readOnly, variant = 'strip' }: {
   control: StripControlDef;
   value: StripControlValue;
   onChange: (next: StripControlValue) => void;
   lightMode?: boolean;
   readOnly?: boolean;
+  /**
+   * `table` = הפקד יושב בתא של מוד הטבלה. שם **שדה טקסט אינו קופסה אלא קו
+   * תחתון**, כמו כל תא בר-עריכה בטבלה - קופסה בכל תא הופכת את הטבלה לרשת
+   * מלבנים. כפתור, דגל ותפריט נשארים קופסה: הם נראים כפקד ולא כטקסט.
+   */
+  variant?: 'strip' | 'table';
 }) => {
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
   const [editing, setEditing] = useState(false);
@@ -62,6 +69,9 @@ export const StripControl = ({ control, value, onChange, lightMode, readOnly }: 
   const fg = rule?.text || (isOn ? '#ffffff' : baseFg);
   const blink = !!rule?.blink;
   if (blink) ensureSGBlinkStyle();
+
+  // שדה טקסט בטבלה, ורק כשאין לו צבע מותנה - שם הקופסה הצבועה **היא** המסר
+  const underlineOnly = variant === 'table' && control.type === 'field' && !rule?.bg;
 
   const text = controlDisplayText(control, value);
   const ink = control.type === 'field' && isHandwritingValue(value) ? String(value) : '';
@@ -90,6 +100,13 @@ export const StripControl = ({ control, value, onChange, lightMode, readOnly }: 
     overflow: 'hidden',
     whiteSpace: 'nowrap',
     position: 'relative',
+    ...(underlineOnly
+      ? {
+          background: 'transparent', border: 'none', borderRadius: 0,
+          justifyContent: 'flex-start', padding: '0 2px',
+          ...editableCellUnderline(edge, !readOnly),
+        }
+      : {}),
     ...(blink
       ? { '--sg-bb': bg, '--sg-bt': rule?.blinkColor || '#ef4444', animation: `sg-cell-blink ${rule?.blinkRate || 0.8}s step-end infinite` }
       : {}),
@@ -145,7 +162,9 @@ export const StripControl = ({ control, value, onChange, lightMode, readOnly }: 
             onClick={swallow}
             onPointerDown={e => e.stopPropagation()}
             onBlur={e => { setEditing(false); onChange(e.target.value); }}
-            onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') (e.target as HTMLInputElement).blur(); }}
+            // ENTER יוצא מהשדה ושומר (ה-onBlur), ALT+ENTER נבלע - השדה חד-שורתי.
+            // ESC סוגר גם הוא, כדי לא להשאיר את הפקח תקוע בשדה פתוח.
+            onKeyDown={e => { if (e.key === 'Escape') { (e.target as HTMLInputElement).blur(); return; } handleCellEditKeyDown(e, false); }}
             style={{ flex: 1, minWidth: 0, background: 'rgba(0,0,0,0.15)', border: 'none', borderBottom: `1px solid ${fg}`, color: fg, font: 'inherit', outline: 'none', padding: 0 }}
           />
         ) : ink ? (

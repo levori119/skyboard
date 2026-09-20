@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   cellEditKeyAction, insertNewline, editableCellUnderline, handleCellEditKeyDown,
+  defaultEditableCols,
 } from './tableCellEdit';
 
 describe('cellEditKeyAction', () => {
@@ -80,5 +81,37 @@ describe('handleCellEditKeyDown', () => {
     handleCellEditKeyDown(e, true);
     expect(e.preventDefault).not.toHaveBeenCalled();
     expect(el.blur).not.toHaveBeenCalled();
+  });
+});
+
+describe('defaultEditableCols', () => {
+  const COLS = [
+    { key: 'callSign', field: 'callSign', editable: 'none' },
+    { key: 'alt', field: 'alt', editable: 'keyboard' },
+    { key: 'sector', field: 'sector', editable: 'dropdown' },
+    { key: 'notes', field: 'notes', editable: 'handwriting' },
+    { key: 'table:aim_points', editable: 'keyboard', isTable: true },
+    { key: '', field: '', editable: 'keyboard' },
+  ];
+
+  it('כל עמודה שהוגדרה בר-עריכה פתוחה לכתיבה כברירת מחדל', () => {
+    const set = defaultEditableCols(COLS);
+    expect(set.has('alt')).toBe(true);
+    expect(set.has('sector')).toBe(true);
+    expect(set.has('notes')).toBe(true);
+  });
+
+  it('עמודה שאינה בת-עריכה, טבלת בן ועמודה בלי מפתח - נשארות בחוץ', () => {
+    const set = defaultEditableCols(COLS);
+    expect(set.has('callSign')).toBe(false);
+    expect(set.has('table:aim_points')).toBe(false);
+    expect(set.has('')).toBe(false);
+    expect(set.size).toBe(3);
+  });
+
+  it('מוד בלי עמודות אינו מפיל', () => {
+    expect(defaultEditableCols(null).size).toBe(0);
+    expect(defaultEditableCols(undefined).size).toBe(0);
+    expect(defaultEditableCols([]).size).toBe(0);
   });
 });
