@@ -153,7 +153,7 @@ import { mdMapServices, mdMapSettings, mdStripsMapServiceId, MD_VIEW_TABLES, mdV
 import ViewTablesSlot from '../missiondesk/ViewTablesSlot';
 import MyScriptTestPanel from '../shared/MyScriptTestPanel';
 import { MapDrawToolbar, MapShapeSvg, PolyDraftSvg, polySnapTol, usePolyDraft } from '../map/MapDrawLayer';
-import { isFrac, fracToPx, pxToFrac, drawStrokeFrac, applyStrokeStyle, syncCanvasBitmap, isPolyTool, polyShapeFromPoints, type PenStroke, type MapShape, type DrawTool, type LineStyle } from '../../utils/mapDrawing';
+import { isFrac, fracToPx, pxToFrac, drawStrokeFrac, applyStrokeStyle, syncCanvasBitmap, isPolyTool, polyShapeFromPoints, eraseShapesAt, eraserRadius, mergeRemoteShapes, type PenStroke, type MapShape, type DrawTool, type LineStyle } from '../../utils/mapDrawing';
 import { isLoadRelevant } from '../../utils/loadRelevance';
 import StationPeekBar from '../shared/StationPeekBar';
 import { useViewStations } from '../../hooks/useViewStations';
@@ -8679,14 +8679,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           ctx.globalCompositeOperation = 'source-over';
         }
         // Merge remote shapes
+        // מיזוג דו-כיווני: מה שנוסף בעמדה אחרת מגיע, ומה שנמחק שם **נעלם** גם כאן
+        // (צורה שציירתי וטרם נשלחה אינה "חסרה בשרת" ולכן נשארת - ראה mergeRemoteShapes)
         const remoteShapes: MapShape[] = Array.isArray(data.map_shapes) ? data.map_shapes : [];
-        if (remoteShapes.length > 0) {
-          setMapShapes(prev => {
-            const prevIds = new Set(prev.map(s => s.id));
-            const toAdd = remoteShapes.filter(s => !prevIds.has(s.id));
-            return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
-          });
-        }
+        setMapShapes(prev => mergeRemoteShapes(prev, remoteShapes, pushedShapeIds.current));
         // Merge remote conflict resolutions
         const remoteCR: Record<string, { note: string; resolvedWith: string[] }> = data.conflict_resolutions || {};
         if (Object.keys(remoteCR).length > 0) {
@@ -9085,6 +9081,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const neighborMarkers = cfg.nMarkers, neighborPins = cfg.nPins, neighbors = cfg.nbrs, setNeighborMarkers = cfg.setNMarkers, setNeighborPins = cfg.setNPins;
             const fzOverlayRef = cfg.overlayRef; // per-map drop overlay (capture + see-through must target the dropped map)
             const canvasRef = cfg.canvasRef;
+            // המחק על צורה (עיגול / מלבן / פוליגון) מוחק אותה **כולה** - צורה היא
+            // אובייקט ולא פיקסלים. הנקודה מומרת למרחב **התוכן**, שבו חיות הצורות,
+            // ולכן זיהוי הפגיעה נכון גם בזום ובמפה השנייה.
+            const eraseShapeUnderPointer = (e: React.PointerEvent<HTMLCanvasElement>) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              if (!rect.width || !rect.height) return;
+              const W = mapAreaSize.w || e.currentTarget.width || rect.width;
+              const H = mapAreaSize.h || e.currentTarget.height || rect.height;
+              const p = { x: (e.clientX - rect.left) / rect.width * W, y: (e.clientY - rect.top) / rect.height * H };
+              setMapShapes(prev => {
+                const res = eraseShapesAt(prev, p, { w: W, h: H }, eraserRadius(penSize) * (W / rect.width));
+                // בשיתוף עמדה המחיקה חייבת להיות מפורשת - אחרת המיזוג לפי מזהה
+                // בשרת היה מחזיר את הצורה בסבב הסנכרון הבא
+                if (res.removedIds.length && !cfg.secondary) removedShapeIdsRef.current.push(...res.removedIds);
+                return res.shapes;
+              });
+            };
             const transferSectors = cfg.transferSectors; // in-map transfer-point chips (map2)
             const _basePin = cfg.pinDisplay; // map-level icon/strip default; per-strip override shadows it below
             // פקדי התצוגה של **המפה הזו**. ההצללה כאן היא מה שהופך את כל גוף
@@ -10867,6 +10880,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             data-map-layer=""
             onPointerDown={e => {
               e.preventDefault(); e.stopPropagation();
+              if (drawTool === 'eraser') eraseShapeUnderPointer(e);
               if (drawTool === 'pen' || drawTool === 'eraser' || drawTool === 'recognize') {
                 startDrawing(e);
               } else if (drawingModeRef.current && isPolyTool(drawTool)) {
@@ -10898,6 +10912,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             }}
             onPointerMove={e => {
               e.stopPropagation();
+              if (drawTool === 'eraser' && isDrawingRef.current) eraseShapeUnderPointer(e);
               if (drawTool === 'pen' || drawTool === 'eraser' || drawTool === 'recognize') {
                 draw(e);
               } else if (isPolyTool(drawTool) && polyTargetRef.current?.owner === (cfg.secondary ? 'secondary' : 'main')) {

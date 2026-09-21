@@ -3,7 +3,7 @@ import {
   isFrac, fracToPx, pxToFrac, shapeFromDrag, strokeLineWidth, DRAW_PALETTE,
   bitmapPx, syncCanvasBitmap,
   isPolyTool, polyShapeFromPoints, polyTapAction, polyPointsToPx, POLY_MIN_POINTS,
-  dashArray, outlinePoints, crossMarks, LINE_STYLES, type LineStyle,
+  dashArray, outlinePoints, crossMarks, LINE_STYLES, shapeAtPoint, eraseShapesAt, mergeRemoteShapes, type LineStyle, type MapShape,
   type PenStroke,
 } from './mapDrawing';
 
@@ -229,5 +229,87 @@ describe('mapDrawing - סגנון הקו', () => {
     const open = crossMarks([{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }], false, 50);
     const closed = crossMarks([{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }], true, 50);
     expect(closed.length).toBeGreaterThan(open.length);
+  });
+});
+
+describe('mapDrawing - המחק מוחק צורה שלמה', () => {
+  const SZ = { w: 200, h: 200 };
+  const base = { color: '#ef4444', strokeWidth: 2, filled: false };
+  const rect: MapShape = { ...base, id: 'r', type: 'rect', x: 0.25, y: 0.25, w: 0.25, h: 0.25 }; // 50,50 → 100,100
+  const circle: MapShape = { ...base, id: 'c', type: 'circle', x: 0.5, y: 0.5, w: 0.5, h: 0.5 }; // מרכז 150,150 רדיוס 50
+  const poly: MapShape = { ...base, id: 'p', type: 'polygon', x: 0, y: 0, w: 0.1, h: 0.1, points: [{ x: 0, y: 0 }, { x: 0.1, y: 0 }, { x: 0.1, y: 0.1 }] };
+  const line: MapShape = { ...base, id: 'l', type: 'polyline', x: 0, y: 0.9, w: 1, h: 0, points: [{ x: 0, y: 0.9 }, { x: 1, y: 0.9 }] };
+
+  it('נגיעה בקו המתאר מזהה את הצורה', () => {
+    expect(shapeAtPoint([rect], { x: 50, y: 70 }, SZ, 4)?.id).toBe('r');       // הצלע השמאלית
+    expect(shapeAtPoint([circle], { x: 200, y: 150 }, SZ, 4)?.id).toBe('c');   // ההיקף
+    expect(shapeAtPoint([line], { x: 120, y: 180 }, SZ, 4)?.id).toBe('l');
+  });
+
+  it('צורה קווית לא נמחקת מלחיצה בחלל הריק שבתוכה', () => {
+    expect(shapeAtPoint([rect], { x: 75, y: 75 }, SZ, 4)).toBeNull();
+    expect(shapeAtPoint([circle], { x: 150, y: 150 }, SZ, 4)).toBeNull();
+  });
+
+  it('בצורה מלאה גם הפנים נמחק - שם אין "חלל ריק"', () => {
+    expect(shapeAtPoint([{ ...rect, filled: true }], { x: 75, y: 75 }, SZ, 4)?.id).toBe('r');
+    expect(shapeAtPoint([{ ...circle, filled: true }], { x: 150, y: 150 }, SZ, 4)?.id).toBe('c');
+  });
+
+  it('פוליגון סגור נתפס גם על הצלע החוזרת, ופתוח לא נסגר מעצמו', () => {
+    expect(shapeAtPoint([poly], { x: 10, y: 10 }, SZ, 4)?.id).toBe('p');       // האלכסון מ-(20,20) ל-(0,0)
+    const open: MapShape = { ...poly, id: 'o', type: 'polyline' };
+    expect(shapeAtPoint([open], { x: 10, y: 10 }, SZ, 4)).toBeNull();
+  });
+
+  it('רחוק מכל צורה - null', () => {
+    expect(shapeAtPoint([rect, circle, poly, line], { x: 5, y: 120 }, SZ, 4)).toBeNull();
+  });
+
+  it('כשצורות חופפות נמחקת העליונה (האחרונה שצוירה)', () => {
+    const twin: MapShape = { ...rect, id: 'r2' };
+    expect(shapeAtPoint([rect, twin], { x: 50, y: 70 }, SZ, 4)?.id).toBe('r2');
+  });
+
+  it('רדיוס המחק נלקח בחשבון - מחק עבה תופס מרחוק', () => {
+    expect(shapeAtPoint([rect], { x: 58, y: 70 }, SZ, 3)).toBeNull();
+    expect(shapeAtPoint([rect], { x: 58, y: 70 }, SZ, 12)?.id).toBe('r');
+  });
+
+  it('eraseShapesAt מסיר את הצורה שלמה ומחזיר את המזהה שהוסר', () => {
+    const res = eraseShapesAt([rect, circle], { x: 50, y: 70 }, SZ, 4);
+    expect(res.removedIds).toEqual(['r']);
+    expect(res.shapes.map(s => s.id)).toEqual(['c']);
+  });
+
+  it('eraseShapesAt בלי פגיעה מחזיר את אותו מערך (בלי רינדור מיותר)', () => {
+    const shapes = [rect, circle];
+    const res = eraseShapesAt(shapes, { x: 5, y: 120 }, SZ, 4);
+    expect(res.shapes).toBe(shapes);
+    expect(res.removedIds).toEqual([]);
+  });
+});
+
+describe('mapDrawing - מיזוג צורות בשיתוף עמדה', () => {
+  const mk = (id: string): MapShape => ({ id, type: 'rect', x: 0, y: 0, w: 0.1, h: 0.1, color: '#fff', filled: false, strokeWidth: 1 });
+
+  it('צורה חדשה מעמדה אחרת נוספת', () => {
+    const merged = mergeRemoteShapes([mk('a')], [mk('a'), mk('b')], new Set(['a']));
+    expect(merged.map(s => s.id)).toEqual(['a', 'b']);
+  });
+
+  it('צורה שנמחקה בעמדה אחרת נעלמת גם כאן', () => {
+    const merged = mergeRemoteShapes([mk('a'), mk('b')], [mk('a')], new Set(['a', 'b']));
+    expect(merged.map(s => s.id)).toEqual(['a']);
+  });
+
+  it('צורה שלי שטרם נשלחה לא נעלמת בגלל שהיא לא בשרת', () => {
+    const merged = mergeRemoteShapes([mk('a'), mk('new')], [mk('a')], new Set(['a']));
+    expect(merged.map(s => s.id)).toEqual(['a', 'new']);
+  });
+
+  it('בלי שינוי מוחזר אותו מערך', () => {
+    const local = [mk('a')];
+    expect(mergeRemoteShapes(local, [mk('a')], new Set(['a']))).toBe(local);
   });
 });

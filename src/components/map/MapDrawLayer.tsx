@@ -7,7 +7,7 @@ import { windowFrame } from '../../utils/windowFrame';
 import { readRootScale } from '../../utils/pointerDrag';
 import {
   DRAW_PALETTE, LINE_STYLES, POLY_MIN_POINTS, POLY_SNAP_SCREEN_PX, applyStrokeStyle, crossMarks, crossSize, crossSpacing,
-  dashArray, isPolyTool, outlinePoints, polyPointsToPx, polyShapeFromPoints,
+  dashArray, eraseShapesAt, eraserRadius, isPolyTool, outlinePoints, polyPointsToPx, polyShapeFromPoints,
   polyTapAction, pxToFrac, redrawStrokes, shapeFromDrag, shapeToPx, syncCanvasBitmap,
   type DrawTool, type LineStyle, type MapShape, type PenStroke, type PolyTool,
 } from '../../utils/mapDrawing';
@@ -478,6 +478,18 @@ export function useMapDrawing() {
   const seqRef = React.useRef(0);
 
   const isShapeTool = tool === 'circle' || tool === 'rect';
+
+  /**
+   * המחק על צורה מוחק אותה **כולה** - צורה היא אובייקט ולא פיקסלים, ומחיקה
+   * חלקית שלה לא קיימת. הנקודה מגיעה בפיקסלי bitmap ומומרת לפיקסלי המשטח,
+   * שבהם חיות הצורות (ראה `bitmapPx`).
+   */
+  const eraseShapeUnder = (p: { x: number; y: number }, canvas: HTMLCanvasElement) => {
+    const scale = canvas.width ? surface.w / canvas.width : 1;
+    const tol = eraserRadius(size) * scale;
+    setShapes(prev => eraseShapesAt(prev, { x: p.x * scale, y: p.y * scale }, surface, tol).shapes);
+  };
+
   const poly = usePolyDraft(isPolyTool(tool) ? tool : null, (pts, type) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -543,6 +555,7 @@ export function useMapDrawing() {
     // בלי preventDefault - בעט/מגע הוא מבטל את אירועי העכבר התואמים.
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* ignore */ }
     const p = toCanvasPx(e);
+    if (tool === 'eraser') eraseShapeUnder(p, e.currentTarget);
     if (isPolyTool(tool)) {
       const rect = e.currentTarget.getBoundingClientRect();
       poly.tap(p, polySnapTol(rect.width ? e.currentTarget.width / rect.width : 1));
@@ -561,6 +574,7 @@ export function useMapDrawing() {
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!active) return;
     const p = toCanvasPx(e);
+    if (tool === 'eraser' && isDrawingRef.current) eraseShapeUnder(p, e.currentTarget);
     if (isPolyTool(tool)) { e.stopPropagation(); poly.move(p); return; }
     if (shapeStartRef.current) {
       e.stopPropagation();

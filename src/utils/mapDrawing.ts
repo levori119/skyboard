@@ -317,3 +317,86 @@ export function crossMarks(
   }
   return out;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// המחק מול צורה - נוגע בה, מוחק אותה **כולה**
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** מרחק נקודה מקטע. */
+function distToSegment(p: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }): number {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  const t = len2 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2)) : 0;
+  return Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t));
+}
+
+/** האם הנקודה בתוך המצולע (ray casting). */
+function pointInPolygon(p: { x: number; y: number }, pts: { x: number; y: number }[]): boolean {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const a = pts[i], b = pts[j];
+    if ((a.y > p.y) !== (b.y > p.y) && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * האם המחק "עומד על" הצורה. נמדד מול **קו המתאר** (`outlinePoints`) ולא מול
+ * המלבן התוחם - אחרת מחיקה ליד עיגול או פוליגון הייתה מוחקת אותו מרחוק.
+ *
+ * בצורה **מלאה** גם הפנים נחשב פגיעה: שם אין "חלל ריק" שאפשר להתכוון אליו.
+ */
+export function isShapeHit(s: MapShape, p: { x: number; y: number }, size: { w: number; h: number }, tol: number): boolean {
+  const { points, closed } = outlinePoints(s, size);
+  if (points.length < 2) return points.length === 1 && Math.hypot(points[0].x - p.x, points[0].y - p.y) <= tol;
+  const edges = closed ? [...points, points[0]] : points;
+  for (let i = 1; i < edges.length; i++) {
+    if (distToSegment(p, edges[i - 1], edges[i]) <= tol) return true;
+  }
+  return !!s.filled && closed && pointInPolygon(p, points);
+}
+
+/**
+ * הצורה שהמחק עומד עליה, או `null`. סורק מהסוף להתחלה כדי שבערבוביה תימחק
+ * ה**עליונה** - זו שהמשתמש רואה ומכוון אליה.
+ */
+export function shapeAtPoint(shapes: MapShape[], p: { x: number; y: number }, size: { w: number; h: number }, tol: number): MapShape | null {
+  for (let i = shapes.length - 1; i >= 0; i--) {
+    if (isShapeHit(shapes[i], p, size, tol)) return shapes[i];
+  }
+  return null;
+}
+
+/**
+ * מסיר את הצורה שתחת המחק. בלי פגיעה מוחזר **אותו מערך** (זהות שמורה), כדי
+ * שמחיקה של קו חופשי לא תרנדר מחדש את כל שכבת הצורות בכל תזוזת עט.
+ */
+export function eraseShapesAt(
+  shapes: MapShape[],
+  p: { x: number; y: number },
+  size: { w: number; h: number },
+  tol: number,
+): { shapes: MapShape[]; removedIds: string[] } {
+  const hit = shapeAtPoint(shapes, p, size, tol);
+  if (!hit) return { shapes, removedIds: [] };
+  return { shapes: shapes.filter(s => s.id !== hit.id), removedIds: [hit.id] };
+}
+
+/** רדיוס המחק בפועל - חצי מרוחב הקו שלו (`ERASER_WIDTH_FACTOR`). */
+export const eraserRadius = (size: number): number => Math.max(4, strokeLineWidth({ size, eraser: true }) / 2);
+
+/**
+ * מיזוג הצורות מהשרת (שיתוף עמדה) עם אלה שכאן.
+ *
+ * הוספה לבדה אינה מספיקה: צורה ש**נמחקה** בעמדה אחרת נעלמת מהשרת, ובלי המחיקה
+ * המקומית היא הייתה נשארת על המסך שלנו לנצח. `knownIds` הן הצורות שכבר הוכרו
+ * לשרת - רק הן נמחקות בהיעדרן, כדי שצורה שזה עתה ציירנו וטרם נשלחה לא תימחק.
+ */
+export function mergeRemoteShapes(local: MapShape[], remote: MapShape[], knownIds: Set<string>): MapShape[] {
+  const remoteIds = new Set(remote.map(s => s.id));
+  const kept = local.filter(s => remoteIds.has(s.id) || !knownIds.has(s.id));
+  const localIds = new Set(kept.map(s => s.id));
+  const added = remote.filter(s => !localIds.has(s.id));
+  if (kept.length === local.length && added.length === 0) return local;
+  return [...kept, ...added];
+}
