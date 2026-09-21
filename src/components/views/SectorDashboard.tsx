@@ -31,6 +31,7 @@ import { getFormationDisplayName, getTransferLabel, getTransferSq, normalizeAlt,
 import { compareAirborneThenTakeoff } from '../../utils/stripOrder';
 import { applyAircraftOnlyChoice } from '../../../shared/joiningPointProps.js';
 import { altToDisplay, applyJoiningAccept, applyJoiningMove, createJoiningSyncGate, patchJoiningAircraft, runwaySource } from '../../utils/joiningPoints';
+import { createOptimisticOverlay } from '../../utils/optimisticOverlay';
 import { parseNoteValue, serializeNoteValue } from '../../utils/notes';
 import { bidiAuto } from '../../utils/bidi';
 import { filterDocsByKind, isChecklistDoc, DOC_KIND_BDH, DOC_KIND_CHECKLIST } from '../../utils/bdhDocs';
@@ -605,6 +606,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [joiningPointAircraft, setJoiningPointAircraft] = useState<any[]>([]);
   // תמונת פולינג שיצאה לפני פעולה בנקודה (או חזרה באמצעה) לא דורסת את העדכון המיידי
   const joiningSync = useRef(createJoiningSyncGate()).current;
+  // ומה שנשלח על **מטוס בודד** (ירוקים, צלע) מוחל מחדש על כל תמונה שמגיעה, עד
+  // שהשרת מאשר ומגיעה תמונה שנשלפה אחרי האישור. בלי זה הלחיצה "קופצת אחורה"
+  // ומתקנת את עצמה רק בפולינג הבא - וזה מה שנראה למפעיל כ"לוקח זמן להתרפרש".
+  const joiningAircraftOptimistic = useRef(createOptimisticOverlay<Record<string, any>>()).current;
+  const joiningAircraftKey = (row: Record<string, any>) => `${row.strip_id}|${Number(row.aircraft_idx)}`;
   const [airfieldRunwayNotams, setAirfieldRunwayNotams] = useState<any[]>([]);
   // NOTAMים שמוקרנים על **מסלול** של השדה מתוך מסלול המראה מקושר בשדה אחר -
   // המקרה של שדה קרקעי שבו האספלט משורטט כמסלול רגיל ולא כמסלול המראה.
@@ -5721,12 +5727,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     if (!joiningAirfieldId) { setJoiningPointStrips([]); setJoiningPointAircraft([]); return; }
     const load = () => {
       const stamp = joiningSync.stamp();
+      // רגע **יציאת** הבקשה: תמונה שיצאה לפני לחיצה של הפקח אינה יודעת עליה
+      const fetchedAt = Date.now();
       fetch(`${API_URL}/joining-point-strips?airfield_id=${joiningAirfieldId}`)
         .then(r => r.ok ? r.json() : null)
         .then(d => {
           if (!d || !joiningSync.canApply(stamp)) return;
           setJoiningPointStrips(Array.isArray(d.strips) ? d.strips : []);
-          setJoiningPointAircraft(Array.isArray(d.aircraft) ? d.aircraft : []);
+          setJoiningPointAircraft(joiningAircraftOptimistic.apply(
+            Array.isArray(d.aircraft) ? d.aircraft : [], joiningAircraftKey, fetchedAt));
         })
         .catch(() => { /* נתק - נשארים על התמונה האחרונה */ });
     };
@@ -5740,6 +5749,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const reloadJoiningState = async () => {
     if (!joiningAirfieldId) return;
     const stamp = joiningSync.stamp();
+    const fetchedAt = Date.now();
     try {
       const r = await fetch(`${API_URL}/joining-point-strips?airfield_id=${joiningAirfieldId}`);
       if (!r.ok) return;
@@ -5747,7 +5757,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       // פעולה חדשה התחילה בינתיים - הטעינה שלה היא שתביא את התמונה הנכונה
       if (!joiningSync.canApply(stamp)) return;
       setJoiningPointStrips(Array.isArray(d.strips) ? d.strips : []);
-      setJoiningPointAircraft(Array.isArray(d.aircraft) ? d.aircraft : []);
+      setJoiningPointAircraft(joiningAircraftOptimistic.apply(
+        Array.isArray(d.aircraft) ? d.aircraft : [], joiningAircraftKey, fetchedAt));
     } catch { /* נתק */ }
   };
 
@@ -5943,12 +5954,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     // גם שורת ההקפה - ממנה קוראות טבלת "בהקפה" ושכבת ההקפה (patchJoiningAircraft)
     const prevStatus = joiningPointAircraft.find((a: any) => String(a.strip_id) === String(sid) && Number(a.aircraft_idx) === idx)?.flight_status;
     setJoiningPointAircraft(rows => patchJoiningAircraft(rows, sid, idx, { flight_status: status }));
+    const key = `${String(sid).replace(/^s/, '')}|${Number(idx)}`;
+    const seq = joiningAircraftOptimistic.set(key, { flight_status: status });
     const res = await fetch(`${API_URL}/strip-aircraft/${sid}/${idx}/flight-status`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ flight_status: status, callsign: strip?.callsign || '', ...joiningAudit() }),
     }).catch(() => null);
     // כשל אינו נשאר על המסך כאילו הצליח - הסטטוס הזה נאמר לטייס
     if (!res || !res.ok) {
+      // שינוי חדש יותר על אותו מטוס גובר - לא מחזירים אותו אחורה
+      if (!joiningAircraftOptimistic.drop(key, seq)) return;
       setJoiningPointAircraft(rows => patchJoiningAircraft(rows, sid, idx, { flight_status: prevStatus ?? 'none' }));
       setGroundStripAircraft(prev => {
         const key = String(sid);
@@ -5956,7 +5971,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         if (!rows) return prev;
         return { ...prev, [key]: rows.map(r => (r.idx === idx ? { ...r, flight_status: 'none' } : r)) };
       });
+      return;
     }
+    joiningAircraftOptimistic.confirm(key, seq);
   };
 
   /**
@@ -5976,12 +5993,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     });
     // גם שורת ההקפה: טבלת "בהקפה" קוראת ממנה, ובלי זה הלחיצה חיכתה לפולינג (5 ש')
     setJoiningPointAircraft(rows => patchJoiningAircraft(rows, sid, idx, { greens }));
+    // והעדכון נרשם כ**פתוח**, כדי שתמונת פולינג שיצאה לפני הלחיצה לא תחזיר אותו
+    const key = `${String(sid).replace(/^s/, '')}|${Number(idx)}`;
+    const seq = joiningAircraftOptimistic.set(key, { greens });
     const res = await fetch(`${API_URL}/strip-aircraft/${sid}/${idx}/flight-status`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ greens, callsign: strip?.callsign || '', ...joiningAudit() }),
     }).catch(() => null);
     // כשל אינו נשאר על המסך כאילו הצליח - זה דיווח שנאמר לטייס
     if (!res || !res.ok) {
+      // לחיצה חדשה יותר על אותו מטוס כבר מחזיקה את הערך - לא דורסים את כוונתו האחרונה של הפקח
+      if (!joiningAircraftOptimistic.drop(key, seq)) return;
       setJoiningPointAircraft(rows => patchJoiningAircraft(rows, sid, idx, { greens: !greens }));
       setGroundStripAircraft(prev => {
         const key = String(sid);
@@ -5989,7 +6011,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         if (!rows) return prev;
         return { ...prev, [key]: rows.map(r => (r.idx === idx ? { ...r, greens: !greens } : r)) };
       });
+      return;
     }
+    // השרת אישר - מכאן תמונה שנשלפת **אחרי** האישור היא האמת
+    joiningAircraftOptimistic.confirm(key, seq);
   };
 
   // Poll active takeoffs every 5s for ground_mgmt workstations — shows orange notification banner
