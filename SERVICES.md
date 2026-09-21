@@ -259,6 +259,7 @@
 
 ### `server/routes/stripControls.js` — 7 routes
 **תפקיד:** ערכי ה**פקדים** של הסטריפ - שני מחסנים לפי ההיקף שהוגדר לפקד: פנימי ללוח (`strip_control_values`, מפתח פ"מ+עמדה) וגלובלי לפ"מ (`strips.custom_fields`, ב-`jsonb_set` על המפתח בלבד כדי ששתי עמדות לא ידרסו זו את זו). ראה [CIV_STRIP_CONTROLS.md](CIV_STRIP_CONTROLS.md).
+מזהה הפ"מ מגיע מהעמדה עם קידומת (`s3924`) ומנורמל בשער ב-`stripIdNum` - בלי זה שתי הכתיבות נפלו ב-500 על `invalid input syntax for type integer`, והעמדה החזירה את הערך הקודם בשקט (`stripControls.test.js`).
 **Endpoints:** `GET/PUT /api/strip-control-values`, `PUT /api/strips/:id/control-field`, ו-CRUD של **קטלוג השדות** `/api/strip-field-defs` (המפתח נוצר בשרת מרצף ואינו מתקבל מהלקוח).
 
 ### `server/routes/driver.js` — 21 routes
@@ -1202,7 +1203,7 @@ DB מנוהל היה נופל יחד עם העמדה.
 **תפקיד:** רכיבי תצוגה קלאסית ואזרחית. **מייצא:** `ClassicStripCard`, `ClassicView` (3 עמודות: קבלה/שלי/מסירה), `ClassicTransferHelpModal`, `ClassicPartnersAndPointsEditor`, `CivilianStripCard`, `CivilianView`, + טיפוסים `CivCol`/`CivAssignment` + `CIV_STATUSES`.
 
 ### `src/components/classic/StripControl.tsx`
-**תפקיד:** ה**פקד** על הסטריפ - רכיב אחד לחמשת הסוגים (כפתור מחזורי, שדה מקלדת/כתב יד, דגל, תפריט יחיד, תפריט מרובה). אינו יודע איפה הערך נשמר: `onChange` מחזיר את הערך והקורא מחליט לפי ההיקף. `variant="table"` (מוד הטבלה) מציג **שדה טקסט** כקו תחתון ולא כקופסה - קופסה בכל תא הופכת את הטבלה לרשת מלבנים; כפתור, דגל ותפריט נשארים קופסה, וכך גם שדה שצבע מותנה צבע אותו (שם הצבע הוא המסר). בשדה הפתוח: ENTER שומר ויוצא, ESC סוגר, ALT+ENTER נבלע (השדה חד-שורתי). **מייצא:** `StripControl`.
+**תפקיד:** ה**פקד** על הסטריפ - רכיב אחד לחמשת הסוגים (כפתור מחזורי, שדה מקלדת/כתב יד, דגל, תפריט יחיד, תפריט מרובה). אינו יודע איפה הערך נשמר: `onChange` מחזיר את הערך והקורא מחליט לפי ההיקף. `variant="table"` (מוד הטבלה) מציג **שדה טקסט** כקו תחתון ולא כקופסה, והעורך שלו הוא `textarea` (ALT+ENTER יורד שורה, התצוגה `pre-line`) ולא `input` כמו על הסטריפ - קופסה בכל תא הופכת את הטבלה לרשת מלבנים; כפתור, דגל ותפריט נשארים קופסה, וכך גם שדה שצבע מותנה צבע אותו (שם הצבע הוא המסר). בשדה הפתוח: ENTER שומר ויוצא, ESC סוגר, ALT+ENTER נבלע (השדה חד-שורתי). **מייצא:** `StripControl`.
 
 ### `src/components/shared/StripInkPad.tsx`
 **תפקיד:** משטח כתיבה בכתב יד לערך של **פקד** - מודל בחצי מסך שמחזיר דיו **רסטר** (`data:image/png`). **אינו** `missiondesk/InkPad`, שהוא משטח מוטבע שמחזיק **וקטורים** (`strokes`) עם עט ומחק - שני מודלי ערך שונים. ב**חצי מסך** (מחולק ב---s בגלל ה-`zoom` של ה-root), Pointer Events + `touchAction:'none'` כדי שיעבוד בעט ובאצבע. קנבס ריק נשמר כערך ריק ולא כתמונה לבנה. **מייצא:** `InkPad`.

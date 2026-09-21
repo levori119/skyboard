@@ -103,7 +103,8 @@ export const StripControl = ({ control, value, onChange, lightMode, readOnly, va
     ...(underlineOnly
       ? {
           background: 'transparent', border: 'none', borderRadius: 0,
-          justifyContent: 'flex-start', padding: '0 2px',
+          justifyContent: 'flex-start', alignItems: 'flex-start',
+          padding: '0 2px', whiteSpace: 'pre-line',
           ...editableCellUnderline(edge, !readOnly),
         }
       : {}),
@@ -155,18 +156,29 @@ export const StripControl = ({ control, value, onChange, lightMode, readOnly, va
         {/* הפקד מציג **ערך** בלבד. שם השדה, אם הודלק, יושב לצדו כפריט נפרד
             שנגרר למקומו - כך הערך תמיד נראה ולא נדחק על ידי הכותרת */}
         {editing ? (
-          <input
+          /* בטבלה השדה הוא textarea ולא input: תא בטבלה מחזיק כמה שורות
+             (הערה, פירוט), ו-ALT+ENTER יורד שורה. על הסטריפ המשבצת גבוהה
+             שורה אחת, ושם השדה נשאר חד-שורתי. */
+          React.createElement(underlineOnly ? 'textarea' : 'input', {
             // eslint-disable-next-line jsx-a11y/no-autofocus
-            autoFocus
-            defaultValue={isHandwritingValue(value) ? '' : String(value ?? '')}
-            onClick={swallow}
-            onPointerDown={e => e.stopPropagation()}
-            onBlur={e => { setEditing(false); onChange(e.target.value); }}
-            // ENTER יוצא מהשדה ושומר (ה-onBlur), ALT+ENTER נבלע - השדה חד-שורתי.
+            autoFocus: true,
+            defaultValue: isHandwritingValue(value) ? '' : String(value ?? ''),
+            rows: underlineOnly ? Math.min(4, Math.max(1, String(value ?? '').split('\n').length)) : undefined,
+            onClick: swallow,
+            onPointerDown: (e: React.PointerEvent) => e.stopPropagation(),
+            onBlur: (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => { setEditing(false); onChange(e.target.value); },
+            // ENTER יוצא מהשדה ושומר (ה-onBlur), ALT+ENTER יורד שורה בטבלה.
             // ESC סוגר גם הוא, כדי לא להשאיר את הפקח תקוע בשדה פתוח.
-            onKeyDown={e => { if (e.key === 'Escape') { (e.target as HTMLInputElement).blur(); return; } handleCellEditKeyDown(e, false); }}
-            style={{ flex: 1, minWidth: 0, background: 'rgba(0,0,0,0.15)', border: 'none', borderBottom: `1px solid ${fg}`, color: fg, font: 'inherit', outline: 'none', padding: 0 }}
-          />
+            onKeyDown: (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+              if (e.key === 'Escape') { (e.target as HTMLInputElement).blur(); return; }
+              handleCellEditKeyDown(e, underlineOnly);
+            },
+            style: {
+              flex: 1, minWidth: 0, background: 'rgba(0,0,0,0.15)', border: 'none',
+              borderBottom: `1px solid ${fg}`, color: fg, font: 'inherit', outline: 'none',
+              padding: 0, ...(underlineOnly ? { resize: 'vertical' as const, lineHeight: 1.25 } : {}),
+            },
+          })
         ) : ink ? (
           <img src={ink} alt={tr('shared.handwriting')} style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', borderRadius: '2px' }} />
         ) : (

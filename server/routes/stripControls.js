@@ -14,6 +14,17 @@ const router = new Router();
 /** מפתח פקד: אותיות, ספרות וקו תחתון בלבד - כדי שיהיה בטוח כמפתח JSONB וכשם שדה בשאילתא */
 const VALID_KEY = /^[A-Za-z0-9_]{1,64}$/;
 
+/**
+ * מזהה הפ"מ מגיע מהעמדה עם קידומת `s` (`s3924`) - כך הלקוח מבדיל בין פ"מ לישויות
+ * אחרות באותה רשימה. שתי הטבלאות כאן שומרות `INTEGER`, ולכן המזהה מנורמל בשער
+ * כמו בכל נתיבי הפ"מ האחרים. בלי זה השמירה נפלה ב-500 (`invalid input syntax for
+ * type integer: "s3924"`), והפקח ראה ערך שנכתב ונמחק מיד - בלי שום הודעה.
+ */
+const stripIdNum = (v) => {
+  const n = parseInt(String(v ?? '').replace(/^s/, ''), 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
+
 const FIELD_TYPES = new Set(['button', 'field', 'flag', 'select', 'multiselect']);
 const INPUT_MODES = new Set(['keyboard', 'handwriting', 'both']);
 const SCOPES = new Set(['window', 'global']);
@@ -115,6 +126,8 @@ router.put('/api/strip-control-values', async (req, res) => {
   const { strip_id, preset_id, control_key, value } = req.body;
   if (!strip_id || !preset_id || !control_key) return res.status(400).json({ error: 'strip_id, preset_id, control_key required' });
   if (!VALID_KEY.test(String(control_key))) return res.status(400).json({ error: 'invalid control_key' });
+  const stripId = stripIdNum(strip_id);
+  if (!stripId) return res.status(400).json({ error: 'invalid strip_id' });
   try {
     const r = await pool.query(
       `INSERT INTO strip_control_values (strip_id, preset_id, control_key, value, updated_at)
@@ -122,7 +135,7 @@ router.put('/api/strip-control-values', async (req, res) => {
        ON CONFLICT (strip_id, preset_id, control_key)
        DO UPDATE SET value = $4::jsonb, updated_at = NOW()
        RETURNING strip_id, preset_id, control_key, value`,
-      [strip_id, preset_id, control_key, JSON.stringify(value ?? null)]
+      [stripId, preset_id, control_key, JSON.stringify(value ?? null)]
     );
     res.json(r.rows[0]);
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
@@ -134,13 +147,15 @@ router.put('/api/strips/:id/control-field', async (req, res) => {
   const { control_key, value } = req.body;
   if (!control_key) return res.status(400).json({ error: 'control_key required' });
   if (!VALID_KEY.test(String(control_key))) return res.status(400).json({ error: 'invalid control_key' });
+  const stripId = stripIdNum(req.params.id);
+  if (!stripId) return res.status(400).json({ error: 'invalid strip id' });
   try {
     const r = await pool.query(
       `UPDATE strips
           SET custom_fields = jsonb_set(COALESCE(custom_fields, '{}'::jsonb), ARRAY[$2::text], $3::jsonb, true)
         WHERE id = $1
         RETURNING id, custom_fields`,
-      [req.params.id, control_key, JSON.stringify(value ?? null)]
+      [stripId, control_key, JSON.stringify(value ?? null)]
     );
     if (!r.rows.length) return res.status(404).json({ error: 'Strip not found' });
     res.json(r.rows[0]);
