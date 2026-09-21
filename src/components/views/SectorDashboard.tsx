@@ -59,6 +59,7 @@ import SeizureAlert from '../seizure/SeizureAlert';
 import TransferTakeoverDialog, { HeldElsewhereNotices } from '../transfers/TransferTakeoverDialog';
 import { useTransferTakeovers } from '../transfers/useTransferTakeovers';
 import { diffHeldElsewhere, stripKeyOfTransfer, type HeldElsewhereNotice } from '../../utils/transferTakeover';
+import { projectStripsForStation } from '../../utils/stripTransferView';
 import SeizureStatusPanel from '../seizure/SeizureStatusPanel';
 import SeizureMapWindow from '../seizure/SeizureMapWindow';
 import SeizureLayer from '../seizure/SeizureLayer';
@@ -983,6 +984,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [expandedNeighbors, setExpandedNeighbors] = useState<Set<number>>(new Set());
   const [pendingMapTransfer, setPendingMapTransfer] = useState<{sectorId: number; x: number; y: number; subLabel?: string} | null>(null);
   const [allPendingTransfers, setAllPendingTransfers] = useState<any[]>([]);
+  /** ההעברות הפתוחות לקריאה מתוך loadData (סגירה ישנה לא תראה את ה-state) */
+  const allPendingTransfersRef = useRef<any[]>([]);
   const [partialTransferModal, setPartialTransferModal] = useState<{ stripId: string; strip: any; toSectorId: number; targetX?: number; targetY?: number; subLabel?: string; toWorkstationId?: number; receiveConditions?: any; altViolation?: string; altWorkstations?: any[] } | null>(null);
   const [partialSelectedIndices, setPartialSelectedIndices] = useState<number[]>([]);
   const [transferEtaMinutes, setTransferEtaMinutes] = useState(0);
@@ -4620,6 +4623,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     .map((c: CombinedPosition) => c.ctx?.presetName || `עמדה ${c.presetId}`)
     .join(' + ');
 
+  // ── פ"מ שמוחזק גם בעמדה אחרת, ועמדה אחרת שלחה אותו לנקודת העברה ───────────
+  // `strips.status` ו-`workstation_preset_id` גלובליים, וההחזקה פר-עמדה. בלי
+  // ההטלה הזו פ"מ שאריק שלח לנקודת העברה נעלם גם מבגין, שהחזיקה אותו בנפרד.
+  // ההטלה נעשית **בכניסת הנתונים** ולא בעשרות אתרי התצוגה - ראה
+  // src/utils/stripTransferView.ts. הערכים המקוריים ב-raw_status.
+  const projectStripsRef = useRef<(rows: any[]) => any[]>((rows) => rows);
+  projectStripsRef.current = (rows: any[]) => projectStripsForStation(
+    rows,
+    [session.presetId, ...myCombined.map((c: CombinedPosition) => c.presetId)],
+    [session.workstationName, ...myCombined.map((c: CombinedPosition) => c.ctx?.presetName ?? null)],
+    allPendingTransfersRef.current,
+  );
+
   // איחוד עמדה — שיוך פ"מ ללוח-מפה הנכון: כשמייבאים מפה, פ"מי B מצוירים על המפה
   // המיובאת והפ"מים שלי על שלי (מונע כפילות). בלי איחוד — התנהגות רגילה (כל המפות).
   const stripBelongsToMapPanel = (s: any, isSecondary: boolean, panelMapId: any): boolean => {
@@ -5281,7 +5297,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         // Fetch strips once, set both state slices
         fetch(`${API_URL}/strips/global`)
           .then(r => r.ok ? r.json() : [])
-          .then(data => { setAllStripsForClassic(data); setStrips(data); })
+          .then(data => { const proj = projectStripsRef.current(data); setAllStripsForClassic(proj); setStrips(proj); })
           .catch(() => {});
       }
       setInitialDataLoaded(true);
@@ -5361,7 +5377,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         prevOutgoingTransfersRef.current = freshOutgoing;
         setOutgoingTransfers(freshOutgoing);
       }
-      fetch(`${API_URL}/transfers/pending-all`).then(r => r.ok ? r.json() : []).then(data => setAllPendingTransfers(data)).catch(() => {});
+      fetch(`${API_URL}/transfers/pending-all`).then(r => r.ok ? r.json() : []).then(data => { allPendingTransfersRef.current = data; setAllPendingTransfers(data); }).catch(() => {});
       if (session.presetId) {
         fetch(`${API_URL}/presets/${session.presetId}/classic-incoming`)
           .then(r => r.ok ? r.json() : [])
@@ -5382,7 +5398,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         const stripsRes = results[4];
         const waitingRes = results[5];
         if (stripsRes.ok) {
-          const stripsData = mergeWithPending(await stripsRes.json());
+          const stripsData = mergeWithPending(projectStripsRef.current(await stripsRes.json()));
           setStrips(stripsData);
           setAllStripsForClassic(stripsData);
         }

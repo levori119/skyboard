@@ -264,6 +264,9 @@ router.get('/api/transfers/pending-all', async (req, res) => {
     const result = await pool.query(`
       SELECT t.id, t.strip_id, t.from_sector_id, t.to_sector_id,
              t.from_workstation_id, t.to_workstation_id, t.sub_sector_label,
+             -- מי שלח ולאן: עמדה שמחזיקה את הפ"מ ואינה צד בהעברה ממשיכה להציג
+             -- אותו כרגיל, ולכן היא חייבת לדעת מי הצדדים (src/utils/stripTransferView.ts)
+             t.from_preset_id, t.to_preset_id,
              s.alt, s.callsign
       FROM strip_transfers t
       JOIN strips s ON t.strip_id = s.id
