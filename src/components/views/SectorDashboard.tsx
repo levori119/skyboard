@@ -16670,7 +16670,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             setTablePointerGhost({ x: e.clientX, y: e.clientY, label });
                           }}
                         >
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                          {/* **שתי עמודות** ולא טור אחד: חמשת הפקדים בטור מתחו את
+                              שורת הפ"מ לגובה של חמש שורות, והשורה חדלה להיקרא
+                              כיחידה אחת. ב-grid של שתי עמודות הם נערמים לשלוש
+                              שורות לכל היותר, ומיקומו של כל פקד נשאר קבוע. */}
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, auto)', justifyContent: 'center', justifyItems: 'center', alignItems: 'center', gap: '2px' }}>
                             {/* פעולות הפ"מ במגע. במסך מגע (Cintiq) אין קליק ימני,
                                 ובלעדי הכפתור הזה כל תפריט הפעולות - FLOW, פיצול,
                                 מיזוג, עדכון גובה, הסרה מהלוח ומחיקה - אינו נגיש
@@ -16735,23 +16739,25 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               );
                             })()}
                             {isPendingTransfer && (
-                              <span title={tr('ctrl.awaitingAcceptanceByThe')} style={{ fontSize: '9px', background: '#374151', color: '#9ca3af', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap', lineHeight: 1.3 }}>{tr('ctrl.pending')}</span>
+                              <span title={tr('ctrl.awaitingAcceptanceByThe')} style={{ gridColumn: '1 / -1', fontSize: '9px', background: '#374151', color: '#9ca3af', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap', lineHeight: 1.3 }}>{tr('ctrl.pending')}</span>
                             )}
                             {(() => {
                               const rowCount = parseInt(s.numberOfFormation ?? s.number_of_formation ?? '1') || 1;
                               const rowSiblings = getSectorSiblings(s);
                               if (rowCount <= 1 && rowSiblings.length === 0) return null;
+                              // שני הפקדים הם פריטים ב-grid עצמו (ולא טור נפרד בתוכו),
+                              // אחרת הם היו נערמים זה על זה ומחזירים את הגובה שנחסך
                               return (
-                                <div style={{ display: 'flex', gap: '2px', flexDirection: 'column' }} onPointerDown={e => e.stopPropagation()}>
+                                <>
                                   {rowCount > 1 && (
-                                    <button onClick={e => { e.stopPropagation(); setSectorSplitSelected([]); setSectorSplitModal({ strip: s }); }}
+                                    <button onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); setSectorSplitSelected([]); setSectorSplitModal({ strip: s }); }}
                                       title={tr('ctrl.splitFormation')} style={{ fontSize: '9px', padding: '1px 3px', background: '#4c1d95', color: '#c4b5fd', border: '1px solid #7c3aed', borderRadius: '2px', cursor: 'pointer', lineHeight: 1 }}>✂</button>
                                   )}
                                   {rowSiblings.length > 0 && (
-                                    <button onClick={e => { e.stopPropagation(); if (rowSiblings.length === 1) { setSectorMergeConfirm({ targetId: String(rowSiblings[0].id), sourceId: String(s.id), targetName: rowSiblings[0].callSign || String(rowSiblings[0].id), sourceName: s.callSign || String(s.id) }); } else { setSectorMergeModal({ strip: s, siblings: rowSiblings }); } }}
+                                    <button onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); if (rowSiblings.length === 1) { setSectorMergeConfirm({ targetId: String(rowSiblings[0].id), sourceId: String(s.id), targetName: rowSiblings[0].callSign || String(rowSiblings[0].id), sourceName: s.callSign || String(s.id) }); } else { setSectorMergeModal({ strip: s, siblings: rowSiblings }); } }}
                                       title={tr('ctrl.mergeFormation')} style={{ fontSize: '9px', padding: '1px 3px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #1d4ed8', borderRadius: '2px', cursor: 'pointer', lineHeight: 1 }}>⊕</button>
                                   )}
-                                </div>
+                                </>
                               );
                             })()}
                           </div>
