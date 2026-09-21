@@ -13,6 +13,7 @@ import { bypassesOfflineLayer, classifyWrite, isApiRequest, isReadMethod, normal
 import { createStore, CACHE_STORE, OUTBOX_STORE, type OfflineStore } from './store';
 import { Outbox, type OutboxItem } from './outbox';
 import { markReachable, markOnline, noteFailure, noteBlocked, getNetSnapshot } from './netStatus';
+import { isClientSimulatedOutage } from './stationMode';
 
 /** כותרות שהממשק קורא כדי לדעת שהתשובה הגיעה מה-cache ולא מהשרת. */
 export const HDR_FROM_CACHE = 'x-skyking-from-cache';
@@ -179,6 +180,19 @@ export function createOfflineFetch(opts: OfflineFetchOptions = {}) {
 
     await ready();
 
+    // ── נתק מדומה בדפדפן ─────────────────────────────────────────────────────
+    // בעמדת Electron עם מאגר מקומי הדימוי מתבצע **בשרת העמדה** (הבקשה עוברת
+    // למאגר המקומי ומצליחה), ולכן `isClientSimulatedOutage` מחזיר שם false.
+    // בדפדפן אין לאן לנתב, והדרך הכנה היחידה לדמות נתק היא להפיל את הבקשה -
+    // ומשם כל השכבה הקיימת עושה את שלה: cache לקריאה, outbox לכתיבה פרטית,
+    // וחסימה לכתיבה משותפת. בלי זה הכפתור היה נדלק ולא קורה דבר.
+    const simulate = isClientSimulatedOutage()
+      ? () => Promise.reject(Object.assign(new Error('simulated outage'), { name: 'TypeError' }))
+      : null;
+    const send: typeof base = simulate
+      ? ((...args) => simulate()) as typeof base
+      : base;
+
     // התור מנוקז אחרי כל תשובה שמוכיחה שהשרת חי — ולא רק במעבר ממנותק למחובר.
     // כשל בודד כבר אינו מכריז נתק, ולכן "היינו מנותקים" הפסיק להיות טריגר תקף.
     const drainIfPending = () => { if (getNetSnapshot().queued > 0) void track(drainOutbox()); };
@@ -188,7 +202,7 @@ export function createOfflineFetch(opts: OfflineFetchOptions = {}) {
       const key = cacheKey(url, method, scope());
       let res: Response;
       try {
-        res = await fetchWithTimeout(base, input, init, timeoutMs);
+        res = await fetchWithTimeout(send, input, init, timeoutMs);
       } catch (err) {
         // הקורא ביטל — לא נתק, ובעיקר: השגיאה חוזרת אליו כמו שהיא. תשובה
         // מהטמון במקומה הייתה נקראת אצלו כדגימה חדשה.
@@ -219,7 +233,7 @@ export function createOfflineFetch(opts: OfflineFetchOptions = {}) {
     const policy = classifyWrite(url, method);
 
     try {
-      const res = await fetchWithTimeout(base, input, init, timeoutMs);
+      const res = await fetchWithTimeout(send, input, init, timeoutMs);
       // גם 5xx חוזר לקורא. קודם הוא נחשב נתק, ולכן כתיבה משותפת שנכשלה בשגיאת
       // יישום הוצגה כ"נחסמה כי אין קשר" (הודעה שגויה), וכתיבה פרטית נכנסה
       // ל-outbox ושודרה שוב מאוחר יותר — כלומר שוכפלה.

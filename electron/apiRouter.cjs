@@ -102,9 +102,19 @@ function createRemoteHealth({ apiTarget, probeIntervalMs = PROBE_INTERVAL_MS, ti
 
 /**
  * בוחר יעד לבקשה.
- * @returns {'remote'|'local'}
+ *
+ * `simulated` (נתק מדומה) מתנהג כמו נתק אמיתי לכל דבר - **חוץ** מזה שהוא
+ * מוגבל לעמדה הזו. הוא גובר גם על `mode: 'remote'`: מי שביקש במפורש לדמות
+ * נתק מתכוון שהעמדה תנותק, ולא ש"תנסה בכל זאת".
+ *
+ * ⚠️ בלי מאגר מקומי אין לאן לנתב. אז הנתק המדומה מתבטא בכך שהבקשה **נכשלת**
+ * (`which: 'none'`), ולא בכך שהיא ממשיכה לעבוד כרגיל - אחרת הכפתור היה נדלק
+ * בלי שקורה דבר, וזה נראה למפעיל בדיוק כמו פיצ'ר שבור.
+ *
+ * @returns {'remote'|'local'|'none'}
  */
-function chooseTarget({ mode, remoteOnline, hasLocal }) {
+function chooseTarget({ mode, remoteOnline, hasLocal, simulated }) {
+  if (simulated) return hasLocal ? 'local' : 'none';
   if (mode === 'remote' || !hasLocal) return 'remote';
   if (mode === 'local') return 'local';
   return remoteOnline ? 'remote' : 'local'; // auto
@@ -121,11 +131,29 @@ function chooseTarget({ mode, remoteOnline, hasLocal }) {
 function createApiRouter({ apiTarget, localTarget = () => null, mode = 'auto', probeIntervalMs, timeoutMs = 4000 }) {
   const health = createRemoteHealth({ apiTarget, probeIntervalMs, timeoutMs });
   let currentMode = mode;
+  let simulated = false;
+  let simulatedSince = null;
 
   return {
     health,
     getMode: () => currentMode,
     setMode: (m) => { currentMode = m; },
+
+    /**
+     * נתק מדומה - **בעמדה הזו בלבד**.
+     *
+     * זה כל העניין: השרת המרכזי ממשיך לרוץ, שאר העמדות אינן יודעות דבר,
+     * ורק העמדה שלחצה עוברת לעבוד מול המאגר שלה. כך אפשר לתרגל נתק, ולבדוק
+     * שהסנכרון חזרה באמת עובד, בלי להפיל שדה שלם.
+     */
+    setSimulatedOutage(on) {
+      const next = !!on;
+      if (next === simulated) return this.status();
+      simulated = next;
+      simulatedSince = next ? Date.now() : null;
+      return this.status();
+    },
+    isSimulated: () => simulated,
 
     /** לאן הבקשה הזו הולכת, ומהי כתובת היעד. */
     resolve() {
@@ -134,13 +162,26 @@ function createApiRouter({ apiTarget, localTarget = () => null, mode = 'auto', p
         mode: currentMode,
         remoteOnline: health.snapshot().online,
         hasLocal: !!local,
+        simulated,
       });
-      return { which, target: which === 'local' ? local : apiTarget };
+      return {
+        which,
+        target: which === 'local' ? local : which === 'remote' ? apiTarget : null,
+      };
+    },
+
+    /** ניתוב מפורש ליעד אחד, בלי קשר למצב. משמש את נתיבי הסנכרון. */
+    resolveForced(which) {
+      const target = which === 'local' ? localTarget() : apiTarget;
+      return { which, target: target || null };
     },
 
     /** מדווח על תוצאת בקשה שעברה בפועל - זה מה שמזין את מצב הקשר. */
     report(which, ok) {
       if (which !== 'remote') return;
+      // בנתק מדומה אין ללמוד דבר מכשל: הוא מלאכותי. דיווח היה מגלגל את מצב
+      // הקשר האמיתי למטה, והעמדה הייתה נשארת "מנותקת" גם אחרי כיבוי הדימוי.
+      if (simulated) return;
       if (ok) health.markUp(); else health.markDown();
     },
 
@@ -153,6 +194,8 @@ function createApiRouter({ apiTarget, localTarget = () => null, mode = 'auto', p
         serving: which,
         remote: health.snapshot(),
         localReady: !!local,
+        simulated,
+        simulatedSince,
       };
     },
   };

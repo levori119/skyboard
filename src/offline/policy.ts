@@ -75,6 +75,12 @@ export function bypassesOfflineLayer(url: string): boolean {
   // שלו ב-IndexedDB היה ממלא את הדיסק של העמדה בדקות.
   // להקלטה יש חיווי מצב משלה (הנקודה האדומה ו"הכתיבה לדיסק נכשלה").
   if (p.startsWith('/api/screen-recording/sessions')) return true;
+  // תשתית העמדה עצמה: מצב הניתוב (`__station`) והנתיבים המפורשים של שכבת
+  // הסנכרון (`__local` / `__remote`). שלושתם **אינם** בקשות תפעוליות:
+  // `__station/status` חייב לענות דווקא בנתק (זה בדיוק מה שהוא מדווח עליו),
+  // וטמינה של תשובת סנכרון או הכנסתה ל-outbox הייתה משדרת שוב דחיפה שהמרכז
+  // כבר קלט - כלומר מכפילה עבודה במקום לסנכרן אותה.
+  if (p.startsWith('/api/__')) return true;
   return p.startsWith('/api/air-picture/');
 }
 

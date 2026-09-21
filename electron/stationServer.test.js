@@ -233,3 +233,106 @@ describe('שרת העמדה - תמונ"א ישירה מהמאגר', () => {
     expect(seen.env).toBeNull();
   });
 });
+
+// ── נתק מדומה וניתוב מפורש ────────────────────────────────────────────────────
+// שני הדברים שהופכים את "עמידות בנתק" לדבר שאפשר לראות ולבדוק: כפתור שמנתק
+// **עמדה אחת**, ונתיבים שמאפשרים לשכבת הסנכרון לדבר עם שני הצדדים.
+describe('נתק מדומה וניתוב מפורש בשרת העמדה', () => {
+  let dist, station, central, centralUrl, local, localUrl, centralSeen, localSeen;
+
+  const call = (url, opts = {}) => new Promise((resolve, reject) => {
+    const req = http.request(url, opts, res => {
+      let body = '';
+      res.on('data', c => { body += c; });
+      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body }));
+    });
+    req.on('error', err => resolve({ status: 0, headers: {}, body: '', err }));
+    if (opts.body) req.write(opts.body);
+    req.end();
+  });
+
+  const echo = (seen) => http.createServer((req, res) => {
+    seen.path = req.url;
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ who: seen.name, path: req.url }));
+  });
+
+  beforeAll(async () => {
+    dist = fs.mkdtempSync(path.join(os.tmpdir(), 'skyking-dist-sim-'));
+    fs.writeFileSync(path.join(dist, 'index.html'), '<html>SKY-KING</html>');
+
+    centralSeen = { name: 'central' };
+    localSeen = { name: 'local' };
+    central = echo(centralSeen);
+    local = echo(localSeen);
+    await new Promise(r => central.listen(0, '127.0.0.1', r));
+    await new Promise(r => local.listen(0, '127.0.0.1', r));
+    centralUrl = `http://127.0.0.1:${central.address().port}`;
+    localUrl = `http://127.0.0.1:${local.address().port}`;
+
+    station = await createStationServer({
+      distDir: dist, apiTarget: centralUrl, localApiTarget: () => localUrl, timeoutMs: 500,
+    });
+  });
+
+  afterAll(async () => {
+    await station.close();
+    await new Promise(r => central.close(r));
+    await new Promise(r => local.close(r));
+    fs.rmSync(dist, { recursive: true, force: true });
+  });
+
+  const outage = (on) => call(`${station.url}/api/__station/outage`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on }),
+  });
+
+  it('בלי דימוי - הבקשות הולכות למרכז', async () => {
+    const r = await call(`${station.url}/api/strips`);
+    expect(JSON.parse(r.body).who).toBe('central');
+  });
+
+  it('הדלקת הדימוי מעבירה את העמדה למאגר המקומי', async () => {
+    const res = await outage(true);
+    expect(JSON.parse(res.body)).toMatchObject({ simulated: true, serving: 'local' });
+
+    const r = await call(`${station.url}/api/strips`);
+    expect(JSON.parse(r.body).who).toBe('local');
+  });
+
+  it('מצב העמדה מדווח על הדימוי - וזה מה שמזין את החיווי', async () => {
+    const r = await call(`${station.url}/api/__station/status`);
+    expect(JSON.parse(r.body)).toMatchObject({ simulated: true, serving: 'local', localReady: true });
+  });
+
+  it('בזמן דימוי הנתיב המפורש למרכז נחסם - אחרת הדימוי אינו מדמה דבר', async () => {
+    const r = await call(`${station.url}/api/__remote/sync/mirror`);
+    expect(r.status).toBe(503);
+    expect(JSON.parse(r.body).code).toBe('SIMULATED_OUTAGE');
+  });
+
+  it('בזמן דימוי הנתיב המפורש למקומי עובד - שם יושב יומן הסנכרון', async () => {
+    const r = await call(`${station.url}/api/__local/sync/state`);
+    expect(JSON.parse(r.body).who).toBe('local');
+    // התחילית מוסרת: השרת המקומי מקבל את הנתיב האמיתי
+    expect(localSeen.path).toBe('/api/sync/state');
+  });
+
+  it('כיבוי הדימוי מחזיר את העמדה למרכז', async () => {
+    const res = await outage(false);
+    expect(JSON.parse(res.body)).toMatchObject({ simulated: false, serving: 'remote' });
+
+    const r = await call(`${station.url}/api/strips`);
+    expect(JSON.parse(r.body).who).toBe('central');
+  });
+
+  it('אחרי הכיבוי הנתיב המפורש למרכז נפתח, והתחילית מוסרת', async () => {
+    const r = await call(`${station.url}/api/__remote/sync/push?x=1`);
+    expect(JSON.parse(r.body).who).toBe('central');
+    expect(centralSeen.path).toBe('/api/sync/push?x=1');
+  });
+
+  it('שיטה שאינה POST על נתיב הדימוי נדחית', async () => {
+    const r = await call(`${station.url}/api/__station/outage`);
+    expect(r.status).toBe(405);
+  });
+});

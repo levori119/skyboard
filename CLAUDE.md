@@ -10,7 +10,7 @@
 | מסמך | תוכן |
 |------|------|
 | [SHARED_LANGUAGE.md](SHARED_LANGUAGE.md) | **שפה משותפת** - 19 השירותים בשם עסקי (העברות עמדה, התראות בד"ח...) + מיפוי לקוד |
-| [SERVICES.md](SERVICES.md) | **קטלוג טכני** - כל מודול: שם, מיקום, תפקיד, מה מייצא + כל 491 ה-endpoints |
+| [SERVICES.md](SERVICES.md) | **קטלוג טכני** - כל מודול: שם, מיקום, תפקיד, מה מייצא + כל 498 ה-endpoints |
 | [README.md](README.md) | התקנה, הרצה, tech stack |
 | [DEV_GUIDE.md](DEV_GUIDE.md) | onboarding, מילון מונחים, conventions, FAQ |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | מבנה המערכת, זרימת נתונים, מפת תלויות |
@@ -389,6 +389,9 @@ style={{ touchAction: 'none', userSelect: 'none' }}
 - ❌ לא לקמט קבצים שאינם שלך - `git status` לפני קימוט; קובץ זר בעץ = לדווח למשתמש, לא "לנקות"
 - ❌ **לא להוסיף טבלה בלי לסווג אותה ב-[`server/db/env-tables.js`](server/db/env-tables.js)** - `checkTableClassification` מפיל את **כל שרשרת העלייה** על טבלה לא מסווגת ב-public, ואיתה `syncAllEnvSchemas` ו**כל העבודות המחזוריות** (קבלה אוטומטית, ניקוי פ"מים, ניקוי נקודות זמניות) - הן רצות אחריה ב-`server.js`. הסימפטום מטעה: השרת חי ועונה, ורק `/api/health` מראה `phase:"failed"`. קרה בייצור (REFACTOR_LOG #045). זה חל גם על טבלה שענף **אחר** יצר: כל ה-worktrees חולקים DB אחד
 - ❌ **לא להוסיף טבלה רגישה בלי לבדוק את רשימת החסימה של הביטול** - טבלה חדשה מקבלת CTRL+Z **אוטומטית** בעלייה הבאה (הטריגר מותקן בסריקת קטלוג). אם ביטול שלה מסוכן תפעולית או בלתי הפיך - להוסיפה ל-`UNDO_DENYLIST` ב-[`server/db/undoJournal.js`](server/db/undoJournal.js) עם נימוק כתוב. ראה [UNDO_SPEC.md](UNDO_SPEC.md) §4
+- ❌ **לא להוסיף טבלה למאגר המקומי בלי לסווג אותה גם ב-IGNORED_EXACT** - טבלה של העמדה בלבד (כמו `local_sync_journal`) קיימת ב-public של המאגר המקומי, ו-`checkTableClassification` מפיל בגללה את **עליית העמדה כולה**. הסימפטום: העמדה לא עולה, והשרת המרכזי דווקא תקין
+- ❌ **לא לקרוא ל-`pool.query()` בזמן שמחזיקים `pool.connect()`** - במאגר המקומי (PGlite) יש **חיבור יחיד**, וזה דדלוק שקט: הבקשה תלויה עד ה-timeout בלי שגיאה. handler שמחזיק client מריץ **הכל** דרכו. ראה [`server/db/localPool.js`](server/db/localPool.js) §חיבור יחיד
+- ❌ **לא לכתוב למאגר המקומי מטעם הסנכרון בלי `withoutJournal`** - קליטת מראה או אימוץ גרסת שרת שנרשמים ביומן נדחפים בסיבוב הבא חזרה למרכז, ומייצרים סתירות יש מאין. והעטיפה **חייבת טרנזקציה**: `SET LOCAL` מחוץ לאחת מתאפס לפני הכתיבה הבאה
 - ❌ **לא לתת לפקד להידלק בלי שקורה משהו** - כפתור שמשנה state אבל תנאי רינדור נוסף מונע את התוצאה נראה למפעיל בדיוק כמו פיצ'ר שבור, והוא מחפש את התקלה במקום הלא נכון. אם התנאי הנוסף הכרחי - להציג *למה* (כמו `ctrl.peekNoneConfigured` מול `ctrl.peekNonePermitted`), ואם לא - להסיר אותו (ראה `shouldRenderPattern3D`)
 - ❌ לא לממש עגינה ידנית לחלון צף - `useDockableWindow` מ-[`src/hooks/useDockableWindow.ts`](src/hooks/useDockableWindow.ts). ראה §קונטיינר החלונות
 - ❌ לא למחוק היסטוריה

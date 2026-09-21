@@ -23,6 +23,7 @@ import UndoManager from './components/shared/UndoManager';
 // מוצג ריבוע קטן בתוך סרגל העמדה, ובאנר ברוחב מלא היה שובר אותו; העמדה
 // המארחת ממילא מציגה את החיווי שלה.
 import ConnectionBanner from './components/shared/ConnectionBanner';
+import OutageSimPanel from './components/shared/OutageSimPanel';
 import LearnDigitsOverlay from './components/shared/LearnDigitsOverlay';
 import KeyboardLangIndicator from './components/shared/KeyboardLangIndicator';
 import StationCrewForm from './components/shared/StationCrewForm';
@@ -931,7 +932,7 @@ export default function App() {
   }
 
   if (page === 'management') {
-    return <><ConnectionBanner /><ConfirmModal /><UndoManager /><ManagementPage
+    return <><ConnectionBanner /><OutageSimPanel /><ConfirmModal /><UndoManager /><ManagementPage
       // יציאה - סוגר את ההזדהות ומחזיר למסך הכניסה. האסימון מת יחד איתה, אחרת
       // "יציאה" משאירה זהות תקפה בדפדפן (אותו נימוק כמו ב-handleLogout).
       onBack={() => { clearAuthToken(); setManagementCrewMember(null); setPage('login'); }}
@@ -948,5 +949,5 @@ export default function App() {
   // כל מה שהוגדר לה בניהול (עזרים בחלון הימני, דש בורד מנהל, מצבי בסיס, לחץ/מז"א,
   // מד עומס, פתקיות). במקום מפה/סטריפים מוצג קנבס הדסק (MissionDeskBody).
   // MissionDeskView נשאר למצב ההגדרה במסך הניהול (adminMode).
-  return <><ConnectionBanner /><ConfirmModal /><UndoManager /><VirtualKeyboardProvider><SectorDashboard session={session} onLogout={handleLogout} onCrewChange={handleCrewChange} workstationPresets={workstationPresets} /></VirtualKeyboardProvider></>;
+  return <><ConnectionBanner /><OutageSimPanel /><ConfirmModal /><UndoManager /><VirtualKeyboardProvider><SectorDashboard session={session} onLogout={handleLogout} onCrewChange={handleCrewChange} workstationPresets={workstationPresets} /></VirtualKeyboardProvider></>;
 }

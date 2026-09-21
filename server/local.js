@@ -90,6 +90,34 @@ export async function startLocalServer({ port = PORT, host = HOST } = {}) {
       const purged = await purgeExpiredCredentials(pool);
       if (purged) console.log(`[local] ${purged} אסמכתאות שפג תוקפן נמחקו`);
     });
+    // יומן הסנכרון וטווח המזהים — **אחרי** initDb ו-seedDb, ובכוונה:
+    //   · הטריגר מוקלט מרגע התקנתו, ונתוני האתחול אינם עבודה של מפעיל שצריך
+    //     לדחוף למרכז. התקנה מוקדמת הייתה מייצרת תור סנכרון מלא בזבל בעלייה.
+    //   · הזזת הרצפים אחרי ה-seed משאירה לנתוני האתחול מזהים רגילים, וכך רק
+    //     מה שנולד **בעמדה** נושא מזהה מהטווח המקומי.
+    await timed('יומן סנכרון מקומי', async () => {
+      const { default: pool } = await import('./db/pool.js');
+      const { syncJournalDdl, syncFunctionDdl, installSyncTriggersDdl } = await import('./db/syncJournal.js');
+      const { applyLocalIdRange, localIdStart } = await import('./db/localIds.js');
+      const { hostname } = await import('node:os');
+
+      for (const sql of syncJournalDdl()) await pool.query(sql);
+      await pool.query(syncFunctionDdl());
+
+      // גם בסכמות התרגול: עמדה שמתנתקת באמצע תרגול צריכה לסנכרן חזרה בדיוק
+      // כמו בסביבה טסה. בלי זה תרגול היה עובד בנתק ואובד בשקט.
+      const { rows: schemas } = await pool.query(
+        `SELECT nspname FROM pg_namespace WHERE nspname = 'public' OR nspname LIKE 'env\\_%'`);
+      for (const { nspname } of schemas) {
+        for (const sql of installSyncTriggersDdl(nspname)) {
+          try { await pool.query(sql); } catch { /* טבלה שאינה בסכמה הזו */ }
+        }
+      }
+
+      const key = process.env.SKYKING_STATION_KEY || hostname();
+      const moved = await applyLocalIdRange(pool, key);
+      console.log(`[local] טווח מזהים מקומי מ-${localIdStart(key)} (${moved} רצפים הוזזו)`);
+    });
     markReady();
   } catch (err) {
     markFailed(err);

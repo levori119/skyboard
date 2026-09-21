@@ -25,6 +25,9 @@ const { createAuthBridge } = require('./authBridge.cjs');
 /** מצב העמדה - מאיזה מאגר היא משרתת כרגע. נענה מקומית, גם בנתק מלא. */
 const STATION_STATUS_PATH = '/api/__station/status';
 
+/** הדלקה וכיבוי של נתק מדומה **בעמדה הזו בלבד**. */
+const STATION_OUTAGE_PATH = '/api/__station/outage';
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -223,6 +226,62 @@ function createStationServer({
       res.end(JSON.stringify({ ...router.status(), offlineSessions: authBridge.knownSessions() }));
       return;
     }
+
+    // ── נתק מדומה - בעמדה הזו בלבד ───────────────────────────────────────────
+    // כפתור בממשק מדליק ומכבה אותו. מקומי לחלוטין: השרת המרכזי אינו יודע
+    // עליו דבר, ושאר העמדות ממשיכות לעבוד מולו כרגיל. זה מה שהופך אותו לכלי
+    // תרגול ולא לתקלה מכוונת בשדה.
+    if (urlPath === STATION_OUTAGE_PATH) {
+      if (req.method !== 'POST') { res.writeHead(405); res.end(); return; }
+      const chunks = [];
+      req.on('data', c => chunks.push(c));
+      req.on('error', () => { /* הלקוח ניתק */ });
+      req.on('end', () => {
+        let on = false;
+        try { on = !!JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}').on; } catch { /* גוף ריק = כיבוי */ }
+        const status = router.setSimulatedOutage(on);
+        console.log(`[station] נתק מדומה ${on ? 'הודלק' : 'כובה'} - משרת מ-${status.serving}`);
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+        res.end(JSON.stringify(status));
+      });
+      return;
+    }
+
+    // ── ניתוב מפורש: /api/__local/... ו-/api/__remote/... ────────────────────
+    // שכבת הסנכרון היא הצרכן היחיד שלהם, ומסיבה אחת: היא חייבת לדבר עם **שני**
+    // הצדדים באותה נשימה - לקרוא את היומן מהמאגר המקומי ולדחוף אותו למרכז.
+    // `/api/...` הרגיל מנותב לפי מצב הקשר ויכול להגיע רק לאחד מהם.
+    //
+    // הדפדפן הוא שמריץ את הסנכרון, כי הוא היחיד שמחזיק אסימון תקף לשני
+    // הצדדים. שרת מקומי שהיה פונה למרכז בעצמו היה זקוק לזהות משלו.
+    const forced = urlPath.startsWith('/api/__local/') ? 'local'
+      : urlPath.startsWith('/api/__remote/') ? 'remote' : null;
+    if (forced) {
+      // נתק מדומה חוסם גם את הנתיב המפורש. אחרת העמדה הייתה ממשיכה למשוך
+      // מראה מהמרכז בזמן ש"אין לה קשר" - דימוי שאינו מדמה דבר.
+      if (forced === 'remote' && router.isSimulated()) {
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'simulated outage', code: 'SIMULATED_OUTAGE' }));
+        return;
+      }
+      const { which, target } = router.resolveForced(forced);
+      if (!target) {
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `${forced} target unavailable` }));
+        return;
+      }
+      const prefix = forced === 'local' ? '/api/__local' : '/api/__remote';
+      const extraHeaders = {};
+      if (which === 'local') {
+        const swapped = authBridge.swapAuthHeader(req.headers.authorization);
+        if (swapped) extraHeaders.authorization = swapped;
+      }
+      return proxyRequest(req, res, target, timeoutMs, {
+        rewritePath: (req.url || '').replace(prefix, '/api'),
+        extraHeaders,
+        onResult: ok => router.report(which, ok),
+      });
+    }
     // ── תמונ"א: חיבור **ישיר** מהעמדה למאגר ──────────────────────────────────
     // הדרישה באפיון היא שהתמונ"א תגיע לעמדה בלי לעבור דרך מאגר SKY-KING. כאן
     // זה קורה: כשהעמדה יודעת את כתובת המאגר, הבקשה יוצאת אליו ישירות ו-SKY-KING
@@ -237,6 +296,13 @@ function createStationServer({
     }
     if (shouldProxy(urlPath)) {
       const { which, target } = router.resolve();
+
+      // נתק מדומה בעמדה **בלי** מאגר מקומי: אין לאן לנתב, ולכן הבקשה נכשלת
+      // כמו בנתק אמיתי. הסוקט נסגר בלי תשובה בכוונה - שכבת ה-offline בלקוח
+      // מזהה כשל רשת ומגישה את ה-cache, בעוד תשובת 5xx הייתה נקראת אצלה
+      // כ"השרת חי" והחיווי היה מטעה.
+      if (which === 'none') { req.destroy(); res.destroy(); return; }
+
       const onResult = ok => router.report(which, ok);
 
       // כניסה מול השרת המרכזי - נלכדת כדי לאפשר עבודה בנתק אחר כך.
@@ -281,6 +347,7 @@ module.exports = {
   shouldProxy,
   AIR_PICTURE_PATH,
   STATION_STATUS_PATH,
+  STATION_OUTAGE_PATH,
   resolveStaticPath,
   isAssetLike,
 };

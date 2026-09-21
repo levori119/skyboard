@@ -1,0 +1,130 @@
+{
+  "_group": "סנכרון עבודה מנותקת",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
+  "keys": {
+    "title": {
+      "he": "קשר למאגר",
+      "en": "Database link"
+    },
+    "openPanel": {
+      "he": "קשר למאגר וסנכרון",
+      "en": "Database link and sync"
+    },
+    "outageOn": {
+      "he": "נתק מדומה בעמדה זו",
+      "en": "Simulated outage on this station"
+    },
+    "simulate": {
+      "he": "נתק את העמדה",
+      "en": "Disconnect station"
+    },
+    "restore": {
+      "he": "החזר קשר",
+      "en": "Restore link"
+    },
+    "servingLocal": {
+      "he": "עובדים מול המאגר שבעמדה. שאר העמדות אינן מושפעות.",
+      "en": "Working against this station's local database. Other stations are unaffected."
+    },
+    "servingRemote": {
+      "he": "עובדים מול המאגר המרכזי.",
+      "en": "Working against the central database."
+    },
+    "noLocalDb": {
+      "he": "אין מאגר מקומי בעמדה - נתק יאפשר צפייה בלבד.",
+      "en": "No local database on this station - an outage allows viewing only."
+    },
+    "pending": {
+      "he": "{{n}} ממתינות לסנכרון",
+      "en": "{{n}} awaiting sync"
+    },
+    "conflicts": {
+      "he": "{{n}} סתירות",
+      "en": "{{n}} conflicts"
+    },
+    "allSynced": {
+      "he": "הכל מסונכרן",
+      "en": "Fully synced"
+    },
+    "pushNow": {
+      "he": "סנכרן עכשיו",
+      "en": "Sync now"
+    },
+    "mirrorNow": {
+      "he": "רענן מהמרכז",
+      "en": "Refresh from centre"
+    },
+    "resolveNow": {
+      "he": "הכרע בסתירות",
+      "en": "Resolve conflicts"
+    },
+    "lastError": {
+      "he": "כשל אחרון:",
+      "en": "Last error:"
+    },
+    "conflictsTitle": {
+      "he": "סתירות בסנכרון - נדרשת הכרעה",
+      "en": "Sync conflicts - decision required"
+    },
+    "conflictsCount": {
+      "he": "{{n}} ממתינות",
+      "en": "{{n}} pending"
+    },
+    "conflictsHelp": {
+      "he": "בזמן שהעמדה הייתה מנותקת, עמדה אחרת שינתה את אותם פ\"מים. המערכת אינה מכריעה במקומך: בחר לכל שורה איזו גרסה נכונה.",
+      "en": "While this station was disconnected, another station changed the same records. The system will not decide for you: choose the correct version for each row."
+    },
+    "field": {
+      "he": "שדה",
+      "en": "Field"
+    },
+    "mine": {
+      "he": "הגרסה שלי",
+      "en": "My version"
+    },
+    "theirs": {
+      "he": "גרסת המרכז",
+      "en": "Central version"
+    },
+    "keepMine": {
+      "he": "השאר את שלי",
+      "en": "Keep mine"
+    },
+    "keepTheirs": {
+      "he": "קבל את המרכז",
+      "en": "Accept central"
+    },
+    "noFieldDiff": {
+      "he": "אין הפרש בשדות - הגרסה במרכז התחלפה מאז.",
+      "en": "No field differences - the central version changed since."
+    },
+    "serverDeleted": {
+      "he": "השורה נמחקה במרכז בזמן הנתק.",
+      "en": "The row was deleted centrally during the outage."
+    },
+    "reason.changed": {
+      "he": "עמדה אחרת שינתה",
+      "en": "Changed by another station"
+    },
+    "reason.missing": {
+      "he": "נמחק במרכז",
+      "en": "Deleted centrally"
+    },
+    "reason.exists": {
+      "he": "המזהה כבר תפוס",
+      "en": "Identifier already taken"
+    },
+    "reason.apply_failed": {
+      "he": "הכתיבה נכשלה",
+      "en": "Write failed"
+    },
+    "reason.not_synced": {
+      "he": "טבלה שאינה מסונכרנת",
+      "en": "Table is not synced"
+    },
+    "reason.no_pk": {
+      "he": "שורה בלי מפתח ראשי",
+      "en": "Row without a primary key"
+    }
+  }
+}

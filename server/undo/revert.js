@@ -8,52 +8,16 @@
 // **הכל או כלום.** כשל באמצע מגלגל אחורה את הביטול כולו, והפעולה נשארת
 // במחסנית. ביטול שהצליח חלקית היה משאיר מידע שדה במצב שאיש לא בחר בו —
 // גרוע יותר מלא לבטל בכלל.
+//
+// הפרימיטיבים לכתיבת שורה מתוך JSONB יושבים ב-`db/rowOps.js` ומשותפים עם
+// מנוע הסנכרון (`sync/apply.js`) — שעושה בדיוק את אותו דבר מהכיוון השני.
 
 import { denyReason } from '../db/undoJournal.js';
-
-/** ציטוט מזהה. השמות מגיעים מקטלוג ה-DB, והבדיקה היא הגנת עומק. */
-function ident(name) {
-  const s = String(name);
-  if (!/^[A-Za-z_][A-Za-z0-9_$]*$/.test(s)) throw new Error(`שם לא חוקי: ${s}`);
-  return `"${s}"`;
-}
-
-const qualified = (r) => `${ident(r.table_schema)}.${ident(r.table_name)}`;
-
-/**
- * איתור השורה לפי המפתח הראשי דרך `to_jsonb(t) @> pk`.
- *
- * למה הכלה ולא `WHERE id = $1`: המפתח נשמר כ-JSONB גנרי (יש גם מפתחות
- * מורכבים), ובנייה של השוואה מוקלדת לכל עמודה הייתה מחייבת אותנו לנחש טיפוסים.
- * ההכלה משווה ערכי JSON לערכי JSON ומדויקת לכל טיפוס.
- *
- * המחיר הוא סריקה מלאה במקום שימוש באינדקס. מקובל כאן: ביטול הוא פעולה
- * נדירה שיוזם אדם, והוא נוגע בשורות של חמש הדקות האחרונות בלבד.
- */
-const PK_MATCH = (alias) => `to_jsonb(${alias}) @> $1::jsonb`;
-
-/** עמודות הטבלה **כפי שהן עכשיו** — ולא מפתחות ה-JSON שנשמרו. */
-async function currentColumns(client, schema, table) {
-  const { rows } = await client.query(
-    `SELECT a.attname AS name
-       FROM pg_attribute a
-       JOIN pg_class c ON c.oid = a.attrelid
-       JOIN pg_namespace n ON n.oid = c.relnamespace
-      WHERE n.nspname = $1 AND c.relname = $2 AND a.attnum > 0 AND NOT a.attisdropped
-      ORDER BY a.attnum`,
-    [schema, table],
-  );
-  return rows.map(r => r.name);
-}
+import { currentRow, insertRow, updateRow, deleteRow } from '../db/rowOps.js';
 
 /** השורה הנוכחית ב-DB, או null. */
-async function currentRow(client, entry) {
-  const { rows } = await client.query(
-    `SELECT to_jsonb(t) AS row FROM ${qualified(entry)} t WHERE ${PK_MATCH('t')} LIMIT 1`,
-    [JSON.stringify(entry.pk)],
-  );
-  return rows[0]?.row ?? null;
-}
+const rowNow = (client, entry) =>
+  currentRow(client, entry.table_schema, entry.table_name, entry.pk);
 
 /**
  * האם מישהו נגע בשורה מאז הפעולה.
@@ -65,7 +29,7 @@ async function currentRow(client, entry) {
  * @returns {null | {type: 'changed'|'missing'|'exists', table: string}}
  */
 export async function conflictFor(client, entry) {
-  const now = await currentRow(client, entry);
+  const now = await rowNow(client, entry);
 
   if (entry.op === 'D') {
     // מחקנו שורה ומישהו יצר אותה מחדש באותו מפתח — הכנסה חוזרת תיפול על המפתח
@@ -94,40 +58,11 @@ export async function conflictsFor(client, entries) {
 
 /** מבצע את ההיפוך של שורת יומן אחת. */
 async function revertEntry(client, entry) {
-  const pk = JSON.stringify(entry.pk);
-  const tbl = qualified(entry);
+  const { table_schema: schema, table_name: table, pk } = entry;
 
-  if (entry.op === 'I') {
-    await client.query(`DELETE FROM ${tbl} t WHERE ${PK_MATCH('t')}`, [pk]);
-    return;
-  }
-
-  if (entry.op === 'D') {
-    // `jsonb_populate_record` ממיר את ה-JSON חזרה לטיפוסי העמודות של הטבלה
-    // עצמה — בלי שנצטרך לדעת אילו טיפוסים אלה.
-    await client.query(
-      `INSERT INTO ${tbl} SELECT * FROM jsonb_populate_record(NULL::${tbl}, $1::jsonb)`,
-      [JSON.stringify(entry.before)],
-    );
-    return;
-  }
-
-  // U — החזרת הערכים. רק עמודות שקיימות **עכשיו**: אם עמודה נוספה או ירדה
-  // מאז הפעולה, הביטול לא ינסה לכתוב לעמודה שאיננה ולא ייפול על כך.
-  const cols = (await currentColumns(client, entry.table_schema, entry.table_name))
-    .filter(c => Object.prototype.hasOwnProperty.call(entry.before, c));
-  if (!cols.length) return;
-
-  const list = cols.map(ident).join(', ');
-  const src = `(SELECT ${cols.map(c => `r.${ident(c)}`).join(', ')} `
-            + `FROM jsonb_populate_record(NULL::${tbl}, $2::jsonb) AS r)`;
-  // צורת העמודה הבודדת אינה זהה לצורת הרשימה — PostgreSQL דורש הפרדה
-  const setClause = cols.length === 1 ? `${list} = ${src}` : `(${list}) = ${src}`;
-
-  await client.query(
-    `UPDATE ${tbl} t SET ${setClause} WHERE ${PK_MATCH('t')}`,
-    [pk, JSON.stringify(entry.before)],
-  );
+  if (entry.op === 'I') return void await deleteRow(client, schema, table, pk);
+  if (entry.op === 'D') return void await insertRow(client, schema, table, entry.before);
+  await updateRow(client, schema, table, pk, entry.before);
 }
 
 /**

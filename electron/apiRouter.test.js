@@ -149,3 +149,54 @@ describe('בדיקה תקופתית של השרת המרכזי', () => {
     health.stop();
   });
 });
+
+// ── נתק מדומה - בעמדה הזו בלבד ────────────────────────────────────────────────
+// הדרישה: להדליק נתק בעמדה אחת ולראות שהשנייה ממשיכה לעבוד מול המרכז. לכן
+// הבדיקות כאן מוודאות שני דברים - שהדימוי באמת מנתק, ושהוא **לא** נוגע במצב
+// הקשר האמיתי (אחרת העמדה הייתה נשארת מנותקת גם אחרי כיבוי הכפתור).
+describe('נתק מדומה', () => {
+  it('chooseTarget: דימוי מנתב למאגר המקומי גם כשהמרכזי חי', () => {
+    expect(chooseTarget({ mode: 'auto', remoteOnline: true, hasLocal: true, simulated: true })).toBe('local');
+  });
+
+  it('chooseTarget: דימוי גובר גם על mode remote', () => {
+    expect(chooseTarget({ mode: 'remote', remoteOnline: true, hasLocal: true, simulated: true })).toBe('local');
+  });
+
+  it('chooseTarget: בלי מאגר מקומי הבקשה נכשלת ולא "ממשיכה לעבוד"', () => {
+    expect(chooseTarget({ mode: 'auto', remoteOnline: true, hasLocal: false, simulated: true })).toBe('none');
+  });
+
+  it('הדלקה מעבירה למקומי, כיבוי מחזיר למרכזי', () => {
+    const router = createApiRouter({ apiTarget: REMOTE, localTarget: () => LOCAL });
+    expect(router.resolve().which).toBe('remote');
+
+    const on = router.setSimulatedOutage(true);
+    expect(on.simulated).toBe(true);
+    expect(on.serving).toBe('local');
+    expect(router.resolve().target).toBe(LOCAL);
+
+    const off = router.setSimulatedOutage(false);
+    expect(off.simulated).toBe(false);
+    expect(router.resolve().which).toBe('remote');
+    router.health.stop();
+  });
+
+  it('כשלים בזמן דימוי אינם מגלגלים את מצב הקשר האמיתי', () => {
+    const router = createApiRouter({ apiTarget: REMOTE, localTarget: () => LOCAL });
+    router.setSimulatedOutage(true);
+    for (let i = 0; i < FAILURE_THRESHOLD + 2; i++) router.report('remote', false);
+    router.setSimulatedOutage(false);
+    // אילו הכשלים המדומים נספרו, העמדה הייתה נשארת על המאגר המקומי
+    expect(router.health.snapshot().online).toBe(true);
+    expect(router.resolve().which).toBe('remote');
+    router.health.stop();
+  });
+
+  it('ניתוב מפורש מגיע ליעד שנדרש, בלי קשר למצב', () => {
+    const router = createApiRouter({ apiTarget: REMOTE, localTarget: () => LOCAL });
+    expect(router.resolveForced('local').target).toBe(LOCAL);
+    expect(router.resolveForced('remote').target).toBe(REMOTE);
+    router.health.stop();
+  });
+});

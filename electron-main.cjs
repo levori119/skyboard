@@ -139,6 +139,58 @@ function resolveTarget() {
   return { mode: 'remote', url: DEFAULT_APP_URL, cfg };
 }
 
+// ── המאגר המקומי בעמדה (PGlite) ───────────────────────────────────────────────
+// זה מה שהופך עמדה מנותקת מ"מסך צפייה" ל"עמדה עובדת": אותו Express, אותם
+// endpoints, מול מאגר שיושב בעמדה עצמה (server/local.js).
+//
+// **תהליך בן ולא באותו תהליך**: initDb על PGlite לוקח שניות ארוכות, ו-WASM
+// שרץ בתהליך ה-main של Electron היה מקפיא את חלון העמדה בזמן העלייה. התהליך
+// הבן מודיע על עצמו ב-IPC ברגע שהוא מוכן.
+//
+// כיבוי מכוון: `"LOCAL_DB": false` בקובץ התצורה של העמדה. הפעולה היחידה שהוא
+// מונע היא עבודה בנתק - הצפייה מה-cache ממשיכה לעבוד גם בלעדיו.
+const localDb = { url: null, child: null };
+
+function startLocalDbServer(cfg) {
+  if (cfg && cfg.LOCAL_DB === false) return;
+  const entry = path.join(__dirname, 'server', 'local.js');
+  if (!fs.existsSync(entry)) return; // גרסת לקוח דק - אין שרת ארוז
+
+  try {
+    const { fork } = require('child_process');
+    localDb.child = fork(entry, [], {
+      env: {
+        ...process.env,
+        SKYKING_LOCAL_DB: '1',
+        // מזהה העמדה קובע את גוש המזהים המקומי (server/db/localIds.js). בלעדיו
+        // שתי עמדות שמנותקות בו-זמנית עלולות לחלק את אותו `id` לשני פ"מים.
+        SKYKING_STATION_KEY: (cfg && cfg.STATION_KEY) || require('os').hostname(),
+        SKYKING_LOCAL_DB_DIR: (cfg && cfg.LOCAL_DB_DIR)
+          || path.join(app.getPath('userData'), 'local-db'),
+      },
+      stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
+    });
+    localDb.child.on('message', msg => {
+      if (msg && msg.type === 'local-api-ready') {
+        localDb.url = msg.url;
+        console.log(`[station] המאגר המקומי מוכן: ${msg.url} · ${msg.dataDir}`);
+      }
+      if (msg && msg.type === 'local-api-failed') {
+        console.error('[station] המאגר המקומי לא עלה:', msg.error);
+      }
+    });
+    // מוות של התהליך הבן אינו מפיל את העמדה - הוא רק מחזיר אותה למצב שבו
+    // נתק פירושו צפייה בלבד. `url = null` מחזיר את הנתב למרכז.
+    localDb.child.on('exit', code => {
+      localDb.url = null;
+      localDb.child = null;
+      if (code) console.error(`[station] תהליך המאגר המקומי הסתיים (${code})`);
+    });
+  } catch (err) {
+    console.error('[station] לא ניתן להפעיל את המאגר המקומי:', err.message);
+  }
+}
+
 // ── מצב legacy: שרת מקומי בתוך העמדה ─────────────────────────────────────────
 // נשמר למי שמריץ בלי ענן. לא נדרש במצב הרגיל (לקוח מרוחק).
 async function startLocalServer(cfg) {
@@ -332,9 +384,14 @@ async function createWindow() {
   // שלא עולה בכלל; החיווי בממשק ידווח על אובדן ה-cache.
   if (target.mode === 'bundled') {
     try {
+      // המאגר המקומי עולה **ברקע**: הוא לוקח כמה שניות (PGlite + initDb), ואין
+      // סיבה להשהות בגללו את חלון העמדה. עד שיהיה מוכן `localApiTarget` מחזיר
+      // null, והנתב ממשיך לנתב למרכז - בדיוק ההתנהגות הנכונה.
+      startLocalDbServer(target.cfg);
       const station = await createStationServer({
         distDir: distDir(), apiTarget: target.apiTarget,
         airPictureTarget: target.airPictureTarget, airPictureToken: target.airPictureToken,
+        localApiTarget: () => localDb.url,
       });
       stationServer = station;
       target = { mode: 'bundled', url: station.url, apiTarget: target.apiTarget, cfg: target.cfg };
@@ -525,6 +582,9 @@ app.on('window-all-closed', () => {
 // (סגירה ופתיחה של העמדה) הייתה נופלת ללקוח דק.
 app.on('before-quit', () => {
   if (stationServer) { stationServer.close().catch(() => {}); stationServer = null; }
+  // תהליך המאגר המקומי מחזיק קבצים פתוחים; בלי הריגה הוא שורד את העמדה
+  // ומחזיק את תיקיית המאגר נעולה בהפעלה הבאה.
+  if (localDb.child) { try { localDb.child.kill(); } catch { /* כבר מת */ } localDb.child = null; }
   // הקלטה שלא נסגרה משאירה קובץ בלי זנב - ב-fMP4/WebM הוא ניגן, אבל בלי אורך
   if (screenRecorder) { screenRecorder.stop().catch(() => {}); }
 });

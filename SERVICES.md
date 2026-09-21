@@ -42,6 +42,20 @@
 **תפקיד:** יומן הביטול (CTRL+Z) — DDL של `undo_actions`/`undo_journal`, פונקציית הטריגר הגנרית (plpgsql), והתקנתה על **כל** טבלה בסכמה פרט לרשימת החסימה (לולאת `DO` בצד השרת, round-trip אחד; טבלה חדשה מקבלת ביטול מאליה בעלייה הבאה). ללא `app.action_id` הטריגר יוצא מיד — קליטת תמונ"א, GAPI, `initDb` ומיגרציות אינם משלמים דבר. תקרת 128KB לשורה מונעת ניפוח מ-`image_data`. אותה תבנית כמו `versionedTables.js`: מקור אמת יחיד ל-`init.js` ול-`envs.js`.
 **מייצא:** `journalTablesDdl`, `journalFunctionDdl`, `installTriggersDdl`, `pruneSql`, `UNDO_DENYLIST`, `DENIED_TABLES`, `denyReason`, `RETENTION_MINUTES`, `MAX_ROW_BYTES`, `ACTION_GUC`.
 
+### `server/db/syncJournal.js`
+**תפקיד:** **יומן הפעולות המקומיות** — מה העמדה שינתה בזמן שהייתה מנותקת. DDL של `local_sync_journal`, פונקציית טריגר plpgsql, והתקנתה על חמש הטבלאות של `versionedTables.js` (ועליהן בלבד — הן היחידות שנושאות `rev`, ובלעדיו אי אפשר להכריע סתירה). **מותקן רק במאגר המקומי**, ורק אחרי `initDb`/`seedDb`, כדי שנתוני אתחול לא ייכנסו לתור. ה-GUC `app.sync_apply` מכבה את הרישום בזמן קליטת מראה ואימוץ גרסת שרת — בלעדיו כל שורה שהמרכז שלח הייתה נדחפת אליו בחזרה.
+**⚠️ `withoutJournal` חייב טרנזקציה:** `SET LOCAL` מחוץ לטרנזקציה חל על השאילתה הבודדת בלבד ומתאפס לפניה הבאה, ולכן הסימון פשוט אינו שם כשהכתיבה מגיעה. ברירת המחדל פותחת טרנזקציה משלה (`begin: true`).
+**מייצא:** `syncJournalDdl`, `syncFunctionDdl`, `installSyncTriggersDdl`, `withoutJournal`, `STATUS`, `SYNC_GUC`, `JOURNAL_TABLE`.
+
+### `server/db/localIds.js`
+**תפקיד:** **גוש מזהים לכל עמדה.** `strips.id` הוא `SERIAL` — עמדה מנותקת שיוצרת פ"מ הייתה מקבלת מזהה שהמרכז כבר חילק לפ"מ אחר, ובסנכרון אחד מהם היה נדרס בשקט. בעליית המאגר המקומי כל רצפי המפתח הראשי מוזזים ל-`1.5e9 + block×100k` (6,000 גושים, נכנס ב-`int4`). `setval(..., false)` ולכן אידמפוטנטי ואינו זז אחורה.
+**למה לא מיפוי `local→remote`:** פ"מ שנוצר בנתק יוצר גם שורות בנות שאינן ביומן; מיפוי היה מתקן את ה-FK של מי שנרשם ומשאיר את השאר מצביע למזהה של פ"מ אחר. הזזת רצף פועלת בלידה ופותרת את כולם.
+**מייצא:** `LOCAL_ID_BASE`, `LOCAL_ID_BLOCK`, `LOCAL_ID_BLOCKS`, `isLocalId`, `blockIndexOf`, `localIdStart`, `applyLocalIdRange`.
+
+### `server/db/rowOps.js`
+**תפקיד:** פרימיטיבים לכתיבת שורה גנרית מ-JSONB — **משותפים למנוע הביטול ולמנוע הסנכרון**. שניהם עושים את אותו דבר משני כיוונים (הביטול מחיל את `before`, הסנכרון את `after`), ועד שהקובץ נוצר הלוגיקה ישבה ב-`undo/revert.js` בלבד. הכלל המנחה: לא לנחש טיפוסים — `jsonb_populate_record` מחזיר את השורה לטיפוסי העמודות של הטבלה עצמה.
+**מייצא:** `ident`, `qualified`, `PK_MATCH`, `currentColumns`, `currentRow`, `insertRow`, `updateRow`, `deleteRow`.
+
 ### `server/db/sequences.js`
 **תפקיד:** **תיקון sequences מפגרים בעלייה.** עמודת `SERIAL` שואבת מ-sequence; שחזור dump או seed שכותב `id` במפורש אינם מקדמים אותו, ומאותו רגע **כל** INSERT לטבלה נכשל ב-`duplicate key ... _pkey`. כך נשבר שכפול שדה התעופה - `airfield_sectors` (max=11, next=10), `airfield_polygons` (max=4, next=4) ו-`airfield_status_types` (max=6, next=2) פיגרו, וגם הוספה רגילה של סקטור לשדה הייתה נכשלת. הריצה אידמפוטנטית: `setval` ל-max(id) רק היכן שה-sequence מפגר.
 **⚠ לא `pg_get_serial_sequence`:** הפונקציה מחזירה NULL כשה-sequence אינו **owned** על ידי העמודה - וזה בדיוק המצב אחרי שחזור dump, כלומר בדיוק הטבלאות השבורות. שם ה-sequence נשלף מברירת המחדל של העמודה (`nextval('...')`). טבלאות `az_*` (AeroZone) מדולגות. מכוסה בדיקות (`sequences.test.js`, 13).
@@ -88,16 +102,37 @@
 **תפקיד:** מנוע הביטול — שלושה היפוכים (I→מחיקה, U→החזרת `before`, D→הכנסה מחדש), בסדר הפוך, בטרנזקציה אחת. איתור השורה ב-`to_jsonb(t) @> pk` (עובד לכל טיפוס ולמפתח מורכב), החזרת ערכים דרך `jsonb_populate_record`, ורק לעמודות שקיימות **עכשיו**. זיהוי התנגשות בהשוואת השורה הנוכחית ל-`after` — `rev` של `versionedTables` הוא מה שהופך כל נגיעה של עמדה אחרת לגלויה.
 **מייצא:** `conflictFor`, `conflictsFor`, `revertEntries`, `blockedTableIn`.
 
+### `server/sync/coalesce.js`
+**תפקיד:** מאחד את שורות היומן לפעולות נטו — פקח שגרר פ"מ עשר פעמים בנתק מייצר עשר שורות, ולמרכז צריכה להגיע כתיבה אחת. `baseRev` נלקח מה-`before` של השינוי **הראשון** לאותה שורה (זו הגרסה שהמרכז החזיק; ה-`rev` שאחריו מקומי ואינו אומר דבר), והתוכן מה-`after` האחרון. "נוצרה ונמחקה באותו נתק" = לא קרה כלום. סדר ההחלה נגזר מ-`FOREIGN_KEYS`: אב לפני בן בהכנסה, בן לפני אב במחיקה.
+**מייצא:** `coalesceJournal`, `rowKey`.
+
+### `server/sync/apply.js`
+**תפקיד:** מחיל פעולת נטו במרכז, ומכריע את השאלה היחידה שחשובה — **נגע בזה מישהו אחר?** `rev` תואם ל-`baseRev` → הוחל; שונה → סתירה שעולה לבקר, והמרכז אינו נדרס. מחיקה אידמפוטנטית. `force` (הכרעת "הגרסה שלי") מדלג על בדיקת הגרסה. כל פעולה ב-`SAVEPOINT` משלה, כדי ששורה אחת שנכשלה לא תפיל דחיפה של משמרת שלמה.
+**⚠️ הסכמה נקבעת בשרת** מהקשר הסביבה של הבקשה ולא מ-`table_schema` שהעמדה שלחה — אחרת עמדה בתרגול הייתה כותבת לסביבה האמיתית.
+**מייצא:** `applyOp`, `applyOps`, `RESULT`, `REASON`.
+
+### `server/sync/mirror.js`
+**תפקיד:** תמונת המצב שהמרכז שולח לעמדה, וקליטתה. בלעדיה המאגר המקומי עולה ריק והסנכרון הוא תיאטרון. קולטת תחת `withoutJournal`, **מדלגת** על שורות שממתינות ביומן (לא דורסת עבודה שלא סונכרנה), מוחקת רק בחמש הטבלאות המסונכרנות, ולא נוגעת בשורות שנולדו בעמדה (טווח המזהים המקומי). `MIRROR_DENYLIST` מוציא את הכבדים (`maps.image_data`, `activity_log`, חומרי למידה).
+**מייצא:** `MIRROR_TABLES`, `MIRROR_DENYLIST`, `MIRROR_ROW_CAP`, `snapshotTables`, `ingestSnapshot`, `mirrorRowKey`.
+
 ---
 
 ## Backend — API Routes
 
-> כל קובץ route מייצא `express.Router`. סך הכל **491 endpoints**.
+> כל קובץ route מייצא `express.Router`. סך הכל **498 endpoints**.
 
 ### `server/routes/undo.js` — 3 routes
 **תפקיד:** ביטול פעולה (CTRL+Z). ראה [UNDO_SPEC.md](UNDO_SPEC.md).
 **Endpoints:** `GET /api/undo/stack` (חלון היסטוריה — עד 50 פעולות מחמש הדקות האחרונות), `GET /api/undo/next` (הפעולה הבאה לביטול **כולל בדיקת התנגשות**, בסיבוב אחד, כדי שחלון האישור ייפתח מיד), `POST /api/undo/:id` (ביצוע; `force: true` נדרש כשיש התנגשות).
 **היקף:** שלושה תנאים שאינם ניתנים להרפיה — הפעולות **שלי**, מ**העמדה שלי**, ב**סביבה שלי**. `crew_member_id` מגיע מהאסימון החתום ולא מהלקוח.
+
+### `server/routes/sync.js` — 7 routes
+**תפקיד:** סנכרון עבודה מנותקת. **שני צדדים בקובץ אחד**, כי אותו Express רץ גם במרכז וגם בעמדה. ראה [ARCHITECTURE.md](ARCHITECTURE.md) §נתק 4.
+**Endpoints (במרכז):** `POST /api/sync/push` (קליטת פעולות נטו; עד 500 בבקשה; `force` מהכרעת הבקר), `GET /api/sync/mirror` (צילום המצב, בטרנזקציה אחת כדי שלא תישלח העברה שמצביעה לפ"מ שאינו בצילום).
+**Endpoints (בעמדה, `localOnly`):** `GET /api/sync/state` (כמה ממתין + הסתירות הפתוחות, מאוחדות פר-שורה), `GET /api/sync/outbound` (הפעולות המאוחדות לדחיפה), `POST /api/sync/ack` (סימון התוצאות ביומן), `POST /api/sync/resolve` (`mine` — חזרה לתור ודחיפה בכפייה · `theirs` — זניחה ואימוץ גרסת השרת), `POST /api/sync/mirror` (קליטת הצילום).
+**404 ולא 403** על נתיב מקומי במרכז: הדפדפן מזהה ומכבה את שכבת הסנכרון בשקט, כמו עם `/api/gapi/status`.
+**⚠️ חיבור יחיד:** handler שמחזיק `pool.connect()` מריץ **הכל** דרך ה-client. `pool.query()` באותו handler נועל את PGlite לנצח (נתפס כ-12 בדיקות שנתקעו ב-timeout).
+**מוחרג מהקשר הפעולה:** `/api/sync/*` ברשימת `SKIP_PATHS` של `actionContext` — קליטת מראה אינה פעולה של מפעיל, ו-CTRL+Z עליה היה "מבטל" את תמונת המצב שהשרת זה עתה שלח.
 
 ### `server/routes/environments.js` — 3 routes
 **תפקיד:** ניהול סביבות התרגול. נטען *לפני* ה-middleware (עובד ישירות מול `public`).
@@ -693,8 +728,22 @@ DB מנוהל היה נופל יחד עם העמדה.
 ### `src/offline/useNetStatus.ts`
 **תפקיד:** hook ל-React (`useSyncExternalStore`); מתקתק כל שנייה **רק בנתק**. **מייצא:** `useNetStatus`, `formatAge`.
 
+### `src/offline/stationMode.ts`
+**תפקיד:** מצב העמדה (`/api/__station/status`) ו**נתק מדומה פר-עמדה**. שני מימושים לפי מה שקיים: בעמדת Electron עם מאגר מקומי הדימוי מתבצע **בשרת העמדה** והבקשות ממשיכות להצליח מול PGlite; בדפדפן הוא דגל ב-`localStorage` ושכבת ה-fetch מפילה את הבקשות, כך ששכבת ה-offline הקיימת עושה את שלה. בשני המקרים השרת המרכזי ושאר העמדות אינם יודעים דבר. **מייצא:** `refreshStationStatus`, `setSimulatedOutage`, `isSimulatedOutage`, `isClientSimulatedOutage`, `hasLocalDb`, `getStationState`, `subscribeStation`.
+
+### `src/offline/syncClient.ts`
+**תפקיד:** **מנוע הסנכרון בלקוח** — הוא שמריץ את שני הכיוונים, כי הדפדפן הוא היחיד שמחזיק אסימון תקף גם למרכז וגם למאגר המקומי (דרך `/api/__remote` ו-`/api/__local`). סדר קשיח: **קודם דוחפים, רק אחר כך מושכים מראה**. סיבוב כל 10ש', מראה כל 45ש', ובנתק (אמיתי או מדומה) לא מנסה דבר. **מייצא:** `startSyncClient`, `pushPending`, `pullMirror`, `resolveConflict`, `getSyncState`, `subscribeSync`, `type SyncConflict`.
+
+### `src/hooks/useBodyTheme.ts`
+**תפקיד:** קריאת התמה הפעילה מ-`body` (`light-mode`/`ocean-mode`) עם `MutationObserver`, לרכיבים שיושבים מעל כל המסכים ואינם מקבלים prop. נשלף מתוך `ConnectionBanner` ברגע שרכיב שני נזקק לו. **מייצא:** `useBodyTheme`.
+
 ### `electron/stationServer.cjs`
-**תפקיד:** שרת סטטי זעיר בתוך העמדה - מגיש את `dist/` מהדיסק ומפרוקסס `/api` ו-`/driver` לשרת האמיתי, עם כשל מהיר (502) במקום תקיעה. מאזין ל-127.0.0.1 בלבד, עם הגנת path traversal. **מייצא:** `createStationServer`, `shouldProxy`, `resolveStaticPath`, `contentTypeFor`, `isAssetLike`.
+**תפקיד:** שרת סטטי זעיר בתוך העמדה - מגיש את `dist/` מהדיסק ומפרוקסס `/api` ו-`/driver` לשרת האמיתי, עם כשל מהיר (502) במקום תקיעה. מאזין ל-127.0.0.1 בלבד, עם הגנת path traversal.
+**נתיבים מקומיים לחלוטין:** `GET /api/__station/status` (מאיזה מאגר משרתים — חייב לענות גם בנתק מלא), `POST /api/__station/outage` (הדלקת/כיבוי נתק מדומה **בעמדה הזו בלבד**), ו-`/api/__local/*` · `/api/__remote/*` — ניתוב מפורש לשכבת הסנכרון, שחייבת לדבר עם שני הצדדים באותה נשימה. בזמן דימוי הנתיב המפורש למרכז נחסם ב-503 `SIMULATED_OUTAGE`, אחרת הדימוי אינו מדמה דבר.
+**מייצא:** `createStationServer`, `shouldProxy`, `resolveStaticPath`, `contentTypeFor`, `isAssetLike`, `STATION_STATUS_PATH`, `STATION_OUTAGE_PATH`.
+
+### `electron/apiRouter.cjs`
+**תפקיד:** מכריע לאן הולכת כל בקשת `/api` — `auto` / `local` / `remote`, עם סף של 3 כשלים רצופים ו-probe כל 5ש' בזמן נתק. **נתק מדומה** גובר על הכל ומנתב למאגר המקומי (`none` כשאין כזה — כשל, ולא "ממשיך לעבוד"). כשלים בזמן דימוי **אינם** נספרים במצב הקשר האמיתי, אחרת העמדה הייתה נשארת מנותקת גם אחרי הכיבוי. **מייצא:** `createApiRouter`, `createRemoteHealth`, `chooseTarget`, `FAILURE_THRESHOLD`.
 
 ---
 
@@ -920,7 +969,13 @@ DB מנוהל היה נופל יחד עם העמדה.
 **תפקיד:** דיאלוג אישור גלובלי (מחליף `window.confirm`) עם תמיכת מקלדת. **מייצא:** `ConfirmModal` (default), `customConfirm`.
 
 ### `src/components/shared/ConnectionBanner.tsx`
-**תפקיד:** חיווי "מידע לא חי" מעל כל המסכים - **בועית קטנה בפינה השמאלית העליונה** (ולא באנר ברוחב המסך) עם שעה ושעון גיל מתקתק, מונה פעולות ממתינות, וחיווי נתק שו"ב (GAPI); הודעת חסימה לפעולה משותפת מוצגת ממורכזת מתחתיה. במצב נתק הבועית פועמת (`.conn-bubble-alert` ב-App.css) כדי לשמור על הבלטה למרות הקוטן. קורא את התמה מ-`body` (`light-mode`/`ocean-mode`) ולכן אינו דורש prop. אינו מוצג במסגרת צפייה (`?peek=`). **מייצא:** `ConnectionBanner` (default).
+**תפקיד (המשך ב-`OutageSimPanel` למטה):** חיווי "מידע לא חי" מעל כל המסכים - **בועית קטנה בפינה השמאלית העליונה** (ולא באנר ברוחב המסך) עם שעה ושעון גיל מתקתק, מונה פעולות ממתינות, וחיווי נתק שו"ב (GAPI); הודעת חסימה לפעולה משותפת מוצגת ממורכזת מתחתיה. במצב נתק הבועית פועמת (`.conn-bubble-alert` ב-App.css) כדי לשמור על הבלטה למרות הקוטן. קורא את התמה מ-`body` (`light-mode`/`ocean-mode`) ולכן אינו דורש prop. אינו מוצג במסגרת צפייה (`?peek=`). **מייצא:** `ConnectionBanner` (default).
+
+### `src/components/shared/OutageSimPanel.tsx`
+**תפקיד:** **הכפתור לנתק מדומה** + מצב הסנכרון - פינה שמאלית תחתונה, בכל עמדה (יושב ב-App לצד ConnectionBanner, ולכן אין שכפול). במצב שקט מצטמצם לנקודה אחת: הוא כלי תרגול, לא חלק מתמונת המצב. מציג מאיזה מאגר משרתים, כמה ממתין לסנכרון וכמה סתירות פתוחות, ומפעיל את `startSyncClient`. שעון הנתק מתקתק **רק** בזמן נתק. **מייצא:** `OutageSimPanel` (default).
+
+### `src/components/shared/SyncConflictsModal.tsx`
+**תפקיד:** **מסך יישוב הסתירות.** שתי הגרסאות זו מול זו, ורק השדות שבאמת שונים - `rev`/`updated_at`/`created_at` מוסתרים, אחרת הם היו מסמנים "שונה" בכל שורה ומטביעים את ההבדל האמיתי. שתי הכרעות בלבד ואין "מיזוג": פ"מ אינו מסמך טקסט, ומיזוג מייצר מצב שאיש משני הצדדים לא בחר בו. נסגר מעצמו כשהוכרעה הסתירה האחרונה. **מייצא:** `SyncConflictsModal` (default), `titleOf`, `differingFields`.
 
 ### `src/components/shared/ContextMenu.tsx`
 **תפקיד:** תפריט קליק-ימני להעברת פ"מ לנקודת העברה. **מייצא:** `ContextMenu` (default).

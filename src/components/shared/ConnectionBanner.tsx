@@ -18,6 +18,8 @@ import React from 'react';
 import { API_URL } from '../../config';
 import { tr } from '../../i18n/tr';
 import { useNetStatus, formatAge } from '../../offline/useNetStatus';
+// התמה נקראת מ-body דרך hook משותף - אותו אחד שפקד הנתק המדומה משתמש בו.
+import { useBodyTheme } from '../../hooks/useBodyTheme';
 
 type ThemeMode = 'light' | 'dark' | 'ocean';
 
@@ -37,27 +39,6 @@ const RESTORED_MS = 4000;
 /** שעה מקומית קצרה (14:32) - הפורמט שבקר קורא במבט חטוף. */
 const clockOf = (ms: number) =>
   new Date(ms).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false });
-
-/**
- * קורא את התמה מ-`body` (`light-mode` / `ocean-mode`) — אותן מחלקות שכבר
- * נקבעות ב-App וב-SectorDashboard. כך הרכיב עצמאי ואינו דורש העברת prop דרך
- * ארבעה ענפי ניתוב, ומתעדכן חי כשהמפעיל מחליף תמה.
- */
-function useBodyTheme(override?: ThemeMode): ThemeMode {
-  const read = React.useCallback((): ThemeMode => {
-    if (override) return override;
-    const c = document.body.classList;
-    return c.contains('light-mode') ? 'light' : c.contains('ocean-mode') ? 'ocean' : 'dark';
-  }, [override]);
-  const [mode, setMode] = React.useState<ThemeMode>(read);
-  React.useEffect(() => {
-    setMode(read());
-    const obs = new MutationObserver(() => setMode(read()));
-    obs.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-    return () => obs.disconnect();
-  }, [read]);
-  return mode;
-}
 
 export default function ConnectionBanner({ themeMode: themeOverride }: { themeMode?: ThemeMode } = {}) {
   const themeMode = useBodyTheme(themeOverride);

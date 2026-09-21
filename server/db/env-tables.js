@@ -222,6 +222,11 @@ export const CONFIG_TABLES = [
 const IGNORED_EXACT = new Set([
   'mirage_users', 'environments', 'gapi_env_config', 'air_picture_config',
   'undo_actions', 'undo_journal',
+  // local_sync_journal הוא control-plane בדיוק כמו יומן הביטול: הוא נושא
+  // table_schema משלו, כל הכתיבות אליו מפורשות public., והוא קיים **רק** במאגר
+  // המקומי של העמדה. שכפולו לסכמת env_NN היה מפצל את תור הסנכרון לשני עותקים
+  // שאיש אינו דוחף. ראה server/db/syncJournal.js.
+  'local_sync_journal',
 ]);
 const IGNORED_PREFIXES = ['az_'];
 
