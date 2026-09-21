@@ -16569,10 +16569,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     // רק שורה במצב רגיל מקבלת אותה - שורה במצב מיוחד (גרירה, קונפליקט,
                     // חריגה, העברה ממתינה) שומרת על צבע המצב שלה.
                     const isPlainRow = !isDragOver && !isRowAltConflict && !isPendingTransfer && !(isRowDeviation && !isRowDeviationAck);
+                    // צבע המצב של **רצפת המסגרת** (גרירה/קונפליקט). הוא יושב תמיד על
+                    // רצפת היחידה כולה - על הפ"מ כשאין טבלת בן פרוסה, ועל הטבלה
+                    // האחרונה כשיש. כך המצב נשאר גלוי בלי שקו יחצה את הפ"מ מטבלאותיו.
+                    const frameFloorState = isDragOver ? '#3b82f6'
+                      : isRowConflictPartial ? '#f97316'
+                      : isRowAltConflict ? '#ef4444'
+                      : isRowConflictResolved ? '#22c55e'
+                      : null;
                     // רצפת המסגרת יושבת על הפ"מ עצמו רק כשאין טבלת בן פרוסה ואין צבע
                     // מצב שגובר עליה. התמות light/ocean כופות border-bottom-color על כל
                     // tbody tr, ולכן הצבע נאכף בחזרה ב-CSS דרך המחלקה (ראה App.css).
-                    const hasFrameFloor = !hasOpenSubTable && !isDragOver && !isRowConflictPartial && !isRowAltConflict && !isRowConflictResolved;
+                    const hasFrameFloor = !hasOpenSubTable && !frameFloorState;
                     const rowBg = isDragOver ? '#1d4ed8'
                       : isRowAltConflict ? (lightMode ? '#fef2f2' : '#3b0000')
                       : (isRowDeviation && !isRowDeviationAck) ? undefined
@@ -16633,12 +16641,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           background: rowBg,
                           // רצפת המסגרת. צבע מצב (גרירה/קונפליקט) גובר עליה, ובאותו
                           // עובי - כדי שגובה השורה לא יקפוץ כשמצב מתחלף.
-                          borderBottom: isDragOver ? '2px solid #3b82f6' : isRowConflictPartial ? '2px solid #f97316' : isRowAltConflict ? '2px solid #ef4444' : isRowConflictResolved ? '2px solid #22c55e'
-                            // כשטבלת בן פרוסה אין קו בין הפ"מ לטבלה שלו: המסגרת
-                            // (borderTop כאן, ורצפה על הטבלה האחרונה) מקיפה את
-                            // **שניהם יחד**, וקו כאן היה חוצה אותה לשתיים
-                            : hasOpenSubTable ? 'none'
-                            : `2px solid ${SUB_ACC}`,
+                          // כשטבלת בן פרוסה אין כאן קו **בשום מצב**: המסגרת (borderTop
+                          // כאן, ורצפה על הטבלה האחרונה) מקיפה את **שניהם יחד**, וקו
+                          // כאן - גם ירוק של קונפליקט פתור - חוצה אותה לשתיים ומציג
+                          // את הטבלאות כאילו אינן חלק מהפ"מ.
+                          borderBottom: hasOpenSubTable ? 'none' : `2px solid ${frameFloorState ?? SUB_ACC}`,
                           // גג המסגרת. **לכל** פ"מ יש מסגרת - פרוס או לא - כדי שכל
                           // פ"מ ייקרא כיחידה אחת, והשורה לא תשנה צורה כשפורסים טבלה.
                           borderTop: `2px solid ${SUB_ACC}`,
@@ -16884,10 +16891,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           ? Math.max(160, tableViewportWidth - subBlockAnchor) : 0;
 
                         return (
-                          <tr key={k} data-sub-table-of={s.id} className={isLastOpen ? 'sk-frame-floor' : undefined} style={{
+                          <tr key={k} data-sub-table-of={s.id} className={isLastOpen && !frameFloorState ? 'sk-frame-floor' : undefined} style={{
                             background: lightMode ? '#eef7fa' : '#07222c',
-                            // רצפת המסגרת - רק אחרי הטבלה האחרונה שנפרסה
-                            borderBottom: isLastOpen ? `2px solid ${SUB_ACC}` : 'none',
+                            // רצפת המסגרת - רק אחרי הטבלה האחרונה שנפרסה. צבע מצב
+                            // (גרירה/קונפליקט) יורד לכאן, כי כאן רצפת היחידה כולה.
+                            borderBottom: isLastOpen ? `2px solid ${frameFloorState ?? SUB_ACC}` : 'none',
                           }}>
                             {/* ההזחה נעשית ב-colSpan ולא בפיקסלים: תא ריק שמכסה
                                 בדיוק את העמודות שלפני האו"ק, ולכן הטבלה מתחילה
