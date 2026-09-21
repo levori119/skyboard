@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  isFrac, fracToPx, pxToFrac, shapeFromDrag, strokeLineWidth, DRAW_PALETTE,
+  isFrac, fracToPx, pxToFrac, shapeFromDrag, strokeLineWidth, DRAW_PALETTE, ERASER_WIDTH_FACTOR, eraserRadius,
   bitmapPx, syncCanvasBitmap,
   isPolyTool, polyShapeFromPoints, polyTapAction, polyPointsToPx, POLY_MIN_POINTS,
   dashArray, outlinePoints, crossMarks, LINE_STYLES, shapeAtPoint, eraseShapesAt, mergeRemoteShapes, type LineStyle, type MapShape,
@@ -311,5 +311,25 @@ describe('mapDrawing - מיזוג צורות בשיתוף עמדה', () => {
   it('בלי שינוי מוחזר אותו מערך', () => {
     const local = [mk('a')];
     expect(mergeRemoteShapes(local, [mk('a')], new Set(['a']))).toBe(local);
+  });
+});
+
+describe('mapDrawing - סמן המחק = מה שהמחק מוחק', () => {
+  const SZ = { w: 200, h: 200 };
+  const line: MapShape = { id: 'l', type: 'polyline', x: 0, y: 0.5, w: 1, h: 0, color: '#fff', filled: false, strokeWidth: 1, points: [{ x: 0, y: 0.5 }, { x: 1, y: 0.5 }] };
+
+  it('הרדיוס גדל עם העובי שנבחר', () => {
+    expect(eraserRadius(4)).toBeGreaterThan(eraserRadius(1.5));
+    expect(eraserRadius(2)).toBe(2 * ERASER_WIDTH_FACTOR / 2);
+  });
+
+  it('מה שבתוך הרדיוס נמחק, ומה שמחוצה לו לא - הטבעת אינה קישוט', () => {
+    const r = eraserRadius(2);
+    expect(shapeAtPoint([line], { x: 100, y: 100 - r + 0.5 }, SZ, r)?.id).toBe('l');
+    expect(shapeAtPoint([line], { x: 100, y: 100 - r - 0.5 }, SZ, r)).toBeNull();
+  });
+
+  it('מחק דק מדי עדיין ניתן לכוון - רדיוס מינימלי', () => {
+    expect(eraserRadius(0.1)).toBeGreaterThanOrEqual(4);
   });
 });

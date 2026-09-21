@@ -152,7 +152,7 @@ import type { MissionDeskService, MDPresetMapConfig, MDPresetMapSettings, MDNode
 import { mdMapServices, mdMapSettings, mdStripsMapServiceId, MD_VIEW_TABLES, mdViewTablesSettings, mdViewTableOwners, mdViewTableSource } from '../../utils/missionDesk';
 import ViewTablesSlot from '../missiondesk/ViewTablesSlot';
 import MyScriptTestPanel from '../shared/MyScriptTestPanel';
-import { MapDrawToolbar, MapShapeSvg, PolyDraftSvg, polySnapTol, usePolyDraft } from '../map/MapDrawLayer';
+import { MapDrawToolbar, MapShapeSvg, PolyDraftSvg, EraserCursorSvg, polySnapTol, usePolyDraft } from '../map/MapDrawLayer';
 import { isFrac, fracToPx, pxToFrac, drawStrokeFrac, applyStrokeStyle, syncCanvasBitmap, isPolyTool, polyShapeFromPoints, eraseShapesAt, eraserRadius, mergeRemoteShapes, type PenStroke, type MapShape, type DrawTool, type LineStyle } from '../../utils/mapDrawing';
 import { isLoadRelevant } from '../../utils/loadRelevance';
 import StationPeekBar from '../shared/StationPeekBar';
@@ -1036,6 +1036,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [mapShapes, setMapShapes] = useState<MapShape[]>([]);
   const [shapeFilled, setShapeFilled] = useState(false);
   const [lineStyle, setLineStyle] = useState<LineStyle>('solid');
+  // מיקום המחק במרחב **התוכן** של המפה + לאיזו מפה הוא שייך, לציור הטבעת
+  // בגודלו האמיתי (ראה EraserCursorSvg)
+  const [eraserAt, setEraserAt] = useState<{ owner: 'main' | 'secondary'; x: number; y: number; r: number } | null>(null);
   const [shapePreview, setShapePreview] = useState<{x1:number;y1:number;x2:number;y2:number}|null>(null);
   const shapeStartRef = useRef<{x:number;y:number}|null>(null);
   const [selectedShapeId, setSelectedShapeId] = useState<string|null>(null);
@@ -9086,19 +9089,38 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             // המחק על צורה (עיגול / מלבן / פוליגון) מוחק אותה **כולה** - צורה היא
             // אובייקט ולא פיקסלים. הנקודה מומרת למרחב **התוכן**, שבו חיות הצורות,
             // ולכן זיהוי הפגיעה נכון גם בזום ובמפה השנייה.
-            const eraseShapeUnderPointer = (e: React.PointerEvent<HTMLCanvasElement>) => {
+            //
+            // ⚠ ההמרה היא bitmap→תוכן (`W / canvas.width`) ולא מול ה-rect: ה-rect
+            // סופג את זום המפה, ולכן מדידה מולו הייתה משנה את רדיוס המחק עם הזום
+            // בעוד שעל המסך הוא נשאר אותו דבר.
+            const eraserGeom = (e: React.PointerEvent<HTMLCanvasElement>) => {
               const rect = e.currentTarget.getBoundingClientRect();
-              if (!rect.width || !rect.height) return;
+              if (!rect.width || !rect.height) return null;
               const W = mapAreaSize.w || e.currentTarget.width || rect.width;
               const H = mapAreaSize.h || e.currentTarget.height || rect.height;
-              const p = { x: (e.clientX - rect.left) / rect.width * W, y: (e.clientY - rect.top) / rect.height * H };
+              const toContent = W / (e.currentTarget.width || W);
+              return {
+                W, H,
+                p: { x: (e.clientX - rect.left) / rect.width * W, y: (e.clientY - rect.top) / rect.height * H },
+                r: eraserRadius(penSize) * toContent,
+              };
+            };
+            const eraseShapeUnderPointer = (e: React.PointerEvent<HTMLCanvasElement>) => {
+              const g = eraserGeom(e);
+              if (!g) return;
+              setEraserAt({ owner: cfg.secondary ? 'secondary' : 'main', x: g.p.x, y: g.p.y, r: g.r });
               setMapShapes(prev => {
-                const res = eraseShapesAt(prev, p, { w: W, h: H }, eraserRadius(penSize) * (W / rect.width));
+                const res = eraseShapesAt(prev, g.p, { w: g.W, h: g.H }, g.r);
                 // בשיתוף עמדה המחיקה חייבת להיות מפורשת - אחרת המיזוג לפי מזהה
                 // בשרת היה מחזיר את הצורה בסבב הסנכרון הבא
                 if (res.removedIds.length && !cfg.secondary) removedShapeIdsRef.current.push(...res.removedIds);
                 return res.shapes;
               });
+            };
+            /** ריחוף בלבד - הטבעת עוקבת כדי שרואים מה יימחק *לפני* שמוחקים. */
+            const trackEraser = (e: React.PointerEvent<HTMLCanvasElement>) => {
+              const g = eraserGeom(e);
+              if (g) setEraserAt({ owner: cfg.secondary ? 'secondary' : 'main', x: g.p.x, y: g.p.y, r: g.r });
             };
             const transferSectors = cfg.transferSectors; // in-map transfer-point chips (map2)
             const _basePin = cfg.pinDisplay; // map-level icon/strip default; per-strip override shadows it below
@@ -10914,7 +10936,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             }}
             onPointerMove={e => {
               e.stopPropagation();
-              if (drawTool === 'eraser' && isDrawingRef.current) eraseShapeUnderPointer(e);
+              if (drawTool === 'eraser') { if (isDrawingRef.current) eraseShapeUnderPointer(e); else trackEraser(e); }
               if (drawTool === 'pen' || drawTool === 'eraser' || drawTool === 'recognize') {
                 draw(e);
               } else if (isPolyTool(drawTool) && polyTargetRef.current?.owner === (cfg.secondary ? 'secondary' : 'main')) {
@@ -10952,12 +10974,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 shapeStartRef.current = null; setShapePreview(null);
               }
             }}
-            onPointerLeave={e => { e.stopPropagation(); stopDrawing(); }}
-            onPointerCancel={e => { e.stopPropagation(); stopDrawing(); shapeStartRef.current = null; setShapePreview(null); }}
+            onPointerLeave={e => { e.stopPropagation(); setEraserAt(null); stopDrawing(); }}
+            onPointerCancel={e => { e.stopPropagation(); setEraserAt(null); stopDrawing(); shapeStartRef.current = null; setShapePreview(null); }}
             style={{
               position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
               pointerEvents: drawingMode ? 'auto' : 'none',
-              cursor: drawingMode ? (eraserMode ? 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23000\' stroke-width=\'2\'%3E%3Cpath d=\'M20 20H7L3 16c-.8-.8-.8-2 0-2.8l10-10c.8-.8 2-.8 2.8 0l7 7c.8.8.8 2 0 2.8L14 22\'/%3E%3Cpath d=\'M6.5 13.5 15 5\'/%3E%3C/svg%3E") 12 12, auto' : 'crosshair') : 'default',
+              // במחק הטבעת **היא** הסמן - סמן נוסף היה מציג שני גדלים סותרים
+              cursor: drawingMode ? (eraserMode && eraserAt ? 'none' : 'crosshair') : 'default',
               touchAction: 'none', zIndex: 200,
               // anchor drawings to the map: same transform as the map content
               transform: mapLayerTransform(mapPan, mapZoom),
@@ -10967,7 +10990,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           />
 
           {/* Shapes SVG overlay — renders circles & rectangles from mapShapes */}
-          {(mapShapes.length > 0 || (shapePreview && (drawTool === 'circle' || drawTool === 'rect')) || (polyDraft.points.length > 0 && polyTargetRef.current?.owner === (cfg.secondary ? 'secondary' : 'main'))) && (
+          {(mapShapes.length > 0 || (shapePreview && (drawTool === 'circle' || drawTool === 'rect')) || (polyDraft.points.length > 0 && polyTargetRef.current?.owner === (cfg.secondary ? 'secondary' : 'main')) || (eraserMode && eraserAt?.owner === (cfg.secondary ? 'secondary' : 'main'))) && (
             <svg data-map-layer="" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 201, overflow: 'visible', transform: mapLayerTransform(mapPan, mapZoom), transformOrigin: 'center center', transition: MAP_LAYER_TRANSITION }}>
               {(() => {
                 // fraction (0..1) → current px; legacy px values (>1.5) used as-is
@@ -10978,6 +11001,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               {isPolyTool(drawTool) && polyTargetRef.current?.owner === (cfg.secondary ? 'secondary' : 'main') && (
                 <PolyDraftSvg type={drawTool} points={polyDraft.points} cursor={polyDraft.cursor}
                   color={penColor} strokeWidth={penSize} filled={shapeFilled} lineStyle={lineStyle} />
+              )}
+              {eraserMode && eraserAt?.owner === (cfg.secondary ? 'secondary' : 'main') && (
+                <EraserCursorSvg x={eraserAt.x} y={eraserAt.y} r={eraserAt.r} />
               )}
               {shapePreview && (drawTool === 'circle' || drawTool === 'rect') && (() => {
                 const px = Math.min(shapePreview.x1, shapePreview.x2);

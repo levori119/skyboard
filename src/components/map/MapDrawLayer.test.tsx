@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { MapDrawToolbar, MapDrawToggle, MapShapeSvg, PolyDraftSvg, toolbarColors, type ThemeMode } from './MapDrawLayer';
+import { MapDrawToolbar, MapDrawToggle, MapShapeSvg, PolyDraftSvg, EraserCursorSvg, toolbarColors, type ThemeMode } from './MapDrawLayer';
 import { LINE_STYLES } from '../../utils/mapDrawing';
 import { DRAW_PALETTE, type DrawTool } from '../../utils/mapDrawing';
 
@@ -222,5 +222,20 @@ describe('סגנון הקו', () => {
     const m = svg(<PolyDraftSvg type="polyline" points={[{ x: 0, y: 0 }, { x: 80, y: 0 }]} cursor={null}
       color="#ef4444" strokeWidth={2} filled={false} lineStyle="cross" />);
     expect(m).toContain('data-cross-mark');
+  });
+});
+
+describe('EraserCursorSvg - סמן המחק', () => {
+  const svg = (el: React.ReactElement) => renderToStaticMarkup(<svg>{el}</svg>);
+
+  it('הטבעת יושבת על המצביע ברדיוס שנמסר', () => {
+    const m = svg(<EraserCursorSvg x={30} y={40} r={12} />);
+    expect(m).toContain('cx="30"');
+    expect(m).toContain('cy="40"');
+    expect(m).toContain('r="12"');
+  });
+
+  it('שתי טבעות - כהה ובהירה - כדי שתיראה על מפה בהירה ועל כהה', () => {
+    expect(svg(<EraserCursorSvg x={0} y={0} r={8} />).match(/<circle/g)?.length).toBe(2);
   });
 });

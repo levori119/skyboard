@@ -319,6 +319,20 @@ export const CrossMarksSvg: React.FC<{ points: Pt[]; closed: boolean; color: str
   );
 };
 
+/**
+ * סמן המחק על המפה - טבעת ב**גודל האמיתי** של המחק: מה שבתוכה נמחק, ומה שמחוצה
+ * לה לא. הרדיוס מגיע מאותו חישוב שמוחק בפועל (`eraserRadius`), ולכן העלאת העובי
+ * בסרגל מגדילה את הטבעת ואת המחיקה יחד.
+ *
+ * שתי טבעות (כהה מתחת, בהירה מעל) כדי שתיראה גם על מפה בהירה וגם על כהה.
+ */
+export const EraserCursorSvg: React.FC<{ x: number; y: number; r: number }> = ({ x, y, r }) => (
+  <g data-eraser-cursor="" pointerEvents="none">
+    <circle cx={x} cy={y} r={r} fill="none" stroke="rgba(0,0,0,0.75)" strokeWidth={3} />
+    <circle cx={x} cy={y} r={r} fill="rgba(255,255,255,0.10)" stroke="#ffffff" strokeWidth={1.2} />
+  </g>
+);
+
 /** צורה שמורה (בשברים) כאלמנט SVG בגודל המשטח הנוכחי, בסגנון הקו שלה. */
 export const MapShapeSvg: React.FC<{ shape: MapShape; size: { w: number; h: number } }> = ({ shape: s, size }) => {
   const fill = s.filled ? s.color + '55' : 'none';
@@ -468,6 +482,8 @@ export function useMapDrawing() {
   const [shapes, setShapes] = React.useState<MapShape[]>([]);
   const [preview, setPreview] = React.useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const [surface, setSurface] = React.useState({ w: 0, h: 0 });
+  /** מיקום המחק על הקנבס (פיקסלי bitmap), לציור הטבעת בגודלו האמיתי. */
+  const [eraserAt, setEraserAt] = React.useState<{ x: number; y: number } | null>(null);
 
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
   const strokesRef = React.useRef<PenStroke[]>([]);
@@ -555,7 +571,7 @@ export function useMapDrawing() {
     // בלי preventDefault - בעט/מגע הוא מבטל את אירועי העכבר התואמים.
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* ignore */ }
     const p = toCanvasPx(e);
-    if (tool === 'eraser') eraseShapeUnder(p, e.currentTarget);
+    if (tool === 'eraser') { setEraserAt(p); eraseShapeUnder(p, e.currentTarget); }
     if (isPolyTool(tool)) {
       const rect = e.currentTarget.getBoundingClientRect();
       poly.tap(p, polySnapTol(rect.width ? e.currentTarget.width / rect.width : 1));
@@ -574,7 +590,8 @@ export function useMapDrawing() {
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!active) return;
     const p = toCanvasPx(e);
-    if (tool === 'eraser' && isDrawingRef.current) eraseShapeUnder(p, e.currentTarget);
+    // הטבעת עוקבת גם בריחוף (בלי לחיצה) - כך רואים מה יימחק *לפני* שמוחקים
+    if (tool === 'eraser') { setEraserAt(p); if (isDrawingRef.current) eraseShapeUnder(p, e.currentTarget); }
     if (isPolyTool(tool)) { e.stopPropagation(); poly.move(p); return; }
     if (shapeStartRef.current) {
       e.stopPropagation();
@@ -620,6 +637,7 @@ export function useMapDrawing() {
   };
 
   const onPointerCancel = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    setEraserAt(null);
     currentRef.current = null;
     isDrawingRef.current = false;
     lastRef.current = null;
@@ -640,7 +658,7 @@ export function useMapDrawing() {
 
   return {
     active, setActive, tool, setTool, color, setColor, size, setSize, filled, setFilled,
-    lineStyle, setLineStyle, shapes, preview, surface, canvasRef, clear, poly,
+    lineStyle, setLineStyle, shapes, preview, surface, canvasRef, clear, poly, eraserAt, setEraserAt,
     handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerLeave: onPointerUp, onPointerCancel },
   };
 }
@@ -660,19 +678,23 @@ export function useMapDrawing() {
 export const MapDrawSurface: React.FC<{ engine: MapDrawingEngine; zIndex?: number }> = ({ engine, zIndex = 200 }) => {
   const { active, tool, color, size, filled, lineStyle, shapes, preview, surface } = engine;
   const polyTool = isPolyTool(tool) ? tool : null;
-  const hasShapes = shapes.length > 0 || (preview && (tool === 'circle' || tool === 'rect')) || (polyTool && engine.poly.points.length > 0);
-  // נקודות הטיוטה בפיקסלי bitmap, ה-SVG בפיקסלי פריסה (ראה bitmapPx)
+  // נקודות הטיוטה והמחק בפיקסלי bitmap, ה-SVG בפיקסלי פריסה (ראה bitmapPx)
   const bmpW = engine.canvasRef.current?.width || surface.w || 1;
+  const scale = surface.w / bmpW;
+  const eraserAt = tool === 'eraser' && active ? engine.eraserAt : null;
+  const hasShapes = shapes.length > 0 || (preview && (tool === 'circle' || tool === 'rect')) || (polyTool && engine.poly.points.length > 0) || !!eraserAt;
   return (
     <>
       <canvas
         ref={engine.canvasRef}
         data-draw-canvas=""
         {...engine.handlers}
+        onPointerLeave={e => { engine.setEraserAt(null); engine.handlers.onPointerLeave(e); }}
         style={{
           position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
           pointerEvents: active ? 'auto' : 'none',
-          cursor: active ? drawCursor(tool) : 'default',
+          // הטבעת **היא** הסמן במחק - סמן נוסף היה מציג שני גדלים סותרים
+          cursor: !active ? 'default' : (tool === 'eraser' && engine.eraserAt ? 'none' : drawCursor(tool)),
           touchAction: 'none', zIndex,
         }}
       />
@@ -681,7 +703,10 @@ export const MapDrawSurface: React.FC<{ engine: MapDrawingEngine; zIndex?: numbe
           {shapes.map(s => <MapShapeSvg key={s.id} shape={s} size={surface} />)}
           {polyTool && (
             <PolyDraftSvg type={polyTool} points={engine.poly.points} cursor={engine.poly.cursor}
-              color={color} strokeWidth={size} filled={filled} lineStyle={lineStyle} scale={surface.w / bmpW} />
+              color={color} strokeWidth={size} filled={filled} lineStyle={lineStyle} scale={scale} />
+          )}
+          {eraserAt && (
+            <EraserCursorSvg x={eraserAt.x * scale} y={eraserAt.y * scale} r={eraserRadius(size) * scale} />
           )}
           {preview && (tool === 'circle' || tool === 'rect') && (() => {
             const x = Math.min(preview.x1, preview.x2), y = Math.min(preview.y1, preview.y2);
