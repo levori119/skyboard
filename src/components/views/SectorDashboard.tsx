@@ -14,7 +14,7 @@ import { sanitizeRichText, sanitizeSvgBody } from '../../../shared/sanitizeHtml'
 import { sc } from '../../utils/scale';
 import { readStoredThemeMode } from '../../utils/themeMode';
 import { customConfirm } from '../shared/ConfirmModal';
-import { VKTrigger } from '../../VirtualKeyboard';
+import { VKTrigger, useVK } from '../../VirtualKeyboard';
 import { ClockWidget } from '../../ClockWidget';
 import { SkyKingLogo } from '../shared/SkyKingLogo';
 import { LeoLogo } from '../shared/LeoLogo';
@@ -1452,6 +1452,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [tableFontSize, setTableFontSize] = useState(13);
   const [tableHandwritingId, setTableHandwritingId] = useState<string | null>(null);
   const [tableEditingCell, setTableEditingCell] = useState<string | null>(null); // "stripId__colKey"
+  // מקלדת וירטואלית - נפתחת ישירות מתא הגובה (ספרות בלבד), לא רק מהכפתור
+  const { openVK } = useVK();
   // עורך טבלת נקודות המכוון - חלון צף אחד לכל המסך, לפ"מ שנבחר
   const [aimPointsEditor, setAimPointsEditor] = useState<{ stripId: any; title: string } | null>(null);
   // טבלאות בן פרוסות במוד הטבלה, מפתח `stripId__tableKey`.
@@ -15630,34 +15632,26 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       </td>
                     );
                   }
-                  const altCellKey = s.id + '__alt';
-                  const altEditing = tableEditingCell === altCellKey;
                   if (col.editable === 'keyboard' || col.editable === 'both') {
                     const saveField = async (val: string) => {
                       const norm = normalizeAlt(val);
                       setStrips(prev => prev.map(st => st.id === s.id ? { ...st, alt: norm } : st));
                       await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: norm }) });
                     };
+                    // גובה הוא ספרות בלבד, ולכן הלחיצה על התא פותחת **ישר את מקלדת
+                    // הספרות** ולא תיבת טקסט: בעט על Cintiq תיבת טקסט מחייבת מקלדת
+                    // פיזית או קליק נוסף על הכפתור. הכפתור נשאר לצד הערך כסימן
+                    // לפקח מה הלחיצה תפתח.
+                    const openAltPad = () => openVK({
+                      value: s.alt || '', mode: 'numeric', label: tr('ctrl.altitude'),
+                      onConfirm: v => { void saveField(v); },
+                    });
                     return (
                       <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
-                        {altEditing ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                            <textarea onKeyDown={e => handleCellEditKeyDown(e, false)} autoFocus defaultValue={s.alt || ''} rows={1}
-                              onBlur={async e => { if (e.target.value !== (s.alt || '')) await saveField(e.target.value); setTableEditingCell(null); }}
-                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
-                            />
-                            <div style={{ display: 'flex', gap: '4px' }}>
-                              {s.alt && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveField(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr('shared.clear3')}</button>}
-                              
-                            </div>
-                          </div>
-                        ) : (
-                          <div onClick={() => canEdit && setTableEditingCell(altCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, color: s.alt ? (T.muted) : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none', ...editableCellUnderline(T.muted, canEdit) }}>
-                            <span style={{ flex: 1 }}>{s.alt || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{tr('ctrl.altitude')}</span>}</span>
-                            {canEdit && <VKTrigger value={s.alt || ''} onChange={async v => { await saveField(v); }} mode="numeric" label="גובה" size={13} style={{ flexShrink: 0 }} />}
-                            
-                          </div>
-                        )}
+                        <div onClick={() => canEdit && openAltPad()} style={{ cursor: canEdit ? 'pointer' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, color: s.alt ? (T.muted) : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none', ...editableCellUnderline(T.muted, canEdit) }}>
+                          <span>{s.alt || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{tr('ctrl.altitude')}</span>}</span>
+                          {canEdit && <VKTrigger value={s.alt || ''} onChange={async v => { await saveField(v); }} mode="numeric" label={tr('ctrl.altitude')} size={13} style={{ flexShrink: 0 }} />}
+                        </div>
                       </td>
                     );
                   }

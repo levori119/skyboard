@@ -218,6 +218,9 @@ function VirtualKeyboardPanel({ config, onClose }: { config: VKConfig; onClose: 
 
   return (
     <div
+      // מזהה יציב לבדיקות קצה-לקצה - המקלדת מרונדרת בשורש ואין לה כותרת קבועה
+      data-testid="virtual-keyboard"
+      data-vk-mode={config.mode}
       style={{
         position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 99999,
         background: '#0f172a', borderTop: '2px solid #3b82f6',
