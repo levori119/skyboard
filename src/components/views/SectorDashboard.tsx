@@ -1523,6 +1523,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // Mute toggles for alerts (session-local)
   const [muteLoadAlerts, setMuteLoadAlerts] = useState(false);
   const [muteBlockAlerts, setMuteBlockAlerts] = useState(false);
+  // השתקת התראות הקונפליקטים (חפיפת גובה). נחסמת במקור - בחישוב מזהי
+  // הקונפליקט - כדי שכל צרכניו (טבלה, מפה, תצוגה אנכית) ישתתקו יחד.
+  const [muteConflictAlerts, setMuteConflictAlerts] = useState(false);
   // Active block table: right-click a block table in the sidebar to set as current
   const [activeBlockTableId, setActiveBlockTableId] = useState<number | null>(null);
   // Right-click context menu on a block table header in the sidebar
@@ -4468,6 +4471,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       return fallbackDelta;
     };
     const result = new Set<string>();
+    if (muteConflictAlerts) return result;
     if (fallbackDelta <= 0 && rules.every(r => r.delta <= 0)) return result;
     const onMapStrips = strips.filter((s: any) => s.onMap && s.status === 'active');
     for (let i = 0; i < onMapStrips.length; i++) {
@@ -4490,7 +4494,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       }
     }
     return result;
-  }, [strips, myPresetConfig?.conflict_alt_delta, myPresetConfig?.conflict_alt_rules]);
+  }, [strips, myPresetConfig?.conflict_alt_delta, myPresetConfig?.conflict_alt_rules, muteConflictAlerts]);
 
   const activeAirfield = (isGroundMode || isTowerMode) ? airfields.find(af => af.id === myPresetConfig?.airfield_id) || null : null;
 
@@ -4937,12 +4941,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // tableEffectiveConflictIds — conflict IDs excluding fully-resolved ones (session-only).
   const tableEffectiveConflictIds = React.useMemo(() => {
     const result = new Set<string>();
+    // ההשתקה נחסמת כאן, במקור: כל צרכני הקונפליקטים (צבע השורה, הסימון,
+    // התצוגה האנכית) משתתקים יחד ולא כל אחד בנפרד.
+    if (muteConflictAlerts) return result;
     for (const [stripId, conflictingIds] of tableConflictPairsMap) {
       const resolved = tableConflictResolutions.get(stripId)?.resolvedWith || new Set<string>();
       if (conflictingIds.some(id => !resolved.has(id))) result.add(stripId);
     }
     return result;
-  }, [tableConflictPairsMap, tableConflictResolutions]);
+  }, [tableConflictPairsMap, tableConflictResolutions, muteConflictAlerts]);
 
   // Prune stale manual resolutions: when a conflict pair disappears (e.g. blocks
   // were split so it no longer overlaps), forget its resolution — so if the same
@@ -12413,6 +12420,34 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       )}
                     </div>
                   )}
+                  {/* ── התראות: השתקה/הפעלה ─────────────────────────────────
+                      הפקח משתק ומפעיל אותן תוך כדי עבודה מול המסך, ולכן הן יושבות
+                      בתצוגה ולא בהגדרות העמדה. ההשתקה לסשן בלבד - לא נשמרת. */}
+                  <div style={{ padding: '6px 12px', fontSize: '10px', color: menuMuted, borderTop: `1px solid ${menuBorder}`, borderBottom: `1px solid ${menuBorder}` }}>{tr('ctrl.alerts')}</div>
+                  {/* התראות בלוקים (חריגה מבלוק) */}
+                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
+                    <span style={{ fontSize: '12px', color: muteBlockAlerts ? menuMuted : menuAcc('#86efac', '#15803d') }}>
+                      {muteBlockAlerts ? '⚪ ' : '🟢 '}{muteBlockAlerts ? tr('ctrl.blocksMuted') : tr('ctrl.blocksActive')}
+                    </span>
+                    <button
+                      data-testid="mute-block-alerts"
+                      onClick={() => setMuteBlockAlerts(v => !v)}
+                      style={{ background: muteBlockAlerts ? (_menuLight ? '#e2e8f0' : '#334155') : (_menuLight ? '#dcfce7' : '#1e2a1f'), color: muteBlockAlerts ? menuMuted : menuAcc('#86efac', '#15803d'), border: `1px solid ${muteBlockAlerts ? (_menuLight ? '#94a3b8' : '#475569') : '#22c55e'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                      {muteBlockAlerts ? `🔔 ${tr('ctrl.unmute')}` : `🔕 ${tr('ctrl.mute')}`} {tr('ctrl.blocks')}
+                    </button>
+                  </div>
+                  {/* התראות קונפליקטים (חפיפת גובה) - טבלה, מפה ותצוגה אנכית יחד */}
+                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
+                    <span style={{ fontSize: '12px', color: muteConflictAlerts ? menuMuted : menuAcc('#fca5a5', '#b91c1c') }}>
+                      {muteConflictAlerts ? '⚪ ' : '🔴 '}{muteConflictAlerts ? tr('ctrl.conflictsMuted') : tr('ctrl.conflictsActive')}
+                    </span>
+                    <button
+                      data-testid="mute-conflict-alerts"
+                      onClick={() => setMuteConflictAlerts(v => !v)}
+                      style={{ background: muteConflictAlerts ? (_menuLight ? '#e2e8f0' : '#334155') : (_menuLight ? '#fee2e2' : '#2a1414'), color: muteConflictAlerts ? menuMuted : menuAcc('#fca5a5', '#b91c1c'), border: `1px solid ${muteConflictAlerts ? (_menuLight ? '#94a3b8' : '#475569') : '#ef4444'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                      {muteConflictAlerts ? `🔔 ${tr('ctrl.unmute')}` : `🔕 ${tr('ctrl.mute')}`} {tr('ctrl.conflicts')}
+                    </button>
+                  </div>
                   {/* רענן הגדרות — מושך מהשרת את הגדרות התצוגה של העמדה בלי
                       לצאת ולהיכנס. התפריט נסגר מיד; המשוב מגיע בטוסט. */}
                   <div style={{ borderTop: `1px solid ${menuBorder}` }}>
@@ -12475,16 +12510,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </button>
                   </div>
                   </>}
-                  {/* Block alert */}
-                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
-                    <span style={{ fontSize: '12px', color: muteBlockAlerts ? menuMuted : menuAcc('#86efac','#15803d') }}>
-                      {muteBlockAlerts ? '⚪ בלוקים מושתקים' : '🟢 בלוקים פעיל'}
-                    </span>
-                    <button onClick={() => setMuteBlockAlerts(v => !v)}
-                      style={{ background: muteBlockAlerts ? '#334155' : '#1e2a1f', color: muteBlockAlerts ? '#94a3b8' : '#86efac', border: `1px solid ${muteBlockAlerts ? '#475569' : '#22c55e'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                      {muteBlockAlerts ? '🔔 הפעל' : '🔕 השתק'} {tr('ctrl.blocks')}
-                    </button>
-                  </div>
                   {/* הצג כמות מטוסים — חלונות הנתונים. מוסתר כשמשבצת בדסק מציגה אותם */}
                   {!deskHostsOwnTable('quantities') && <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
                     <span style={{ fontSize: '12px', color: showDataWindows ? menuAcc('#93c5fd','#2563eb') : menuMuted }}>
@@ -16577,7 +16602,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     const isRowDeviation = isRowDeviationRaw && !muteBlockAlerts;
                     const isRowDeviationAckEff = isRowDeviationAck && !muteBlockAlerts;
                     const isRowAltConflict = tableEffectiveConflictIds.has(String(s.id));
-                    const isRowConflictResolved = tableConflictPairsMap.has(String(s.id)) && !isRowAltConflict;
+                    const isRowConflictResolved = !muteConflictAlerts && tableConflictPairsMap.has(String(s.id)) && !isRowAltConflict;
                     const isRowConflictPartial = isRowAltConflict && (tableConflictResolutions.get(String(s.id))?.resolvedWith?.size ?? 0) > 0;
                     const hasOpenSubTable = subTableColumns.some((c: any) => expandedSubTables.has(`${s.id}__${c.tableKey}`));
                     // שורות הרווח מזיזות את מיקום הפ"מ בתוך ה-tbody, ולכן הזברה
@@ -16678,14 +16703,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             <span
                               title={isRowConflictPartial ? 'קונפליקט חלקי — לחץ לפתרון' : isRowAltConflict ? 'קונפליקט גובה — לחץ לפתרון' : isRowConflictResolved ? 'קונפליקט פתור — לחץ לצפייה' : ''}
                               onClick={e => {
-                                if (!tableConflictPairsMap.has(String(s.id))) return;
+                                if (muteConflictAlerts || !tableConflictPairsMap.has(String(s.id))) return;
                                 e.stopPropagation();
                                 const conflictingIds = tableConflictPairsMap.get(String(s.id)) || [];
                                 const conflictingStrips = conflictingIds.map(id => myTableStrips.find((x: any) => String(x.id) === id)).filter(Boolean);
                                 const existing = tableConflictResolutions.get(String(s.id));
                                 setTableConflictDialog({ stripId: String(s.id), conflictingStrips, note: existing?.note || '', selectedIds: existing?.resolvedWith ? new Set(existing.resolvedWith) : new Set(conflictingIds.map(String)) });
                               }}
-                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '50%', background: isRowConflictPartial ? '#f97316' : isRowAltConflict ? '#ef4444' : isRowConflictResolved ? '#22c55e' : 'transparent', color: (isRowAltConflict || isRowConflictResolved || isRowConflictPartial) ? 'white' : 'transparent', fontSize: '10px', fontWeight: 'bold', flexShrink: 0, lineHeight: 1, userSelect: 'none', cursor: tableConflictPairsMap.has(String(s.id)) ? 'pointer' : 'default' }}
+                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '50%', background: isRowConflictPartial ? '#f97316' : isRowAltConflict ? '#ef4444' : isRowConflictResolved ? '#22c55e' : 'transparent', color: (isRowAltConflict || isRowConflictResolved || isRowConflictPartial) ? 'white' : 'transparent', fontSize: '10px', fontWeight: 'bold', flexShrink: 0, lineHeight: 1, userSelect: 'none', cursor: (!muteConflictAlerts && tableConflictPairsMap.has(String(s.id))) ? 'pointer' : 'default' }}
                             >{tr('ctrl.k')}</span>
                             {isRowDeviation && !isRowDeviationAck ? (
                               <span
@@ -20551,7 +20576,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={showFullPicture && tableMode ? fullPictureStrips.filter(s => showPendingTransfer || s.status !== 'pending_transfer') : tableMode ? myTableStrips.filter(s => tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer')) : myTableStrips.filter(s => showPendingTransfer || s.status !== 'pending_transfer')} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={effectiveBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { const targetStrip = strips.find(s => String(s.id) === String(stripId)); const syntheticStrip = targetStrip ? { ...targetStrip, alt: altStr } : null; const newDeviation = syntheticStrip ? computeBlockDeviation(syntheticStrip, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false; await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: newDeviation }) }); setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, alt: altStr, block_deviation: newDeviation } : s)); } catch (e) { console.error(e); } }} conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500} presetAltMin={myPresetConfig?.view_alt_min ?? null} presetAltMax={myPresetConfig?.view_alt_max ?? null} viewerPresetId={session.presetId ? Number(session.presetId) : null} externalConflictIds={tableMode ? tableEffectiveConflictIds : undefined} initialGroupBy={verticalGroupBy} onGroupByChange={setVerticalGroupBy} suggestAltRange={suggestAltRangeFormation || myPresetConfig?.suggest_alt_range === true} />
+          <VerticalView strips={showFullPicture && tableMode ? fullPictureStrips.filter(s => showPendingTransfer || s.status !== 'pending_transfer') : tableMode ? myTableStrips.filter(s => tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer')) : myTableStrips.filter(s => showPendingTransfer || s.status !== 'pending_transfer')} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} muteConflictAlerts={muteConflictAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={effectiveBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { const targetStrip = strips.find(s => String(s.id) === String(stripId)); const syntheticStrip = targetStrip ? { ...targetStrip, alt: altStr } : null; const newDeviation = syntheticStrip ? computeBlockDeviation(syntheticStrip, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false; await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: newDeviation }) }); setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, alt: altStr, block_deviation: newDeviation } : s)); } catch (e) { console.error(e); } }} conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500} presetAltMin={myPresetConfig?.view_alt_min ?? null} presetAltMax={myPresetConfig?.view_alt_max ?? null} viewerPresetId={session.presetId ? Number(session.presetId) : null} externalConflictIds={tableMode ? tableEffectiveConflictIds : undefined} initialGroupBy={verticalGroupBy} onGroupByChange={setVerticalGroupBy} suggestAltRange={suggestAltRangeFormation || myPresetConfig?.suggest_alt_range === true} />
         </div>
       ) : (
         /* Map mode: fixed overlay so map area stays full size and strips don't move */
@@ -20568,7 +20593,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={showFullPicture && tableMode ? fullPictureStrips.filter(s => showPendingTransfer || s.status !== 'pending_transfer') : tableMode ? myTableStrips.filter(s => tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer')) : myTableStrips.filter(s => showPendingTransfer || s.status !== 'pending_transfer')} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={effectiveBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { const targetStrip = strips.find(s => String(s.id) === String(stripId)); const syntheticStrip = targetStrip ? { ...targetStrip, alt: altStr } : null; const newDeviation = syntheticStrip ? computeBlockDeviation(syntheticStrip, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false; await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: newDeviation }) }); setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, alt: altStr, block_deviation: newDeviation } : s)); } catch (e) { console.error(e); } }} conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500} presetAltMin={myPresetConfig?.view_alt_min ?? null} presetAltMax={myPresetConfig?.view_alt_max ?? null} viewerPresetId={session.presetId ? Number(session.presetId) : null} externalConflictIds={tableMode ? tableEffectiveConflictIds : undefined} initialGroupBy={verticalGroupBy} onGroupByChange={setVerticalGroupBy} suggestAltRange={suggestAltRangeFormation || myPresetConfig?.suggest_alt_range === true} />
+          <VerticalView strips={showFullPicture && tableMode ? fullPictureStrips.filter(s => showPendingTransfer || s.status !== 'pending_transfer') : tableMode ? myTableStrips.filter(s => tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer')) : myTableStrips.filter(s => showPendingTransfer || s.status !== 'pending_transfer')} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} muteConflictAlerts={muteConflictAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={effectiveBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { const targetStrip = strips.find(s => String(s.id) === String(stripId)); const syntheticStrip = targetStrip ? { ...targetStrip, alt: altStr } : null; const newDeviation = syntheticStrip ? computeBlockDeviation(syntheticStrip, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false; await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: newDeviation }) }); setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, alt: altStr, block_deviation: newDeviation } : s)); } catch (e) { console.error(e); } }} conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500} presetAltMin={myPresetConfig?.view_alt_min ?? null} presetAltMax={myPresetConfig?.view_alt_max ?? null} viewerPresetId={session.presetId ? Number(session.presetId) : null} externalConflictIds={tableMode ? tableEffectiveConflictIds : undefined} initialGroupBy={verticalGroupBy} onGroupByChange={setVerticalGroupBy} suggestAltRange={suggestAltRangeFormation || myPresetConfig?.suggest_alt_range === true} />
         </div>
       ))}
 

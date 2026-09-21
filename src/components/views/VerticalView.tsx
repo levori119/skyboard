@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Strip from '../strips/Strip';
 import { computeBlockDeviation, getFormationDisplayName, normalizeAlt, parseAltToFeet } from '../../utils/strips';
 
-export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], blockSpaces = [], blockTables = [], allBlocks = [], muteBlockAlerts = false, onStripContextMenu, activeBlockTableId = null, onTimeFieldChange, timeBased = true, onUpdateStripAlt, conflictAltDelta = 500, presetAltMin = null, presetAltMax = null, viewerPresetId = null, externalConflictIds = undefined, initialGroupBy = 'none', onGroupByChange, suggestAltRange = false }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean; relevantBlocks?: any[]; blockSpaces?: any[]; blockTables?: any[]; allBlocks?: any[]; muteBlockAlerts?: boolean; onStripContextMenu?: (stripId: string, x: number, y: number) => void; activeBlockTableId?: number | null; onTimeFieldChange?: (v: 'takeoff' | 'zmm') => void; timeBased?: boolean; onUpdateStripAlt?: (stripId: string, newAlt: string) => void; conflictAltDelta?: number; presetAltMin?: number | null; presetAltMax?: number | null; viewerPresetId?: number | null; externalConflictIds?: Set<string>; initialGroupBy?: 'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id'; onGroupByChange?: (g: 'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id') => void; suggestAltRange?: boolean }) => {
+export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], blockSpaces = [], blockTables = [], allBlocks = [], muteBlockAlerts = false, muteConflictAlerts = false, onStripContextMenu, activeBlockTableId = null, onTimeFieldChange, timeBased = true, onUpdateStripAlt, conflictAltDelta = 500, presetAltMin = null, presetAltMax = null, viewerPresetId = null, externalConflictIds = undefined, initialGroupBy = 'none', onGroupByChange, suggestAltRange = false }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean; relevantBlocks?: any[]; blockSpaces?: any[]; blockTables?: any[]; allBlocks?: any[]; muteBlockAlerts?: boolean; muteConflictAlerts?: boolean; onStripContextMenu?: (stripId: string, x: number, y: number) => void; activeBlockTableId?: number | null; onTimeFieldChange?: (v: 'takeoff' | 'zmm') => void; timeBased?: boolean; onUpdateStripAlt?: (stripId: string, newAlt: string) => void; conflictAltDelta?: number; presetAltMin?: number | null; presetAltMax?: number | null; viewerPresetId?: number | null; externalConflictIds?: Set<string>; initialGroupBy?: 'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id'; onGroupByChange?: (g: 'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id') => void; suggestAltRange?: boolean }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const chartContentRef = React.useRef<HTMLDivElement>(null);
   const [chartW, setChartW] = React.useState(800);
@@ -623,7 +623,7 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
             topPct = Math.min(Math.max(yPct - halfPct, 0), 100 - (STRIP_H / CHART_H) * 100);
             heightVal = `${STRIP_H}px`;
           }
-          const isConflict = s._hasConflict;
+          const isConflict = s._hasConflict && !muteConflictAlerts;
           const borderColor = (effectiveDeviation || effectiveDeviationAck) ? '#f97316'
             : s.airborne ? '#3b82f6' : isConflict ? '#ef4444' : (lightMode ? '#94a3b8' : '#475569');
           const textMainColor = s.airborne ? '#3b82f6' : isConflict ? '#ef4444' : boldTextColor;
@@ -681,7 +681,7 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
             topPct = Math.min(Math.max(yPct - halfPct, 0), 100 - (STRIP_H / CHART_H) * 100);
             heightVal = `${STRIP_H}px`;
           }
-          const ntConflict = !!s._hasConflict;
+          const ntConflict = !!s._hasConflict && !muteConflictAlerts;
           const borderColor = (effectiveDeviation || effectiveDeviationAck) ? '#f97316'
             : s.airborne ? '#3b82f6' : ntConflict ? '#ef4444' : (lightMode ? '#94a3b8' : '#475569');
           const textMainColor = s.airborne ? '#3b82f6' : ntConflict ? '#ef4444' : boldTextColor;

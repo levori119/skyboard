@@ -2473,6 +2473,34 @@
     "tbClosures": {
       "he": "סגירות",
       "en": "Closures"
+    },
+    "mute": {
+      "he": "השתק",
+      "en": "Mute"
+    },
+    "unmute": {
+      "he": "הפעל",
+      "en": "Unmute"
+    },
+    "blocksMuted": {
+      "he": "בלוקים מושתקים",
+      "en": "Blocks muted"
+    },
+    "blocksActive": {
+      "he": "בלוקים פעיל",
+      "en": "Blocks active"
+    },
+    "conflicts": {
+      "he": "קונפליקטים",
+      "en": "Conflicts"
+    },
+    "conflictsMuted": {
+      "he": "קונפליקטים מושתקים",
+      "en": "Conflicts muted"
+    },
+    "conflictsActive": {
+      "he": "קונפליקטים פעיל",
+      "en": "Conflicts active"
     }
   }
 }

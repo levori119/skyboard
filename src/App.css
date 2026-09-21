@@ -616,18 +616,44 @@ body.light-mode .table-header-menu button:hover {
   0%, 100% { background-color: rgba(234, 88, 12, 0.7); }
   50% { background-color: rgba(234, 88, 12, 0.95); }
 }
-@keyframes block-deviation-flash-solid {
-  0%, 100% { background-color: #4a1c07; }
-  50% { background-color: #7c2d0d; }
-}
 /* For div/span elements (map and vertical views) */
 div.block-deviation-flash {
   animation: block-deviation-flash 0.9s ease-in-out infinite;
 }
-/* For table rows — animate the cells themselves so nothing bleeds through */
-tr.block-deviation-flash > td {
-  animation: block-deviation-flash-solid 0.9s ease-in-out infinite;
+
+/* ── התראת שורה בטבלה (קונפליקט / חריגה מבלוק) ────────────────
+   הצבע נצבע ב-box-shadow פנימי ולא ב-background. לעמודות המקובעות
+   (.frozen-col) ולשורות הטבלה יש background עם !important פר-תמה (יום/אוקיינוס),
+   ו-!important גובר על אנימציה ב-cascade. התוצאה היתה שהחלק המקובע
+   נשאר בצבע התמה בזמן שהחלק הנגלל מתריע - שתי חצאיות לאותה
+   שורה. box-shadow פנימי לא נדרס ע"י אותם כללים, ולכן כל התאים נראים זהה.
+   הוא גם צבוע מעל ה-background ומתחת לתוכן, כך שהטקסט והכפתורים נשארים עליו. */
+@keyframes sk-row-alert-conflict {
+  0%, 100% { box-shadow: inset 0 0 0 9999px #7f1d1d; }
+  50%      { box-shadow: inset 0 0 0 9999px #b91c1c; }
 }
+@keyframes sk-row-alert-deviation {
+  0%, 100% { box-shadow: inset 0 0 0 9999px #4a1c07; }
+  50%      { box-shadow: inset 0 0 0 9999px #7c2d0d; }
+}
+tr.alt-conflict-flash > td {
+  animation: sk-row-alert-conflict 0.8s ease-in-out infinite;
+}
+tr.block-deviation-flash > td {
+  animation: sk-row-alert-deviation 0.9s ease-in-out infinite;
+}
+/* בתמת היום הטקסט בטבלה כהה (color: #0f172a !important), ולכן ההתראה
+   בגוונים בהירים - אחרת השורה המתריעה היא השורה שאי-אפשר לקרוא. */
+@keyframes sk-row-alert-conflict-light {
+  0%, 100% { box-shadow: inset 0 0 0 9999px #fecaca; }
+  50%      { box-shadow: inset 0 0 0 9999px #fca5a5; }
+}
+@keyframes sk-row-alert-deviation-light {
+  0%, 100% { box-shadow: inset 0 0 0 9999px #fed7aa; }
+  50%      { box-shadow: inset 0 0 0 9999px #fdba74; }
+}
+body.light-mode tr.alt-conflict-flash > td { animation-name: sk-row-alert-conflict-light; }
+body.light-mode tr.block-deviation-flash > td { animation-name: sk-row-alert-deviation-light; }
 @keyframes mine-block-blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
