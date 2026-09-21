@@ -77,3 +77,25 @@ export function defaultEditableCols(
     .filter(Boolean) as string[];
   return new Set(keys);
 }
+
+/** עד כמה שורות תא בטבלה גדל לפני שהוא נגלל בתוך עצמו */
+export const TABLE_CELL_MAX_LINES = 3;
+
+/**
+ * גובה תא בטבלה: **שורה אחת** כברירת מחדל, גדל עד שלוש שורות, ומשם נגלל בתוך
+ * התא במקום למתוח את כל שורת הפ"מ. בלי התקרה הזו הערה בת שבע שורות הייתה דוחפת
+ * את שאר העמודות מטה, והשורה חדלה להיקרא כשורה אחת.
+ *
+ * המידות ב-`em` ולא ב-`px` - גודל הגופן בטבלה נשלט בעמדה (`tableFontSize`),
+ * והתקרה נגזרת ממנו במקום להיקבע מראש.
+ */
+export function tableCellScroll(maxLines = TABLE_CELL_MAX_LINES): CSSProperties {
+  const lh = 1.3;
+  return {
+    lineHeight: lh,
+    maxHeight: `${(lh * maxLines).toFixed(2)}em`,
+    overflowY: 'auto',
+    // התוכן מתחיל למעלה, כך שכל התאים בשורה מתחילים באותו קו
+    alignSelf: 'flex-start',
+  };
+}

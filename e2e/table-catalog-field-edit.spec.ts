@@ -100,3 +100,26 @@ test('שדה מהקטלוג בטבלה: ENTER שומר, ALT+ENTER יורד שו�
   await expect.poll(savedValue, { message: 'שתי השורות נשמרו', timeout: 15000 })
     .toBe('שורה א\nשורה ב');
 });
+
+test('תא רב-שורתי נעצר ב-3 שורות ונגלל, ולא מותח את שורת הפ"מ', async ({ page }) => {
+  // שבע שורות בשדה - בלי תקרה התא היה מותח את כל שורת הפ"מ וגורר איתו את שאר העמודות
+  const many = Array.from({ length: 7 }, (_, i) => `שורה ${i + 1}`).join('\n');
+  const put = await fetch(`${api}/strips/s${stripNum}/control-field`, {
+    method: 'PUT', headers, body: JSON.stringify({ control_key: FIELD_KEY, value: many }),
+  });
+  expect(put.ok, 'הזנת ערך רב-שורתי').toBeTruthy();
+
+  await loginToWorkstation(page, { preset: PRESET });
+  const row = page.locator('tr', { hasText: CALLSIGN }).first();
+  await expect(row).toBeVisible({ timeout: 30000 });
+  const cell = row.locator(`[data-strip-control="${FIELD_KEY}"]`).first();
+  await expect(cell).toContainText('שורה 1');
+
+  const box = await cell.evaluate(el => ({
+    client: el.clientHeight,
+    scroll: el.scrollHeight,
+    line: parseFloat(getComputedStyle(el).lineHeight),
+  }));
+  expect(box.scroll, 'התוכן ארוך מהתא - כלומר התא נגלל').toBeGreaterThan(box.client);
+  expect(box.client, 'הגובה הנראה אינו עובר שלוש שורות').toBeLessThanOrEqual(box.line * 3 + 2);
+});

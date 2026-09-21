@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   cellEditKeyAction, insertNewline, editableCellUnderline, handleCellEditKeyDown,
-  defaultEditableCols,
+  defaultEditableCols, tableCellScroll,
 } from './tableCellEdit';
 
 describe('cellEditKeyAction', () => {
@@ -113,5 +113,19 @@ describe('defaultEditableCols', () => {
     expect(defaultEditableCols(null).size).toBe(0);
     expect(defaultEditableCols(undefined).size).toBe(0);
     expect(defaultEditableCols([]).size).toBe(0);
+  });
+});
+
+describe('tableCellScroll', () => {
+  it('תקרה של שלוש שורות וגלילה בתוך התא', () => {
+    const st = tableCellScroll();
+    expect(st.maxHeight).toBe('3.90em');
+    expect(st.overflowY).toBe('auto');
+    expect(st.lineHeight).toBe(1.3);
+  });
+
+  it('מספר שורות אחר מזיז את התקרה בלבד', () => {
+    expect(tableCellScroll(1).maxHeight).toBe('1.30em');
+    expect(tableCellScroll(5).maxHeight).toBe('6.50em');
   });
 });

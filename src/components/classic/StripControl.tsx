@@ -8,7 +8,7 @@ import {
   controlDisplayText, isHandwritingValue, nextButtonValue, normalizeControlValue,
   resolveControlStyle, toggleFlagValue, toggleMultiValue,
 } from '../../utils/stripControls';
-import { handleCellEditKeyDown, editableCellUnderline } from '../../utils/tableCellEdit';
+import { handleCellEditKeyDown, editableCellUnderline, tableCellScroll, TABLE_CELL_MAX_LINES } from '../../utils/tableCellEdit';
 
 /**
  * משוב לחיצה וריחוף. `:active`/`:hover` אינם קיימים בסגנון inline, ובלי משוב
@@ -104,7 +104,10 @@ export const StripControl = ({ control, value, onChange, lightMode, readOnly, va
       ? {
           background: 'transparent', border: 'none', borderRadius: 0,
           justifyContent: 'flex-start', alignItems: 'flex-start',
-          padding: '0 2px', whiteSpace: 'pre-line',
+          // גובה שורה אחת, ולא מתיחה לגובה השורה: בטבלה כל התאים מתחילים
+          // באותו קו למעלה, וערך ארוך נגלל בתוך התא ולא דוחף את השורה
+          height: 'auto', padding: '0 2px', whiteSpace: 'pre-line',
+          ...tableCellScroll(),
           ...editableCellUnderline(edge, !readOnly),
         }
       : {}),
@@ -163,7 +166,7 @@ export const StripControl = ({ control, value, onChange, lightMode, readOnly, va
             // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus: true,
             defaultValue: isHandwritingValue(value) ? '' : String(value ?? ''),
-            rows: underlineOnly ? Math.min(4, Math.max(1, String(value ?? '').split('\n').length)) : undefined,
+            rows: underlineOnly ? Math.min(TABLE_CELL_MAX_LINES, Math.max(1, String(value ?? '').split('\n').length)) : undefined,
             onClick: swallow,
             onPointerDown: (e: React.PointerEvent) => e.stopPropagation(),
             onBlur: (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => { setEditing(false); onChange(e.target.value); },
@@ -176,7 +179,7 @@ export const StripControl = ({ control, value, onChange, lightMode, readOnly, va
             style: {
               flex: 1, minWidth: 0, background: 'rgba(0,0,0,0.15)', border: 'none',
               borderBottom: `1px solid ${fg}`, color: fg, font: 'inherit', outline: 'none',
-              padding: 0, ...(underlineOnly ? { resize: 'vertical' as const, lineHeight: 1.25 } : {}),
+              padding: 0, ...(underlineOnly ? { resize: 'vertical' as const, lineHeight: 1.3 } : {}),
             },
           })
         ) : ink ? (
