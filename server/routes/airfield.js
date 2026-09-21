@@ -9,6 +9,7 @@ import {
 } from '../utils/runwayState.js';
 import { parseRelevantFor, onlyRelevantFor, DEFAULT_RELEVANT_FOR } from '../../shared/elementRelevance.js';
 import { parseRoadRelevance } from '../../shared/elementRoadRelevance.js';
+import { effectiveBlockingStatuses } from '../../shared/tripTracking.js';
 import { parseLandingPriority, effectiveLandingPriority } from '../../shared/landingPriority.js';
 import { baseDatkPoints, syncBaseLandingPriority } from '../utils/baseDatkPoints.js';
 const router = new Router();
@@ -1627,13 +1628,13 @@ router.get('/api/live-runway-conflicts', async (req, res) => {
              ae.id`,
           [routesToCheck, ...nameTokens.map(t => `%${t}%`)]
         );
-        const categoryBlockDefault = { 'STOP BAR': 'מנצנץ', 'רמזורים': 'מנצנץ', 'מחסומים': 'סגור' };
         const recommendations = recRows.map(r => {
-          const bs = Array.isArray(r.blocking_statuses) ? r.blocking_statuses : (r.blocking_statuses ? JSON.parse(r.blocking_statuses) : []);
           const as_ = Array.isArray(r.allowed_statuses) ? r.allowed_statuses : (r.allowed_statuses ? JSON.parse(r.allowed_statuses) : []);
-          const effectiveBlocking = bs.length > 0 ? bs
-            : categoryBlockDefault[r.category] ? [categoryBlockDefault[r.category]]
-            : as_.length > 0 ? [as_[0]] : [];
+          // מקור אמת יחיד לכלל החסימה (shared/tripTracking.js) - העתק מקומי של
+          // ברירות המחדל נשאר מאחור כשהכלל השתנה, ואז המגדל והנהג חלוקים
+          const effectiveBlocking = effectiveBlockingStatuses({
+            blocking_statuses: r.blocking_statuses, category: r.category, allowed_statuses: as_,
+          });
           return {
             id: r.id,
             name: r.name,

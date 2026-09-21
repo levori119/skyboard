@@ -156,11 +156,36 @@ describe('אלמנט סוגר את הדרך - כלל אחד', () => {
     expect(effectiveBlockingStatuses({ blocking_statuses: ['עצור'], category: 'מחסומים' })).toEqual(['עצור']);
   });
 
-  // אותן ברירות מחדל כמו /api/live-runway-conflicts
-  it('ריק - ברירת המחדל לקטגוריה', () => {
-    expect(effectiveBlockingStatuses({ category: 'מחסומים' })).toEqual(['סגור']);
-    expect(effectiveBlockingStatuses({ category: 'רמזורים' })).toEqual(['מנצנץ']);
-    expect(effectiveBlockingStatuses({ category: 'STOP BAR' })).toEqual(['מנצנץ']);
+  // אותן ברירות מחדל כמו /api/live-runway-conflicts (שמייבא מכאן)
+  it('ריק - ברירת המחדל לקטגוריה, כל המצבים שסוגרים', () => {
+    expect(effectiveBlockingStatuses({ category: 'מחסומים' })).toContain('סגור');
+    expect(effectiveBlockingStatuses({ category: 'רמזורים' })).toContain('מנצנץ');
+    expect(effectiveBlockingStatuses({ category: 'STOP BAR' })).toContain('מנצנץ');
+  });
+
+  // תקלה מהשדה 2026-09-21: רמזור אדום צויר אדום אצל הנהג ולא הפיק התרעה, כי
+  // ברירת המחדל לרמזורים הייתה 'מנצנץ' בלבד. האפיון מונה במפורש "רמזור אדום,
+  // מחסום סגור, STOP BAR דולק" - ולכן כל אלה בברירת המחדל.
+  it('רמזור אדום בלי הגדרה - חוסם', () => {
+    expect(effectiveBlockingStatuses({ category: 'רמזורים' })).toContain('עצור');
+    expect(isElementBlocking({ category: 'רמזורים', display_state: 'stop', status: 'שמיש' })).toBe(true);
+  });
+  it('רמזור ירוק בלי הגדרה - אינו חוסם', () => {
+    expect(isElementBlocking({ category: 'רמזורים', display_state: 'go', status: 'שמיש' })).toBe(false);
+    expect(isElementBlocking({ category: 'רמזורים', display_state: 'off', status: 'שמיש' })).toBe(false);
+  });
+  it('STOP BAR דולק בלי הגדרה - חוסם', () => {
+    expect(isElementBlocking({ category: 'STOP BAR', status: 'דולק' })).toBe(true);
+  });
+  it('מחסום ב"עצור" בלי הגדרה - חוסם', () => {
+    expect(isElementBlocking({ category: 'מחסומים', display_state: 'stop', status: 'שמיש' })).toBe(true);
+  });
+  // ההגדרה המפורשת גוברת גם כשהיא **מצמצמת** את ברירת המחדל
+  it('הגדרה מפורשת מצמצמת - רמזור אדום שהוגדר רק "מנצנץ" אינו חוסם', () => {
+    expect(isElementBlocking({ category: 'רמזורים', blocking_statuses: ['מנצנץ'], display_state: 'stop' })).toBe(false);
+  });
+  it('רמזור אדום לא שמיש - אינו חוסם', () => {
+    expect(isElementBlocking({ category: 'רמזורים', display_state: 'stop', status: 'לא שמיש' })).toBe(false);
   });
 
   it('ריק ואין ברירת מחדל - הסטטוס המותר הראשון', () => {
@@ -293,6 +318,15 @@ describe('findHazards - מה קרוב לנהג עכשיו', () => {
   it('אלמנט סוגר בתוך 50 מ\' - התרעה; אותו אלמנט פתוח - לא', () => {
     const h = findHazards(pos, { runways: [], taxiways: [], elements: [closedBarrier, openBarrier] });
     expect(h.map(x => x.key)).toEqual(['element:31']);
+  });
+
+  // תקלה מהשדה: הנהג עמד ברמזור אדום, הרמזור צויר אדום - ואין התרעה
+  it('רמזור אדום בתוך 50 מ\' בלי blocking_statuses - התרעה', () => {
+    const redLight = { id: 41, name: 'רמזור קסורלה', category: 'רמזורים', display_state: 'stop', status: 'שמיש', lat: 31.2503, lon: 34.65 };
+    const h = findHazards(pos, { runways: [], taxiways: [], elements: [redLight] });
+    expect(h.map(x => x.key)).toEqual(['element:41']);
+    expect(h[0].name).toBe('רמזור קסורלה');
+    expect(findHazards(pos, { runways: [], taxiways: [], elements: [{ ...redLight, display_state: 'go' }] })).toEqual([]);
   });
 
   it('כמה סכנות - הקרובה ראשונה', () => {

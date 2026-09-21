@@ -164,8 +164,24 @@ export const DISPLAY_STATE_LABEL = {
   close: 'סגור', open: 'פתוח', off: 'כבוי', stop: 'עצור', go: 'עבור', blink: 'מנצנץ',
 };
 
-/** ברירות המחדל לקטגוריה כשלאלמנט לא הוגדרו סטטוסים חוסמים */
-const CATEGORY_BLOCK_DEFAULT = { 'STOP BAR': 'מנצנץ', 'רמזורים': 'מנצנץ', 'מחסומים': 'סגור' };
+/**
+ * ברירות המחדל לקטגוריה כשלאלמנט לא הוגדרו סטטוסים חוסמים - **כל** המצבים
+ * שבהם הקטגוריה סוגרת את הדרך, לא אחד מהם.
+ *
+ * **למה רשימה ולא ערך יחיד (2026-09-21, תקלה מהשדה):** לרמזור הייתה ברירת מחדל
+ * אחת, 'מנצנץ'. רמזור שהפקח העביר ל**אדום** (`display_state: 'stop'` ← 'עצור')
+ * צויר אדום אצל הנהג - הסמל נצבע מהמצב התפעולי - אך `isElementBlocking` החזיר
+ * false, ולכן לא קיבל הילה, לא תווית ו**לא התרעה**. הנהג עמד מול רמזור אדום
+ * שהמערכת החשיבה פתוח. אלה בדיוק המצבים שהאפיון מונה: "רמזור אדום, מחסום סגור,
+ * STOP BAR דולק" (TRIP_LIVE_TRACKING_SPEC §0).
+ *
+ * הגדרה מפורשת ב-`blocking_statuses` גוברת, כמקודם.
+ */
+const CATEGORY_BLOCK_DEFAULT = {
+  'STOP BAR': ['מנצנץ', 'דולק', 'עצור', 'סגור'],
+  'רמזורים': ['מנצנץ', 'עצור', 'סגור'],
+  'מחסומים': ['סגור', 'עצור'],
+};
 
 const NOT_ON_ROAD = new Set(['camera', 'כלי רכב']);
 
@@ -180,7 +196,7 @@ export function effectiveBlockingStatuses(el) {
   const explicit = jsonList(el?.blocking_statuses).map(String).filter(Boolean);
   if (explicit.length) return explicit;
   const byCategory = CATEGORY_BLOCK_DEFAULT[el?.category];
-  if (byCategory) return [byCategory];
+  if (byCategory) return [...byCategory];
   const allowed = jsonList(el?.type_allowed_statuses ?? el?.allowed_statuses).map(String).filter(Boolean);
   return allowed.length ? [allowed[0]] : [];
 }

@@ -3862,6 +3862,10 @@
       "he": "לפני הצומת עם",
       "en": "before the junction with"
     },
+    "elemBlockingStatusesHint": {
+      "he": "אפשר לבחור גם סטטוס כשירות וגם מצב תפעולי (עצור / סגור / מנצנץ). בלי בחירה - ברירת המחדל לקטגוריה: רמזור סוגר באדום או במנצנץ, מחסום בסגור, STOP BAR בדולק או במנצנץ.",
+      "en": "Pick serviceability statuses and operational states alike (stop / closed / blinking). With none selected, the category default applies: a traffic light blocks on red or blinking, a barrier on closed, a STOP BAR on lit or blinking."
+    },
     "elemNoJunction": {
       "he": "ללא צומת (באמצע הנתיב)",
       "en": "No junction (mid-route)"

@@ -60,6 +60,7 @@ import { parseLandingPriority } from '../../../shared/landingPriority';
 import { LandingPriorityEditor, runwayEndsOf } from './LandingPriorityEditor';
 import { nextRouteDirection, routeDirectionGlyph, routeDirectionArrows } from '../../utils/routeDirection';
 import { parseRoadRelevance, type RoadRelevance } from '../../../shared/elementRoadRelevance';
+import { DISPLAY_STATE_LABEL } from '../../../shared/tripTracking';
 
 /** טופס אלמנט בבסיס ריק. אלמנט חדש רלוונטי לרכבים ולמטוסים עד שבוחרים אחרת. */
 const emptyElementForm = () => ({
@@ -6087,10 +6088,15 @@ CHARLIE,1,301,`}
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                                           {(() => {
                                             const allowedStatuses: string[] = (adminElementTypes.find((et: any) => String(et.id) === elementForm.element_type_id) as any)?.allowed_statuses || [];
-                                            const statOpts = allowedStatuses.length > 0 ? allowedStatuses : ['תקין', 'שמיש', 'חלקי', 'לא תקין', 'תקול', 'סגור'];
+                                            const serviceOpts = allowedStatuses.length > 0 ? allowedStatuses : ['תקין', 'שמיש', 'חלקי', 'לא תקין', 'תקול', 'סגור'];
+                                            // גם **המצב התפעולי** חוסם, לא רק סטטוס הכשירות: isElementBlocking
+                                            // בודק את תווית ה-display_state מול הרשימה. בלי האפשרויות האלה אי
+                                            // אפשר היה להצהיר "רמזור אדום = חוסם", ורמזור אדום לא הפיק התרעה
+                                            const stateOpts = Object.values(DISPLAY_STATE_LABEL);
+                                            const statOpts = [...new Set([...serviceOpts, ...stateOpts])];
                                             return statOpts.map((s: string) => {
                                               const isOn = elementForm.blocking_statuses.includes(s);
-                                              const COLOR: Record<string, string> = { 'תקין': '#22c55e', 'שמיש': '#86efac', 'חלקי': '#fb923c', 'לא תקין': '#f87171', 'תקול': '#fca5a5', 'סגור': '#94a3b8' };
+                                              const COLOR: Record<string, string> = { 'תקין': '#22c55e', 'שמיש': '#86efac', 'חלקי': '#fb923c', 'לא תקין': '#f87171', 'תקול': '#fca5a5', 'סגור': '#94a3b8', 'עצור': '#fca5a5', 'עבור': '#86efac', 'מנצנץ': '#fbbf24', 'כבוי': '#94a3b8', 'פתוח': '#86efac' };
                                               return (
                                                 <button key={s} onClick={() => setElementForm(p => ({ ...p, blocking_statuses: isOn ? p.blocking_statuses.filter(x => x !== s) : [...p.blocking_statuses, s] }))}
                                                   style={{ padding: '2px 8px', background: isOn ? '#450a0a' : '#1e293b', color: isOn ? (COLOR[s] || '#fca5a5') : '#64748b', border: `1px solid ${isOn ? (COLOR[s] || '#ef4444') : '#334155'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: isOn ? 'bold' : 'normal' }}>
@@ -6100,6 +6106,8 @@ CHARLIE,1,301,`}
                                             });
                                           })()}
                                         </div>
+                                        {/* שקיפות: רשימה ריקה אינה "אף פעם לא חוסם" אלא ברירת המחדל לקטגוריה */}
+                                        <div style={{ fontSize: '9px', color: '#64748b', lineHeight: 1.5, marginTop: '4px' }}>{tr('admin.elemBlockingStatusesHint')}</div>
                                       </div>
                                     </div>
                                   )}
