@@ -99,11 +99,21 @@ const station = await createStationServer({
   allowedOrigins: (arg('origins', '') || '').split(',').map(s => s.trim()).filter(Boolean),
 });
 
+// מאיפה תגיע האפליקציה, ולאן לפתוח בפועל. ההבחנה הזו נולדה מתקלה: סוכן
+// שהורם בלי `--dist` הפנה את הדפדפן ל-Vite שלא רץ, והמפעיל קיבל
+// `ECONNREFUSED 127.0.0.1:5000` במקום אפליקציה.
+const hasDist = existsSync(path.join(ROOT, 'dist', 'index.html'));
+const assets = flag('dist')
+  ? `${path.join(ROOT, 'dist')} (build)`
+  : `${VITE} (Vite)${hasDist ? ' · נפילה אחורה ל-dist' : ' · אם אינו רץ - הפניה למרכז'}`;
+const openAt = flag('dist') || hasDist ? station.url : API;
+
 console.log(`
 ┌─ SKY-KING · עמדה מקומית ─────────────────────────────────────────
-│  פתח בדפדפן:   ${station.url}
+│  פתח בדפדפן:   ${openAt}
+│  הסוכן:         ${station.url}
 │  API מרכזי:     ${API}
-│  נכסים:         ${flag('dist') ? `${path.join(ROOT, 'dist')} (build)` : `${VITE} (Vite)`}
+│  נכסים:         ${assets}
 │  מפתח עמדה:     ${STATION_KEY}
 │
 │  כפתור הנתק בפינה השמאלית התחתונה מנתק **את העמדה הזו בלבד**.

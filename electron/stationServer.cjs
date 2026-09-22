@@ -82,6 +82,11 @@ function resolveStaticPath(distDir, urlPath) {
   return full;
 }
 
+/** האם יש בכלל אפליקציה על הדיסק להגיש. */
+function hasBundledDist(distDir) {
+  try { return fs.existsSync(path.join(distDir, 'index.html')); } catch { return false; }
+}
+
 /** נתיב שאינו קובץ קיים ואינו נכס — מוגש כ-index.html (ניתוב בצד הלקוח). */
 function isAssetLike(urlPath) {
   return path.extname(urlPath.split('?')[0]) !== '';
@@ -172,6 +177,10 @@ function proxyRequest(req, res, apiTarget, timeoutMs, opts) {
   upstream.on('error', err => {
     onResult(false);
     if (res.headersSent) { res.destroy(); return; }
+    // יעד שאינו עונה אינו תמיד שגיאה שצריך להציג: להגשת **נכסים** יש חלופה
+    // (dist על הדיסק, או האפליקציה בשרת המרכזי), ו-JSON של 502 במקומה הוא
+    // מסך לבן עם טקסט שאינו אומר למפעיל דבר. ראה §נכסים.
+    if (opts && opts.onUnreachable) { opts.onUnreachable(err); return; }
     res.writeHead(502, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'upstream unreachable', detail: err.message }));
   });
@@ -425,10 +434,32 @@ function createStationServer({
       }
       return proxyRequest(req, res, target, timeoutForPath(urlPath), { onResult, extraHeaders });
     }
-    // בפיתוח הנכסים מגיעים משרת ה-Vite (כולל HMR), ולא מ-dist שנבנה.
-    if (staticTarget) return proxyRequest(req, res, staticTarget, timeoutForPath(urlPath));
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); res.end(); return; }
-    serveStatic(res, distDir, req.url || '/');
+
+    // ── §נכסים: מאיפה מגיעה האפליקציה עצמה ────────────────────────────────
+    // שלוש אפשרויות, לפי מה שקיים - ובלי מבוי סתום:
+    //   1. שרת Vite, בפיתוח (כולל HMR)
+    //   2. `dist` על הדיסק - עמדה עצמאית
+    //   3. אין כלום → **הפניה לשרת המרכזי**
+    //
+    // ⚠️ הסעיף השלישי נולד מתקלה: סוכן שהורם בלי `--dist` ניסה להגיש מ-Vite
+    // שלא רץ, והמפעיל שפתח את כתובת הסוכן קיבל
+    // `{"error":"upstream unreachable","detail":"ECONNREFUSED 127.0.0.1:5000"}`.
+    // תפקיד הסוכן הוא ה-API והמאגר המקומי; כשאין לו אפליקציה להגיש, התשובה
+    // הנכונה היא לשלוח את הדפדפן לאפליקציה האמיתית - לא להציג JSON.
+    const toCentral = () => {
+      let url;
+      try { url = new URL(req.url || '/', apiTarget).toString(); } catch { url = apiTarget; }
+      res.writeHead(302, { Location: url, 'Cache-Control': 'no-store' });
+      res.end();
+    };
+    const fromDisk = () => (hasBundledDist(distDir)
+      ? serveStatic(res, distDir, req.url || '/')
+      : toCentral());
+    if (staticTarget) {
+      return proxyRequest(req, res, staticTarget, timeoutForPath(urlPath), { onUnreachable: fromDisk });
+    }
+    return fromDisk();
   });
 
   return new Promise((resolve, reject) => {
@@ -469,6 +500,7 @@ module.exports = {
   STATION_OUTAGE_PATH,
   createOriginGate,
   applyCors,
+  hasBundledDist,
   timeoutFor,
   SYNC_TIMEOUT_MS,
   resolveStaticPath,

@@ -465,3 +465,60 @@ describe('תקרת זמן לפי נתיב', () => {
     expect(t('/api/syncopation')).toBe(8000);
   });
 });
+
+// ── §נכסים: אין מבוי סתום ────────────────────────────────────────────────────
+// התקלה שזה מתעד: סוכן שהורם בלי `--dist` ניסה להגיש את האפליקציה משרת Vite
+// שאינו רץ, והמפעיל שפתח את כתובת הסוכן קיבל
+// {"error":"upstream unreachable","detail":"connect ECONNREFUSED 127.0.0.1:5000"}.
+// תפקידו של הסוכן הוא ה-API והמאגר המקומי; כשאין לו אפליקציה להגיש, לשלוח את
+// הדפדפן לאפליקציה האמיתית.
+describe('שרת העמדה - מאיפה מגיעה האפליקציה', () => {
+  const CENTRAL = 'https://sky-king.example.com';
+  const DEAD_VITE = 'http://127.0.0.1:5987';   // פורט סגור בכוונה
+
+  const call = (url) => new Promise((resolve) => {
+    const req = http.request(url, { method: 'GET' }, res => {
+      let body = '';
+      res.on('data', c => { body += c; });
+      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body }));
+    });
+    req.on('error', () => resolve({ status: 0, headers: {}, body: '' }));
+    req.end();
+  });
+
+  it('אין dist ואין Vite - הפניה לשרת המרכזי, ולא 502', async () => {
+    const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'skyking-nodist-'));
+    const s = await createStationServer({
+      distDir: empty, apiTarget: CENTRAL, staticTarget: DEAD_VITE, port: 0, timeoutMs: 1500,
+    });
+    const r = await call(`${s.url}/`);
+    expect(r.status).toBe(302);
+    expect(r.headers.location).toContain(CENTRAL);
+    expect(r.body).not.toContain('upstream unreachable');
+    await s.close();
+    fs.rmSync(empty, { recursive: true, force: true });
+  });
+
+  it('יש dist ו-Vite נפל - מוגש מהדיסק', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'skyking-dist-fb-'));
+    fs.writeFileSync(path.join(dir, 'index.html'), '<html>מהדיסק</html>');
+    const s = await createStationServer({
+      distDir: dir, apiTarget: CENTRAL, staticTarget: DEAD_VITE, port: 0, timeoutMs: 1500,
+    });
+    const r = await call(`${s.url}/`);
+    expect(r.status).toBe(200);
+    expect(r.body).toContain('מהדיסק');
+    await s.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('בלי dist ובלי staticTarget - גם כן הפניה, ולא 403/404', async () => {
+    const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'skyking-nodist2-'));
+    const s = await createStationServer({ distDir: empty, apiTarget: CENTRAL, port: 0 });
+    const r = await call(`${s.url}/some/deep/route`);
+    expect(r.status).toBe(302);
+    expect(r.headers.location).toBe(`${CENTRAL}/some/deep/route`);
+    await s.close();
+    fs.rmSync(empty, { recursive: true, force: true });
+  });
+});
