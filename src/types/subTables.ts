@@ -177,6 +177,17 @@ export function resolveTabularColumn<T extends { isTable?: boolean; tableKey?: s
 }
 
 /**
+ * לחיצה על טבלה בבורר המוד הטבלאי: לחיצה על ה**פעילה** מכבה את המוד, ולחיצה על
+ * אחרת עוברת אליה.
+ *
+ * הכיבוי חשוב דווקא בקליק הימני על הפ"מ - שם אין שורת "כבוי" קבועה כמו בתפריט
+ * התצוגה, ובלעדיו הדרך היחידה לחזור לתצוגת הפ"מים הייתה לצאת לתפריט אחר.
+ */
+export function toggleTabularKey(current: string | null | undefined, key: string): string | null {
+  return current === key ? null : key;
+}
+
+/**
  * ברירת המחדל של עמודות טבלת בן שזה עתה נוספה למוד טבלה.
  *
  * לא כל 15 העמודות: טבלה שנפתחת עם הכל דוחקת את שאר הפ"מ מהמסך, והמקנפג ממילא

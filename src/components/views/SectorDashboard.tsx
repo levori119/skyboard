@@ -87,7 +87,7 @@ import { windowFrame, frameColor } from '../../utils/windowFrame';
 import { deskBackgroundStyle, normalizeDeskBackground, DESK_BG_MIN_SIZE, DESK_BG_MAX_SIZE, type DeskBackground } from '../../utils/deskBackground';
 import { AimPointsSummary, AimPointsWindow } from '../strips/AimPointsTable';
 import { AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY, COORD_PLACEHOLDER, aimFieldText, isValidCoord, normalizeCoord, toAimPoints, type AimPoint } from '../../types/aimPoints';
-import { getSubTable, isSubTableColumn, resolveTabularColumn, subTableAccent, subTableRows, subTableFrozenCount, subTableFrozenLayout, tabularCandidateColumns } from '../../types/subTables';
+import { getSubTable, isSubTableColumn, resolveTabularColumn, subTableAccent, subTableRows, subTableFrozenCount, subTableFrozenLayout, tabularCandidateColumns, toggleTabularKey } from '../../types/subTables';
 import { aircraftRowWrite } from '../../types/stripAircraft';
 import { pollingRegistry, usePolling } from '../../hooks/usePollingRegistry';
 import HandwritingCalibration from '../shared/HandwritingCalibration';
@@ -17262,7 +17262,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {/* Table row right-click context menu */}
           {tableRowCtxMenu && (
             <AnchoredPopup
-              x={tableRowCtxMenu.x} y={tableRowCtxMenu.y} w={180} h={260}
+              x={tableRowCtxMenu.x} y={tableRowCtxMenu.y} w={180}
+              h={260 + (tabularCandidates.length > 0 ? 24 + (tabularCandidates.length + (tabularColumn ? 1 : 0)) * 30 : 0)}
               onClose={() => setTableRowCtxMenu(null)}
               cardStyle={{ background: '#1e293b', border: '1px solid #3b82f6', borderRadius: '6px', minWidth: '160px', boxShadow: '0 4px 16px rgba(0,0,0,0.6)', padding: '4px', direction: dir }}
             >
@@ -17277,6 +17278,35 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 const notesColEditable = _columns.find((c: any) => (c.key || c.field) === 'notes')?.editable ?? 'handwriting';
                 return null; /* handwriting disabled */
               })()}
+              {/* ── מוד טבלאי, מתוך הקליק הימני ─────────────────────────────
+                  אותן טבלאות בדיוק שבתפריט התצוגה, אבל **בלי לעבור דרכו**:
+                  מוצגות רק טבלאות הבן של מוד הטבלה שכבר פעיל בעמדה הזו, ולכן
+                  אי-אפשר ליפול כאן לתצוגה של עמדה אחרת. אין טבלאות במוד הפעיל
+                  → המקטע כולו לא מוצג, במקום שורות שלא עושות דבר. */}
+              {tabularCandidates.length > 0 && (<>
+                <div style={{ height: '1px', background: '#334155', margin: '2px 8px' }} />
+                <div style={{ padding: '4px 12px 2px', fontSize: '10px', color: '#64748b' }}>{tr('ctrl.tabularMode')}</div>
+                {tabularCandidates.map((c: any) => {
+                  const active = tabularTableKey === c.tableKey;
+                  return (
+                    <button
+                      key={c.tableKey}
+                      data-testid={`table-row-ctx-tabular-${c.tableKey}`}
+                      onClick={() => { setTabularTableKey(toggleTabularKey(tabularTableKey, c.tableKey)); setTableRowCtxMenu(null); }}
+                      // כרטיס התפריט כהה בכל התמות (כמו שאר פריטיו), ולכן
+                      // התורכיז הכהה של תמת האור היה נבלע בו - נלקח של dark
+                      style={{ display: 'block', width: '100%', textAlign: 'start', background: active ? '#1e40af' : 'transparent', color: active ? '#e0f2fe' : subTableAccent('dark'), border: 'none', padding: '7px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px', fontWeight: active ? 'bold' : 'normal' }}
+                    >{active ? '✓ ' : ''}{c.label || tr(getSubTable(c.tableKey)?.labelKey || c.tableKey)}</button>
+                  );
+                })}
+                {tabularColumn && (
+                  <button
+                    data-testid="table-row-ctx-tabular-off"
+                    onClick={() => { setTabularTableKey(null); setTableRowCtxMenu(null); }}
+                    style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#94a3b8', border: 'none', padding: '7px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
+                  >{tr('ctrl.tabularOff')}</button>
+                )}
+              </>)}
               {(() => {
                 const ctxStrip = myTableStrips.find((s: any) => s.id === tableRowCtxMenu.stripId);
                 const ctxDev = ctxStrip ? computeBlockDeviation(ctxStrip, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false;
