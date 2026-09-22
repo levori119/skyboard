@@ -68,7 +68,7 @@ async function journalRows(status, q = viaPool) {
 }
 
 /** מפתחות השורות שממתינות או שנויות במחלוקת - המראה לא תיגע בהן. */
-async function protectedKeys(q = viaPool) {
+export async function protectedKeys(q = viaPool) {
   const { rows } = await q(
     `SELECT DISTINCT table_name, pk FROM ${JOURNAL_TABLE}
       WHERE status IN ($1, $2)`,

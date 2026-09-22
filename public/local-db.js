@@ -157,6 +157,30 @@ function renderHeader() {
   b.textContent = base.replace(/^https?:\/\//, '');
   el('source').append(b);
 
+  // מצב שירות המראה - התשובה ל"למה המאגר ריק". בלעדיו רואים 0 שורות ומנחשים.
+  const m = summary.mirror || {};
+  const chip = el('mirror');
+  chip.textContent = '';
+  chip.className = 'chip';
+  if (!m.enabled) {
+    chip.append(document.createTextNode('שירות המראה '), strong('כבוי'),
+      document.createTextNode(' - חסר אסימון עמדה'));
+    chip.style.color = 'var(--warn)';
+  } else if (m.progress) {
+    chip.textContent = `מסנכרן... ${m.progress.done}/${m.progress.total}`;
+    chip.style.color = 'var(--accent)';
+  } else if (m.lastError) {
+    chip.textContent = `סנכרון נכשל: ${String(m.lastError).slice(0, 60)}`;
+    chip.style.color = 'var(--bad)';
+  } else if (m.lastOkAt) {
+    const secs = Math.round((Date.now() - m.lastOkAt) / 1000);
+    chip.append(document.createTextNode('סונכרן לפני '), strong(secs < 90 ? `${secs} ש'` : `${Math.round(secs / 60)} דק'`));
+    chip.style.color = 'var(--ok)';
+  } else {
+    chip.textContent = 'שירות המראה פעיל, טרם הושלם סיבוב';
+    chip.style.color = 'var(--sub)';
+  }
+
   const withData = summary.tables.filter(t => (t.rows || 0) > 0).length;
   el('totals').innerHTML = '';
   el('totals').append(document.createTextNode(

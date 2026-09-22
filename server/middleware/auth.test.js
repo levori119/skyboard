@@ -312,3 +312,43 @@ describe('אסימון שירות של המיראז', () => {
     expect(body.user.isTeamLead).toBe(false);
   });
 });
+
+// ── אסימון עמדה: סוכן המראה מושך ברקע ────────────────────────────────────────
+// למה זו זהות נפרדת ולא שימוש ב-SERVICE_TOKEN: הרשימה ההיא משותפת לשירותי
+// העמית (מיראז', ATSIM) ומתועדת שם כקריאה בלבד. הוספת נתיבי העמדה אליה הייתה
+// פותחת אותם גם להם.
+describe('אסימון עמדה - שירות המראה', () => {
+  const TOKEN = 'station-token-for-tests';
+  const st = (m, p, tok = TOKEN) =>
+    fetch(`${baseUrl}${p}`, { method: m, headers: { 'X-Station-Token': tok, 'X-Station-Key': 'twr-1' } });
+
+  beforeAll(() => { process.env.STATION_TOKEN = TOKEN; });
+  afterAll(() => { delete process.env.STATION_TOKEN; });
+
+  it('פותח בדיוק את מה שהמראה צריכה', async () => {
+    expect((await st('GET', '/api/sync/mirror/tables')).status).toBe(200);
+    expect((await st('GET', '/api/sync/mirror')).status).toBe(200);
+  });
+
+  // ⚠️ הגבול המהותי: הדחיפה חזרה למרכז נשארת אצל הדפדפן, שם יושבת הזהות של
+  // המפעיל. אסימון עמדה שנגנב אינו יכול לכתוב דבר.
+  it('**קריאה בלבד** - אינו יכול לדחוף למרכז', async () => {
+    expect((await st('POST', '/api/sync/push')).status).toBe(403);
+  });
+
+  it('אינו פותח שום נתיב תפעולי אחר', async () => {
+    expect((await st('GET', '/api/strips')).status).toBe(403);
+    expect((await st('GET', '/api/workstation-presets')).status).toBe(403);
+    expect((await st('DELETE', '/api/activity-log')).status).toBe(403);
+  });
+
+  it('אסימון שגוי אינו מזהה', async () => {
+    expect((await st('GET', '/api/sync/mirror/tables', 'wrong')).status).toBe(401);
+  });
+
+  it('בלי STATION_TOKEN בשרת - אין זהות כזו כלל', async () => {
+    delete process.env.STATION_TOKEN;
+    expect((await st('GET', '/api/sync/mirror/tables')).status).toBe(401);
+    process.env.STATION_TOKEN = TOKEN;
+  });
+});

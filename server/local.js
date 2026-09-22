@@ -17,6 +17,7 @@
 import fs from 'fs';
 import path from 'path';
 import { randomBytes } from 'crypto';
+import { hostname } from 'node:os';
 
 /** הפורט שהעמדה תשתמש בו. 0 = פורט חופשי שהמערכת בוחרת (ברירת המחדל). */
 const PORT = Number(process.env.SKYKING_LOCAL_API_PORT) || 0;
@@ -50,6 +51,8 @@ function ensureLocalAuthSecret(dataDir) {
     return 'ephemeral';
   }
 }
+
+let stopMirror = () => {};
 
 export async function startLocalServer({ port = PORT, host = HOST } = {}) {
   process.env.SKYKING_LOCAL_DB = '1';
@@ -105,7 +108,6 @@ export async function startLocalServer({ port = PORT, host = HOST } = {}) {
       const { default: pool } = await import('./db/pool.js');
       const { syncJournalDdl, syncFunctionDdl, installSyncTriggersDdl } = await import('./db/syncJournal.js');
       const { applyLocalIdRange, localIdStart } = await import('./db/localIds.js');
-      const { hostname } = await import('node:os');
 
       for (const sql of syncJournalDdl()) await pool.query(sql);
       await pool.query(syncFunctionDdl());
@@ -124,6 +126,25 @@ export async function startLocalServer({ port = PORT, host = HOST } = {}) {
       const moved = await applyLocalIdRange(pool, key);
       console.log(`[local] טווח מזהים מקומי מ-${localIdStart(key)} (${moved} רצפים הוזזו)`);
     });
+    // ── שירות המראה ────────────────────────────────────────────────────────
+    // רץ **בתוך התהליך הזה** ולא כאפליקציה נפרדת: PGlite נועל את תיקיית
+    // המאגר, ותהליך שני לא יכול לפתוח אותה. זו דווקא הקלה - הצד המקומי הוא
+    // קריאת DB ישירה, ורק הצד המרכזי הוא HTTP.
+    //
+    // כבוי עד שמגדירים `SKYKING_CENTRAL_URL` ו-`SKYKING_STATION_TOKEN`.
+    await timed('שירות המראה', async () => {
+      const { default: pool } = await import('./db/pool.js');
+      const { startMirrorDaemon } = await import('./sync/daemon.js');
+      const { protectedKeys } = await import('./routes/sync.js');
+      stopMirror = startMirrorDaemon({
+        central: (process.env.SKYKING_CENTRAL_URL || '').trim(),
+        token: (process.env.SKYKING_STATION_TOKEN || '').trim(),
+        stationKey: process.env.SKYKING_STATION_KEY || hostname(),
+        env: process.env.SKYKING_STATION_ENV || '1',
+        pool,
+        protectedKeys,
+      });
+    });
     markReady();
   } catch (err) {
     markFailed(err);
@@ -139,7 +160,7 @@ export async function startLocalServer({ port = PORT, host = HOST } = {}) {
     url: `http://${host}:${actual}`,
     port: actual,
     dataDir,
-    close: () => new Promise(r => server.close(() => r())),
+    close: () => new Promise(r => { stopMirror(); server.close(() => r()); }),
   };
 }
 

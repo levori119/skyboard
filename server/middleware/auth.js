@@ -20,6 +20,8 @@ export const ROLE = {
   DRIVER: 'driver',
   /** שירות עמית (המיראז'), לא אדם. מוגבל ל-SERVICE_PATHS בלבד. */
   SERVICE: 'service',
+  /** סוכן עמדה שמושך מראה ברקע. מוגבל ל-STATION_PATHS, קריאה בלבד. */
+  STATION: 'station',
 };
 
 /**
@@ -56,6 +58,36 @@ function serviceTokenOk(req) {
   const expected = process.env.SERVICE_TOKEN || process.env.MIRAGE_SERVICE_TOKEN || '';
   if (!expected) return false;
   const a = Buffer.from(String(req.get?.('X-Service-Token') || ''));
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/**
+ * **סוכן העמדה מושך מראה ברקע.**
+ *
+ * הבעיה: עד היום הסנכרון רץ **בדפדפן**, ולכן אין דפדפן פתוח או אין מי שמחובר -
+ * אין מראה, והמאגר המקומי נשאר ריק. זה בדיוק הרגע שבו נתק יציג מסך ריק.
+ * סוכן שרץ תמיד פותר זאת, אבל הוא אינו אדם ואין לו אסימון אישי.
+ *
+ * ⚠️ **רשימה נפרדת מ-SERVICE_PATHS, ובכוונה.** הרשימה ההיא משותפת לשירותי
+ * העמית (מיראז', ATSIM) ומתועדת שם כ**קריאה בלבד**; הוספת נתיבי העמדה אליה
+ * הייתה פותחת אותם גם להם. כאן הזהות אחרת, הרשימה אחרת, וגם היא קריאה בלבד.
+ *
+ * ⚠️ **הדחיפה חזרה למרכז אינה כאן.** היא נשארת אצל הדפדפן, שם יושבת הזהות
+ * של המפעיל ושם מוכרעות הסתירות. סוכן שכותב למרכז בלי אדם מאחוריו הוא בדיוק
+ * מה שאין לו צורך תפעולי: העבודה בנתק נדחפת כשהמפעיל חוזר לעמדה.
+ */
+const STATION_PATHS = [
+  ['GET', '/api/sync/mirror/tables'],
+  ['GET', '/api/sync/mirror'],
+  ['GET', '/api/health'],
+];
+
+/** השוואה בזמן קבוע. `false` גם כשהאסימון כלל אינו מוגדר בשרת. */
+function stationTokenOk(req) {
+  const expected = process.env.STATION_TOKEN || '';
+  if (!expected) return false;
+  const a = Buffer.from(String(req.get?.('X-Station-Token') || ''));
   const b = Buffer.from(expected);
   return a.length === b.length && timingSafeEqual(a, b);
 }
@@ -243,6 +275,21 @@ export function authMiddleware(req, res, next) {
 
   // שירות עמית (המיראז'): זהות משלו, ורשימת היתר סגורה. נבדק לפני האסימון
   // האישי כי אין לו אסימון כזה - הוא אינו אדם.
+  // סוכן העמדה: זהות משלו ורשימת היתר משלו, קריאה בלבד. נבדק כאן ולא בסוף,
+  // כי לסוכן אין אסימון אישי ובדיקת האסימון הייתה דוחה אותו קודם.
+  if (stationTokenOk(req)) {
+    const allowed = STATION_PATHS.some(([m, p]) => m === req.method && pathMatches(p, path));
+    if (!allowed) {
+      return res.status(403).json({ error: 'forbidden', message: 'אסימון עמדה אינו מורשה לנתיב זה' });
+    }
+    req.user = {
+      crewMemberId: null, personalId: null,
+      name: `station:${String(req.get?.('X-Station-Key') || '').slice(0, 64) || 'unknown'}`,
+      role: ROLE.STATION, isAdmin: false, isTeamLead: false, approvedWorkstations: [],
+    };
+    return next();
+  }
+
   if (serviceTokenOk(req)) {
     // `pathMatches` ולא השוואת מחרוזות: חלק מהנתיבים המותרים נושאים מזהה
     // (`/api/maps/17`) ואינם ניתנים לביטוי כמחרוזת קבועה.

@@ -16,6 +16,7 @@
 //   ואז לפתוח את הכתובת שמודפסת כאן - **לא** את 5000.
 //
 // דגלים: --port · --api=<url> · --vite=<url> · --dist (להגיש build במקום Vite)
+//        --token=<אסימון עמדה> - מדליק את שירות המראה ברקע · --env=<מספר סביבה>
 
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -65,6 +66,10 @@ function startLocalDb() {
       SKYKING_LOCAL_DB: '1',
       SKYKING_STATION_KEY: STATION_KEY,
       SKYKING_LOCAL_DB_DIR: arg('db', path.join(ROOT, '.skyking-local-db')),
+      // שירות המראה בתוך תהליך המאגר. בלי אסימון עמדה הוא אינו נדלק.
+      SKYKING_CENTRAL_URL: API,
+      SKYKING_STATION_TOKEN: arg('token', process.env.SKYKING_STATION_TOKEN || ''),
+      SKYKING_STATION_ENV: arg('env', process.env.SKYKING_STATION_ENV || '1'),
     },
     stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
   });

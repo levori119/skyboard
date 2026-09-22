@@ -94,11 +94,14 @@ function writeBundledConfigTemplate() {
     _readme: 'עמדה עצמאית: האפליקציה ארוזה בעמדה. API_URL - כתובת שרת SKY-KING ברשת. ' +
       'בנתק העמדה ממשיכה לעבוד על המידע האחרון ששמרה. ' +
       'AGENT: true - העמדה רצה בלי חלון והפקח פותח אותה בדפדפן (כתובת 127.0.0.1 ו-STATION_PORT). ' +
-      'LOCAL_DB: false - כיבוי המאגר המקומי; נתק יאפשר צפייה בלבד.',
+      'LOCAL_DB: false - כיבוי המאגר המקומי; נתק יאפשר צפייה בלבד. ' +
+      'STATION_TOKEN - אסימון העמדה מול השרת המרכזי. בלעדיו שירות המראה כבוי, ' +
+      'והמאגר המקומי יתעדכן רק כשהאפליקציה פתוחה ומישהו מחובר.',
     mode: 'bundled',
     API_URL: DEFAULT_APP_URL,
     STATION_PORT: DEFAULT_STATION_PORT,
-    AGENT: false
+    AGENT: false,
+    STATION_TOKEN: ''
   });
 }
 
@@ -198,6 +201,11 @@ function startLocalDbServer(cfg) {
         SKYKING_STATION_KEY: (cfg && cfg.STATION_KEY) || require('os').hostname(),
         SKYKING_LOCAL_DB_DIR: (cfg && cfg.LOCAL_DB_DIR)
           || path.join(app.getPath('userData'), 'local-db'),
+        // שירות המראה: מושך את המאגר המרכזי אל המקומי **ברקע**, בלי תלות
+        // בדפדפן פתוח או במי שמחובר. בלי STATION_TOKEN הוא פשוט אינו נדלק.
+        SKYKING_CENTRAL_URL: (cfg && cfg.API_URL) || '',
+        SKYKING_STATION_TOKEN: (cfg && cfg.STATION_TOKEN) || process.env.SKYKING_STATION_TOKEN || '',
+        SKYKING_STATION_ENV: String((cfg && cfg.ENV) || '1'),
       },
       stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
     });

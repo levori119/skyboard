@@ -16,6 +16,7 @@ import express from 'express';
 import pool from '../db/pool.js';
 import { currentSchema } from '../db/env-context.js';
 import { isLocalDbMode } from '../db/localPool.js';
+import { mirrorDaemonState } from '../sync/daemon.js';
 
 const router = express.Router();
 
@@ -76,6 +77,9 @@ router.get('/api/__localdb/summary', localOnly, async (_req, res) => {
 
     res.json({
       schema,
+      // מצב שירות המראה - התשובה ל"למה המאגר ריק". בלעדיו הדף מראה 0 שורות
+      // ומשאיר את המפעיל לנחש אם זה כשל, תצורה חסרה, או פשוט עוד לא הספיק.
+      mirror: mirrorDaemonState(),
       dataDir: process.env.SKYKING_LOCAL_DB_DIR || null,
       station: process.env.SKYKING_STATION_KEY || null,
       tableCount: tables.length,
