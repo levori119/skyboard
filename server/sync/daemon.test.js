@@ -61,6 +61,9 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  // הילד לפני ההורה: `child_rows` (נוצרת בהמשך הקובץ) מצביעה ל-`strips`,
+  // וניקוי בסדר ההפוך מפיל את ההכנה עצמה על אותו מפתח זר שהבדיקה בודקת.
+  await pool.query('DELETE FROM child_rows').catch(() => {});
   await pool.query('DELETE FROM strips');
   await pool.query('DELETE FROM notes');
 });
@@ -124,5 +127,60 @@ describe('שירות המראה', () => {
     const stop = startMirrorDaemon({ central: '', token: '', pool, log: () => {} });
     expect(mirrorDaemonState().enabled).toBe(false);
     stop();
+  });
+});
+
+// ── ילד שמגיע לפני ההורה ─────────────────────────────────────────────────────
+// התקלה מהייצור: `joining_point_strips` יושב במקום 5 ברשימת הטבלאות ו-`strips`
+// שהוא ההורה שלו במקום 70, ולכן הילד נמשך 65 מקומות לפני ההורה ונפל על מפתח
+// זר - ואיתו **כל סיבוב המראה**. בנוסף `maps` אינה נשלחת כלל (כבדה מדי), וכ-66
+// טבלאות מצביעות עליה.
+//
+// הפתרון אינו ניחוש סדר טוב יותר אלא **קליטת רפליקציה**: הצילום נלקח בטרנזקציה
+// אחת במרכז, שם האילוצים כבר נאכפו, ואכיפה חוזרת כאן אינה מוסיפה אמת.
+describe('קליטה בסדר לא תקין - מפתחות זרים אינם נאכפים', () => {
+  beforeAll(async () => {
+    await pool.query(`CREATE TABLE child_rows (
+      id INTEGER PRIMARY KEY,
+      parent_id INTEGER NOT NULL REFERENCES strips(id),
+      label TEXT)`);
+  });
+
+  const ingest = async (tables) => {
+    const { ingestSnapshot } = await import('./mirror.js');
+    return ingestSnapshot({ query: (sql, p) => pool.query(sql, p) }, 'public',
+      { schema: 'public', at: '', tables }, new Set());
+  };
+
+  it('ילד שההורה שלו טרם הגיע נכנס, והסיבוב אינו נופל', async () => {
+    const r = await ingest([{ table: 'child_rows', rows: [{ id: 1, parent_id: 55, label: 'לפני-ההורה' }] }]);
+    expect(r.failedTables).toHaveLength(0);
+    expect(r.upserted).toBe(1);
+    const { rows } = await pool.query('SELECT label FROM child_rows WHERE id = 1');
+    expect(rows[0].label).toBe('לפני-ההורה');
+  });
+
+  // הורה שכלל אינו נשלח במראה (כמו `maps`) - הילדים שלו עדיין מגיעים. זה
+  // ההבדל בין מאגר שחסרות בו 66 טבלאות לבין מאגר מלא.
+  it('הורה שאינו במראה כלל אינו מונע מהילדים להיכנס', async () => {
+    const r = await ingest([
+      { table: 'child_rows', rows: [{ id: 9, parent_id: 999999, label: 'הורה-לא-נשלח' }] },
+      { table: 'notes', rows: [{ id: 3, body: 'נכנס גם הוא' }] },
+    ]);
+    expect(r.failedTables).toHaveLength(0);
+    const c = await pool.query('SELECT label FROM child_rows WHERE id = 9');
+    expect(c.rows[0].label).toBe('הורה-לא-נשלח');
+    const n = await pool.query('SELECT body FROM notes WHERE id = 3');
+    expect(n.rows[0].body).toBe('נכנס גם הוא');
+  });
+
+  // ⚠️ `SET LOCAL` ולא `SET`: התוקף נגמר ב-COMMIT. בלי זה כל כתיבה תפעולית
+  // אחרי הקליטה הייתה רצה בלי אכיפת מפתחות זרים - כלומר המאגר המקומי מפסיק
+  // להגן על עצמו אחרי המראה הראשונה.
+  it('אחרי הקליטה אכיפת המפתחות הזרים חוזרת', async () => {
+    await ingest([{ table: 'notes', rows: [{ id: 4, body: 'x' }] }]);
+    await expect(
+      pool.query(`INSERT INTO child_rows (id, parent_id, label) VALUES (77, 888888, 'ידני')`)
+    ).rejects.toThrow(/foreign key|violates/i);
   });
 });

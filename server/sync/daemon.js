@@ -48,6 +48,8 @@ const state = {
   progress: null,        // { done, total }
   rounds: 0,
   failures: 0,
+  /** טבלאות שנכשלו גם בסיבוב השני - תקלה אמיתית, לא סדר תלויות */
+  failedTables: [],
 };
 
 export const mirrorDaemonState = () => ({ ...state });
@@ -73,7 +75,12 @@ async function runOnce({ central, headers, pool, schema, protectedKeys, log }) {
     const { tables } = await getJson(`${central}/api/sync/mirror/tables`, headers, ctrl.signal);
     if (!Array.isArray(tables) || !tables.length) throw new Error('רשימת טבלאות ריקה');
 
+    // ⚠️ `pool.query` ולא `pool.connect()`: במאגר המקומי יש חיבור יחיד,
+    // והחזקת client כאן הייתה נועלת את כל בקשות העמדה עד סוף הסיבוב.
+    const q = (sql, params) => pool.query(sql, params);
+
     let upserted = 0;
+    let failed = [];
     for (let i = 0; i < tables.length; i += BATCH) {
       const batch = tables.slice(i, i + BATCH);
       state.progress = { done: i, total: tables.length };
@@ -81,13 +88,33 @@ async function runOnce({ central, headers, pool, schema, protectedKeys, log }) {
         `${central}/api/sync/mirror?tables=${encodeURIComponent(batch.join(','))}`,
         headers, ctrl.signal,
       );
-      // ⚠️ `pool.query` ולא `pool.connect()`: במאגר המקומי יש חיבור יחיד,
-      // והחזקת client כאן הייתה נועלת את כל בקשות העמדה עד סוף הסיבוב.
-      const keys = await protectedKeys((sql, params) => pool.query(sql, params));
-      const stats = await ingestSnapshot(
-        { query: (sql, params) => pool.query(sql, params) }, schema, snap, keys);
+      const keys = await protectedKeys(q);
+      const stats = await ingestSnapshot({ query: q }, schema, snap, keys);
       upserted += stats.upserted;
+      if (stats.failedTables?.length) failed = failed.concat(stats.failedTables.map(f => f.table));
     }
+
+    // ── סיבוב שני לטבלאות שנכשלו ──────────────────────────────────────────
+    // ⚠️ זה מה שפותר את בעיית **סדר התלויות**, ולא ניחוש טוב יותר של הסדר.
+    // בייצור `joining_point_strips` יושב במקום 5 ברשימה ו-`strips` שהוא
+    // ההורה שלו במקום 70 - כלומר הילד נמשך 65 מקומות לפני ההורה, ונפל על
+    // מפתח זר. עכשיו כל ההורים כבר במאגר, ולכן משיכה שנייה של מה שנפל
+    // מסתדרת. מה שנשאר נכשל הוא תקלה אמיתית, ומדווח בשמו.
+    let stillFailing = [];
+    if (failed.length) {
+      const uniq = [...new Set(failed)];
+      const snap = await getJson(
+        `${central}/api/sync/mirror?tables=${encodeURIComponent(uniq.join(','))}`,
+        headers, ctrl.signal,
+      );
+      const keys = await protectedKeys(q);
+      const again = await ingestSnapshot({ query: q }, schema, snap, keys);
+      upserted += again.upserted;
+      stillFailing = (again.failedTables || []).map(f => f.table);
+      log(`[mirror] סיבוב שני: ${uniq.length} טבלאות נפלו · ${again.upserted} שורות נכנסו`
+        + (stillFailing.length ? ` · עדיין נופלות: ${stillFailing.join(', ')}` : ' · הכל נסגר'));
+    }
+    state.failedTables = stillFailing;
 
     state.progress = null;
     state.lastOkAt = Date.now();

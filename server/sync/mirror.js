@@ -91,6 +91,14 @@ async function pkColumns(client, schema, table) {
 export const MIRROR_ROW_CAP = 20000;
 
 /**
+ * כמה שורות דחויות נשמרות לניסיון חוזר.
+ *
+ * תקרה ולא "הכל": שגיאה שיטתית (סכמה שהתפצלה בין הצדדים) הייתה מציפה את
+ * הזיכרון של העמדה בשורות שלעולם לא ייכנסו.
+ */
+export const MAX_DEFERRED = 5000;
+
+/**
  * צילום המרכז לשליחה לעמדה.
  *
  * @returns {Promise<{schema: string, at: string, tables: Array<{table: string, rows: object[], truncated: boolean}>}>}
@@ -130,19 +138,43 @@ const keyOf = (table, pk) =>
  * @param {Set<string>} pendingKeys מפתחות שורה שממתינים ביומן (`table#pk`)
  */
 export async function ingestSnapshot(client, schema, snapshot, pendingKeys = new Set()) {
-  const stats = { tables: 0, upserted: 0, deleted: 0, skipped: 0 };
+  const stats = { tables: 0, upserted: 0, deleted: 0, skipped: 0, failedTables: [] };
   const present = new Set(await existingTables(client, schema, snapshot.tables.map(t => t.table)));
   // גם בקליטה ולא רק בצילום: צילום מגרסה מוקדמת יותר עלול להגיע בסדר אחר.
   const order = sortByDependency(snapshot.tables.map(t => t.table));
   const ordered = [...snapshot.tables].sort((a, b) => order.indexOf(a.table) - order.indexOf(b.table));
 
+  let spIndex = 0;
   await withoutJournal(client, async () => {
-    try {
-      await client.query('SET CONSTRAINTS ALL DEFERRED');
-    } catch { /* אילוץ שאינו DEFERRABLE - סדר הטבלאות בצילום מטפל ברוב */ }
+    // ── קליטת רפליקציה, לא כתיבה תפעולית ─────────────────────────────────
+    //
+    // ⚠️ **`session_replication_role = 'replica'`** - בדיוק מה שרפליקציה
+    // לוגית של Postgres עושה: מפתחות זרים אינם נאכפים בזמן הקליטה.
+    //
+    // למה זה **נכון** ולא עקיפה: הצילום הוא מצב **עקבי** שנלקח בטרנזקציה
+    // אחת במרכז, ושם האילוצים כבר נאכפו. אכיפה חוזרת כאן אינה מוסיפה שום
+    // אמת - והיא נכשלת משתי סיבות שאין להן קשר לנכונות הנתונים:
+    //   1. **רשימת החסימה.** `maps` אינה נשלחת (מגה-בייטים לשורה), וכ-66
+    //      טבלאות מצביעות עליה במישרין או בעקיפין. כולן נפלו.
+    //   2. **סדר התלויות.** בייצור `joining_point_strips` נמשך 65 מקומות
+    //      לפני `strips` שהוא ההורה שלו.
+    //
+    // הניסיונות שקדמו לזה, ולמה נזנחו: `SET CONSTRAINTS ALL DEFERRED` אינו
+    // עושה דבר לאילוץ שאינו DEFERRABLE (ורובם אינם), ו-SAVEPOINT לכל שורה
+    // הפיל את המאגר ב-`stack depth limit exceeded` - אלפי תת-טרנזקציות
+    // מרוקנות את מחסנית ה-WASM של PGlite.
+    //
+    // `SET LOCAL` ולא `SET`: התוקף נגמר ב-COMMIT, ולכן שום בקשה תפעולית
+    // אחרי הקליטה אינה רצה בלי אכיפת מפתחות זרים.
+    await client.query(`SET LOCAL session_replication_role = 'replica'`);
 
     for (const { table, rows } of ordered) {
       if (!present.has(table)) continue;
+      // טבלה שלמה בסייפפוינט: תקלה בטבלה אחת (עמודה שהתפצלה בין הצדדים,
+      // טריגר שנכשל) לא תפיל את כל הסיבוב ואיתו את כל המאגר.
+      const sp = `tbl_${spIndex++}`;
+      await client.query(`SAVEPOINT ${sp}`);
+      try {
       const pkCols = await pkColumns(client, schema, table);
       if (!pkCols.length) continue; // בלי מפתח ראשי אין upsert
       const cols = await currentColumns(client, schema, table);
@@ -168,6 +200,10 @@ export async function ingestSnapshot(client, schema, snapshot, pendingKeys = new
         const conflict = setList
           ? `ON CONFLICT (${pkCols.map(ident).join(', ')}) DO UPDATE SET ${setList}`
           : `ON CONFLICT DO NOTHING`;
+        // ⚠️ **בלי SAVEPOINT לכל שורה.** זה היה הניסיון הראשון, והוא הפיל את
+        // המאגר ב-`stack depth limit exceeded`: אלפי תת-טרנזקציות בטרנזקציה
+        // אחת מרוקנות את מחסנית ה-WASM של PGlite. הגבול הנכון הוא **טבלה**,
+        // ולא שורה - כ-128 סייפפוינטים לסיבוב במקום עשרות אלפים.
         await client.query(
           `INSERT INTO ${tbl} (${list})
            SELECT ${writable.map(c => `r.${ident(c)}`).join(', ')}
@@ -188,9 +224,17 @@ export async function ingestSnapshot(client, schema, snapshot, pendingKeys = new
         const key = keyOf(table, pk);
         if (seen.has(key) || pendingKeys.has(key)) continue;
         if (pkCols.length === 1 && isLocalId(pk[pkCols[0]])) continue;
+        // מחיקת הורה שעדיין יש לו ילדים תיכשל, ותפיל את **הטבלה** הזו בלבד
+        // (סייפפוינט הטבלה) - היא תנוקה בסיבוב הבא, אחרי שילדיה ילכו.
         await client.query(
           `DELETE FROM ${tbl} t WHERE to_jsonb(t) @> $1::jsonb`, [JSON.stringify(pk)]);
         stats.deleted++;
+      }
+        await client.query(`RELEASE SAVEPOINT ${sp}`);
+      } catch (err) {
+        await client.query(`ROLLBACK TO SAVEPOINT ${sp}`);
+        await client.query(`RELEASE SAVEPOINT ${sp}`);
+        stats.failedTables.push({ table, error: String(err?.message || err) });
       }
     }
   });
