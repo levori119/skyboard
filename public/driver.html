@@ -213,9 +213,17 @@
   import * as TripTracking from '/driver/tracking.js';
   // סמלי האלמנטים - אותם SVG, מצבים והבהוב כמו במפת המגדל (shared/elementSymbols.js)
   import * as ElementSymbols from '/driver/symbols.js';
+  // צליל ההתרעה - הקשר אודיו יחיד שנפתח במגע הראשון (shared/alertSound.js)
+  import * as AlertSound from '/driver/alertSound.js';
   window.DriverLogic = DriverLogic;
   window.TripTracking = TripTracking;
   window.ElementSymbols = ElementSymbols;
+  window.AlertSound = AlertSound;
+  // מדיניות ההפעלה האוטומטית: בלי מגע קודם, הצפצוף וההקראה אילמים. כל מגע
+  // במסך פותח אותם - וזו הסיבה שההתרעה הראשונה בשדה עלתה בלי קול.
+  const unlock = () => { try { AlertSound.unlockAudio(); } catch (e) {} };
+  window.addEventListener('pointerdown', unlock, { capture: true });
+  window.addEventListener('keydown', unlock, { capture: true });
   window.dispatchEvent(new Event('driverlogic'));
 </script>
 </head>
@@ -584,6 +592,16 @@
   </div>
 </div>
 
+<!-- "נפתח" - הרמזור נהיה ירוק. ירוק ולא אדום, ובלי כפתור: זו הרגעה, לא הכרעה. -->
+<div id="clearedAlertOverlay" onclick="dismissClearedAlert()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;align-items:center;justify-content:center;padding:20px;direction:rtl;flex-direction:column">
+  <div style="background:#052e16;border:3px solid #22c55e;border-radius:16px;padding:22px 20px;max-width:340px;width:100%;text-align:center;box-shadow:0 0 40px rgba(34,197,94,0.45)">
+    <div style="font-size:44px;margin-bottom:8px">🟢</div>
+    <div id="clearedAlertTitle" style="font-size:17px;font-weight:700;color:#4ade80;margin-bottom:8px"></div>
+    <div id="clearedAlertText" style="font-size:14px;color:#bbf7d0;line-height:1.5"></div>
+    <div style="font-size:12px;color:#86efac;margin-top:12px">המשך בזהירות · הסתכל לשני הצדדים</div>
+  </div>
+</div>
+
 <!-- מסך נסיעה חי - נפתח אחרי "הפעל נסיעה" (TRIP_LIVE_TRACKING_SPEC.md).
      מעל כל המסכים (9000), מתחת להתרעת הסכנה (10000) ולהודעות (99980). -->
 <style>
@@ -624,6 +642,9 @@
     <button id="ltFollow" class="lt-tab on" onclick="toggleLiveFollow()" style="flex:0 0 auto">🎯 עקוב</button>
   </div>
   <div id="ltBanner" style="display:none;margin:0 12px 8px;padding:7px 10px;background:#78350f;border:1px solid #f59e0b;border-radius:8px;color:#fde68a;font-size:12px"></div>
+  <!-- התרעה שקטה נראית כמו התרעה תקינה. אם הדפדפן חסם את הקול - אומרים את זה,
+       והלחיצה עצמה היא מגע המשתמש שפותח אותו. -->
+  <div id="audioBlockedNotice" onclick="enableAudioFromNotice()" style="display:none;margin:0 12px 8px;padding:7px 10px;background:#450a0a;border:1px solid #ef4444;border-radius:8px;color:#fecaca;font-size:12px;cursor:pointer;text-align:center"></div>
   </div>
   <div style="position:absolute;inset:0;overflow:hidden;background:#020617">
     <!-- touch-action:none - בלעדיו הדפדפן תופס את האצבע כגלילה/זום של הדף, ואירועי
@@ -1616,40 +1637,74 @@ function dismissCrossingAlert() {
   crossingAlertActive = false;
 }
 
+/** הנהג הקיש על חיווי "אין קול" - זה מגע משתמש, ולכן כאן הצליל נפתח בפועל. */
+function enableAudioFromNotice() {
+  if (!window.AlertSound) return;
+  window.AlertSound.unlockAudio();
+  // צליל קצר כאישור שהקול חזר - בלי הקראה, כדי לא להישמע כהתרעה
+  window.AlertSound.playTone('notify');
+  refreshAudioNotice();
+}
+
+/**
+ * "נפתח" - הרמזור נהיה ירוק והנהג עדיין מולו. חלון ירוק ונפרד מהחלון האדום:
+ * אותו חלון בצבע אחר היה נקרא כהמשך של ההתרעה, וההפך הוא הנכון.
+ */
+function showTripCleared(h) {
+  const isLight = (h.category || '').indexOf('רמזור') === 0;
+  const name = h.name || (isLight ? 'רמזור' : 'האלמנט');
+  const title = isLight ? 'רמזור ירוק - ניתן להמשיך בנסיעה' : `${name} נפתח - ניתן להמשיך בנסיעה`;
+  const el = liveEl('clearedAlertTitle');
+  if (el) el.textContent = title;
+  const body = liveEl('clearedAlertText');
+  if (body) body.textContent = `✅ ${name} · ${Math.round(h.meters)} מ' ממך`;
+  const overlay = liveEl('clearedAlertOverlay');
+  if (overlay) overlay.style.display = 'flex';
+  // ההודעה נסגרת לבדה: היא לא דורשת הכרעה, והנהג נוסע
+  clearTimeout(showTripCleared._t);
+  showTripCleared._t = setTimeout(dismissClearedAlert, 6000);
+  playAlert('clear', isLight ? 'רמזור ירוק. ניתן להמשיך בנסיעה.' : `${name} נפתח. ניתן להמשיך בנסיעה.`);
+}
+
+function dismissClearedAlert() {
+  const overlay = document.getElementById('clearedAlertOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
 function playCrossingAlert(isRunway) {
   playHazardSound(isRunway, isRunway ? 'עצור! מסלול טיסה. פעל לפי התמרורים.' : 'שים לב! מסלול הסעה מטוסים.');
 }
 
-/** צפצוף והקראה. `urgent` - ארבעה צפצופים בטון גבוה (מסלול טיסה, אלמנט סוגר). */
+/**
+ * צפצוף והקראה. `urgent` - טון "עצור" (מסלול טיסה, אלמנט סוגר); אחרת "זהירות".
+ *
+ * המימוש עבר ל-shared/alertSound.js אחרי שהתרעה בשדה עלתה **בלי שום צליל**:
+ * הקוד הקודם פתח AudioContext חדש בכל התרעה (תקרה של ~6 לעמוד, ומשם חריגה
+ * שנבלעה ב-catch), ולא טיפל במדיניות ההפעלה האוטומטית של הדפדפן.
+ */
 function playHazardSound(urgent, text) {
-  const isRunway = urgent;
-  // Audio beep via Web Audio API
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const beepCount = isRunway ? 4 : 2;
-    for (let i = 0; i < beepCount; i++) {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.frequency.value = isRunway ? 880 : 660;
-      osc.type = 'square';
-      const t = ctx.currentTime + i * 0.35;
-      gain.gain.setValueAtTime(0.4, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
-      osc.start(t); osc.stop(t + 0.25);
-    }
-  } catch(e) {}
-  // Speech synthesis
-  try {
-    if ('speechSynthesis' in window) {
-      speechSynthesis.cancel();
-      const msg = new SpeechSynthesisUtterance(text);
-      msg.lang = 'he-IL';
-      msg.rate = 0.85;
-      msg.volume = 1;
-      speechSynthesis.speak(msg);
-    }
-  } catch(e) {}
+  playAlert(urgent ? 'stop' : 'caution', text);
+}
+
+/** משמיע ומעדכן את חיווי "אין קול" אם הדפדפן חסם. */
+function playAlert(tone, text) {
+  if (!window.AlertSound) return;
+  window.AlertSound.alertSound(tone, text);
+  refreshAudioNotice();
+}
+
+/**
+ * חיווי גלוי כשאין קול. התרעה שקטה נראית לנהג בדיוק כמו התרעה תקינה, והוא
+ * לומד שהמערכת "לא מצפצפת" - ולכן המסך אומר את זה ומציע לתקן בלחיצה.
+ */
+function refreshAudioNotice() {
+  const el = document.getElementById('audioBlockedNotice');
+  if (!el || !window.AlertSound) return;
+  const st = window.AlertSound.audioState();
+  el.style.display = (st === 'running') ? 'none' : 'block';
+  el.textContent = st === 'unsupported'
+    ? '🔇 הדפדפן הזה אינו תומך בצלילי התרעה - ההתרעה תוצג על המסך בלבד'
+    : '🔇 צלילי ההתרעה חסומים - הקש כאן כדי לאפשר';
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -2632,6 +2687,8 @@ async function openLiveTrip(id) {
   if (!window.TripTracking) { whenLogic(() => openLiveTrip(id)); return; }
   if (live && live.tripId !== id) stopLiveSession();
   liveEl('liveTripScreen').style.display = 'flex';
+  // לבדוק את הקול כבר עכשיו ולא בהתרעה הראשונה - שם כבר מאוחר מדי
+  refreshAudioNotice();
   if (live && live.tripId === id) { renderLiveMap(); return; }
   live = {
     tripId: id, data: null, watchId: null, fix: null, pendingFix: null, sending: false, sendFailed: false,
@@ -2922,11 +2979,15 @@ window.addEventListener('resize', () => {
 function checkLiveHazards() {
   const d = live && live.data;
   if (!d || !live.fix) return;
-  const hazards = TripTracking.findHazards(live.fix, { runways: d.runways, taxiways: d.taxiways, elements: d.elements });
-  const r = TripTracking.nextAlertState(hazards, live.alertState, Date.now());
+  const data = { runways: d.runways, taxiways: d.taxiways, elements: d.elements };
+  const hazards = TripTracking.findHazards(live.fix, data);
+  // מי שבטווח ואינו סוגר - בלעדיו אי אפשר להבחין בין "נהיה ירוק" ל"נסעתי משם"
+  const open = TripTracking.nearOpenElements(live.fix, data);
+  const r = TripTracking.nextAlertState(hazards, live.alertState, Date.now(), open);
   live.alertState = r.state;
   live.nearest = hazards[0] || null;
   if (r.toAlert.length) showTripHazard(r.toAlert[0]);
+  else if (r.toClear.length) showTripCleared(r.toClear[0]);
 }
 
 const HAZARD_TEXT = {

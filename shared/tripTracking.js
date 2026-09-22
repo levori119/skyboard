@@ -274,6 +274,29 @@ export function findHazards(pos, data) {
   return out.sort((a, b) => a.meters - b.meters);
 }
 
+/**
+ * אלמנטי השליטה ש**בטווח ההתרעה ואינם סוגרים** - התמונה המשלימה ל-`findHazards`.
+ *
+ * בלי זה אי אפשר להבחין בין "הרמזור נהיה ירוק" לבין "הנהג נסע משם": בשני המקרים
+ * הסכנה פשוט נעלמת מהרשימה, וההתרעה על המסך מתנקה בשקט. רמזור שנהיה ירוק הוא
+ * אירוע שהנהג צריך לשמוע (בקשת אורי, 2026-09-22), ולא היעדר אירוע.
+ */
+export function nearOpenElements(pos, data) {
+  if (!validPt(pos) || !data) return [];
+  if (Number.isFinite(Number(pos.accuracy)) && Number(pos.accuracy) > MAX_ACCURACY_M) return [];
+  const out = [];
+  for (const el of Array.isArray(data.elements) ? data.elements : []) {
+    if (!validPt(el) || isElementBlocking(el)) continue;
+    // אלמנט בלי מצב סוגר בכלל (מצלמה, שילוט) לא "נפתח" - הוא מעולם לא היה סגור
+    if (!effectiveBlockingStatuses(el).length) continue;
+    const d = metersToSegment(pos, el, el);
+    if (d <= ELEMENT_ALERT_M) {
+      out.push({ key: `element:${el.id}`, kind: 'element', id: el.id, name: el.name || '', category: el.category || '', meters: d });
+    }
+  }
+  return out.sort((a, b) => a.meters - b.meters);
+}
+
 /** האם עבר מספיק זמן מההתרעה האחרונה לאותו יעד. `last` - מפה key → חותמת ms. */
 export function cooldownOver(key, last, now = Date.now()) {
   const t = last && last[key];
@@ -289,8 +312,9 @@ export function cooldownOver(key, last, now = Date.now()) {
  *
  * `state`: `{ inside: key[], lastAt: {key: ms} }`. מחזיר `{ toAlert, state }`.
  */
-export function nextAlertState(hazards, state, now = Date.now()) {
+export function nextAlertState(hazards, state, now = Date.now(), nearOpen = []) {
   const prevInside = new Set(state?.inside || []);
+  const prevAlerted = new Set(state?.alerted || []);
   const lastAt = { ...(state?.lastAt || {}) };
   const toAlert = [];
   for (const h of Array.isArray(hazards) ? hazards : []) {
@@ -298,7 +322,20 @@ export function nextAlertState(hazards, state, now = Date.now()) {
     toAlert.push(h);
     lastAt[h.key] = now;
   }
-  return { toAlert, state: { inside: (hazards || []).map(h => h.key), lastAt } };
+  // "נפתח": מה שהתריע, כבר אינו סוגר, והנהג עדיין מולו. מי שנסע משם לא מקבל
+  // הרגעה - הוא לא מחכה לאף אחד.
+  const open = Array.isArray(nearOpen) ? nearOpen : [];
+  const toClear = open.filter(h => prevAlerted.has(h.key));
+  // ההשתקה מתאפסת בפתיחה: אלמנט שהאדים שוב הוא סכנה חדשה, לא חזרה על ישנה.
+  // כך גם כתוב באפיון ("60 ש' לכל אלמנט, או עד שהוא נפתח").
+  for (const h of toClear) delete lastAt[h.key];
+
+  const stillAlerted = new Set([...prevAlerted, ...toAlert.map(h => h.key)]);
+  for (const h of open) stillAlerted.delete(h.key);
+  return {
+    toAlert, toClear,
+    state: { inside: (hazards || []).map(h => h.key), lastAt, alerted: [...stillAlerted] },
+  };
 }
 
 /** קריאה ישנה - "אות אבד". בלי קריאה בכלל - גם. */

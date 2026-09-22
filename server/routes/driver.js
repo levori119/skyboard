@@ -42,6 +42,11 @@ router.get('/driver/tracking.js', (req, res) => {
   res.type('application/javascript');
   res.sendFile(path.join(__dirname, '../../shared', 'tripTracking.js'));
 });
+// צליל ההתרעה - אותו קובץ שהעמדה מריצה (shared/alertSound.js)
+router.get('/driver/alertSound.js', (req, res) => {
+  res.type('application/javascript');
+  res.sendFile(path.join(__dirname, '../../shared', 'alertSound.js'));
+});
 // tripTracking.js מייבא את זה ביחסי (`./elementRoadRelevance.js`), ולכן הדפדפן
 // מבקש אותו מתוך /driver/ - בלי הנתיב הזה טעינת המעקב נופלת ב-404.
 router.get('/driver/elementRoadRelevance.js', (req, res) => {

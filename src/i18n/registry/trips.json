@@ -430,6 +430,22 @@
       "he": "השמירה נכשלה",
       "en": "Save failed"
     },
+    "alertsMute": {
+      "he": "השתק את צליל ההתראות",
+      "en": "Mute alert sound"
+    },
+    "alertsUnmute": {
+      "he": "החזר את צליל ההתראות",
+      "en": "Unmute alert sound"
+    },
+    "alertSpeechBlocked": {
+      "he": "שים לב. {{vehicle}} מתקרב לאלמנט שסוגר את הנתיב.",
+      "en": "Attention. {{vehicle}} is approaching an element blocking its route."
+    },
+    "alertSpeechDeviation": {
+      "he": "שים לב. {{vehicle}} סטה מהנתיב שאושר.",
+      "en": "Attention. {{vehicle}} has deviated from the approved route."
+    },
     "alertDeparture": {
       "he": "יציאה בעוד {{minutes}} דק'",
       "en": "Departure in {{minutes}} min"

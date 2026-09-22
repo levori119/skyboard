@@ -43,9 +43,16 @@ import {
 import type { Trip } from './TripsManagementWindow';
 import useLiveTrips from '../../hooks/useLiveTrips';
 import { liveTripAlerts, pruneDismissedLive, type LiveTrip } from '../../utils/liveTrips';
+import { alertSound, playTone, unlockAudio, ALERT_TONE_BY_KIND } from '../../../shared/alertSound.js';
 
 /** כל 15 שניות: מספיק צפוף ל-10 דקות התראה, ולא מעמיס את ה-DB. */
 const POLL_MS = 15_000;
+
+/** השתקת הצליל - פר-עמדה, ולכן localStorage ולא DB. */
+const MUTE_KEY = 'skyking.tripAlerts.muted';
+const readMuted = (): boolean => {
+  try { return localStorage.getItem(MUTE_KEY) === '1'; } catch { return false; }
+};
 
 type AlertKind = 'departure' | 'ack' | 'change' | 'request' | 'started' | 'blocked' | 'deviation';
 
@@ -117,6 +124,41 @@ export const TripAlertsLayer: React.FC<TripAlertsLayerProps> = ({ airfieldId, th
     // סכנה פיזית עכשיו (חסימה, סטייה) בראש הערימה, לפני בקשות שממתינות
     return [...liveAlerts, ...out].filter(a => !dismissed.has(a.key));
   }, [trips, liveAlerts, dismissed, now]);
+
+  // ── צליל ההתרעה במגדל ──────────────────────────────────────────────────────
+  // התראה מתפרצת שעולה בשקט מניחה שהפקח מסתכל על המסך בדיוק ברגע שהיא עלתה.
+  // חסימה וסטייה הן סכנה פיזית עכשיו, ולכן הן מצפצפות ומוקראות; השאר - צפצוף
+  // בודד, שלא יהפוך את חדר הבקרה לרעש רקע.
+  const [muted, setMuted] = useState(readMuted);
+  const heardRef = useRef<Set<string>>(new Set());
+  const alertKeys = alerts.map(a => a.key).join('|');
+
+  // מדיניות ההפעלה האוטומטית של הדפדפן: בלי מגע קודם ההקשר נולד מושתק
+  useEffect(() => {
+    const unlock = () => unlockAudio();
+    window.addEventListener('pointerdown', unlock, { capture: true, once: true });
+    window.addEventListener('keydown', unlock, { capture: true, once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock, { capture: true });
+      window.removeEventListener('keydown', unlock, { capture: true });
+    };
+  }, []);
+
+  useEffect(() => {
+    const fresh = alerts.filter(a => !heardRef.current.has(a.key));
+    // מה ששמענו נשמר, ומה שכבר לא על המסך נשכח - כדי שהתרעה שחוזרת תישמע שוב
+    heardRef.current = new Set(alerts.map(a => a.key));
+    if (muted || !fresh.length) return;
+    // הכי חמור קובע את הצליל: צפצוף אחד לערימה, לא אחד לכל התראה
+    const worst = fresh.find(a => a.kind === 'blocked') || fresh.find(a => a.kind === 'deviation') || fresh[0];
+    const t = worst.trip as Trip & Partial<LiveTrip>;
+    const who = t.vehicle_name || t.vehicle_type_name || t.permit_driver_name || t.driver_name || '';
+    if (worst.kind === 'blocked') alertSound('stop', tr('trips.alertSpeechBlocked', { vehicle: who }));
+    else if (worst.kind === 'deviation') alertSound('caution', tr('trips.alertSpeechDeviation', { vehicle: who }));
+    else playTone(ALERT_TONE_BY_KIND[worst.kind] || 'notify');
+    // alertKeys ולא alerts: המערך נבנה מחדש בכל רינדור (now), המפתחות יציבים
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alertKeys, muted]);
 
   // הגרירה והעגינה **חייבות** לשבת לפני ההחזרה המוקדמת: הוק שנקרא רק כשיש
   // התראות משנה את סדר ההוקים בין רינדורים ומפיל את React.
@@ -215,6 +257,16 @@ export const TripAlertsLayer: React.FC<TripAlertsLayerProps> = ({ airfieldId, th
       >
         <span style={{ fontSize: 11 }}>⠿</span>
         <span style={{ flex: 1 }}>{tr('trips.alertsTitle')}</span>
+        {/* בלי השתקה, עמדה שמצפצפת היא עמדה שמכבים לה את הרמקול - ואז גם
+            ההתרעה הבאה, החשובה, לא תישמע */}
+        <button
+          type="button"
+          title={muted ? tr('trips.alertsUnmute') : tr('trips.alertsMute')}
+          aria-pressed={muted}
+          onPointerDown={e => e.stopPropagation()}
+          onClick={() => { const next = !muted; setMuted(next); try { localStorage.setItem(MUTE_KEY, next ? '1' : '0'); } catch { /* מצב רגעי */ } if (!next) { unlockAudio(); playTone('notify'); } }}
+          style={{ background: 'transparent', border: 'none', color: muted ? '#f87171' : C.text, cursor: 'pointer', fontSize: 12, padding: '0 2px', pointerEvents: 'auto' }}
+        >{muted ? '🔇' : '🔊'}</button>
         <span style={{ color: C.text }}>{alerts.length}</span>
       </div>
       {alerts.map(a => {
