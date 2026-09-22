@@ -263,7 +263,12 @@ export default function OutageSimPanel() {
               <button
                 type="button"
                 style={{ ...btn(C.chip), color: C.text }}
-                onClick={() => window.open('/local-db.html', '_blank', 'noopener')}
+                // ⚠️ **בלי `noopener`, ובכוונה.** האסימון יושב ב-sessionStorage,
+                // והוא נשכפל לטאב חדש רק כשהטאב נפתח מתוך הדף. עם `noopener`
+                // הדף נפתח בלי זהות וחזר 401 - שנראה למפעיל כמו "אין מאגר".
+                // אותו מקור, ולכן אין כאן חשיפה: הדף כבר יכול להגיע לכל מה
+                // שהאפליקציה יכולה.
+                onClick={() => window.open('/local-db.html', '_blank')}
               >{tr('sync.openLocalDb')}</button>
             )}
           </div>

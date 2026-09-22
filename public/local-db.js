@@ -8,9 +8,16 @@
 // של הסוכן), ואם אין שם מאגר - הסוכן שעל המחשב. כך אותו דף עובד בשני המצבים
 // בלי שהמפעיל יצטרך לדעת באיזה מהם הוא נמצא.
 //
-// ⚠️ **האסימון נקרא מ-sessionStorage של המקור הנוכחי.** לכן כשפותחים את הדף
-// מהכתובת של SKY-KING הוא מחזיק את אותה זהות כמו האפליקציה. פתיחה ישירה של
-// הסוכן בטאב חדש לא תעבוד ב-WEB - שם אין אסימון לאותו מקור.
+// ⚠️ **שלוש סיבות שונות לכישלון, ושלוש פעולות שונות.** "לא נמצא מאגר" הוא
+// המסר הכי גרוע שאפשר להציג כאן, כי הוא נכון רק באחת מהן:
+//   · הדפדפן **חוסם** את הפנייה ל-127.0.0.1 (Local Network Access) - צריך אישור
+//   · יש מאגר, אבל **אין זהות** (401) - צריך לפתוח את הדף מתוך SKY-KING
+//   · באמת אין סוכן - צריך להפעיל אותו על המחשב
+// הדף מבדיל ביניהן, כי מפעיל שמחפש תקלה במקום הלא נכון מפסיד את הזמן פעמיים.
+//
+// ⚠️ **האסימון נקרא מ-sessionStorage של המקור הנוכחי.** `sessionStorage` נשכפל
+// לטאב חדש רק כשהוא נפתח מתוך הדף - ולכן הכפתור בפקד פותח **בלי** `noopener`,
+// וכתובת שמקלידים ידנית תגיע בלי זהות.
 
 const DEFAULT_AGENT = 'http://127.0.0.1:5100';
 
@@ -62,25 +69,53 @@ async function ask(origin, path) {
 }
 
 /**
+ * מצב ההרשאה של כרום לגשת ל-127.0.0.1, **רק כשהיא בכלל רלוונטית**.
+ *
+ * ⚠️ `permissions.query` מחזיר `prompt` גם כשאין שום חסימה - זה פשוט אומר
+ * "טרם נשאל". החסימה חלה רק על דף **ציבורי** שפונה ללולאה המקומית; דף
+ * שיושב בעצמו על לוקלהוסט (עמדת Electron, פיתוח) אינו חוצה מרחבי כתובות
+ * כלל. בלי ההבחנה הזו "אין סוכן" היה מדווח כ"הדפדפן חוסם", והמפעיל היה
+ * מחפש הרשאה במקום להפעיל את הסוכן.
+ */
+const pageIsLoopback = () =>
+  /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|$)/i.test(location.origin);
+
+async function lnaState() {
+  if (pageIsLoopback()) return null;
+  try {
+    if (!navigator.permissions?.query) return null;
+    const st = await navigator.permissions.query({ name: 'local-network-access' });
+    return st.state;
+  } catch { return null; }
+}
+
+/**
  * מאתרת מאיפה לקרוא: המקור של הדף, ואם אין - הסוכן.
  *
- * 404 פירושו "זה לא מאגר מקומי" (הנתיב חסום ב-localOnly), ולכן ממשיכים
- * לסוכן. 401 פירושו שהמאגר שם אבל אין זהות - וזו הודעה אחרת לגמרי.
+ * הכשלים נספרים בנפרד: 401/403 הוא "יש מאגר, אין זהות", וכשל רשת הוא "אין
+ * סוכן **או** שהדפדפן חסם". רק ההרשאה מפרידה בין שני האחרונים.
  */
 async function locate() {
   const here = location.origin;
   const candidates = here === agentOrigin() ? [here] : [here, agentOrigin()];
   let unauthorized = false;
+  let networkFail = false;
   for (const origin of candidates) {
     try {
       const data = await ask(origin, `${API}/summary`);
+      // ⚠️ **200 אינו מספיק.** המקור של הדף הוא השרת המרכזי, ושם הנתיב הזה
+      // אינו קיים - תשובה כלשהי משם (שגיאה מעוצבת, דף ניתוב, פרוקסי ביניים)
+      // הייתה מתקבלת כ"מאגר מקומי" ומפילה את הרינדור בלי שום הסבר.
+      if (!Array.isArray(data?.tables)) continue;
       return { origin, data };
     } catch (err) {
       if (err.status === 401 || err.status === 403) unauthorized = true;
+      else if (!err.status) networkFail = true;
     }
   }
   const e = new Error('not found');
   e.unauthorized = unauthorized;
+  e.blocked = networkFail ? await lnaState() : null;
   throw e;
 }
 
@@ -202,25 +237,37 @@ async function openTable(table) {
   }
 }
 
-function showMissing(unauthorized) {
+/** שורה בהודעה, בלי innerHTML - הדף עומד ב-CSP של SKY-KING. */
+function line(parent, ...parts) {
+  for (const p of parts) parent.append(typeof p === 'string' ? document.createTextNode(p) : p);
+  parent.append(document.createElement('br'));
+}
+const strong = (t) => Object.assign(document.createElement('b'), { textContent: t });
+const codeOf = (t) => Object.assign(document.createElement('code'), { textContent: t });
+
+function showMissing(err) {
   listEl.textContent = '';
   detailEl.textContent = '';
   const m = document.createElement('div');
   m.className = 'msg';
-  if (unauthorized) {
-    m.innerHTML = '';
-    const b = document.createElement('b');
-    b.textContent = 'המאגר המקומי נמצא, אבל אין זהות.';
-    m.append(b, document.createElement('br'),
-      document.createTextNode('להיכנס ל-SKY-KING באותו דפדפן, ואז לפתוח את הדף הזה שוב מאותה כתובת.'));
+
+  if (err.blocked === 'denied' || err.blocked === 'prompt') {
+    // הסוכן יכול לרוץ מצוין - הדפדפן פשוט לא נתן לפנות אליו.
+    line(m, strong('הדפדפן חוסם את הגישה למחשב.'));
+    line(m, 'כרום דורש אישור חד-פעמי כדי שאתר יפנה לשירות שרץ על המחשב שלך.');
+    line(m, 'ללחוץ על "בקש הרשאה", ואז לאשר בחלונית של כרום.');
+    const b = document.createElement('button');
+    b.textContent = 'בקש הרשאה';
+    b.addEventListener('click', () => { void load(); });
+    m.append(b);
+  } else if (err.unauthorized) {
+    line(m, strong('המאגר המקומי נמצא, אבל הדף נפתח בלי זהות.'));
+    line(m, 'לפתוח אותו מתוך SKY-KING - בפקד "קשר למאגר", כפתור "הצג את המאגר המקומי".');
+    line(m, 'כתובת שמקלידים ידנית מגיעה בלי האסימון של המשמרת.');
   } else {
-    const b = document.createElement('b');
-    b.textContent = 'לא נמצא מאגר מקומי.';
-    m.append(b, document.createElement('br'),
-      document.createTextNode('הדף חיפש במקור של העמוד וגם בסוכן העמדה ('),
-      Object.assign(document.createElement('code'), { textContent: agentOrigin() }),
-      document.createTextNode(').'), document.createElement('br'),
-      document.createTextNode('אם הסוכן אינו רץ, להפעיל אותו על מחשב העמדה ולרענן.'));
+    line(m, strong('לא נמצא סוכן עמדה על המחשב.'));
+    line(m, 'הדף חיפש במקור של העמוד וגם ב-', codeOf(agentOrigin()), '.');
+    line(m, 'להפעיל את הסוכן על מחשב העמדה ולרענן.');
   }
   detailEl.append(m);
   el('source').textContent = 'אין מאגר';
@@ -237,7 +284,7 @@ async function load() {
     renderList();
     if (selected) await openTable(selected);
   } catch (err) {
-    showMissing(!!err.unauthorized);
+    showMissing(err);
   }
 }
 
