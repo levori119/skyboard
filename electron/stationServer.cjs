@@ -343,7 +343,20 @@ function createStationServer({
   });
 
   return new Promise((resolve, reject) => {
-    server.once('error', reject);
+    // ⚠️ **פורט תפוס אינו כישלון.** הפורט הקבוע הוא מה ששומר על ה-origin בין
+    // הפעלות, ואיתו על ה-cache ב-IndexedDB - אבל עמדה שנייה על אותו מחשב
+    // הייתה נופלת עליו, וה-catch אצל הקורא היה מחזיר אותה בשקט ללקוח דק.
+    // לכן נסיגה לפורט חופשי: העמדה עולה, ומשלמת רק ב-cache שמתחיל מחדש.
+    let retried = false;
+    server.on('error', err => {
+      if (!retried && port !== 0 && (err.code === 'EADDRINUSE' || err.code === 'EACCES')) {
+        retried = true;
+        console.warn(`[station] פורט ${port} תפוס - עולים על פורט חופשי (ה-cache של העמדה יתחיל מחדש)`);
+        server.listen(0, host);
+        return;
+      }
+      reject(err);
+    });
     // 127.0.0.1 בלבד: שרת העמדה אינו מאזין לרשת ואינו משטח תקיפה חדש
     server.listen(port, host, () => {
       const actual = server.address().port;

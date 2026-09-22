@@ -336,3 +336,31 @@ describe('נתק מדומה וניתוב מפורש בשרת העמדה', () => 
     expect(r.status).toBe(405);
   });
 });
+
+// ── פורט קבוע, ונסיגה כשהוא תפוס ─────────────────────────────────────────────
+// הפורט הקבוע הוא מה ששומר על ה-origin בין הפעלות, ואיתו על ה-cache
+// ב-IndexedDB. אבל עמדה שנייה על אותו מחשב חייבת לעלות בכל זאת - נפילה כאן
+// הייתה נבלעת ב-catch של הקורא ומחזירה את העמדה בשקט ללקוח דק.
+describe('שרת העמדה - פורט', () => {
+  const opts = { distDir: os.tmpdir(), apiTarget: 'http://127.0.0.1:1' };
+
+  it('עולה על הפורט שביקשו', async () => {
+    const probe = http.createServer();
+    await new Promise(r => probe.listen(0, '127.0.0.1', r));
+    const free = probe.address().port;
+    await new Promise(r => probe.close(r));
+
+    const s = await createStationServer({ ...opts, port: free });
+    expect(s.port).toBe(free);
+    await s.close();
+  });
+
+  it('פורט תפוס - נסוג לפורט חופשי במקום להפיל את העמדה', async () => {
+    const first = await createStationServer({ ...opts, port: 0 });
+    const second = await createStationServer({ ...opts, port: first.port });
+    expect(second.port).not.toBe(first.port);
+    expect(second.port).toBeGreaterThan(0);
+    await second.close();
+    await first.close();
+  });
+});

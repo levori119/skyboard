@@ -20,6 +20,7 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { fork } from 'child_process';
+import { existsSync } from 'fs';
 import { hostname } from 'os';
 import { createRequire } from 'module';
 
@@ -47,7 +48,17 @@ const STATION_KEY = arg('station', process.env.SKYKING_STATION_KEY || hostname()
  */
 function startLocalDb() {
   const state = { url: null };
-  const child = fork(path.join(ROOT, 'server', 'local.js'), [], {
+  // המקור כשיש ריפו, ואחרת ה-bundle שנבנה ב-`npm run build:local-server` -
+  // כך אותו סקריפט משמש גם עותק ארוז בלי `server/`.
+  const entry = [
+    path.join(ROOT, 'server', 'local.js'),
+    path.join(ROOT, 'electron', 'local-server.mjs'),
+  ].find(p => existsSync(p));
+  if (!entry) {
+    console.error('[station] אין שרת מקומי - הרץ `npm run build:local-server` או עבוד מתוך הריפו');
+    return { state, child: { kill() {}, on() {} } };
+  }
+  const child = fork(entry, [], {
     cwd: ROOT,
     env: {
       ...process.env,

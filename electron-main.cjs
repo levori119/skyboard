@@ -92,9 +92,13 @@ function writeRemoteConfigTemplate() {
 function writeBundledConfigTemplate() {
   writeConfigTemplate({
     _readme: 'עמדה עצמאית: האפליקציה ארוזה בעמדה. API_URL - כתובת שרת SKY-KING ברשת. ' +
-      'בנתק העמדה ממשיכה לעבוד על המידע האחרון ששמרה.',
+      'בנתק העמדה ממשיכה לעבוד על המידע האחרון ששמרה. ' +
+      'AGENT: true - העמדה רצה בלי חלון והפקח פותח אותה בדפדפן (כתובת 127.0.0.1 ו-STATION_PORT). ' +
+      'LOCAL_DB: false - כיבוי המאגר המקומי; נתק יאפשר צפייה בלבד.',
     mode: 'bundled',
-    API_URL: DEFAULT_APP_URL
+    API_URL: DEFAULT_APP_URL,
+    STATION_PORT: DEFAULT_STATION_PORT,
+    AGENT: false
   });
 }
 
@@ -394,6 +398,28 @@ function registerSttHandlers() {
   });
 }
 
+// ── פורט העמדה ומצב סוכן ─────────────────────────────────────────────────────
+// **הפורט קבוע, וזה לא קוסמטיקה.** ה-cache בנתק יושב ב-IndexedDB, והוא משויך
+// ל-origin. פורט אקראי בכל הפעלה פירושו origin חדש בכל הפעלה, כלומר עמדה
+// שמאבדת את כל המידע השמור שלה בכל הדלקה מחדש - בדיוק כשהוא הכי נחוץ.
+const DEFAULT_STATION_PORT = 5100;
+
+const stationPort = (cfg) => Number(
+  process.env.SKYKING_STATION_PORT || (cfg && cfg.STATION_PORT) || DEFAULT_STATION_PORT);
+
+/**
+ * מצב סוכן: העמדה רצה **בלי חלון**, ומי שפותח אותה הוא הדפדפן שעל המחשב.
+ *
+ * למה: עמדה שעולה ב-WEB אינה יכולה להחזיק מאגר מקומי - אין בדפדפן תהליך Node
+ * להריץ בו את PGlite ואת 457 ה-endpoints. הסוכן הוא אותה עמדה **בדיוק** (אותו
+ * stationServer, אותו server/local.js, אותו נתב) רק בלי ה-kiosk: הפקח פותח
+ * את הכתובת בכרום ומקבל את המאגר שעל המחשב שלו.
+ *
+ * לכן זו אינה עמדה שנייה לתחזק אלא דגל אחד: `"AGENT": true` ב-config.json
+ * של העמדה, או `SKYKING_AGENT=1`.
+ */
+const isAgentMode = (cfg) => process.env.SKYKING_AGENT === '1' || !!(cfg && cfg.AGENT === true);
+
 async function createWindow() {
   target = resolveTarget();
 
@@ -419,6 +445,7 @@ async function createWindow() {
         distDir: distDir(), apiTarget: target.apiTarget,
         airPictureTarget: target.airPictureTarget, airPictureToken: target.airPictureToken,
         localApiTarget: () => localDb.url,
+        port: stationPort(target.cfg),
       });
       stationServer = station;
       target = { mode: 'bundled', url: station.url, apiTarget: target.apiTarget, cfg: target.cfg };
@@ -427,6 +454,26 @@ async function createWindow() {
       console.error('[station] שרת העמדה לא עלה, נופלים ללקוח דק:', err.message);
       target = { mode: 'remote', url: target.apiTarget, cfg: target.cfg };
     }
+  }
+
+  // ── מצב סוכן: אין חלון, יש עמדה ───────────────────────────────────────────
+  // הסוכן מסתיים כאן בכוונה: שרת העמדה והמאגר המקומי כבר רצים, והדפדפן שעל
+  // המחשב הוא ה-UI. `agentMode` נבדק **אחרי** הרמת שרת העמדה, כי סוכן בלי
+  // שרת עמדה הוא תהליך שלא עושה דבר.
+  if (isAgentMode(target.cfg)) {
+    if (target.mode !== 'bundled') {
+      dialog.showErrorBox('SKY KING - מצב סוכן',
+        'מצב סוכן דורש גרסת עמדה עם ה-dist ארוז (electron-builder.station.json).\n' +
+        'בגרסת לקוח דק אין מה להגיש לדפדפן.');
+      app.quit();
+      return;
+    }
+    console.log(`\n┌─ SKY-KING · סוכן עמדה ─────────────────────────────────\n`
+      + `│  פתח בדפדפן:  ${target.url}\n`
+      + `│  API מרכזי:    ${target.apiTarget}\n`
+      + `│  המאגר המקומי עולה ברקע (כ-15 שניות בהפעלה ראשונה).\n`
+      + `└────────────────────────────────────────────────────────\n`);
+    return;
   }
 
   // ── חלון העמדה: kiosk ─────────────────────────────────────────────────────
@@ -602,6 +649,8 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  // בסוכן אין חלון מלכתחילה, והאירוע הזה היה מכבה אותו ברגע שהוא עולה.
+  if (isAgentMode(target && target.cfg)) return;
   app.quit();
 });
 
@@ -617,5 +666,6 @@ app.on('before-quit', () => {
 });
 
 app.on('activate', () => {
+  if (isAgentMode(target && target.cfg)) return;
   if (!mainWindow) createWindow();
 });
