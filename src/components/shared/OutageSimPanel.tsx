@@ -84,6 +84,10 @@ export default function OutageSimPanel() {
     if (station.station !== false) return tr('sync.noLocalDb');
     if (agentState.reason === 'searching') return tr('sync.agentSearching');
     if (agentState.reason === 'mismatch') return tr('sync.agentMismatch');
+    // חסימת הדפדפן אינה "אין סוכן": הסוכן רץ, וההכרעה בידי המפעיל. בלי
+    // ההבחנה הזו הוא מחפש תקלה בשירות שעובד מצוין.
+    if (agentState.reason === 'blocked') return tr('sync.agentBlocked');
+    if (agentState.reason === 'prompt') return tr('sync.agentPrompt');
     return tr('sync.agentMissing', { origin: agentOrigin().replace(/^https?:\/\//, '') });
   };
 

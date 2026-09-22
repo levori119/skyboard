@@ -122,7 +122,13 @@ export function securityHeaders(req, res, next) {
   // ראה "אין הרשאת מיקרופון" בלי דיאלוג לאשר בו. `(self)` מחזיר את היכולת בלי
   // לוותר על ההגנה: frame-src מתיר מסגרות חיצוניות (מצלמות, YouTube), והן
   // נשארות חסומות. camera נשאר `()` - אין בעמדה שימוש בווידאו.
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(self), payment=(), usb=()');
+  //
+  // `local-network-access=(self)` - סוכן העמדה. הרשימה כאן **מונה** יכולות,
+  // ויכולת שאינה מנויה מקבלת את ברירת המחדל שלה; רישום מפורש מבטיח שהדף
+  // והמסגרות מאותו מקור (סרגל "עמדות נוספות") יוכלו לפנות למחשב המפעיל.
+  // זו אינה ההרשאה עצמה - את זו נותן המפעיל בכרום פעם אחת.
+  res.setHeader('Permissions-Policy',
+    'camera=(), microphone=(self), payment=(), usb=(), local-network-access=(self)');
   // HSTS רק כשהחיבור באמת מוצפן: על HTTP מקומי (Electron טוען localhost) הכותרת
   // חסרת משמעות, ובדפדפן היא עלולה לנעול מקור פיתוח ל-HTTPS שאינו קיים.
   if (req.secure || req.get('X-Forwarded-Proto') === 'https') {

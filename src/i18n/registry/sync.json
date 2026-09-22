@@ -42,6 +42,14 @@
       "he": "אין מאגר מקומי - לא נמצא סוכן עמדה על המחשב ({{origin}}).",
       "en": "No local database - no station agent found on this computer ({{origin}})."
     },
+    "agentBlocked": {
+      "he": "הדפדפן חוסם את הגישה למחשב. לאשר \"גישה לרשת המקומית\" לאתר הזה.",
+      "en": "The browser is blocking access to this computer. Allow “Local network access” for this site."
+    },
+    "agentPrompt": {
+      "he": "ממתין לאישור \"גישה לרשת המקומית\" בדפדפן.",
+      "en": "Waiting for “Local network access” to be allowed in the browser."
+    },
     "agentMismatch": {
       "he": "סוכן העמדה שעל המחשב מוגדר מול שרת אחר, ולכן אינו משמש.",
       "en": "The station agent on this computer points at a different server and is not used."

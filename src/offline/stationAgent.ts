@@ -22,6 +22,14 @@
 // לא הייתה נרשמת אצלו, וברגע הנתק כל בקשה הייתה חוזרת 401 - כלומר מאגר מקומי
 // שקיים ואי אפשר לגעת בו. זו גם הסיבה שבעמדת Electron הכל עובר בשרת העמדה.
 //
+// ⚠️ **כרום דורש אישור חד-פעמי (Local Network Access).** מכרום 142, דף
+// ציבורי (https) שפונה ל-127.0.0.1 חוצה את "מרחב הכתובות" ונחסם עד שהמפעיל
+// מאשר - `blocked by CORS policy: Permission was denied for this request to
+// access the loopback address space`. זו שכבת חסימה **שלישית ונפרדת** מ-CORS
+// ומ-CSP, והיא נראית רק בקונסולה. לכן: `targetAddressSpace: 'loopback'` על כל
+// פנייה (הצהרת כוונה שגם פוטרת מבדיקת תוכן מעורב), ו-`navigator.permissions`
+// כדי שהפקד יאמר "הדפדפן חוסם" במקום "לא נמצא סוכן".
+//
 // ⚠️ **בדיקת ההתאמה אינה פורמליות.** הסוכן מחזיק `apiTarget` משלו מקובץ
 // התצורה. סוכן שהוגדר מול שרת אחר היה שולח את מידע השדה לשם בלי שאיש יראה
 // זאת, ולכן סוכן שה-`apiTarget` שלו אינו המקור של הדף פשוט אינו משמש.
@@ -40,6 +48,9 @@ const PROBE_TIMEOUT_MS = 1500;
 /** כל כמה זמן מנסים שוב כשלא נמצא סוכן - הוא יכול לעלות אחרי הדפדפן. */
 const RETRY_MS = 60_000;
 
+/** כשההרשאה ממתינה להכרעת המפעיל - בודקים שוב מהר, לא אחרי דקה. */
+const PROMPT_RETRY_MS = 8_000;
+
 export type AgentInfo = {
   origin: string;
   /** השרת המרכזי שהסוכן מוגדר מולו, כפי שהוא מדווח עליו */
@@ -51,7 +62,7 @@ export type AgentState = {
   /** null = טרם נבדק */
   agent: AgentInfo | null;
   /** למה אין סוכן - מוצג למפעיל, כי "לא קורה כלום" אינו מידע */
-  reason: 'searching' | 'none' | 'mismatch' | 'self' | null;
+  reason: 'searching' | 'none' | 'mismatch' | 'self' | 'blocked' | 'prompt' | null;
   checkedAt: number | null;
 };
 
@@ -93,8 +104,14 @@ export function targetMatches(pageOrigin: string, apiTarget: string | null): boo
   return originOf(apiTarget) === pageOrigin;
 }
 
+/**
+ * `targetAddressSpace: 'loopback'` - הצהרה לכרום שהיעד הוא המחשב עצמו.
+ * דפדפן שאינו מכיר את המפתח מתעלם ממנו, ולכן אין כאן בדיקת יכולת.
+ */
+const LOOPBACK_INIT = { targetAddressSpace: 'loopback' } as RequestInit;
+
 async function probe(origin: string, signal?: AbortSignal): Promise<AgentInfo | null> {
-  const res = await fetch(`${origin}/api/__station/status`, { cache: 'no-store', signal });
+  const res = await fetch(`${origin}/api/__station/status`, { ...LOOPBACK_INIT, cache: 'no-store', signal });
   if (!res.ok) return null;
   const d = await res.json();
   return {
@@ -102,6 +119,21 @@ async function probe(origin: string, signal?: AbortSignal): Promise<AgentInfo | 
     apiTarget: typeof d.apiTarget === 'string' ? d.apiTarget : null,
     localReady: !!d.localReady,
   };
+}
+
+/** מתרגם את מצב ההרשאה לסיבה שמוצגת למפעיל. */
+async function blockedReason(): Promise<'none' | 'blocked' | 'prompt'> {
+  try {
+    const q = (navigator as Navigator & { permissions?: Permissions }).permissions;
+    if (!q?.query) return 'none';
+    const st = await q.query({ name: 'local-network-access' as PermissionName });
+    if (st.state === 'denied') return 'blocked';
+    if (st.state === 'prompt') return 'prompt';
+    return 'none';
+  } catch {
+    // דפדפן שאינו מכיר את ההרשאה - אין חסימה כזו, ולכן פשוט אין סוכן
+    return 'none';
+  }
 }
 
 /**
@@ -132,7 +164,9 @@ export async function discoverStationAgent(pageOrigin = globalThis.location?.ori
     resetStationProbe();
     return info;
   } catch {
-    set({ agent: null, reason: 'none', checkedAt: Date.now() });
+    // כשל פנייה אינו מבדיל בין "אין סוכן" לבין "הדפדפן חסם" - ושתי הסיבות
+    // דורשות פעולה שונה לגמרי מהמפעיל. ההרשאה היא מה שמפריד ביניהן.
+    set({ agent: null, reason: await blockedReason(), checkedAt: Date.now() });
     return null;
   } finally {
     if (timer) clearTimeout(timer);
@@ -147,7 +181,9 @@ export function startAgentDiscovery(): () => void {
     if (stopped) return;
     await discoverStationAgent();
     // נמצא סוכן - אין טעם להמשיך לחפש. אם הוא ייפול, הבקשות עצמן ידווחו.
-    if (!stopped && !state.agent) timer = setTimeout(tick, RETRY_MS);
+    // המפעיל באמצע הכרעה על ההרשאה - דקה שלמה היא נצח. בודקים שוב מהר.
+    const wait = state.reason === 'prompt' ? PROMPT_RETRY_MS : RETRY_MS;
+    if (!stopped && !state.agent) timer = setTimeout(tick, wait);
   };
   void tick();
   return () => { stopped = true; if (timer) clearTimeout(timer); };
@@ -193,8 +229,9 @@ export function installStationAgentFetch(): () => void {
       : (input as Request).url;
     const next = rewriteToAgent(url);
     if (!next) return original(input, init);
-    if (typeof input === 'string' || input instanceof URL) return original(next, init);
-    try { return original(new Request(next, input as Request), init); }
+    const withSpace = { ...LOOPBACK_INIT, ...init } as RequestInit;
+    if (typeof input === 'string' || input instanceof URL) return original(next, withSpace);
+    try { return original(new Request(next, input as Request), withSpace); }
     catch { return original(input, init); }
   };
   globalThis.fetch = wrapped;

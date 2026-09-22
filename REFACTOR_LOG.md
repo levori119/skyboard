@@ -6,6 +6,35 @@
 
 ---
 
+## 2026-09-22 - Local Network Access: כרום דורש אישור מפעיל לגשת ל-127.0.0.1
+
+**מה שהיה:** אחרי תיקון ה-CSP הדף עדיין לא הגיע לסוכן, והפעם:
+
+```
+blocked by CORS policy: Permission was denied for this request to
+access the `loopback` address space
+```
+
+זו **שכבת חסימה שלישית**, נפרדת מ-CORS ומ-CSP: מכרום 142, דף ציבורי שפונה
+ל-127.0.0.1 חוצה "מרחב כתובות" ודורש **אישור חד-פעמי של המפעיל**. אומת בפועל:
+עם ההרשאה הפנייה מחזירה 200, בלעדיה `Failed to fetch`.
+
+**מה נבנה:**
+
+| רכיב | מה |
+|---|---|
+| `src/offline/stationAgent.ts` | `targetAddressSpace: 'loopback'` על כל פנייה לסוכן - הצהרת כוונה שגם פוטרת מבדיקת תוכן מעורב |
+| `src/offline/stationAgent.ts` | `navigator.permissions.query({name:'local-network-access'})` מבדיל בין "נחסם" לבין "אין סוכן", ומנסה שוב כל 8 שניות בזמן שהמפעיל מכריע |
+| `server/middleware/securityHeaders.js` | `local-network-access=(self)` ב-`Permissions-Policy` |
+| `src/components/shared/OutageSimPanel.tsx` | "הדפדפן חוסם - לאשר גישה לרשת המקומית" / "ממתין לאישור", במקום "לא נמצא סוכן" |
+
+**הלקח שחוזר שלוש פעמים ברצף:** CORS, CSP ו-LNA הן שלוש חסימות שונות, שכולן
+מדווחות **רק בקונסולה של הדפדפן** ובממשק נראות זהה - "אין מאגר מקומי". אף אחת
+מהן לא נתפסה בבדיקה מול סביבה מדומה; שלושתן נתפסו רק בהרצה מול הפריסה האמיתית
+בדפדפן אמיתי.
+
+---
+
 ## 2026-09-22 - ה-CSP של SKY-KING חסם את הסוכן, ובדיקה ירוקה לא תפסה זאת
 
 **הבקשה:** "עדיין לא עובד."

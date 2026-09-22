@@ -13,6 +13,10 @@
 //   3. כשיש קשר התשובה עדיין מגיעה מהשרת המרכזי (הסוכן מפרקסס, לא חוטף).
 //   4. בנתק התשובה מגיעה מהמאגר שבעמדה.
 //
+// ⚠️ מה שהבדיקה הזו **אינה** מכסה: חסימת Local Network Access של כרום. היא
+// חלה רק על דף **ציבורי** שפונה ל-127.0.0.1, וכאן הדף עצמו על לוקלהוסט. זה
+// נבדק מול הפריסה האמיתית - ראה ARCHITECTURE.md §עמדה שעולה ב-WEB.
+//
 // הרצה:  npm run build && node scripts/verify-web-agent.mjs
 
 import { spawn } from 'child_process';
@@ -99,6 +103,10 @@ try {
   const { chromium } = await import('playwright');
   const browser = await chromium.launch();
   const ctx = await browser.newContext();
+  // Local Network Access: דף **ציבורי** שפונה ל-127.0.0.1 דורש אישור מפעיל
+  // (כרום 142+). כאן הדף עצמו על לוקלהוסט ולכן החסימה אינה חלה, אבל ההרשאה
+  // ניתנת במפורש כדי שהבדיקה תשקף את מה שקורה בשדה.
+  try { await ctx.grantPermissions(['local-network-access'], { origin: PAGE }); } catch { /* דפדפן ישן */ }
   // לפני טעינת המודולים: authToken קורא את sessionStorage פעם אחת בעלייה
   await ctx.addInitScript(() => { try { sessionStorage.setItem('bt-auth-token', 'v1.verify.token'); } catch { /* מצב פרטי */ } });
   // הדף מחפש את הסוכן בפורט הקבוע; כאן הוא על פורט בדיקה
