@@ -34,6 +34,18 @@
       "he": "אין מאגר מקומי בעמדה - נתק יאפשר צפייה בלבד.",
       "en": "No local database on this station - an outage allows viewing only."
     },
+    "mirrorLoading": {
+      "he": "טוען את המאגר המקומי מהמרכז ({{done}}/{{total}}) - נתק עכשיו יציג מסך ריק.",
+      "en": "Loading the local database from the centre ({{done}}/{{total}}) - disconnecting now shows an empty screen."
+    },
+    "mirrorEmpty": {
+      "he": "המאגר המקומי עדיין ריק - נתק עכשיו יציג מסך ריק.",
+      "en": "The local database is still empty - disconnecting now shows an empty screen."
+    },
+    "mirrorFresh": {
+      "he": "המאגר המקומי מעודכן ({{age}})",
+      "en": "Local database up to date ({{age}})"
+    },
     "agentSearching": {
       "he": "מחפש סוכן עמדה על המחשב...",
       "en": "Looking for a station agent on this computer..."

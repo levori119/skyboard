@@ -5,6 +5,7 @@ import path from 'path';
 import http from 'http';
 import {
   createStationServer, contentTypeFor, shouldProxy, resolveStaticPath, isAssetLike,
+  timeoutFor, SYNC_TIMEOUT_MS,
 } from './stationServer.cjs';
 
 describe('shouldProxy', () => {
@@ -439,5 +440,28 @@ describe('שער המקורות של הסוכן', () => {
   it('לוקלהוסט מותר - שם רצים הפיתוח והבדיקות', async () => {
     const r = await call(`${station.url}/api/__station/status`, { headers: { Origin: 'http://localhost:5000' } });
     expect(r.headers['access-control-allow-origin']).toBe('http://localhost:5000');
+  });
+});
+
+// ── תקרת הזמן של הסנכרון ─────────────────────────────────────────────────────
+// התקלה שזה מתעד: המראה מהמרכז היא 4.6MB על פני 128 טבלאות ונמדדה ב-10.5
+// שניות, מול תקרה של 8. כל מראה חזרה 502, המאגר המקומי נשאר **ריק**, ובמעבר
+// לנתק המסך התרוקן - "כל הנתונים נעלמו". ראה ARCHITECTURE.md §נתק 4.
+describe('תקרת זמן לפי נתיב', () => {
+  const t = timeoutFor(8000);
+
+  it('בקשה תפעולית נשארת עם התקרה הקצרה - היא מה שמזהה נתק מהר', () => {
+    expect(t('/api/strips')).toBe(8000);
+    expect(t('/api/health')).toBe(8000);
+  });
+
+  it('בקשת סנכרון מקבלת תקרה רחבה, בשני הנתיבים', () => {
+    expect(t('/api/sync/mirror')).toBe(SYNC_TIMEOUT_MS);
+    expect(t('/api/__remote/sync/mirror')).toBe(SYNC_TIMEOUT_MS);
+    expect(t('/api/sync/push')).toBe(SYNC_TIMEOUT_MS);
+  });
+
+  it('נתיב שרק מזכיר sync אינו זוכה בתקרה', () => {
+    expect(t('/api/syncopation')).toBe(8000);
   });
 });

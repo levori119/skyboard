@@ -181,6 +181,23 @@ export default function OutageSimPanel() {
             >×</button>
           </div>
 
+          {/* ⚠️ מצב המראה - **לפני** שמנתקים, לא אחרי. המאגר המקומי מתמלא
+              מהמרכז בהדרגה, וניתוק לפני שהוא מלא מציג מסך ריק. זה בדיוק מה
+              שדווח כ"כשעובר לנתק כל הנתונים נעלמים". */}
+          {local && !outage && (
+            <div style={{
+              color: sync.mirrorReady ? C.sub : STATUS.outage,
+              fontWeight: 700, fontSize: 10.5,
+            }}>
+              {sync.mirrorProgress
+                ? tr('sync.mirrorLoading', {
+                    done: sync.mirrorProgress.done, total: sync.mirrorProgress.total })
+                : sync.mirrorReady
+                  ? tr('sync.mirrorFresh', { age: formatAge(Date.now() - (sync.lastMirrorAt || 0)) })
+                  : tr('sync.mirrorEmpty')}
+            </div>
+          )}
+
           {/* מאיזה מאגר העמדה משרתת עכשיו - התשובה לשאלה "על מה אני מסתכל" */}
           <div style={{ color: C.sub, fontWeight: 600, fontSize: 10.5 }}>
             {local

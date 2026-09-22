@@ -201,6 +201,21 @@ function serveStatic(res, distDir, urlPath) {
   });
 }
 
+/**
+ * תקרת הזמן לבקשה, לפי הנתיב.
+ *
+ * ⚠️ **בקשת סנכרון אינה בקשה תפעולית.** תקרת 8 השניות קיימת כדי שנתק יזוהה
+ * מהר והעמדה תיפול למאגר שלה - אבל המראה מהמרכז היא 4.6MB על פני 128 טבלאות,
+ * ולכן **חרגה ממנה תמיד** וחזרה 502. התוצאה: המאגר המקומי נשאר ריק, ובמעבר
+ * לנתק המסך התרוקן. הלקוח מושך היום בחלקים (MIRROR_BATCH), והתקרה הרחבה כאן
+ * היא רשת הביטחון השנייה - רשת איטית לא תחזיר אותנו למצב הזה.
+ *
+ * הנתיבים האלה אינם משמשים להכרעת "האם השרת חי" - לכך יש `/api/health`.
+ */
+const SYNC_TIMEOUT_MS = 120_000;
+const isSyncPath = (p) => p.startsWith('/api/sync/') || p.includes('/sync/mirror');
+const timeoutFor = (base) => (urlPath) => (isSyncPath(urlPath || '') ? SYNC_TIMEOUT_MS : base);
+
 // ── מי מורשה לדבר עם הסוכן ────────────────────────────────────────────────────
 // הסוכן מאזין על 127.0.0.1 בלבד, ולכן אינו חשוף לרשת - אבל **כל** אתר שהמפעיל
 // פותח בטאב אחר יכול לשלוח אליו בקשות מהדפדפן שלו. בלי שער מקורות, דף זדוני
@@ -263,7 +278,7 @@ function applyCors(req, res, allowOrigin) {
  */
 function createStationServer({
   distDir, apiTarget, airPictureTarget, airPictureToken,
-  port = 0, host = '127.0.0.1', timeoutMs = 8000,
+  port = 0, host = '127.0.0.1', timeoutMs: baseTimeoutMs = 8000,
   localApiTarget = () => null, localMode = 'auto',
   // בפיתוח: שרת ה-Vite. הנכסים מפורקססים אליו במקום להיקרא מ-dist, ולכן
   // אפשר לעבוד על העמדה האמיתית - עם המאגר המקומי ועם כפתור הנתק - בלי
@@ -275,11 +290,12 @@ function createStationServer({
   allowedOrigins = [],
 }) {
   // הנתב מחזיק את מצב הקשר לשרת המרכזי ומכריע לאן כל בקשת /api הולכת.
-  const router = createApiRouter({ apiTarget, localTarget: localApiTarget, mode: localMode, timeoutMs });
+  const router = createApiRouter({ apiTarget, localTarget: localApiTarget, mode: localMode, timeoutMs: baseTimeoutMs });
   // גשר הזהות: לוכד כניסה מוצלחת כדי שאפשר יהיה להיכנס ולעבוד גם בנתק.
-  const authBridge = createAuthBridge({ localTarget: localApiTarget, timeoutMs });
+  const authBridge = createAuthBridge({ localTarget: localApiTarget, timeoutMs: baseTimeoutMs });
 
   const allowOrigin = createOriginGate(apiTarget, allowedOrigins);
+  const timeoutForPath = timeoutFor(baseTimeoutMs);
 
   const server = http.createServer((req, res) => {
     const urlPath = (req.url || '/').split('?')[0];
@@ -355,7 +371,7 @@ function createStationServer({
         const swapped = authBridge.swapAuthHeader(req.headers.authorization);
         if (swapped) extraHeaders.authorization = swapped;
       }
-      return proxyRequest(req, res, target, timeoutMs, {
+      return proxyRequest(req, res, target, timeoutForPath(urlPath), {
         rewritePath: (req.url || '').replace(prefix, '/api'),
         extraHeaders,
         onResult: ok => router.report(which, ok),
@@ -368,7 +384,7 @@ function createStationServer({
     // בלי כתובת מוגדרת הבקשה נופלת חזרה לפרוקסי הרגיל, ששם היא מרולה דרך
     // SKY-KING - מסלול הגיבוי לעמדות דפדפן ולפיתוח.
     if (urlPath === AIR_PICTURE_PATH && airPictureTarget) {
-      return proxyRequest(req, res, airPictureTarget, timeoutMs, {
+      return proxyRequest(req, res, airPictureTarget, timeoutForPath(urlPath), {
         rewritePath: '/air-picture',
         extraHeaders: airPictureToken ? { authorization: `Bearer ${airPictureToken}` } : undefined,
       });
@@ -397,7 +413,7 @@ function createStationServer({
       // כניסה שכבר מנותבת למקומי אינה נלכדת: אין שם מה ללמוד, השרת המקומי
       // הוא כבר זה שמאמת.
       if (which === 'remote' && req.method === 'POST' && urlPath === authBridge.LOGIN_PATH) {
-        return proxyLoginRequest(req, res, target, timeoutMs, authBridge, onResult);
+        return proxyLoginRequest(req, res, target, timeoutForPath(urlPath), authBridge, onResult);
       }
 
       // ניתוב למאגר המקומי: האסימון המרכזי מוחלף במקומי, אחרת כל בקשה
@@ -407,10 +423,10 @@ function createStationServer({
         const swapped = authBridge.swapAuthHeader(req.headers.authorization);
         if (swapped) extraHeaders.authorization = swapped;
       }
-      return proxyRequest(req, res, target, timeoutMs, { onResult, extraHeaders });
+      return proxyRequest(req, res, target, timeoutForPath(urlPath), { onResult, extraHeaders });
     }
     // בפיתוח הנכסים מגיעים משרת ה-Vite (כולל HMR), ולא מ-dist שנבנה.
-    if (staticTarget) return proxyRequest(req, res, staticTarget, timeoutMs);
+    if (staticTarget) return proxyRequest(req, res, staticTarget, timeoutForPath(urlPath));
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); res.end(); return; }
     serveStatic(res, distDir, req.url || '/');
   });
@@ -453,6 +469,8 @@ module.exports = {
   STATION_OUTAGE_PATH,
   createOriginGate,
   applyCors,
+  timeoutFor,
+  SYNC_TIMEOUT_MS,
   resolveStaticPath,
   isAssetLike,
 };

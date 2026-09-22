@@ -26,6 +26,19 @@ const REMOTE = `${API_URL}/__remote/sync`;
 
 /** כל כמה זמן נמשכת מראה מהמרכז כשהכל תקין. */
 const MIRROR_EVERY_MS = 45_000;
+
+/**
+ * כמה טבלאות בבקשה אחת.
+ *
+ * ⚠️ **זה לא כוונון, זו תקלה שתוקנה.** צילום מלא של 128 הטבלאות נמדד ב-10.5
+ * שניות ו-4.58MB, מול תקרת זמן של 8 שניות בפרוקסי של העמדה - ולכן **כל** מראה
+ * נפלה ב-502 והמאגר המקומי נשאר ריק. בנתק זה נראה כאילו כל הנתונים נעלמו.
+ * 12 טבלאות הן כ-1.3 שניות לבקשה, עם מרווח ביטחון גדול.
+ *
+ * הרשימה מגיעה מהשרת **בסדר התלויות**, ולכן חיתוך שלה לקבוצות בטוח: הורה
+ * תמיד בקבוצה שלפני הילד.
+ */
+const MIRROR_BATCH = 12;
 /** כל כמה זמן נבדק המצב (זול: נתיב מקומי בלבד). */
 const TICK_MS = 10_000;
 
@@ -58,13 +71,18 @@ export type SyncState = {
   busy: boolean;
   lastPushAt: number | null;
   lastMirrorAt: number | null;
+  /** התקדמות המראה הנוכחית - null כשאין אחת רצה */
+  mirrorProgress: { done: number; total: number } | null;
+  /** הושלמה מראה מלאה ולו פעם אחת. false = נתק יציג מסך ריק */
+  mirrorReady: boolean;
   lastPushed: number;
   error: string | null;
 };
 
 let state: SyncState = {
   enabled: false, pending: 0, resolved: [], conflicts: [], busy: false,
-  lastPushAt: null, lastMirrorAt: null, lastPushed: 0, error: null,
+  lastPushAt: null, lastMirrorAt: null, mirrorProgress: null, mirrorReady: false,
+  lastPushed: 0, error: null,
 };
 
 const listeners = new Set<() => void>();
@@ -136,17 +154,54 @@ export async function pushPending(force = false): Promise<number> {
   }
 }
 
-/** מושכת את תמונת המצב מהמרכז וקולטת אותה למאגר המקומי. */
+/** רשימת הטבלאות מהמרכז, בסדר התלויות. נקראת פעם אחת לכל סשן. */
+let mirrorTables: string[] | null = null;
+
+/** מהיכן להמשיך כשמראה נקטעה באמצע. */
+let mirrorCursor = 0;
+
+/**
+ * מושכת את תמונת המצב מהמרכז וקולטת אותה למאגר המקומי - **בחלקים**.
+ *
+ * ⚠️ בקשה אחת לכל 128 הטבלאות נמדדה ב-10.5 שניות מול תקרת זמן של 8 בפרוקסי
+ * של העמדה, ולכן נפלה ב-502 **תמיד**. המאגר המקומי נשאר ריק, ובמעבר לנתק
+ * המסך התרוקן. כאן כל קבוצה היא בקשה קצרה בפני עצמה.
+ *
+ * **קטיעה אינה אובדן:** מה שנקלט כבר יושב במאגר, `mirrorCursor` זוכר היכן
+ * נעצרנו, והסיבוב הבא ממשיך משם. זה מה שהופך רשת רועדת מ"אף פעם לא מסתיים"
+ * ל"מתקדם לאט".
+ */
 export async function pullMirror(): Promise<boolean> {
   if (!state.enabled || state.busy) return false;
   set({ busy: true });
   try {
-    const snap = await jsonOf(await fetch(`${REMOTE}/mirror`, { cache: 'no-store' }));
-    await jsonOf(await post(`${LOCAL}/mirror`, snap));
-    set({ lastMirrorAt: Date.now(), error: null });
+    if (!mirrorTables) {
+      const d = await jsonOf(await fetch(`${REMOTE}/mirror/tables`, { cache: 'no-store' }));
+      mirrorTables = Array.isArray(d.tables) ? (d.tables as string[]) : [];
+      mirrorCursor = 0;
+    }
+    const all: string[] = mirrorTables ?? [];
+    if (!all.length) { set({ error: 'רשימת הטבלאות ריקה' }); return false; }
+
+    for (; mirrorCursor < all.length; mirrorCursor += MIRROR_BATCH) {
+      const batch = all.slice(mirrorCursor, mirrorCursor + MIRROR_BATCH);
+      set({ mirrorProgress: { done: mirrorCursor, total: all.length } });
+      const snap = await jsonOf(await fetch(
+        `${REMOTE}/mirror?tables=${encodeURIComponent(batch.join(','))}`, { cache: 'no-store' }));
+      await jsonOf(await post(`${LOCAL}/mirror`, snap));
+    }
+
+    // סבב שהושלם - הרשימה נקראת מחדש בפעם הבאה, כדי שטבלה שנוספה בשרת
+    // תיכנס למראה בלי להפעיל מחדש את העמדה. בקשה אחת זעירה כל 45 שניות.
+    mirrorTables = null;
+    mirrorCursor = 0;
+    set({ lastMirrorAt: Date.now(), mirrorProgress: null, mirrorReady: true, error: null });
     return true;
   } catch (err) {
-    set({ error: String((err as Error)?.message || err) });
+    // ⚠️ **הרשימה והמונה נשמרים בכוונה.** איפוס שלהם כאן היה מתחיל את המראה
+    // מאפס בכל כשל, ורשת רועדת הייתה משאירה את העמדה ריקה לנצח - הסבב הבא
+    // ממשיך בדיוק מהקבוצה שנפלה.
+    set({ error: String((err as Error)?.message || err), mirrorProgress: null });
     return false;
   } finally {
     set({ busy: false });
@@ -165,6 +220,18 @@ export async function resolveConflict(key: string, choice: 'mine' | 'theirs'): P
   const d = await res.json();
   await readLocalState();
   if (d.force) await pushPending(true);
+}
+
+/**
+ * לבדיקות בלבד: מדליק את המנוע ומאפס את מצב המראה.
+ *
+ * המנוע דולק רק אחרי שקריאת המצב מהמאגר המקומי הצליחה, וזו תלות שאין טעם
+ * לשחזר בכל בדיקה של חלוקת המראה לקבוצות.
+ */
+export function __enableForTests(): void {
+  state = { ...state, enabled: true, busy: false, mirrorReady: false, mirrorProgress: null };
+  mirrorTables = null;
+  mirrorCursor = 0;
 }
 
 let timer: ReturnType<typeof setInterval> | null = null;
