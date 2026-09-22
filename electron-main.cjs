@@ -446,6 +446,10 @@ async function createWindow() {
         airPictureTarget: target.airPictureTarget, airPictureToken: target.airPictureToken,
         localApiTarget: () => localDb.url,
         port: stationPort(target.cfg),
+        // מי מורשה לדבר עם הסוכן מדפדפן שעל אותו מחשב. ברירת המחדל היא
+        // `apiTarget` ולוקלהוסט; ALLOWED_ORIGINS מוסיף פריסה עם כתובת אחרת.
+        allowedOrigins: Array.isArray(target.cfg && target.cfg.ALLOWED_ORIGINS)
+          ? target.cfg.ALLOWED_ORIGINS : [],
       });
       stationServer = station;
       target = { mode: 'bundled', url: station.url, apiTarget: target.apiTarget, cfg: target.cfg };

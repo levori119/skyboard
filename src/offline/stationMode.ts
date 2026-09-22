@@ -90,6 +90,17 @@ const lastKnownStation = (): StationStatus | false =>
   state.station && typeof state.station === 'object' ? state.station : false;
 
 /**
+ * מבטל את ההכרעה "אין שרת עמדה", כדי שהבדיקה הבאה תרוץ מחדש.
+ *
+ * נקרא כשסוכן עמדה נמצא על המחשב **אחרי** שהדף כבר קבע שאין שרת עמדה: בלי
+ * זה `state.station === false` היה מקפיא את החיווי על "צפייה בלבד" לנצח, גם
+ * כשהמאגר המקומי כבר עונה מהסוכן.
+ */
+export function resetStationProbe(): void {
+  if (state.station === false) set({ station: null });
+}
+
+/**
  * קורא את מצב העמדה משרת העמדה.
  *
  * הנתיב אינו קיים בדפדפן רגיל, ו-404 מכבה את החיווי לצמיתות - אותה תבנית

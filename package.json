@@ -33,6 +33,7 @@
     "mirage": "node --env-file-if-exists=.env mirage/server.js",
     "whisper:fetch": "node scripts/fetch-whisper.mjs",
     "build:local-server": "node scripts/build-local-server.mjs",
+    "verify:web-agent": "node scripts/verify-web-agent.mjs",
     "electron:build:station": "npm run build && npm run build:local-server && electron-builder --config electron-builder.station.json",
     "station": "node scripts/station.mjs"
   },

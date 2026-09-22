@@ -201,6 +201,61 @@ function serveStatic(res, distDir, urlPath) {
   });
 }
 
+// ── מי מורשה לדבר עם הסוכן ────────────────────────────────────────────────────
+// הסוכן מאזין על 127.0.0.1 בלבד, ולכן אינו חשוף לרשת - אבל **כל** אתר שהמפעיל
+// פותח בטאב אחר יכול לשלוח אליו בקשות מהדפדפן שלו. בלי שער מקורות, דף זדוני
+// היה קורא את מידע השדה שבעמדה וכותב אליו. זהו ממצא SK-07 בגרסתו המקומית.
+//
+// מורשים: המקור של השרת המרכזי שהסוכן מוגדר מולו (זה הדף שהפקח פותח), לוקלהוסט
+// לפיתוח, ומה שנוסף במפורש ב-`ALLOWED_ORIGINS` בקובץ התצורה.
+const LOCALHOST_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i;
+
+function createOriginGate(apiTarget, extra = []) {
+  const allowed = new Set();
+  try { allowed.add(new URL(apiTarget).origin); } catch { /* יעד לא תקין */ }
+  for (const o of extra) {
+    try { allowed.add(new URL(o).origin); } catch { /* ערך שגוי בתצורה */ }
+  }
+  return (origin) => !!origin && (allowed.has(origin) || LOCALHOST_ORIGIN.test(origin));
+}
+
+/** הכותרות שהלקוח שולח. מפורטות ולא `*`, כי `*` אינו תקף עם Authorization. */
+const CORS_REQUEST_HEADERS = 'Content-Type, Authorization, X-Env, X-Action-Id, X-Workstation, X-Station-Key';
+/** כותרות תשובה שהלקוח חייב לראות - בלעדיהן אין ביטול פעולה ואין חיווי גיל. */
+const CORS_EXPOSE_HEADERS = 'X-Undo-Action, x-skyking-from-cache, x-skyking-cached-at';
+
+/**
+ * עונה על preflight ומוסיפה כותרות CORS לתשובה. מחזירה false אם הטיפול הסתיים.
+ *
+ * ⚠️ `Access-Control-Allow-Private-Network` נחוץ בכרום: בקשה מדף ציבורי
+ * (https) אל כתובת ברשת הפרטית (127.0.0.1) עוברת בדיקת Private Network Access
+ * נפרדת, ובלי הכותרת היא נחסמת - גם כששאר ה-CORS תקין לחלוטין.
+ */
+function applyCors(req, res, allowOrigin) {
+  const origin = req.headers.origin;
+  if (!origin) return true;                    // בקשה מאותו מקור - אין CORS
+  if (!allowOrigin(origin)) {
+    if (req.method === 'OPTIONS') { res.writeHead(403); res.end(); return false; }
+    return true;   // הבקשה תיענה, והדפדפן יחסום אותה בעצמו בהיעדר הכותרות
+  }
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Expose-Headers', CORS_EXPOSE_HEADERS);
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers',
+      req.headers['access-control-request-headers'] || CORS_REQUEST_HEADERS);
+    res.setHeader('Access-Control-Max-Age', '600');
+    if (req.headers['access-control-request-private-network'] === 'true') {
+      res.setHeader('Access-Control-Allow-Private-Network', 'true');
+    }
+    res.writeHead(204);
+    res.end();
+    return false;
+  }
+  return true;
+}
+
 /**
  * מרים את שרת העמדה.
  * @param {{distDir: string, apiTarget: string, port?: number, host?: string, timeoutMs?: number}} opts
@@ -214,14 +269,26 @@ function createStationServer({
   // אפשר לעבוד על העמדה האמיתית - עם המאגר המקומי ועם כפתור הנתק - בלי
   // build אחרי כל שינוי. בייצור הוא null, והנכסים מגיעים מהדיסק.
   staticTarget = null,
+  // מקורות נוספים שמותר להם לדבר עם הסוכן, מעבר ל-`apiTarget` וללוקלהוסט.
+  // ברירת המחדל ריקה בכוונה: הרשימה הזו היא כל מה שעומד בין מידע השדה שבעמדה
+  // לבין אתר אקראי שהמפעיל פתח בטאב אחר.
+  allowedOrigins = [],
 }) {
   // הנתב מחזיק את מצב הקשר לשרת המרכזי ומכריע לאן כל בקשת /api הולכת.
   const router = createApiRouter({ apiTarget, localTarget: localApiTarget, mode: localMode, timeoutMs });
   // גשר הזהות: לוכד כניסה מוצלחת כדי שאפשר יהיה להיכנס ולעבוד גם בנתק.
   const authBridge = createAuthBridge({ localTarget: localApiTarget, timeoutMs });
 
+  const allowOrigin = createOriginGate(apiTarget, allowedOrigins);
+
   const server = http.createServer((req, res) => {
     const urlPath = (req.url || '/').split('?')[0];
+
+    // ── הדפדפן שעל המחשב ─────────────────────────────────────────────────────
+    // עמדה שעולה ב-WEB פותחת את הכתובת של SKY-KING, ולא את הסוכן - ולכן כל
+    // בקשה אליו היא cross-origin. בלי הכותרות האלה הדפדפן בולע אותה עוד לפני
+    // שהיא יוצאת, והמפעיל רואה "אין מאגר מקומי" בזמן שהסוכן רץ ומחכה.
+    if (!applyCors(req, res, allowOrigin)) return;
 
     // ── מצב העמדה ────────────────────────────────────────────────────────────
     // נתיב מקומי לחלוטין שאינו מגיע לאף שרת: הוא **חייב** לענות גם בנתק מלא,
@@ -229,7 +296,13 @@ function createStationServer({
     // מאיזה מאגר המידע שלפניו מגיע.
     if (urlPath === STATION_STATUS_PATH) {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-      res.end(JSON.stringify({ ...router.status(), offlineSessions: authBridge.knownSessions() }));
+      // `apiTarget` אינו קישוט: הדפדפן משווה אותו למקור של הדף, ומסרב לעבוד
+      // מול סוכן שהוגדר מול שרת אחר. ראה src/offline/stationAgent.ts.
+      res.end(JSON.stringify({
+        ...router.status(),
+        apiTarget,
+        offlineSessions: authBridge.knownSessions(),
+      }));
       return;
     }
 
@@ -378,6 +451,8 @@ module.exports = {
   AIR_PICTURE_PATH,
   STATION_STATUS_PATH,
   STATION_OUTAGE_PATH,
+  createOriginGate,
+  applyCors,
   resolveStaticPath,
   isAssetLike,
 };

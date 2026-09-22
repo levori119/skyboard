@@ -364,3 +364,80 @@ describe('שרת העמדה - פורט', () => {
     await first.close();
   });
 });
+
+// ── הדפדפן שעל המחשב ─────────────────────────────────────────────────────────
+// עמדה שעולה ב-WEB פותחת את הכתובת של SKY-KING, ולא את הסוכן. כל בקשה אליו
+// היא cross-origin, ובלי הכותרות האלה הדפדפן בולע אותה עוד לפני שהיא יוצאת -
+// והמפעיל רואה "אין מאגר מקומי" בזמן שהסוכן רץ ומחכה.
+describe('שער המקורות של הסוכן', () => {
+  const PAGE = 'https://sky-king.example.com';
+  let dist, station;
+
+  const call = (url, opts = {}) => new Promise((resolve) => {
+    const req = http.request(url, opts, res => {
+      let body = '';
+      res.on('data', c => { body += c; });
+      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body }));
+    });
+    req.on('error', () => resolve({ status: 0, headers: {}, body: '' }));
+    req.end();
+  });
+
+  beforeAll(async () => {
+    dist = fs.mkdtempSync(path.join(os.tmpdir(), 'skyking-dist-cors-'));
+    fs.writeFileSync(path.join(dist, 'index.html'), '<html>SKY-KING</html>');
+    station = await createStationServer({ distDir: dist, apiTarget: `${PAGE}/`, port: 0 });
+  });
+  afterAll(async () => {
+    await station.close();
+    fs.rmSync(dist, { recursive: true, force: true });
+  });
+
+  it('הדף של SKY-KING מקבל את מצב העמדה, עם apiTarget להשוואה', async () => {
+    const r = await call(`${station.url}/api/__station/status`, { headers: { Origin: PAGE } });
+    expect(r.status).toBe(200);
+    expect(r.headers['access-control-allow-origin']).toBe(PAGE);
+    expect(JSON.parse(r.body).apiTarget).toBe(`${PAGE}/`);
+  });
+
+  // זהו ממצא SK-07 בגרסתו המקומית: הסוכן מאזין רק על 127.0.0.1, אבל כל אתר
+  // שהמפעיל פתח בטאב אחר יכול לשלוח אליו בקשות מהדפדפן שלו.
+  it('אתר זר אינו מקבל את הכותרת, ו-preflight שלו נדחה', async () => {
+    const r = await call(`${station.url}/api/__station/status`, { headers: { Origin: 'https://evil.example.com' } });
+    expect(r.headers['access-control-allow-origin']).toBeUndefined();
+
+    const pre = await call(`${station.url}/api/strips`, {
+      method: 'OPTIONS',
+      headers: { Origin: 'https://evil.example.com', 'Access-Control-Request-Method': 'POST' },
+    });
+    expect(pre.status).toBe(403);
+  });
+
+  it('preflight מהדף מאשר את הכותרות ואת הרשת הפרטית', async () => {
+    const r = await call(`${station.url}/api/strips`, {
+      method: 'OPTIONS',
+      headers: {
+        Origin: PAGE,
+        'Access-Control-Request-Method': 'PATCH',
+        'Access-Control-Request-Headers': 'authorization, x-env',
+        'Access-Control-Request-Private-Network': 'true',
+      },
+    });
+    expect(r.status).toBe(204);
+    expect(r.headers['access-control-allow-methods']).toContain('PATCH');
+    expect(r.headers['access-control-allow-headers']).toContain('authorization');
+    // בלי זה כרום חוסם בקשה מדף ציבורי אל 127.0.0.1 גם כששאר ה-CORS תקין
+    expect(r.headers['access-control-allow-private-network']).toBe('true');
+  });
+
+  it('הכותרות שהלקוח חייב לראות נחשפות - ביטול פעולה וגיל המידע', async () => {
+    const r = await call(`${station.url}/api/__station/status`, { headers: { Origin: PAGE } });
+    expect(r.headers['access-control-expose-headers']).toContain('X-Undo-Action');
+    expect(r.headers['access-control-expose-headers']).toContain('x-skyking-cached-at');
+  });
+
+  it('לוקלהוסט מותר - שם רצים הפיתוח והבדיקות', async () => {
+    const r = await call(`${station.url}/api/__station/status`, { headers: { Origin: 'http://localhost:5000' } });
+    expect(r.headers['access-control-allow-origin']).toBe('http://localhost:5000');
+  });
+});

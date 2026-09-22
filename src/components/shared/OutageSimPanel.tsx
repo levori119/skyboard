@@ -28,6 +28,7 @@ import {
 import {
   getSyncState, subscribeSync, startSyncClient, pushPending, pullMirror,
 } from '../../offline/syncClient';
+import { getAgentState, subscribeAgent, agentOrigin } from '../../offline/stationAgent';
 import SyncConflictsModal from './SyncConflictsModal';
 
 /** צבעי משמעות - קבועים בכל תמה. */
@@ -49,6 +50,7 @@ export default function OutageSimPanel() {
 
   const station = React.useSyncExternalStore(subscribeStation, getStationState, getStationState);
   const sync = React.useSyncExternalStore(subscribeSync, getSyncState, getSyncState);
+  const agentState = React.useSyncExternalStore(subscribeAgent, getAgentState, getAgentState);
   const [open, setOpen] = React.useState(false);
   const [showConflicts, setShowConflicts] = React.useState(false);
   const [, tick] = React.useReducer((n: number) => n + 1, 0);
@@ -69,6 +71,21 @@ export default function OutageSimPanel() {
     const iv = setInterval(tick, 1000);
     return () => clearInterval(iv);
   }, [outage]);
+
+  /**
+   * למה אין מאגר מקומי - ולא רק "אין".
+   *
+   * המשפט "נתק יאפשר צפייה בלבד" נכון, אבל הוא משאיר את הפקח בלי מושג מה
+   * לעשות. שלוש הסיבות הן שלוש פעולות שונות לגמרי: להמתין, להתקין סוכן, או
+   * לתקן את הכתובת שהסוכן מוגדר מולה.
+   */
+  const noLocalDbReason = () => {
+    // יש שרת עמדה והוא מדווח שאין מאגר - שם הסיבה היא המאגר, לא הסוכן
+    if (station.station !== false) return tr('sync.noLocalDb');
+    if (agentState.reason === 'searching') return tr('sync.agentSearching');
+    if (agentState.reason === 'mismatch') return tr('sync.agentMismatch');
+    return tr('sync.agentMissing', { origin: agentOrigin().replace(/^https?:\/\//, '') });
+  };
 
   const conflicts = sync.conflicts.length;   // דורש אדם
   const resolved = sync.resolved.length;     // הוכרע אוטומטית - לידיעה בלבד
@@ -164,7 +181,7 @@ export default function OutageSimPanel() {
           <div style={{ color: C.sub, fontWeight: 600, fontSize: 10.5 }}>
             {local
               ? (outage ? tr('sync.servingLocal') : tr('sync.servingRemote'))
-              : tr('sync.noLocalDb')}
+              : noLocalDbReason()}
           </div>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>

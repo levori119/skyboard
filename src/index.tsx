@@ -9,6 +9,7 @@ import { installAuthFetchInterceptor } from './utils/authToken'
 import { installStationFetchInterceptor } from './utils/undoStation'
 import { installPeekWriteGuard, installPeekPollThrottle } from './utils/stationPeek'
 import { installOfflineFetch } from './offline'
+import { installStationAgentFetch, startAgentDiscovery } from './offline/stationAgent'
 import App from './App'
 
 // הפרדה בין פיתוח לפרודקשן: הרצה מקומית נצבעת ורוד (ראה body.dev-mode ב-App.css).
@@ -25,6 +26,13 @@ import App from './App'
 if (import.meta.env.DEV && localStorage.getItem('bt-dev-marker') !== 'off') {
   document.body.classList.add('dev-mode')
 }
+
+// סוכן העמדה: עמדה שעולה ב-WEB מקבלת מאגר מקומי משירות שרץ על המחשב, וכאן
+// מופנית אליו התעבורה. **מותקן ראשון, ולכן הפנימי ביותר בשרשרת** - הכתובת
+// מוחלפת רק אחרי שיירוטי האסימון, הסביבה והעמדה כבר סימנו את הבקשה, כי כולם
+// מזהים נתיב יחסי בלבד. בלי סוכן זו פעולה ריקה.
+installStationAgentFetch()
+startAgentDiscovery()
 
 // אימות (SK-01): כל קריאת API נושאת את אסימון ההזדהות. **ראשון בשרשרת** —
 // כך הוא עוטף גם את יירוט הסביבה וגם את יירוט הנתק, ולכן משודר מחדש מה-outbox

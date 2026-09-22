@@ -34,6 +34,18 @@
       "he": "אין מאגר מקומי בעמדה - נתק יאפשר צפייה בלבד.",
       "en": "No local database on this station - an outage allows viewing only."
     },
+    "agentSearching": {
+      "he": "מחפש סוכן עמדה על המחשב...",
+      "en": "Looking for a station agent on this computer..."
+    },
+    "agentMissing": {
+      "he": "אין מאגר מקומי - לא נמצא סוכן עמדה על המחשב ({{origin}}).",
+      "en": "No local database - no station agent found on this computer ({{origin}})."
+    },
+    "agentMismatch": {
+      "he": "סוכן העמדה שעל המחשב מוגדר מול שרת אחר, ולכן אינו משמש.",
+      "en": "The station agent on this computer points at a different server and is not used."
+    },
     "pending": {
       "he": "{{n}} ממתינות לסנכרון",
       "en": "{{n}} awaiting sync"

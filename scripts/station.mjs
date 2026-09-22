@@ -94,6 +94,9 @@ const station = await createStationServer({
   staticTarget: flag('dist') ? null : VITE,
   localApiTarget: () => localDb.url,
   port: PORT,
+  // בפיתוח הדף נפתח גם מ-5000 (Vite) וגם מהסוכן עצמו; שניהם לוקלהוסט
+  // ולכן מותרים ממילא. הדגל קיים כדי לבדוק פריסה עם כתובת אמיתית.
+  allowedOrigins: (arg('origins', '') || '').split(',').map(s => s.trim()).filter(Boolean),
 });
 
 console.log(`
