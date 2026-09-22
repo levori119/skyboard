@@ -1,15 +1,20 @@
-// מסך יישוב הסתירות - ההכרעה האנושית שהמערכת מסרבת לקבל במקום הבקר.
+// יומן ההכרעות בסנכרון - **לא** מסך שעוצר את הבקר.
 //
-// מתי הוא נפתח: העמדה עבדה בנתק, ובזמן הזה עמדה אחרת נגעה באותו פ"מ. אין
-// כאן תשובה נכונה שאפשר לחשב - יש שתי גרסאות, ומי שיודע מה קרה בשמיים הוא
-// האדם שיושב מול המסך. לכן המסך מציג את **שתיהן זו מול זו**, מסמן מה בדיוק
-// שונה, ונותן שתי אפשרויות בלבד.
+// המערכת מכריעה לבדה לפי "האחרון מנצח" (server/sync/apply.js), כי בפועל פעילה
+// עמדה אחת מכל סוג ופ"מ שנגרר בנתק כמעט לעולם אינו נגוע גם במרכז. מסך שהיה
+// עוצר את הבקר אחרי כל נתק כדי לאשר את מה שממילא נכון הוא צעד נוסף מול הסדק.
+//
+// מה כן יש כאן, ולמה:
+//   · **שקיפות** - מה הוכרע לטובת המרכז, ומה בדיוק היה שונה. הבקר אינו מופתע.
+//   · **היפוך** - "החזר את הגרסה שלי" דוחף אותה בכפייה, למקרה שההכרעה
+//     האוטומטית פספסה.
+//   · **המעט שלא הוכרע** (אין חותמת זמן, כשל כתיבה) - שם באמת צריך אדם.
 //
 // למה אין "מיזוג": פ"מ אינו מסמך טקסט. מיזוג של גובה מגרסה אחת ועמדה מגרסה
-// שנייה מייצר מצב שאיש משני הצדדים לא בחר בו - וזו בדיוק הדרך לאבד מטוס בין
-// שתי עמדות.
+// שנייה מייצר מצב שאיש משני הצדדים לא בחר בו - וזו הדרך לאבד מטוס בין שתי
+// עמדות.
 //
-// /ui-adapt: שלוש התמות + סקייל. צבעי ההשוואה (ענבר=שלי, תורכיז=השרת) קבועים
+// /ui-adapt: שלוש התמות + סקייל. צבעי ההשוואה (ענבר=שלי, תורכיז=המרכז) קבועים
 // בכל תמה - הם נושאי משמעות ולא עיצוב.
 
 import React from 'react';
@@ -70,11 +75,17 @@ export default function SyncConflictsModal({ onClose }: { onClose: () => void })
   const [busyKey, setBusyKey] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
-  // כשהוכרעה הסתירה האחרונה אין עוד מה להציג, והחלון נסגר מעצמו. חלון ריק
-  // שנשאר פתוח הוא דבר שהמפעיל צריך לסגור בלי סיבה.
+  // מה שלא הוכרע קודם, ואחריו מה שהוכרע לבד - הסדר הזה הוא סדר הדחיפות.
+  const items = React.useMemo(
+    () => [...sync.conflicts, ...sync.resolved],
+    [sync.conflicts, sync.resolved],
+  );
+
+  // כשלא נשאר מה להציג, החלון נסגר מעצמו. חלון ריק שנשאר פתוח הוא דבר
+  // שהמפעיל צריך לסגור בלי סיבה.
   React.useEffect(() => {
-    if (!sync.conflicts.length) onClose();
-  }, [sync.conflicts.length]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!items.length) onClose();
+  }, [items.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -126,9 +137,9 @@ export default function SyncConflictsModal({ onClose }: { onClose: () => void })
           display: 'flex', alignItems: 'center', gap: 8,
           padding: '10px 14px', borderBlockEnd: `1px solid ${C.line}`,
         }}>
-          <strong style={{ fontSize: 14 }}>⚠ {tr('sync.conflictsTitle')}</strong>
+          <strong style={{ fontSize: 14 }}>{tr('sync.conflictsTitle')}</strong>
           <span style={{ color: C.sub, fontSize: 11.5, fontWeight: 600 }}>
-            {tr('sync.conflictsCount', { n: sync.conflicts.length })}
+            {tr('sync.conflictsCount', { n: items.length })}
           </span>
           <button
             type="button"
@@ -146,17 +157,23 @@ export default function SyncConflictsModal({ onClose }: { onClose: () => void })
         </div>
 
         <div style={{ overflowY: 'auto', padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {sync.conflicts.map(c => {
+          {items.map(c => {
             const fields = differingFields(c);
             const busy = busyKey === c.key;
+            const auto = c.status === 'superseded';
             return (
               <div key={c.key} style={{
                 background: C.panel, borderRadius: 8, padding: 10,
                 border: `1px solid ${C.line}`, opacity: busy ? 0.6 : 1,
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBlockEnd: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBlockEnd: 8, flexWrap: 'wrap' }}>
                   <strong style={{ fontSize: 13 }}>{titleOf(c)}</strong>
                   <span style={{ color: C.sub, fontSize: 10.5, fontWeight: 600 }}>{c.table}</span>
+                  {/* מה הוכרע, ולמה. הבקר קורא שורה אחת ויודע מה קרה לפ"מ הזה */}
+                  <span style={{
+                    background: auto ? SIDE.theirs : '#ef4444', color: auto ? '#0f172a' : '#fff',
+                    borderRadius: 4, padding: '1px 6px', fontSize: 10.5, fontWeight: 800,
+                  }}>{auto ? tr('sync.autoResolved') : tr('sync.needsYou')}</span>
                   <span style={{
                     marginInlineStart: 'auto', color: C.sub, fontSize: 10.5, fontWeight: 600,
                   }}>{tr(`sync.reason.${c.reason}`)}</span>
@@ -187,15 +204,27 @@ export default function SyncConflictsModal({ onClose }: { onClose: () => void })
                   </div>
                 )}
 
+                {/* בשורה שהוכרעה לבד די בכפתור אחד: גרסת המרכז **כבר** אומצה
+                    כאן, וכל מה שנותר הוא האפשרות להפוך אותה. שני כפתורים היו
+                    מציעים לבחור במשהו שכבר נבחר. */}
                 <div style={{ display: 'flex', gap: 8, marginBlockStart: 10 }}>
                   <button
                     type="button" disabled={busy} style={sideBtn(SIDE.mine)}
                     onClick={() => { void decide(c, 'mine'); }}
-                  >{tr('sync.keepMine')}</button>
-                  <button
-                    type="button" disabled={busy} style={sideBtn(SIDE.theirs)}
-                    onClick={() => { void decide(c, 'theirs'); }}
-                  >{tr('sync.keepTheirs')}</button>
+                  >{auto ? tr('sync.revertToMine') : tr('sync.keepMine')}</button>
+                  {!auto && (
+                    <button
+                      type="button" disabled={busy} style={sideBtn(SIDE.theirs)}
+                      onClick={() => { void decide(c, 'theirs'); }}
+                    >{tr('sync.keepTheirs')}</button>
+                  )}
+                  {auto && (
+                    <button
+                      type="button" disabled={busy}
+                      style={{ ...sideBtn(C.line), color: C.text }}
+                      onClick={() => { void decide(c, 'theirs'); }}
+                    >{tr('sync.acceptDecision')}</button>
+                  )}
                 </div>
               </div>
             );

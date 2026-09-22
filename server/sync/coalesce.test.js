@@ -97,3 +97,36 @@ describe('coalesceJournal', () => {
     expect(ops[0].baseRev).toBeNull();
   });
 });
+
+describe('localAt - הזמן שמכריע בסנכרון', () => {
+  it('נלקח מהשינוי האחרון לאותה שורה', () => {
+    const [op] = coalesceJournal([
+      { id: 1, op: 'U', pk: { id: 5 }, table_schema: 'public', table_name: 'strips',
+        before: { id: 5, rev: 1, updated_at: '2026-09-22T10:00:00Z' },
+        after: { id: 5, rev: 2, updated_at: '2026-09-22T10:01:00Z' } },
+      { id: 2, op: 'U', pk: { id: 5 }, table_schema: 'public', table_name: 'strips',
+        before: { id: 5, rev: 2, updated_at: '2026-09-22T10:01:00Z' },
+        after: { id: 5, rev: 3, updated_at: '2026-09-22T10:09:00Z' } },
+    ]);
+    // הראשון קובע את הגרסה הבסיסית, האחרון את הזמן - שני דברים שונים
+    expect(op.baseRev).toBe(1);
+    expect(op.localAt).toBe('2026-09-22T10:09:00Z');
+  });
+
+  it('במחיקה נלקח מה-before, כי אין after', () => {
+    const [op] = coalesceJournal([
+      { id: 1, op: 'D', pk: { id: 5 }, table_schema: 'public', table_name: 'strips',
+        before: { id: 5, rev: 4, updated_at: '2026-09-22T10:00:00Z' }, after: null },
+    ]);
+    expect(op.localAt).toBe('2026-09-22T10:00:00Z');
+  });
+
+  it('טבלה בלי updated_at - נופל לזמן הרישום ביומן', () => {
+    const [op] = coalesceJournal([
+      { id: 1, at: '2026-09-22T10:02:00Z', op: 'U', pk: { id: 5 },
+        table_schema: 'public', table_name: 'strips',
+        before: { id: 5 }, after: { id: 5, x: 1 } },
+    ]);
+    expect(op.localAt).toBe('2026-09-22T10:02:00Z');
+  });
+});

@@ -34,7 +34,9 @@ export type SyncConflict = {
   table: string;
   pk: Record<string, unknown>;
   at: string;
-  reason: 'changed' | 'missing' | 'exists' | string;
+  /** `superseded` = הוכרע אוטומטית לטובת המרכז · `conflict` = לא ניתן להכריע */
+  status?: 'superseded' | 'conflict' | string;
+  reason: 'newer_there' | 'deleted_there' | 'no_timestamp' | string;
   /** השורה כפי שהמרכז מחזיק אותה עכשיו */
   serverRow: Record<string, unknown> | null;
   /** השורה כפי שהיא בעמדה בסוף הנתק */
@@ -46,6 +48,12 @@ export type SyncState = {
   /** false = אין מאגר מקומי בעמדה, ואין מה לסנכרן */
   enabled: boolean;
   pending: number;
+  /**
+   * הוכרעו **אוטומטית** לטובת המרכז (האחרון מנצח). אינן עוצרות את הבקר -
+   * הן שם כדי שיראה מה הוכרע, ויוכל להפוך אם אינו מסכים.
+   */
+  resolved: SyncConflict[];
+  /** מעט השורות שלא ניתן היה להכריע אוטומטית. רק אלה דורשות אדם. */
   conflicts: SyncConflict[];
   busy: boolean;
   lastPushAt: number | null;
@@ -55,7 +63,7 @@ export type SyncState = {
 };
 
 let state: SyncState = {
-  enabled: false, pending: 0, conflicts: [], busy: false,
+  enabled: false, pending: 0, resolved: [], conflicts: [], busy: false,
   lastPushAt: null, lastMirrorAt: null, lastPushed: 0, error: null,
 };
 
@@ -89,6 +97,7 @@ async function readLocalState(): Promise<boolean> {
   set({
     enabled: true,
     pending: Number(d.pending) || 0,
+    resolved: Array.isArray(d.resolved) ? d.resolved : [],
     conflicts: Array.isArray(d.conflicts) ? d.conflicts : [],
   });
   return true;
@@ -107,7 +116,10 @@ export async function pushPending(force = false): Promise<number> {
     const { ops } = await jsonOf(await fetch(`${LOCAL}/outbound`, { cache: 'no-store' }));
     if (!ops?.length) return 0;
 
-    const { results } = await jsonOf(await post(`${REMOTE}/push`, { ops, force }));
+    // `stationNow` הוא מה שמאפשר למרכז לתרגם את שעון העמדה לשעון שלו לפני
+    // שהוא מכריע "מי עדכן אחרון". בלעדיו ההשוואה מודדת שני שעונים שונים.
+    const { results } = await jsonOf(
+      await post(`${REMOTE}/push`, { ops, force, stationNow: new Date().toISOString() }));
     await post(`${LOCAL}/ack`, { results });
 
     const applied = results.filter((r: { status: string }) =>
@@ -142,10 +154,10 @@ export async function pullMirror(): Promise<boolean> {
 }
 
 /**
- * הכרעת הבקר בסתירה.
+ * היפוך הכרעה, או הכרעה במה שלא הוכרע אוטומטית.
  *
  * 'mine' מחזיר את השורות לתור ומיד דוחף אותן **בכפייה** - אחרת הן היו נתקלות
- * שוב באותה בדיקת גרסה וחוזרות להיות סתירה, וההכרעה לא הייתה עושה דבר.
+ * שוב באותה השוואת זמנים, מפסידות שוב, וההכרעה של הבקר לא הייתה עושה דבר.
  */
 export async function resolveConflict(key: string, choice: 'mine' | 'theirs'): Promise<void> {
   const res = await post(`${LOCAL}/resolve`, { key, choice });

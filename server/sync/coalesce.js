@@ -81,11 +81,16 @@ export function coalesceJournal(entries) {
         baseRev: e.op === 'I' ? null : revOf(e.before),
         row: e.after ?? null,
         firstSeen: Number(e.id),
+        localAt: null,
         journalIds: [],
       };
       byRow.set(key, acc);
     }
     acc.lastOp = e.op;
+    // מתי המפעיל עשה את זה בפועל - זה מה שמכריע בסנכרון ('האחרון מנצח').
+    // `updated_at` של השורה עצמה קודם ל-`at` של היומן: הוא נקבע בטריגר הגרסה
+    // באותה טרנזקציה, ולכן הוא הזמן של השינוי ולא של הרישום עליו.
+    acc.localAt = (e.after && e.after.updated_at) || (e.before && e.before.updated_at) || e.at || acc.localAt;
     if (e.after) acc.row = e.after;
     acc.journalIds.push(Number(e.id));
   }
@@ -116,6 +121,7 @@ export function coalesceJournal(entries) {
       row: acc.row,
       journalIds: acc.journalIds,
       firstSeen: acc.firstSeen,
+      localAt: acc.localAt,
     });
   }
 

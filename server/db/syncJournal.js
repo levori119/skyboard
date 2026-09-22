@@ -39,7 +39,8 @@ export const SYNC_GUC = 'app.sync_apply';
 export const STATUS = {
   PENDING: 'pending',   // ממתינה לדחיפה
   SYNCED: 'synced',     // נדחפה בהצלחה
-  CONFLICT: 'conflict', // המרכז השתנה בינתיים — ממתינה להכרעת הבקר
+  SUPERSEDED: 'superseded', // המרכז עודכן מאוחר יותר - גרסתו אומצה כאן
+  CONFLICT: 'conflict', // לא ניתן היה להכריע אוטומטית - ממתינה להכרעת הבקר
   DROPPED: 'dropped',   // הבקר בחר בגרסת השרת
 };
 
@@ -188,6 +189,12 @@ export async function withoutJournal(client, fn, { begin = true } = {}) {
     if (begin) { try { await client.query('ROLLBACK'); } catch { /* connection מת */ } }
     throw err;
   } finally {
-    if (!begin) await client.query(`SELECT set_config('${SYNC_GUC}', '', true)`);
+    // ⚠️ אסור שהניקוי יזרוק: אחרי שגיאה הטרנזקציה כבר מבוטלת, וכל פקודה בה
+    // נכשלת ב-'current transaction is aborted'. השגיאה הזו הייתה **מחליפה**
+    // את השגיאה המקורית ומשאירה אותנו בלי מושג מה נשבר (נתפס בפועל).
+    if (!begin) {
+      try { await client.query(`SELECT set_config('${SYNC_GUC}', '', true)`); }
+      catch { /* הטרנזקציה מבוטלת - הסימון ירד איתה ממילא */ }
+    }
   }
 }

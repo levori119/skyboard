@@ -52,18 +52,29 @@ async function makeDb({ withJournal }) {
 
 /** מה שהעמדה צברה וטרם נדחף. */
 const pending = async () => (await localDb.query(
-  `SELECT id, table_schema, table_name, op, pk, before, after
+  `SELECT id, at, table_schema, table_name, op, pk, before, after
      FROM public.local_sync_journal WHERE status = '${STATUS.PENDING}' ORDER BY id`)).rows;
 
-/** דוחפת את כל מה שממתין, ומחזירה את תוצאות ההחלה. */
-async function push(opts = {}) {
+/**
+ * דוחפת את כל מה שממתין, ומחזירה את תוצאות ההחלה.
+ *
+ * `mutate` מאפשר לקבוע את `localAt` במפורש. ההכרעה היא "האחרון מנצח", ושתי
+ * כתיבות באותה מילישנייה על אותה מכונה הן תיקו - כלומר בדיקה מהבהבת. קביעת
+ * הזמן ביד הופכת את הבדיקה לדטרמיניסטית, ובודקת בדיוק את מה שמכריע בפועל.
+ */
+async function push(opts = {}, mutate = null) {
   const ops = coalesceJournal(await pending());
+  if (mutate) ops.forEach(mutate);
   const c = clientFor(centralDb);
   await centralDb.query('BEGIN');
   const results = await applyOps(c, ops, 'public', opts);
   await centralDb.query('COMMIT');
   return results;
 }
+
+/** חותמת זמן יחסית לעכשיו, בשניות. */
+const secsAgo = (s) => new Date(Date.now() - s * 1000).toISOString();
+const secsAhead = (s) => new Date(Date.now() + s * 1000).toISOString();
 
 /** קליטת "מראה" מהמרכז - חייבת לא להירשם ביומן. */
 const mirror = (sql, params) =>
@@ -135,25 +146,62 @@ describe('דחיפה למרכז', () => {
     expect(now.on_map).toBe(true);
   });
 
-  it('עמדה אחרת שינתה את הפ"מ - סתירה, והמרכז אינו נדרס', async () => {
+  it('שני הצדדים נגעו, והמרכז עודכן מאוחר יותר - גרסתו מנצחת', async () => {
     await seedMirrored();
     await localDb.query(`UPDATE public.strips SET alt = '250' WHERE id = 1`);
-    // בזמן הנתק, עמדה אחרת שינתה את אותו פ"מ במרכז
+    // בזמן הנתק, עמדה אחרת שינתה את אותו פ"מ במרכז - ואחרי העמדה
     await centralDb.query(`UPDATE public.strips SET alt = '400' WHERE id = 1`);
 
-    const [r] = await push();
-    expect(r.status).toBe(RESULT.CONFLICT);
-    expect(r.reason).toBe(REASON.CHANGED);
+    const [r] = await push({}, op => { op.localAt = secsAgo(60); });
+    expect(r.status).toBe(RESULT.SUPERSEDED);
+    expect(r.reason).toBe(REASON.NEWER_THERE);
+    expect(r.resolved).toBe('theirs');
     expect(r.serverRow.alt).toBe('400');
+    // המרכז לא נדרס, והעמדה תאמץ את גרסתו
     expect((await centralStrip(1)).alt).toBe('400');
   });
 
-  it('הכרעת הגרסה שלי דוחפת בכל זאת', async () => {
+  it('שני הצדדים נגעו, והעמדה עדכנה מאוחר יותר - גרסתה עוברת, בלי לשאול', async () => {
     await seedMirrored();
     await localDb.query(`UPDATE public.strips SET alt = '250' WHERE id = 1`);
     await centralDb.query(`UPDATE public.strips SET alt = '400' WHERE id = 1`);
 
-    const [r] = await push({ force: true });
+    const [r] = await push({}, op => { op.localAt = secsAhead(60); });
+    expect(r.status).toBe(RESULT.APPLIED);
+    expect(r.reason).toBe(REASON.NEWER_HERE);
+    expect(r.resolved).toBe('mine');
+    expect((await centralStrip(1)).alt).toBe('250');
+  });
+
+  it('הפרש שעונים מתוקן לפני ההשוואה', async () => {
+    await seedMirrored();
+    await localDb.query(`UPDATE public.strips SET alt = '250' WHERE id = 1`);
+    await centralDb.query(`UPDATE public.strips SET alt = '400' WHERE id = 1`);
+
+    // שעון העמדה מפגר בשעה. בלי תיקון היא הייתה מפסידה תמיד; עם `skewMs`
+    // הזמן שלה מתורגם לשעון המרכז והיא מנצחת, כי בפועל עדכנה אחרי.
+    const [r] = await push({ skewMs: 3600_000 }, op => { op.localAt = secsAgo(3500); });
+    expect(r.status).toBe(RESULT.APPLIED);
+    expect((await centralStrip(1)).alt).toBe('250');
+  });
+
+  it('בלי חותמת זמן אי אפשר להכריע - ורק אז עולה לבקר', async () => {
+    await seedMirrored();
+    await localDb.query(`UPDATE public.strips SET alt = '250' WHERE id = 1`);
+    await centralDb.query(`UPDATE public.strips SET alt = '400' WHERE id = 1`);
+
+    const [r] = await push({}, op => { op.localAt = null; });
+    expect(r.status).toBe(RESULT.CONFLICT);
+    expect(r.reason).toBe(REASON.NO_TIMESTAMP);
+    expect((await centralStrip(1)).alt).toBe('400');
+  });
+
+  it('היפוך ידני של הבקר דוחף בכפייה, בלי להשוות זמנים', async () => {
+    await seedMirrored();
+    await localDb.query(`UPDATE public.strips SET alt = '250' WHERE id = 1`);
+    await centralDb.query(`UPDATE public.strips SET alt = '400' WHERE id = 1`);
+
+    const [r] = await push({ force: true }, op => { op.localAt = secsAgo(3600); });
     expect(r.status).toBe(RESULT.APPLIED);
     expect((await centralStrip(1)).alt).toBe('250');
   });
@@ -191,13 +239,27 @@ describe('דחיפה למרכז', () => {
     expect(r.status).toBe(RESULT.APPLIED);
   });
 
-  it('עדכון לשורה שנמחקה במרכז - סתירה מסוג missing', async () => {
+  it('עדכון לשורה שנמחקה במרכז - המחיקה מנצחת, ואין מטוס רפאים', async () => {
     await seedMirrored();
     await localDb.query(`UPDATE public.strips SET alt = '250' WHERE id = 1`);
     await centralDb.query(`DELETE FROM public.strips WHERE id = 1`);
-    const [r] = await push();
-    expect(r.status).toBe(RESULT.CONFLICT);
-    expect(r.reason).toBe(REASON.MISSING);
+
+    // מחיקה במרכז היא פעולה מכוונת (פ"מ שנחת והוסר). שחזור השורה היה מחזיר
+    // מטוס שכבר אינו בשמיים אל המפה - ולכן היא אינה נשקלת מול הזמן.
+    const [r] = await push({}, op => { op.localAt = secsAhead(3600); });
+    expect(r.status).toBe(RESULT.SUPERSEDED);
+    expect(r.reason).toBe(REASON.DELETED_THERE);
+    expect(await centralStrip(1)).toBeUndefined();
+  });
+
+  it('הבקר יכול בכל זאת להחזיר פ"מ שנמחק במרכז', async () => {
+    await seedMirrored();
+    await localDb.query(`UPDATE public.strips SET alt = '250' WHERE id = 1`);
+    await centralDb.query(`DELETE FROM public.strips WHERE id = 1`);
+
+    const [r] = await push({ force: true });
+    expect(r.status).toBe(RESULT.APPLIED);
+    expect((await centralStrip(1)).alt).toBe('250');
   });
 
   it('עשר גרירות לאותו פ"מ - כתיבה אחת במרכז עם הערך האחרון', async () => {
@@ -224,15 +286,15 @@ describe('דחיפה למרכז', () => {
     expect(Number(tr.strip_id)).toBe(1500000003);
   });
 
-  it('סתירה בפ"מ אחד אינה מפילה את השאר', async () => {
+  it('הכרעה לרעת העמדה בפ"מ אחד אינה מפילה את השאר', async () => {
     await seedMirrored({ id: 1 });
     await seedMirrored({ id: 2, callsign: 'DEF' });
     await localDb.query(`UPDATE public.strips SET alt = '250' WHERE id IN (1, 2)`);
     await centralDb.query(`UPDATE public.strips SET alt = '999' WHERE id = 1`);
 
-    const results = await push();
+    const results = await push({}, op => { op.localAt = secsAgo(60); });
     const byId = Object.fromEntries(results.map(r => [r.pk.id, r]));
-    expect(byId[1].status).toBe(RESULT.CONFLICT);
+    expect(byId[1].status).toBe(RESULT.SUPERSEDED);
     expect(byId[2].status).toBe(RESULT.APPLIED);
     expect((await centralStrip(2)).alt).toBe('250');
   });

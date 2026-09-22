@@ -38,9 +38,13 @@
       "he": "{{n}} ממתינות לסנכרון",
       "en": "{{n}} awaiting sync"
     },
+    "resolvedAuto": {
+      "he": "{{n}} הוכרעו לטובת המרכז",
+      "en": "{{n}} decided for the centre"
+    },
     "conflicts": {
-      "he": "{{n}} סתירות",
-      "en": "{{n}} conflicts"
+      "he": "{{n}} דורשות הכרעה",
+      "en": "{{n}} need a decision"
     },
     "allSynced": {
       "he": "הכל מסונכרן",
@@ -55,24 +59,36 @@
       "en": "Refresh from centre"
     },
     "resolveNow": {
-      "he": "הכרע בסתירות",
-      "en": "Resolve conflicts"
+      "he": "הכרע עכשיו",
+      "en": "Decide now"
+    },
+    "showDecisions": {
+      "he": "מה הוכרע",
+      "en": "What was decided"
     },
     "lastError": {
       "he": "כשל אחרון:",
       "en": "Last error:"
     },
     "conflictsTitle": {
-      "he": "סתירות בסנכרון - נדרשת הכרעה",
-      "en": "Sync conflicts - decision required"
+      "he": "הכרעות הסנכרון",
+      "en": "Sync decisions"
     },
     "conflictsCount": {
-      "he": "{{n}} ממתינות",
-      "en": "{{n}} pending"
+      "he": "{{n}} שורות",
+      "en": "{{n}} rows"
     },
     "conflictsHelp": {
-      "he": "בזמן שהעמדה הייתה מנותקת, עמדה אחרת שינתה את אותם פ\"מים. המערכת אינה מכריעה במקומך: בחר לכל שורה איזו גרסה נכונה.",
-      "en": "While this station was disconnected, another station changed the same records. The system will not decide for you: choose the correct version for each row."
+      "he": "בזמן שהעמדה הייתה מנותקת, עמדה אחרת נגעה באותן שורות. ההכרעה נעשתה אוטומטית לפי מי שעדכן אחרון, וכאן רואים מה נקבע. אם ההכרעה אינה נכונה - אפשר להחזיר את הגרסה שלך.",
+      "en": "While this station was disconnected, another station touched the same rows. Each was decided automatically by who updated last; this is what was decided. If a decision is wrong, you can restore your version."
+    },
+    "autoResolved": {
+      "he": "הוכרע: גרסת המרכז",
+      "en": "Decided: central version"
+    },
+    "needsYou": {
+      "he": "דורש הכרעה",
+      "en": "Needs a decision"
     },
     "field": {
       "he": "שדה",
@@ -94,6 +110,14 @@
       "he": "קבל את המרכז",
       "en": "Accept central"
     },
+    "revertToMine": {
+      "he": "החזר את הגרסה שלי",
+      "en": "Restore my version"
+    },
+    "acceptDecision": {
+      "he": "אישרתי",
+      "en": "Acknowledged"
+    },
     "noFieldDiff": {
       "he": "אין הפרש בשדות - הגרסה במרכז התחלפה מאז.",
       "en": "No field differences - the central version changed since."
@@ -102,17 +126,21 @@
       "he": "השורה נמחקה במרכז בזמן הנתק.",
       "en": "The row was deleted centrally during the outage."
     },
-    "reason.changed": {
-      "he": "עמדה אחרת שינתה",
-      "en": "Changed by another station"
+    "reason.newer_here": {
+      "he": "העמדה עדכנה מאוחר יותר",
+      "en": "This station updated later"
     },
-    "reason.missing": {
-      "he": "נמחק במרכז",
-      "en": "Deleted centrally"
+    "reason.newer_there": {
+      "he": "המרכז עודכן מאוחר יותר",
+      "en": "The centre updated later"
     },
-    "reason.exists": {
-      "he": "המזהה כבר תפוס",
-      "en": "Identifier already taken"
+    "reason.deleted_there": {
+      "he": "נמחק במרכז - מחיקה מנצחת",
+      "en": "Deleted centrally - deletion wins"
+    },
+    "reason.no_timestamp": {
+      "he": "אין חותמת זמן להשוואה",
+      "en": "No timestamp to compare"
     },
     "reason.apply_failed": {
       "he": "הכתיבה נכשלה",

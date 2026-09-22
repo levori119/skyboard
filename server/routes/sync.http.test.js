@@ -261,3 +261,77 @@ describe('מראה', () => {
     expect(status).toBe(400);
   });
 });
+
+// ── הכרעה אוטומטית: האחרון מנצח ───────────────────────────────────────────────
+// זו המדיניות התפעולית. הבדיקות כאן מוודאות שהיא **לא** עוצרת את הבקר, ושמה
+// שהוכרע באמת מגיע למסך שלו - שני הצדדים של אותה החלטה.
+describe('הכרעה אוטומטית לטובת המרכז', () => {
+  /** מביא את העמדה למצב שבו שורה אחת הוכרעה לטובת המרכז. */
+  async function superseded(serverAlt = '900') {
+    await pool.query(`UPDATE public.strips SET alt = '250' WHERE id = 1`);
+    const { body: out } = await json('/api/sync/outbound');
+    await json('/api/sync/ack', {
+      method: 'POST',
+      body: JSON.stringify({
+        results: [{
+          status: 'superseded', reason: 'newer_there', resolved: 'theirs',
+          journalIds: out.ops[0].journalIds,
+          serverRow: serverAlt === null ? null : { id: 1, callsign: 'ABC', alt: serverAlt, rev: 9 },
+        }],
+      }),
+    });
+    const { body } = await json('/api/sync/state');
+    return body;
+  }
+
+  it('גרסת המרכז מאומצת בעמדה **מיד** - בלי להמתין לאישור', async () => {
+    await superseded('900');
+    // אילו האימוץ היה מחכה לבקר, המסך היה ממשיך להציג את הגרסה שהפסידה
+    expect((await strip(1)).alt).toBe('900');
+  });
+
+  it('מופיע ב-resolved ולא ב-conflicts - הבקר רואה, ולא נעצר', async () => {
+    const state = await superseded();
+    expect(state.conflicts).toHaveLength(0);
+    expect(state.resolved).toHaveLength(1);
+    expect(state.resolved[0]).toMatchObject({ table: 'strips', reason: 'newer_there' });
+    expect(state.resolved[0].mine.alt).toBe('250');
+    expect(state.resolved[0].serverRow.alt).toBe('900');
+  });
+
+  it('האימוץ אינו נרשם ביומן, ולכן אינו נדחף בחזרה בסיבוב הבא', async () => {
+    const state = await superseded();
+    // בלי withoutJournal היה נוצר כאן תור חדש - והוא היה מבטל את ההכרעה
+    expect(state.pending).toBe(0);
+  });
+
+  it('המרכז מחק את השורה - היא יורדת גם בעמדה', async () => {
+    await superseded(null);
+    expect(await strip(1)).toBeUndefined();
+  });
+
+  it('היפוך: "החזר את הגרסה שלי" מחזיר לתור, והדחיפה תהיה בכפייה', async () => {
+    const state = await superseded();
+    const { body } = await json('/api/sync/resolve', {
+      method: 'POST',
+      body: JSON.stringify({ key: state.resolved[0].key, choice: 'mine' }),
+    });
+    expect(body).toMatchObject({ ok: true, force: true });
+
+    const { body: after } = await json('/api/sync/state');
+    expect(after.pending).toBe(state.resolved[0].journalIds.length);
+    expect(after.resolved).toHaveLength(0);
+  });
+
+  it('אישור ההכרעה סוגר אותה ואינו משאיר תור', async () => {
+    const state = await superseded();
+    await json('/api/sync/resolve', {
+      method: 'POST',
+      body: JSON.stringify({ key: state.resolved[0].key, choice: 'theirs' }),
+    });
+    const { body: after } = await json('/api/sync/state');
+    expect(after.resolved).toHaveLength(0);
+    expect(after.pending).toBe(0);
+    expect((await strip(1)).alt).toBe('900');
+  });
+});

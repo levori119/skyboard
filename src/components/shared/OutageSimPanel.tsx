@@ -70,10 +70,11 @@ export default function OutageSimPanel() {
     return () => clearInterval(iv);
   }, [outage]);
 
-  const conflicts = sync.conflicts.length;
+  const conflicts = sync.conflicts.length;   // דורש אדם
+  const resolved = sync.resolved.length;     // הוכרע אוטומטית - לידיעה בלבד
   const pending = sync.pending;
   // במצב שקט הפקד מצטמצם לנקודה אחת. הוא כלי תרגול, לא חלק מתמונת המצב.
-  const quiet = !outage && !conflicts && !pending && !open;
+  const quiet = !outage && !conflicts && !resolved && !pending && !open;
 
   const wrap: React.CSSProperties = {
     position: 'fixed',
@@ -170,12 +171,16 @@ export default function OutageSimPanel() {
             {pending > 0 && (
               <span style={chip(C.chip)}>{tr('sync.pending', { n: pending })}</span>
             )}
+            {/* הוכרע לבד - חיווי ולא התראה. הבקר לא נעצר, אבל גם לא מופתע */}
+            {resolved > 0 && (
+              <span style={chip(C.chip)}>{tr('sync.resolvedAuto', { n: resolved })}</span>
+            )}
             {conflicts > 0 && (
               <span style={{ ...chip(STATUS.conflict), color: '#fff' }}>
                 {tr('sync.conflicts', { n: conflicts })}
               </span>
             )}
-            {sync.lastPushAt && pending === 0 && conflicts === 0 && (
+            {sync.lastPushAt && pending === 0 && conflicts === 0 && resolved === 0 && (
               <span style={{ ...chip(C.chip), color: STATUS.ok }}>{tr('sync.allSynced')}</span>
             )}
           </div>
@@ -189,9 +194,13 @@ export default function OutageSimPanel() {
             >
               {outage ? tr('sync.restore') : tr('sync.simulate')}
             </button>
-            {conflicts > 0 && (
-              <button type="button" style={btn(STATUS.conflict)} onClick={() => setShowConflicts(true)}>
-                {tr('sync.resolveNow')}
+            {(conflicts > 0 || resolved > 0) && (
+              <button
+                type="button"
+                style={conflicts > 0 ? btn(STATUS.conflict) : { ...btn(C.chip), color: C.text }}
+                onClick={() => setShowConflicts(true)}
+              >
+                {conflicts > 0 ? tr('sync.resolveNow') : tr('sync.showDecisions')}
               </button>
             )}
             {sync.enabled && !outage && pending > 0 && (
