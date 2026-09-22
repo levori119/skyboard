@@ -5,7 +5,9 @@
 // בדפדפן: CORS, Private Network Access, וסדר יירוטי ה-fetch.
 //
 // ארבעת הדברים שאי אפשר לבדוק בלי דפדפן:
-//   1. הדפדפן **מרשה** לדף לדבר עם 127.0.0.1 (CORS + PNA).
+//   1. הדפדפן **מרשה** לדף לדבר עם 127.0.0.1 - CORS, PNA, **וה-CSP של
+//      SKY-KING עצמו**. הגרסה הראשונה של הבדיקה הזו עברה בזמן שהמוצר היה
+//      שבור, כי השרת המדומה לא שידר CSP. לכן הוא שולח כאן את הכותרת האמיתית.
 //   2. ה-`Authorization` וה-`X-Env` שורדים את השכתוב לכתובת מוחלטת - זו
 //      המלכודת: היירוטים מצרפים אותם לנתיב **יחסי** בלבד.
 //   3. כשיש קשר התשובה עדיין מגיעה מהשרת המרכזי (הסוכן מפרקסס, לא חוטף).
@@ -19,6 +21,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { CSP } from '../server/middleware/securityHeaders.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'dist');
@@ -48,6 +51,9 @@ const MIME = {
 };
 const central = http.createServer((req, res) => {
   const p = (req.url || '/').split('?')[0];
+  // ⚠️ ה-CSP האמיתי, ולא שרת "נקי". זו הכותרת שחסמה את הפנייה לסוכן בפרודקשן
+  // בזמן שהכל השאר עבד, והיא נראית רק בקונסולה של הדפדפן.
+  res.setHeader('Content-Security-Policy', CSP);
   if (p.startsWith('/api/')) {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: true, who: 'central', path: p }));
@@ -101,6 +107,11 @@ try {
   }, AGENT_PORT);
   const page = await ctx.newPage();
 
+  const blocked = [];
+  page.on('console', m => {
+    const t = m.text();
+    if (/Content Security Policy/i.test(t)) blocked.push(t.slice(0, 160));
+  });
   const seen = [];
   page.on('request', r => {
     const u = new URL(r.url());
@@ -109,6 +120,8 @@ try {
 
   await page.goto(PAGE, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(3000);
+
+  ok('ה-CSP אינו חוסם את הפנייה לסוכן', blocked.length === 0, blocked[0] || '');
 
   const status = await page.evaluate(() =>
     fetch('/api/__station/status', { cache: 'no-store' }).then(r => r.json()).catch(e => ({ error: String(e) })));
