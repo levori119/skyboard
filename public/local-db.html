@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SKY-KING · המאגר המקומי בעמדה</title>
+<link rel="icon" href="/favicon.svg">
+<!--
+  דף עצמאי, ובכוונה: הוא צריך לעבוד גם כשהעמדה מנותקת וגם כשמשהו באפליקציה
+  עצמה לא עולה - זה בדיוק הרגע שבו שואלים "מה בעצם יש במאגר המקומי".
+  בלי סקריפט מוטבע (ה-CSP של SKY-KING אוסר), ולכן הלוגיקה ב-local-db.js.
+-->
+<style>
+  :root {
+    --bg: #0b1220; --panel: #111c33; --line: #23324f;
+    --text: #e2e8f0; --sub: #94a3b8; --accent: #38bdf8;
+    --ok: #22c55e; --warn: #f59e0b; --bad: #ef4444;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: system-ui, "Segoe UI", Arial, sans-serif; font-size: 14px;
+  }
+  header {
+    position: sticky; inset-block-start: 0; z-index: 2;
+    background: var(--panel); border-block-end: 1px solid var(--line);
+    padding: 10px 16px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
+  }
+  h1 { font-size: 16px; margin: 0; font-weight: 800; }
+  .chip {
+    background: rgba(148,163,184,.16); border-radius: 6px;
+    padding: 3px 8px; font-size: 12px; color: var(--sub); white-space: nowrap;
+  }
+  .chip b { color: var(--text); font-weight: 700; }
+  button {
+    background: var(--accent); color: #06263a; border: 0; border-radius: 6px;
+    padding: 6px 12px; font-weight: 700; cursor: pointer; font-size: 13px;
+  }
+  button.ghost { background: rgba(148,163,184,.18); color: var(--text); }
+  input[type=search] {
+    background: #0a1526; border: 1px solid var(--line); color: var(--text);
+    border-radius: 6px; padding: 6px 10px; min-width: 200px; font-size: 13px;
+  }
+  main { display: grid; grid-template-columns: 300px 1fr; gap: 0; height: calc(100vh - 53px); }
+  #list { overflow: auto; border-inline-end: 1px solid var(--line); }
+  #detail { overflow: auto; padding: 12px 16px; }
+  .row {
+    display: flex; justify-content: space-between; gap: 8px; align-items: center;
+    padding: 7px 14px; cursor: pointer; border-block-end: 1px solid rgba(35,50,79,.5);
+  }
+  .row:hover { background: rgba(56,189,248,.08); }
+  .row.sel { background: rgba(56,189,248,.16); }
+  .row .n { color: var(--sub); font-variant-numeric: tabular-nums; font-size: 12px; }
+  .row .n.zero { color: #64748b; }
+  .row .n.has { color: var(--ok); font-weight: 700; }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  th, td {
+    border: 1px solid var(--line); padding: 4px 7px;
+    text-align: start; vertical-align: top; max-width: 320px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  th { background: #0a1526; position: sticky; inset-block-start: 0; font-weight: 700; }
+  td.null { color: #64748b; font-style: italic; }
+  .msg { padding: 24px 16px; color: var(--sub); line-height: 1.7; max-width: 720px; }
+  .msg b { color: var(--text); }
+  .msg code {
+    background: #0a1526; border: 1px solid var(--line); border-radius: 4px;
+    padding: 1px 6px; font-size: 12px; direction: ltr; display: inline-block;
+  }
+  .bad { color: var(--bad); }
+  .warn { color: var(--warn); }
+  @media (max-width: 760px) { main { grid-template-columns: 1fr; height: auto; } }
+</style>
+</head>
+<body>
+  <header>
+    <h1>המאגר המקומי בעמדה</h1>
+    <span class="chip" id="source">מאתר...</span>
+    <span class="chip" id="totals"></span>
+    <input type="search" id="filter" placeholder="סינון טבלאות" aria-label="סינון טבלאות">
+    <button id="refresh">רענון</button>
+    <button class="ghost" id="onlyData">רק טבלאות עם נתונים</button>
+  </header>
+  <main>
+    <div id="list"></div>
+    <div id="detail"><div class="msg">בחר טבלה מהרשימה.</div></div>
+  </main>
+  <script type="module" src="/local-db.js"></script>
+</body>
+</html>

@@ -257,6 +257,15 @@ export default function OutageSimPanel() {
                 onClick={() => { void pullMirror(); }}
               >{tr('sync.mirrorNow')}</button>
             )}
+            {/* מה **באמת** יושב במאגר המקומי. דף עצמאי ולא חלון: השאלה נשאלת
+                בדיוק כשמשהו לא עובד, ודף שתלוי באפליקציה היה מת יחד איתה. */}
+            {local && (
+              <button
+                type="button"
+                style={{ ...btn(C.chip), color: C.text }}
+                onClick={() => window.open('/local-db.html', '_blank', 'noopener')}
+              >{tr('sync.openLocalDb')}</button>
+            )}
           </div>
 
           {sync.error && (

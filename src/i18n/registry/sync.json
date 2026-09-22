@@ -46,6 +46,10 @@
       "he": "המאגר המקומי מעודכן ({{age}})",
       "en": "Local database up to date ({{age}})"
     },
+    "openLocalDb": {
+      "he": "הצג את המאגר המקומי",
+      "en": "Show the local database"
+    },
     "agentSearching": {
       "he": "מחפש סוכן עמדה על המחשב...",
       "en": "Looking for a station agent on this computer..."
