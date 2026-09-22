@@ -8,6 +8,7 @@ import {
   anchorFrom, pctToLatLon, latLonToPct, metersToSegment, metersToPolyline,
   DISPLAY_STATE_LABEL, effectiveBlockingStatuses, isElementBlocking,
   nextDeviationStreak, isDeviating, roadControlElements, compactWaypoints, findHazards, cooldownOver, nextAlertState,
+  nearOpenElements,
   RUNWAY_ALERT_M, TAXIWAY_ALERT_M, ELEMENT_ALERT_M, DEVIATION_M, DEVIATION_STREAK,
   ROUTE_CORRIDOR_M, MAX_ACCURACY_M, STALE_FIX_MS, ALERT_COOLDOWN_MS, isFixStale,
 } from './tripTracking.js';
@@ -323,6 +324,77 @@ describe('השתקה והתיישנות', () => {
     expect(isFixStale(new Date(NOW - 61_000).toISOString(), NOW)).toBe(true);
     expect(isFixStale(new Date(NOW - 5_000).toISOString(), NOW)).toBe(false);
     expect(isFixStale(null, NOW)).toBe(true);
+  });
+});
+
+// רמזור שנהיה ירוק כשהנהג עומד מולו: ההתרעה נעלמה מהמסך בשקט, והנהג נשאר לנחש
+// אם מותר לו לנסוע. "נפתח" הוא אירוע בפני עצמו (בקשת אורי, 2026-09-22).
+describe('nearOpenElements - אלמנטים קרובים שאינם סוגרים', () => {
+  const at = (lat, lon) => ({ lat, lon });
+  const EL = (id, blocking) => ({
+    id, name: `רמזור ${id}`, lat: 31.25, lon: 34.65, category: 'רמזורים',
+    display_state: blocking ? 'close' : 'open', blocking_statuses: ['סגור'],
+  });
+
+  it('אלמנט פתוח בטווח - מוחזר', () => {
+    const r = nearOpenElements(at(31.25, 34.65), { elements: [EL(1, false)] });
+    expect(r.map(h => h.key)).toEqual(['element:1']);
+  });
+
+  it('אלמנט סוגר אינו "פתוח" - הוא סכנה, ומקומו ב-findHazards', () => {
+    expect(nearOpenElements(at(31.25, 34.65), { elements: [EL(1, true)] })).toEqual([]);
+  });
+
+  it('אלמנט פתוח רחוק מהטווח - לא מוחזר', () => {
+    const far = { ...EL(1, false), lat: 31.28 };
+    expect(nearOpenElements(at(31.25, 34.65), { elements: [far] })).toEqual([]);
+  });
+
+  it('דיוק גרוע - אין כלום, כמו בהתרעות', () => {
+    expect(nearOpenElements({ lat: 31.25, lon: 34.65, accuracy: 300 }, { elements: [EL(1, false)] })).toEqual([]);
+  });
+});
+
+describe('nextAlertState - "נפתח": האלמנט שהתריע כבר לא סוגר והנהג עדיין מולו', () => {
+  const H = key => ({ key, kind: key.split(':')[0], id: 1, name: 'רמזור', meters: 10 });
+  const T0 = 1_000_000;
+  const EMPTY = { inside: [], lastAt: {} };
+
+  it('סגור -> פתוח והנהג עדיין קרוב: התרעת "נפתח"', () => {
+    const s1 = nextAlertState([H('element:1')], EMPTY, T0).state;
+    const r = nextAlertState([], s1, T0 + 5_000, [H('element:1')]);
+    expect(r.toClear.map(h => h.key)).toEqual(['element:1']);
+  });
+
+  it('הנהג פשוט נסע משם - אין "נפתח"', () => {
+    const s1 = nextAlertState([H('element:1')], EMPTY, T0).state;
+    const r = nextAlertState([], s1, T0 + 5_000, []);
+    expect(r.toClear).toEqual([]);
+  });
+
+  it('אלמנט שלא התריע ונפתח - אין "נפתח" (לא היה על מה להרגיע)', () => {
+    const r = nextAlertState([], EMPTY, T0, [H('element:1')]);
+    expect(r.toClear).toEqual([]);
+  });
+
+  it('"נפתח" אינו חוזר כל עוד הוא פתוח', () => {
+    const s1 = nextAlertState([H('element:1')], EMPTY, T0).state;
+    const s2 = nextAlertState([], s1, T0 + 5_000, [H('element:1')]).state;
+    expect(nextAlertState([], s2, T0 + 10_000, [H('element:1')]).toClear).toEqual([]);
+  });
+
+  it('האדים שוב מיד אחרי שנפתח - מתריע, בלי להמתין להשתקה', () => {
+    const s1 = nextAlertState([H('element:1')], EMPTY, T0).state;
+    const s2 = nextAlertState([], s1, T0 + 5_000, [H('element:1')]).state;
+    const r = nextAlertState([H('element:1')], s2, T0 + 8_000);
+    expect(r.toAlert.map(h => h.key)).toEqual(['element:1']);
+  });
+
+  it('בלי הפרמטר החדש - ההתנהגות הישנה, בלי toClear', () => {
+    const s1 = nextAlertState([H('element:1')], EMPTY, T0).state;
+    const r = nextAlertState([], s1, T0 + 5_000);
+    expect(r.toClear).toEqual([]);
+    expect(r.toAlert).toEqual([]);
   });
 });
 
