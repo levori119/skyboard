@@ -55,6 +55,7 @@
 
 ### `server/db/rowOps.js`
 **תפקיד:** פרימיטיבים לכתיבת שורה גנרית מ-JSONB — **משותפים למנוע הביטול ולמנוע הסנכרון**. שניהם עושים את אותו דבר משני כיוונים (הביטול מחיל את `before`, הסנכרון את `after`), ועד שהקובץ נוצר הלוגיקה ישבה ב-`undo/revert.js` בלבד. הכלל המנחה: לא לנחש טיפוסים — `jsonb_populate_record` מחזיר את השורה לטיפוסי העמודות של הטבלה עצמה.
+**⚠️ `insertRow` מונה עמודות במפורש:** הצורה הקצרה (`INSERT INTO t SELECT * FROM jsonb_populate_record`) נותנת `NULL` לעמודה שאינה ב-JSON **במקום ברירת המחדל שלה** - ושורה חלקית נופלת על `rev NOT NULL` או מאפסת ערך תפעולי בשקט.
 **מייצא:** `ident`, `qualified`, `PK_MATCH`, `currentColumns`, `currentRow`, `insertRow`, `updateRow`, `deleteRow`.
 
 ### `server/db/sequences.js`
@@ -115,6 +116,7 @@
 
 ### `server/sync/mirror.js`
 **תפקיד:** תמונת המצב שהמרכז שולח לעמדה, וקליטתה. בלעדיה המאגר המקומי עולה ריק והסנכרון הוא תיאטרון. קולטת תחת `withoutJournal`, **מדלגת** על שורות שממתינות ביומן (לא דורסת עבודה שלא סונכרנה), מוחקת רק בחמש הטבלאות המסונכרנות, ולא נוגעת בשורות שנולדו בעמדה (טווח המזהים המקומי). `MIRROR_DENYLIST` מוציא את הכבדים (`maps.image_data`, `activity_log`, חומרי למידה).
+**⚠️ סדר הטבלאות אב-לפני-בן** (`sortByDependency`): בלעדיו הצילום נשלח בסדר שבו הרשימות כתובות - פ"מ לפני הסקטור שהוא מצביע אליו - והקליטה נופלת על "מפתח זר אינו קיים".
 **מייצא:** `MIRROR_TABLES`, `MIRROR_DENYLIST`, `MIRROR_ROW_CAP`, `snapshotTables`, `ingestSnapshot`, `mirrorRowKey`.
 
 ---
@@ -743,6 +745,7 @@ DB מנוהל היה נופל יחד עם העמדה.
 ### `electron/stationServer.cjs`
 **תפקיד:** שרת סטטי זעיר בתוך העמדה - מגיש את `dist/` מהדיסק ומפרוקסס `/api` ו-`/driver` לשרת האמיתי, עם כשל מהיר (502) במקום תקיעה. מאזין ל-127.0.0.1 בלבד, עם הגנת path traversal.
 **נתיבים מקומיים לחלוטין:** `GET /api/__station/status` (מאיזה מאגר משרתים — חייב לענות גם בנתק מלא), `POST /api/__station/outage` (הדלקת/כיבוי נתק מדומה **בעמדה הזו בלבד**), ו-`/api/__local/*` · `/api/__remote/*` — ניתוב מפורש לשכבת הסנכרון, שחייבת לדבר עם שני הצדדים באותה נשימה. בזמן דימוי הנתיב המפורש למרכז נחסם ב-503 `SIMULATED_OUTAGE`, אחרת הדימוי אינו מדמה דבר.
+**`staticTarget`:** בפיתוח הנכסים מפורקססים ל-Vite במקום להיקרא מ-`dist`, ולכן אפשר לעבוד על העמדה האמיתית - עם מאגר מקומי ועם כפתור הנתק - בלי build אחרי כל שינוי (`npm run station`).
 **מייצא:** `createStationServer`, `shouldProxy`, `resolveStaticPath`, `contentTypeFor`, `isAssetLike`, `STATION_STATUS_PATH`, `STATION_OUTAGE_PATH`.
 
 ### `electron/apiRouter.cjs`

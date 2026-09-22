@@ -13,6 +13,7 @@
 // סתירות יש מאין.
 
 import { OPERATIONAL_TABLES, CONFIG_TABLES } from '../db/env-tables.js';
+import { sortByDependency } from '../db/foreign-keys.js';
 import { VERSIONED_TABLES } from '../db/versionedTables.js';
 import { withoutJournal } from '../db/syncJournal.js';
 import { ident, qualified, currentColumns } from '../db/rowOps.js';
@@ -43,8 +44,12 @@ const DENIED = new Set(MIRROR_DENYLIST.map(([t]) => t));
  * למה גם קונפיג: עמדה מנותקת שיש לה פ"מים בלי סקטורים, בלי עמדות ובלי שדה -
  * אינה יכולה להציג דבר. הקונפיג משתנה לעתים רחוקות, ולכן הוא זול לשלוח.
  */
-export const MIRROR_TABLES = [...OPERATIONAL_TABLES, ...CONFIG_TABLES]
-  .filter(t => !DENIED.has(t));
+// ⚠️ **ממוינות אב לפני בן.** בלי זה הצילום נשלח בסדר שבו הרשימות כתובות
+// (תפעולי לפני קונפיג), כלומר פ"מ לפני הסקטור שהוא מצביע אליו - וקליטת
+// המראה נופלת על "מפתח זר אינו קיים". נתפס בבדיקת הקצה-לקצה של העמדה.
+export const MIRROR_TABLES = sortByDependency(
+  [...OPERATIONAL_TABLES, ...CONFIG_TABLES].filter(t => !DENIED.has(t)),
+);
 
 /**
  * הטבלאות שהמראה **מוחקת** בהן שורות שנעלמו במרכז.
@@ -91,7 +96,7 @@ export const MIRROR_ROW_CAP = 20000;
  * @returns {Promise<{schema: string, at: string, tables: Array<{table: string, rows: object[], truncated: boolean}>}>}
  */
 export async function snapshotTables(client, schema, tables = MIRROR_TABLES) {
-  const present = await existingTables(client, schema, tables);
+  const present = sortByDependency(await existingTables(client, schema, tables));
   const out = [];
   for (const table of present) {
     const { rows } = await client.query(
@@ -127,13 +132,16 @@ const keyOf = (table, pk) =>
 export async function ingestSnapshot(client, schema, snapshot, pendingKeys = new Set()) {
   const stats = { tables: 0, upserted: 0, deleted: 0, skipped: 0 };
   const present = new Set(await existingTables(client, schema, snapshot.tables.map(t => t.table)));
+  // גם בקליטה ולא רק בצילום: צילום מגרסה מוקדמת יותר עלול להגיע בסדר אחר.
+  const order = sortByDependency(snapshot.tables.map(t => t.table));
+  const ordered = [...snapshot.tables].sort((a, b) => order.indexOf(a.table) - order.indexOf(b.table));
 
   await withoutJournal(client, async () => {
     try {
       await client.query('SET CONSTRAINTS ALL DEFERRED');
     } catch { /* אילוץ שאינו DEFERRABLE - סדר הטבלאות בצילום מטפל ברוב */ }
 
-    for (const { table, rows } of snapshot.tables) {
+    for (const { table, rows } of ordered) {
       if (!present.has(table)) continue;
       const pkCols = await pkColumns(client, schema, table);
       if (!pkCols.length) continue; // בלי מפתח ראשי אין upsert

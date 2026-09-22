@@ -155,6 +155,7 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | `strip_zone_assignments` | הצבת פ"מ על אזור במפה |
 | `strip_table_assignments` | הצבת פ"מ בטבלת עמדה |
 | `joining_point_strips` | פ"מ בנקודת הצטרפות |
+| `strip_station_notes` | הערת העמדה על הפ"מ - נוספה אחרי שדווח שהערה שנכתבה בנתק אינה חוזרת למרכז |
 
 **למה זה קיים:** בסנכרון חזרה אחרי עבודה מנותקת יש שאלה אחת שחייבת תשובה
 ודאית — *האם עמדה אחרת נגעה בפ"מ הזה בזמן שהייתי מנותק*. בלי מונה אי אפשר
@@ -1519,6 +1520,7 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | `strip_zone_assignments` | הצבת פ"מ על אזור במפה |
 | `strip_table_assignments` | הצבת פ"מ בטבלת עמדה |
 | `joining_point_strips` | פ"מ בנקודת הצטרפות |
+| `strip_station_notes` | הערת העמדה על הפ"מ - נוספה אחרי שדווח שהערה שנכתבה בנתק אינה חוזרת למרכז |
 
 **למה זה קיים:** בסנכרון חזרה אחרי עבודה מנותקת יש שאלה אחת שחייבת תשובה
 ודאית — *האם עמדה אחרת נגעה בפ"מ הזה בזמן שהייתי מנותק*. בלי מונה אי אפשר

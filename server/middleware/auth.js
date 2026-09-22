@@ -91,6 +91,10 @@ const RULES = [
   // אינו ציבורי בפועל: הנתיב קיים רק כשהשרת רץ על המאגר המקומי (isLocalDbMode)
   // והוא דוחה כל מקור שאינו loopback. ראה routes/mirage.js.
   { m: ['POST'], p: '/api/auth/cache-credential', need: NEED.PUBLIC, why: 'שמירת אסמכתא לכניסה בנתק - מוגבל למאגר מקומי ול-loopback' },
+  // נקרא ע"י שרת העמדה **באמצע סשן**, על סמך אסימון שהמרכז זה עתה קיבל.
+  // בלעדיו פקח שרענן את הדף (ולכן לא עבר כניסה חדשה) מקבל 401 על כל בקשה
+  // ברגע שהניתוב עובר למאגר המקומי. אותן שתי הגבלות כמו cache-credential.
+  { m: ['POST'], p: '/api/auth/local-session', need: NEED.PUBLIC, why: 'אסימון מקומי לזהות שהמרכז אישר - מוגבל למאגר מקומי ול-loopback' },
   { m: ['GET'], p: '/api/environments', need: NEED.PUBLIC, why: 'בורר הסביבה במסך הכניסה, לפני ההזדהות. מחזיר מספר וסטטוס בלבד' },
   { m: ['GET'], p: '/api/translations', need: NEED.PUBLIC, why: 'מחרוזות ממשק, נטענות לפני הרינדור הראשון. אינן מידע תפעולי' },
   // סמלים ארגוניים נטענים כ-<img src> (utils/emblemSource.ts) - תגית img **אינה

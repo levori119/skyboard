@@ -57,11 +57,27 @@ export async function currentRow(client, schema, table, pk) {
   return rows[0]?.row ?? null;
 }
 
-/** מכניס שורה שלמה מתוך JSONB. */
+/**
+ * מכניס שורה מתוך JSONB - **רק את העמודות שיש בה**.
+ *
+ * ⚠️ הצורה הקצרה (`INSERT INTO t SELECT * FROM jsonb_populate_record(...)`)
+ * נראית נקייה יותר והיא שגויה: עמודה שאינה ב-JSON מקבלת שם `NULL` **במקום
+ * ברירת המחדל שלה**. שורה חלקית נופלת על `rev NOT NULL`, או גרוע מזה מאפסת
+ * ערך תפעולי בשקט. רשימת עמודות מפורשת משאירה את מה שלא נשלח בברירת המחדל.
+ *
+ * העמודות נלקחות מהטבלה **כפי שהיא עכשיו**, ולכן מפתח שקיים ב-JSON ואינו
+ * עמודה עוד פשוט מדולג.
+ */
 export async function insertRow(client, schema, table, row) {
   const tbl = qualified(schema, table);
+  const cols = (await currentColumns(client, schema, table))
+    .filter(c => Object.prototype.hasOwnProperty.call(row, c));
+  if (!cols.length) return;
+
   await client.query(
-    `INSERT INTO ${tbl} SELECT * FROM jsonb_populate_record(NULL::${tbl}, $1::jsonb)`,
+    `INSERT INTO ${tbl} (${cols.map(ident).join(', ')})
+     SELECT ${cols.map(c => `r.${ident(c)}`).join(', ')}
+       FROM jsonb_populate_record(NULL::${tbl}, $1::jsonb) AS r`,
     [JSON.stringify(row)],
   );
 }

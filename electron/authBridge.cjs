@@ -21,6 +21,8 @@ const { URL } = require('url');
 
 const LOGIN_PATH = '/api/auth/mirage-login';
 const CACHE_PATH = '/api/auth/cache-credential';
+/** הנפקת אסימון מקומי באמצע סשן, בלי כניסה חדשה. ראה noteAccepted. */
+const SESSION_PATH = '/api/auth/local-session';
 
 /**
  * מפענח את גוף האסימון בלי לאמת חתימה.
@@ -67,6 +69,8 @@ function createAuthBridge({ localTarget = () => null, timeoutMs = 8000, log = co
   // אסימון מרכזי → אסימון מקומי. בזיכרון בכוונה: הוא חי כאורך הסשן, והפעלה
   // מחדש של העמדה מחייבת כניסה מחדש ממילא.
   const tokens = new Map();
+  /** אסימונים שההנפקה עבורם כבר בדרך - כדי לא לשלוח עשר בקשות במקביל. */
+  const pending = new Set();
 
   return {
     LOGIN_PATH,
@@ -124,6 +128,45 @@ function createAuthBridge({ localTarget = () => null, timeoutMs = 8000, log = co
     },
 
     /**
+     * "המרכז קיבל את האסימון הזה עכשיו" - ומכאן אפשר להנפיק לו אסימון מקומי.
+     *
+     * **זה מה שמתקן את הבאג המרכזי.** `onLoginSuccess` נקרא רק ברגע כניסה,
+     * אבל הפקח נכנס פעם אחת ואחר כך מרענן את הדף: האסימון כבר בדפדפן, אין
+     * בקשת כניסה חדשה, ולכן לא נוצר אסימון מקומי. ברגע שהניתוב עבר למאגר
+     * המקומי **כל** בקשה חזרה 401 - וזה נראה כמו "בנתק שום דבר לא נשמר".
+     * אותו דבר קורה כשהמאגר המקומי עדיין עלה בזמן הכניסה.
+     *
+     * כאן זה נסגר מעצמו: כל תשובה של המרכז שאינה 4xx היא עדות שהאסימון תקף,
+     * והעמדה מנפיקה לו מקביל מקומי פעם אחת. האמון אינו באסימון אלא בתשובת
+     * המרכז - אותו נימוק כמו במסלול הכניסה.
+     *
+     * לא ממתינים לתוצאה: זו עבודת רקע שאסור לה להאט בקשה תפעולית.
+     */
+    noteAccepted(authHeader) {
+      const m = /^Bearer\s+(.+)$/i.exec(String(authHeader || '').trim());
+      if (!m) return;
+      const token = m[1].trim();
+      if (tokens.has(token) || pending.has(token)) return;
+
+      const local = localTarget();
+      if (!local) return; // המאגר המקומי עדיין לא עלה - ננסה בבקשה הבאה
+
+      const claims = decodeTokenClaims(token);
+      if (!claims?.personalId) return;
+
+      pending.add(token);
+      postJson(`${local}${SESSION_PATH}`, { claims }, timeoutMs)
+        .then(r => {
+          if (r.status === 200 && r.body?.localToken) {
+            tokens.set(token, r.body.localToken);
+            log.log?.('[authBridge] אסימון מקומי הונפק לסשן פעיל (בלי כניסה חדשה)');
+          }
+        })
+        .catch(err => log.warn?.(`[authBridge] הנפקת אסימון מקומי נכשלה: ${err.message}`))
+        .finally(() => pending.delete(token));
+    },
+
+    /**
      * מחליף אסימון מרכזי במקומי כשהבקשה מנותבת למאגר המקומי.
      * בלי התאמה - מחזיר את הכותרת כמות שהיא, והשרת המקומי יחזיר 401 שיוביל
      * את הלקוח למסך כניסה. זו התנהגות נכונה: עדיף להתבקש להיכנס שוב מאשר
@@ -142,4 +185,4 @@ function createAuthBridge({ localTarget = () => null, timeoutMs = 8000, log = co
   };
 }
 
-module.exports = { createAuthBridge, decodeTokenClaims, LOGIN_PATH, CACHE_PATH };
+module.exports = { createAuthBridge, decodeTokenClaims, LOGIN_PATH, CACHE_PATH, SESSION_PATH };

@@ -239,3 +239,38 @@ export async function ensureForeignKeys(query) {
   }
   return { added, existed, skipped, failed };
 }
+
+/**
+ * מדרג טבלאות לפי תלות: **אב לפני בן**.
+ *
+ * למה זה כאן ולא אצל הקוראים: שני מנגנונים שונים צריכים בדיוק את אותו דירוג,
+ * ומאותה סיבה - סדר החלה שאינו מכבד מפתחות זרים נופל על "מפתח זר אינו קיים".
+ * `sync/coalesce.js` מסדר בו פעולות נטו, ו-`sync/mirror.js` מסדר בו את
+ * הטבלאות בצילום. רשימה ידנית הייתה מתיישנת ב-FK הבא שמישהו יוסיף.
+ *
+ * הדירוג נגזר מ-`FOREIGN_KEYS`, שהיא ממילא מקור האמת לאילוצים בפועל.
+ * מחזוריות (טבלה שמצביעה לעצמה, או מעגל בין שתיים) נעצרת אחרי מספר סיבובים
+ * כמספר הטבלאות - מה שנשאר בלתי פתיר יסתמך על `SET CONSTRAINTS ALL DEFERRED`.
+ *
+ * @param {string[]} tables
+ * @returns {Map<string, number>} שם טבלה → דירוג (0 = אין לה אב ברשימה)
+ */
+export function tableDependencyRank(tables) {
+  const rank = new Map(tables.map(t => [t, 0]));
+  for (let pass = 0; pass < tables.length; pass++) {
+    let changed = false;
+    for (const [child, , parent] of FOREIGN_KEYS) {
+      if (!rank.has(child) || !rank.has(parent) || child === parent) continue;
+      const want = rank.get(parent) + 1;
+      if (rank.get(child) < want) { rank.set(child, want); changed = true; }
+    }
+    if (!changed) break;
+  }
+  return rank;
+}
+
+/** אותן טבלאות, ממוינות אב-לפני-בן. הסדר המקורי נשמר בתוך אותו דירוג. */
+export function sortByDependency(tables) {
+  const rank = tableDependencyRank(tables);
+  return [...tables].sort((a, b) => (rank.get(a) - rank.get(b)));
+}

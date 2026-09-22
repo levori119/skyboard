@@ -161,7 +161,9 @@ function proxyRequest(req, res, apiTarget, timeoutMs, opts) {
   // הייתה מגלגלת את כל העמדה למאגר המקומי.
   const onResult = (opts && opts.onResult) || (() => {});
   const upstream = mod.request(targetUrl, { method: req.method, headers }, up => {
-    onResult(true);
+    // הסטטוס עובר הלאה כי הוא מה שמבדיל בין "היעד חי" לבין "היעד חי **וקיבל
+    // את הזהות הזו**" - והשני הוא מה שמאפשר להנפיק אסימון מקומי מקביל.
+    onResult(true, up.statusCode || 0);
     res.writeHead(up.statusCode || 502, up.headers);
     up.pipe(res);
   });
@@ -208,6 +210,10 @@ function createStationServer({
   distDir, apiTarget, airPictureTarget, airPictureToken,
   port = 0, host = '127.0.0.1', timeoutMs = 8000,
   localApiTarget = () => null, localMode = 'auto',
+  // בפיתוח: שרת ה-Vite. הנכסים מפורקססים אליו במקום להיקרא מ-dist, ולכן
+  // אפשר לעבוד על העמדה האמיתית - עם המאגר המקומי ועם כפתור הנתק - בלי
+  // build אחרי כל שינוי. בייצור הוא null, והנכסים מגיעים מהדיסק.
+  staticTarget = null,
 }) {
   // הנתב מחזיק את מצב הקשר לשרת המרכזי ומכריע לאן כל בקשת /api הולכת.
   const router = createApiRouter({ apiTarget, localTarget: localApiTarget, mode: localMode, timeoutMs });
@@ -303,7 +309,16 @@ function createStationServer({
       // כ"השרת חי" והחיווי היה מטעה.
       if (which === 'none') { req.destroy(); res.destroy(); return; }
 
-      const onResult = ok => router.report(which, ok);
+      // תשובה מהמרכז שאינה 4xx היא עדות שהאסימון הזה תקף **עכשיו**, ומכאן
+      // העמדה מנפיקה לו מקביל מקומי. בלי זה פקח שרענן את הדף (ולכן לא עבר
+      // כניסה חדשה) היה מקבל 401 על כל בקשה ברגע המעבר למאגר המקומי - וזה
+      // נראה בדיוק כמו "בנתק שום דבר לא נשמר".
+      const onResult = (ok, status) => {
+        router.report(which, ok);
+        if (which === 'remote' && ok && status && status < 400) {
+          authBridge.noteAccepted(req.headers.authorization);
+        }
+      };
 
       // כניסה מול השרת המרכזי - נלכדת כדי לאפשר עבודה בנתק אחר כך.
       // כניסה שכבר מנותבת למקומי אינה נלכדת: אין שם מה ללמוד, השרת המקומי
@@ -321,6 +336,8 @@ function createStationServer({
       }
       return proxyRequest(req, res, target, timeoutMs, { onResult, extraHeaders });
     }
+    // בפיתוח הנכסים מגיעים משרת ה-Vite (כולל HMR), ולא מ-dist שנבנה.
+    if (staticTarget) return proxyRequest(req, res, staticTarget, timeoutMs);
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); res.end(); return; }
     serveStatic(res, distDir, req.url || '/');
   });

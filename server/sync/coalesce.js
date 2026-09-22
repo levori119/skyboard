@@ -14,7 +14,7 @@
 //   3. **נוצרה ונמחקה באותו נתק** = לא קרה כלום. השורה הזו מעולם לא הייתה
 //      במרכז, ואין מה למחוק שם. היא מאושרת ביומן ולא נדחפת.
 
-import { FOREIGN_KEYS } from '../db/foreign-keys.js';
+import { tableDependencyRank } from '../db/foreign-keys.js';
 import { VERSIONED_TABLES } from '../db/versionedTables.js';
 
 /** ייצוג יציב של מפתח ראשי - סדר המפתחות אינו משנה. */
@@ -27,28 +27,10 @@ export function rowKey(entry) {
   return `${entry.table_schema}.${entry.table_name}#${stable(entry.pk)}`;
 }
 
-/**
- * דירוג תלות בין חמש הטבלאות: אב לפני בן.
- *
- * נגזר מ-`FOREIGN_KEYS` ולא נכתב ביד - רשימה ידנית הייתה מתיישנת ב-FK הבא
- * שמישהו יוסיף, והכנסה הייתה נופלת על "מפתח זר אינו קיים" בלי סיבה נראית.
- */
-function buildRanks() {
-  const rank = new Map(VERSIONED_TABLES.map(t => [t, 0]));
-  // הרחבה חוזרת עד להתייצבות - חמש טבלאות, לכל היותר חמישה סיבובים
-  for (let pass = 0; pass < VERSIONED_TABLES.length; pass++) {
-    let changed = false;
-    for (const [child, , parent] of FOREIGN_KEYS) {
-      if (!rank.has(child) || !rank.has(parent) || child === parent) continue;
-      const want = rank.get(parent) + 1;
-      if (rank.get(child) < want) { rank.set(child, want); changed = true; }
-    }
-    if (!changed) break;
-  }
-  return rank;
-}
-
-const RANKS = buildRanks();
+// דירוג תלות: אב לפני בן. נגזר מ-`FOREIGN_KEYS` ומשותף עם המראה
+// (`sync/mirror.js`), כי שני המנגנונים צריכים בדיוק את אותו סדר ורשימה ידנית
+// הייתה מתיישנת ב-FK הבא שמישהו יוסיף.
+const RANKS = tableDependencyRank(VERSIONED_TABLES);
 const rankOf = (table) => RANKS.get(table) ?? 0;
 
 /** ה-rev שהשורה נשאה, או null כשאין לטבלה מעקב גרסה. */

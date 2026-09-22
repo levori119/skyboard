@@ -78,7 +78,13 @@ export async function startLocalServer({ port = PORT, host = HOST } = {}) {
   };
   try {
     await timed('initDb', initDb);
-    await timed('seedDb', seedDb);
+    // ⚠️ **נתוני אתחול מדולגים בעמדה, בכוונה.** `seedDb` יוצר סקטורים, עמדות
+    // ומצבי תצוגה עם מזהים משלו, והמראה מביאה את אותם דברים מהמרכז עם מזהים
+    // אחרים - כלומר שתי מערכות סקטורים על אותו מסך, ואיש לא יבין מאיפה
+    // הגיעה השנייה. תמונת המצב של העמדה מגיעה **רק** מהמרכז.
+    // `SKYKING_LOCAL_SEED=1` מחזיר את הזריעה, לעמדה עצמאית בלי מרכז כלל.
+    if (process.env.SKYKING_LOCAL_SEED === '1') await timed('seedDb', seedDb);
+    else console.log('[local] seedDb דולג - תמונת המצב מגיעה מהמראה של המרכז');
     await timed('syncAllEnvSchemas', syncAllEnvSchemas);
     // אסמכתאות הכניסה בנתק — טבלה של העמדה בלבד, ולכן היא נוצרת כאן ולא
     // ב-initDb המשותף: למאגר המרכזי אין צורך בטביעות סיסמה, ועמודה כזו שם

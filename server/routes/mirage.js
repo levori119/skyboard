@@ -346,6 +346,41 @@ router.post('/api/auth/cache-credential', async (req, res) => {
   }
 });
 
+// ── אסימון מקומי לזהות שהמרכז כבר אישר ───────────────────────────────────────
+//
+// **הבאג שזה פותר:** `cache-credential` נקרא רק ברגע כניסה מוצלחת. אבל הפקח
+// נכנס פעם אחת ואחר כך מרענן את הדף - והאסימון כבר בדפדפן, בלי בקשת כניסה
+// חדשה. מאותו רגע לשרת העמדה אין אסימון מקומי לאותו סשן, וברגע שהניתוב עובר
+// למאגר המקומי **כל** בקשה חוזרת 401. זה נראה למפעיל בדיוק כמו "בנתק שום
+// דבר לא נשמר" - וזה מה שדווח.
+//
+// הפתרון: שרת העמדה מבקש אסימון מקומי גם באמצע סשן, על סמך אסימון שהשרת
+// המרכזי **קיבל זה עתה** (הוא החזיר תשובה שאינה 4xx). האמון כאן אינו באסימון
+// עצמו אלא בתשובת המרכז - בדיוק כמו במסלול הכניסה.
+//
+// אותן שתי הגנות כמו `cache-credential`: הנתיב קיים רק כשרצים על המאגר
+// המקומי, ומקבל loopback בלבד. אין כאן שמירת סיסמה - רק הנפקת אסימון לזהות
+// שכבר אומתה.
+router.post('/api/auth/local-session', async (req, res) => {
+  if (!isLocalDbMode()) return res.status(404).json({ error: 'not_found' });
+  const ip = req.socket?.remoteAddress || '';
+  if (!/^(::1|::ffff:127\.0\.0\.1|127\.0\.0\.1)$/.test(ip)) {
+    console.warn(`[local-auth] ניסיון הנפקת אסימון ממקור שאינו loopback: ${ip}`);
+    return res.status(403).json({ error: 'loopback_only' });
+  }
+
+  const claims = req.body?.claims;
+  if (!claims?.personalId) return res.status(400).json({ error: 'missing_claims' });
+
+  try {
+    const local = loginResponse({ ...claims, personalId: String(claims.personalId) }, 'local');
+    res.json({ ok: true, localToken: local.token });
+  } catch (err) {
+    console.error('[local-auth] הנפקת אסימון מקומי נכשלה:', err.message);
+    res.status(500).json({ error: 'local_session_failed' });
+  }
+});
+
 // ── הזדהות אפליקציית הנהג (DRIVER) ──────────────────────────────────────────
 // רק מי שיש לו הרשאה לאפליקציית DRIVER במיראז' נכנס, ושם המשתמש שלו הוא
 // **ת"ז**. הת"ז נחתמת באסימון, וממנה בלבד נגזר מה הנהג רואה - הנסיעות שנרשמו
