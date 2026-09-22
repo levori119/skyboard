@@ -54,7 +54,7 @@ const StripTimeField = ({ label, value, onSave }: { label: string; value?: strin
   );
 };
 
-const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onProvTransfer, onToggleAirborne, onUpdateNotes, onUpdateDetails, zoom = 1, pan = null, serials = [], serialSelections = [], onSerialSelect, onSerialDismiss, onSerialRemove, allBlockSpaces = [], allBlocks = [], allBlockTables = [], allWorkstationPresets = [], activeBlockTableId = null, mapConflictIds = null, viewerPresetId = null, lightMode = false, themeMode }: any) => {
+const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onProvTransfer, onToggleAirborne, onUpdateNotes, onUpdateDetails, zoom = 1, pan = null, serials = [], serialSelections = [], onSerialSelect, onSerialDismiss, onSerialRemove, allBlockSpaces = [], allBlocks = [], allBlockTables = [], allWorkstationPresets = [], activeBlockTableId = null, mapConflictIds = null, muteConflictAlerts = false, viewerPresetId = null, lightMode = false, themeMode }: any) => {
   // התמה בפועל. עמדות ותיקות מעבירות רק `lightMode`, ולכן היא נגזרת ממנו כשלא
   // הועברה תמה מפורשת - כך ocean לא נופל בשקט ל-dark במי שכן מעביר אותה.
   const theme: 'light' | 'dark' | 'ocean' = themeMode || (lightMode ? 'light' : 'dark');
@@ -183,8 +183,10 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onProvTransfer, onT
   const isBlockDeviation = React.useMemo(() => computeBlockDeviation(s, allBlocks, allBlockTables, activeBlockTableId, viewerPresetId),
     [s.alt, s.workstation_preset_id, allBlocks, activeBlockTableId]);
 
-  // Altitude conflict with another map strip
+  // Altitude conflict with another map strip.
+  // ההשתקה מכבה את **ההבהוב** בלבד - המסגרת האדומה וסימן ה-! נשארים.
   const isAltConflict = mapConflictIds != null && mapConflictIds.has(String(s.id));
+  const isAltConflictFlashing = isAltConflict && !muteConflictAlerts;
 
   // Sync local blockDeviation state when prop changes (e.g. after polling)
   useEffect(() => {
@@ -449,7 +451,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onProvTransfer, onT
 
   // רכיב הפ"מ הבסיסי
   const stripContent = (style: React.CSSProperties) => (
-    <div data-strip-id={s.id} ref={!isDragging ? containerRef : undefined} className={`bt-strip${isBlockDeviation && !blockDeviation ? ' block-deviation-flash' : ''}${isAltConflict ? ' alt-conflict-flash' : ''}`} style={{ ...style, outline: bodyDragReady ? '3px solid #22c55e' : undefined, transition: 'outline 0.15s' }} onContextMenu={handleContextMenu} onPointerDown={s.onMap ? handleBodyPointerDown : undefined}>
+    <div data-strip-id={s.id} ref={!isDragging ? containerRef : undefined} className={`bt-strip${isBlockDeviation && !blockDeviation ? ' block-deviation-flash' : ''}${isAltConflictFlashing ? ' alt-conflict-flash' : ''}`} style={{ ...style, outline: bodyDragReady ? '3px solid #22c55e' : undefined, transition: 'outline 0.15s' }} onContextMenu={handleContextMenu} onPointerDown={s.onMap ? handleBodyPointerDown : undefined}>
       <div style={{ width: 22, background: '#1e293b', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '2px 0', userSelect: 'none', touchAction: 'none', WebkitUserSelect: 'none', flexShrink: 0 }}>
         <div
           onPointerDown={e => {

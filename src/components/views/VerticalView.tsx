@@ -623,7 +623,9 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
             topPct = Math.min(Math.max(yPct - halfPct, 0), 100 - (STRIP_H / CHART_H) * 100);
             heightVal = `${STRIP_H}px`;
           }
-          const isConflict = s._hasConflict && !muteConflictAlerts;
+          // ההשתקה מכבה את ההבהוב בלבד - המסגרת האדומה והרקע נשארים כסימון.
+          const isConflict = s._hasConflict;
+          const conflictFlash = isConflict && !muteConflictAlerts;
           const borderColor = (effectiveDeviation || effectiveDeviationAck) ? '#f97316'
             : s.airborne ? '#3b82f6' : isConflict ? '#ef4444' : (lightMode ? '#94a3b8' : '#475569');
           const textMainColor = s.airborne ? '#3b82f6' : isConflict ? '#ef4444' : boldTextColor;
@@ -631,14 +633,14 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
             : isConflict ? (lightMode ? '#fef2f2' : '#450a0a') : (lightMode ? 'rgba(255,255,255,0.95)' : 'rgba(15,23,42,0.95)');
           return (
             <div key={s.id}
-              className={isConflict ? 'alt-conflict-flash' : (effectiveDeviation && !isDeviationAcknowledged) ? 'block-deviation-flash' : ''}
+              className={conflictFlash ? 'alt-conflict-flash' : (effectiveDeviation && !isDeviationAcknowledged) ? 'block-deviation-flash' : ''}
               title={`${getFormationDisplayName(s)}${sq ? ' / ' + sq : ''} | גובה: ${normalizeAlt(s.alt || '')}${isDeviation ? ' ⚠️ חריגה מבלוק' : ''}${isConflict ? ' ⚠️ חפיפת גובה' : ''}`}
               onContextMenu={onStripContextMenu ? (e) => { e.preventDefault(); e.stopPropagation(); onStripContextMenu(s.id, e.clientX, e.clientY); } : undefined}
               style={{
                 position: 'absolute', left: `${Math.max(xPct, 0)}%`, top: `${topPct}%`,
                 width: `${wPct}%`, height: heightVal,
                 background: (effectiveDeviation && !isDeviationAcknowledged) ? undefined
-                  : effectiveDeviationAck ? 'rgba(234, 88, 12, 0.2)' : (isConflict ? undefined : normalBg),
+                  : effectiveDeviationAck ? 'rgba(234, 88, 12, 0.2)' : (conflictFlash ? undefined : normalBg),
                 border: `2px solid ${isDragging ? '#f59e0b' : borderColor}`, borderRadius: 4,
                 display: 'flex', flexDirection: 'row', alignItems: 'stretch',
                 overflow: 'hidden', zIndex: isDragging ? 10 : isConflict ? 3 : 2,
@@ -681,7 +683,8 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
             topPct = Math.min(Math.max(yPct - halfPct, 0), 100 - (STRIP_H / CHART_H) * 100);
             heightVal = `${STRIP_H}px`;
           }
-          const ntConflict = !!s._hasConflict && !muteConflictAlerts;
+          const ntConflict = !!s._hasConflict;
+          const ntConflictFlash = ntConflict && !muteConflictAlerts;
           const borderColor = (effectiveDeviation || effectiveDeviationAck) ? '#f97316'
             : s.airborne ? '#3b82f6' : ntConflict ? '#ef4444' : (lightMode ? '#94a3b8' : '#475569');
           const textMainColor = s.airborne ? '#3b82f6' : ntConflict ? '#ef4444' : boldTextColor;
@@ -690,14 +693,14 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
             : ntConflict ? (lightMode ? '#fef2f2' : '#450a0a') : (lightMode ? 'rgba(255,255,255,0.95)' : 'rgba(15,23,42,0.95)');
           return (
             <div key={s.id}
-              className={ntConflict ? 'alt-conflict-flash' : (effectiveDeviation && !isDeviationAcknowledged) ? 'block-deviation-flash' : ''}
+              className={ntConflictFlash ? 'alt-conflict-flash' : (effectiveDeviation && !isDeviationAcknowledged) ? 'block-deviation-flash' : ''}
               title={`${getFormationDisplayName(s)}${sq ? ' / ' + sq : ''} | גובה: ${normalizeAlt(s.alt || '')}${isDeviation ? ' ⚠️ חריגה מבלוק' : ''}${ntConflict ? ' ⚠️ חפיפת גובה' : ''}`}
               onContextMenu={onStripContextMenu ? (e) => { e.preventDefault(); e.stopPropagation(); onStripContextMenu(s.id, e.clientX, e.clientY); } : undefined}
               style={{
                 position: 'absolute', left: `${leftPct}%`, top: `${topPct}%`,
                 width: `${colW - 0.5}%`, height: heightVal,
                 background: (effectiveDeviation && !isDeviationAcknowledged) ? undefined
-                  : effectiveDeviationAck ? 'rgba(234, 88, 12, 0.2)' : (ntConflict ? undefined : normalBg),
+                  : effectiveDeviationAck ? 'rgba(234, 88, 12, 0.2)' : (ntConflictFlash ? undefined : normalBg),
                 border: `2px solid ${isDragging ? '#f59e0b' : borderColor}`, borderRadius: 4,
                 display: 'flex', flexDirection: 'row', alignItems: 'stretch',
                 overflow: 'hidden', zIndex: isDragging ? 10 : ntConflict ? 3 : 2,

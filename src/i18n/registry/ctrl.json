@@ -2501,6 +2501,10 @@
     "conflictsActive": {
       "he": "קונפליקטים פעיל",
       "en": "Conflicts active"
+    },
+    "conflictsMuteHint": {
+      "he": "משתיק את ההבהוב בלבד - הסימון ק (אדום/כתום/ירוק) נשאר",
+      "en": "Silences the flashing only - the marker stays"
     }
   }
 }

@@ -4471,7 +4471,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       return fallbackDelta;
     };
     const result = new Set<string>();
-    if (muteConflictAlerts) return result;
     if (fallbackDelta <= 0 && rules.every(r => r.delta <= 0)) return result;
     const onMapStrips = strips.filter((s: any) => s.onMap && s.status === 'active');
     for (let i = 0; i < onMapStrips.length; i++) {
@@ -4494,7 +4493,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       }
     }
     return result;
-  }, [strips, myPresetConfig?.conflict_alt_delta, myPresetConfig?.conflict_alt_rules, muteConflictAlerts]);
+  }, [strips, myPresetConfig?.conflict_alt_delta, myPresetConfig?.conflict_alt_rules]);
 
   const activeAirfield = (isGroundMode || isTowerMode) ? airfields.find(af => af.id === myPresetConfig?.airfield_id) || null : null;
 
@@ -4941,15 +4940,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // tableEffectiveConflictIds — conflict IDs excluding fully-resolved ones (session-only).
   const tableEffectiveConflictIds = React.useMemo(() => {
     const result = new Set<string>();
-    // ההשתקה נחסמת כאן, במקור: כל צרכני הקונפליקטים (צבע השורה, הסימון,
-    // התצוגה האנכית) משתתקים יחד ולא כל אחד בנפרד.
-    if (muteConflictAlerts) return result;
     for (const [stripId, conflictingIds] of tableConflictPairsMap) {
       const resolved = tableConflictResolutions.get(stripId)?.resolvedWith || new Set<string>();
       if (conflictingIds.some(id => !resolved.has(id))) result.add(stripId);
     }
     return result;
-  }, [tableConflictPairsMap, tableConflictResolutions, muteConflictAlerts]);
+  }, [tableConflictPairsMap, tableConflictResolutions]);
 
   // Prune stale manual resolutions: when a conflict pair disappears (e.g. blocks
   // were split so it no longer overlaps), forget its resolution — so if the same
@@ -9966,7 +9962,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 allBlocks={dashboardBlocks}
                 allWorkstationPresets={workstationPresets}
                 activeBlockTableId={effectiveBlockTableId}
-                mapConflictIds={mapStripConflictIds}
+                mapConflictIds={mapStripConflictIds} muteConflictAlerts={muteConflictAlerts}
                 viewerPresetId={session.presetId ? Number(session.presetId) : null}
                 lightMode={lightMode}
               />
@@ -10806,7 +10802,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         onSerialSelect={handleSerialSelect} onSerialDismiss={handleSerialDismiss} onSerialRemove={handleSerialRemove}
                         allBlockSpaces={dashboardBlockSpaces} allBlockTables={dashboardBlockTables} allBlocks={dashboardBlocks}
                         allWorkstationPresets={workstationPresets} activeBlockTableId={effectiveBlockTableId}
-                        mapConflictIds={mapStripConflictIds} viewerPresetId={session.presetId ? Number(session.presetId) : null}
+                        mapConflictIds={mapStripConflictIds} muteConflictAlerts={muteConflictAlerts} viewerPresetId={session.presetId ? Number(session.presetId) : null}
                         lightMode={lightMode} />
                     </div>
                     {/* שכבת-מגן שקופה: מבטיחה שכל pointerdown על הכרטיס המורחב פותח גרירת פ"מ (הקצאת אזור),
@@ -12436,8 +12432,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       {muteBlockAlerts ? `🔔 ${tr('ctrl.unmute')}` : `🔕 ${tr('ctrl.mute')}`} {tr('ctrl.blocks')}
                     </button>
                   </div>
-                  {/* התראות קונפליקטים (חפיפת גובה) - טבלה, מפה ותצוגה אנכית יחד */}
-                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
+                  {/* התראות קונפליקטים (חפיפת גובה) - טבלה, מפה ותצוגה אנכית יחד.
+                      ההשתקה מכבה את ההבהוב בלבד; הסימון נשאר כדי שהפקח ידע מה מצב הפ"מ. */}
+                  <div title={tr('ctrl.conflictsMuteHint')} style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
                     <span style={{ fontSize: '12px', color: muteConflictAlerts ? menuMuted : menuAcc('#fca5a5', '#b91c1c') }}>
                       {muteConflictAlerts ? '⚪ ' : '🔴 '}{muteConflictAlerts ? tr('ctrl.conflictsMuted') : tr('ctrl.conflictsActive')}
                     </span>
@@ -16602,14 +16599,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     const isRowDeviation = isRowDeviationRaw && !muteBlockAlerts;
                     const isRowDeviationAckEff = isRowDeviationAck && !muteBlockAlerts;
                     const isRowAltConflict = tableEffectiveConflictIds.has(String(s.id));
-                    const isRowConflictResolved = !muteConflictAlerts && tableConflictPairsMap.has(String(s.id)) && !isRowAltConflict;
+                    const isRowConflictResolved = tableConflictPairsMap.has(String(s.id)) && !isRowAltConflict;
                     const isRowConflictPartial = isRowAltConflict && (tableConflictResolutions.get(String(s.id))?.resolvedWith?.size ?? 0) > 0;
+                    // השתקת קונפליקטים מכבה את **ההבהוב** בלבד: הסימון "ק" (אדום/כתום/ירוק)
+                    // ורצפת המסגרת נשארים, כי הם אומרים *מה מצב הפ"מ* ולא *שים לב עכשיו*.
+                    const isRowConflictFlashing = isRowAltConflict && !muteConflictAlerts;
                     const hasOpenSubTable = subTableColumns.some((c: any) => expandedSubTables.has(`${s.id}__${c.tableKey}`));
                     // שורות הרווח מזיזות את מיקום הפ"מ בתוך ה-tbody, ולכן הזברה
                     // מסומנת במחלקה מפורשת במקום להישען על nth-child (ראה App.css).
                     // רק שורה במצב רגיל מקבלת אותה - שורה במצב מיוחד (גרירה, קונפליקט,
                     // חריגה, העברה ממתינה) שומרת על צבע המצב שלה.
-                    const isPlainRow = !isDragOver && !isRowAltConflict && !isPendingTransfer && !(isRowDeviation && !isRowDeviationAck);
+                    const isPlainRow = !isDragOver && !isRowConflictFlashing && !isPendingTransfer && !(isRowDeviation && !isRowDeviationAck);
                     // צבע המצב של **רצפת המסגרת** (גרירה/קונפליקט). הוא יושב תמיד על
                     // רצפת היחידה כולה - על הפ"מ כשאין טבלת בן פרוסה, ועל הטבלה
                     // האחרונה כשיש. כך המצב נשאר גלוי בלי שקו יחצה את הפ"מ מטבלאותיו.
@@ -16623,7 +16623,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     // tbody tr, ולכן הצבע נאכף בחזרה ב-CSS דרך המחלקה (ראה App.css).
                     const hasFrameFloor = !hasOpenSubTable && !frameFloorState;
                     const rowBg = isDragOver ? '#1d4ed8'
-                      : isRowAltConflict ? (lightMode ? '#fef2f2' : '#3b0000')
+                      : isRowConflictFlashing ? (lightMode ? '#fef2f2' : '#3b0000')
                       : (isRowDeviation && !isRowDeviationAck) ? undefined
                       : isPendingTransfer ? (isEven ? (lightMode ? '#dde6f5' : '#2d3344') : (lightMode ? '#d4dde8' : '#252b3a'))
                       : (isEven ? (T.surface) : (lightMode ? '#f1f5f9' : '#000000'));
@@ -16638,7 +16638,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       </tr>
                       <tr
                         data-strip-id={s.id}
-                        className={[isRowAltConflict ? 'alt-conflict-flash' : (isRowDeviation && !isRowDeviationAck ? 'block-deviation-flash' : ''), acceptFlashIds.includes(String(s.id)) ? 'accept-green-flash' : '', (s as any)._transferredOut ? 'transfer-out-flash' : '', isPlainRow ? (isEven ? 'sk-row-a' : 'sk-row-b') : '', hasFrameFloor ? 'sk-frame-floor' : ''].filter(Boolean).join(' ') || undefined}
+                        className={[isRowConflictFlashing ? 'alt-conflict-flash' : (isRowDeviation && !isRowDeviationAck ? 'block-deviation-flash' : ''), acceptFlashIds.includes(String(s.id)) ? 'accept-green-flash' : '', (s as any)._transferredOut ? 'transfer-out-flash' : '', isPlainRow ? (isEven ? 'sk-row-a' : 'sk-row-b') : '', hasFrameFloor ? 'sk-frame-floor' : ''].filter(Boolean).join(' ') || undefined}
                         draggable
                         onDragStart={e => { e.dataTransfer.setData('text/strip-id-for-transfer', s.id); setTableDragRow(s.id); }}
                         onDragOver={e => {
@@ -16690,7 +16690,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           // גג המסגרת. **לכל** פ"מ יש מסגרת - פרוס או לא - כדי שכל
                           // פ"מ ייקרא כיחידה אחת, והשורה לא תשנה צורה כשפורסים טבלה.
                           borderTop: `2px solid ${SUB_ACC}`,
-                          outline: isRowAltConflict ? '1px solid #ef4444' : undefined,
+                          outline: isRowConflictFlashing ? '1px solid #ef4444' : undefined,
                           opacity: isPendingTransfer ? 0.6 : (tableDragRow === s.id ? 0.5 : 1),
                           transition: 'background 0.1s'
                         }}
@@ -16703,14 +16703,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             <span
                               title={isRowConflictPartial ? 'קונפליקט חלקי — לחץ לפתרון' : isRowAltConflict ? 'קונפליקט גובה — לחץ לפתרון' : isRowConflictResolved ? 'קונפליקט פתור — לחץ לצפייה' : ''}
                               onClick={e => {
-                                if (muteConflictAlerts || !tableConflictPairsMap.has(String(s.id))) return;
+                                if (!tableConflictPairsMap.has(String(s.id))) return;
                                 e.stopPropagation();
                                 const conflictingIds = tableConflictPairsMap.get(String(s.id)) || [];
                                 const conflictingStrips = conflictingIds.map(id => myTableStrips.find((x: any) => String(x.id) === id)).filter(Boolean);
                                 const existing = tableConflictResolutions.get(String(s.id));
                                 setTableConflictDialog({ stripId: String(s.id), conflictingStrips, note: existing?.note || '', selectedIds: existing?.resolvedWith ? new Set(existing.resolvedWith) : new Set(conflictingIds.map(String)) });
                               }}
-                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '50%', background: isRowConflictPartial ? '#f97316' : isRowAltConflict ? '#ef4444' : isRowConflictResolved ? '#22c55e' : 'transparent', color: (isRowAltConflict || isRowConflictResolved || isRowConflictPartial) ? 'white' : 'transparent', fontSize: '10px', fontWeight: 'bold', flexShrink: 0, lineHeight: 1, userSelect: 'none', cursor: (!muteConflictAlerts && tableConflictPairsMap.has(String(s.id))) ? 'pointer' : 'default' }}
+                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '50%', background: isRowConflictPartial ? '#f97316' : isRowAltConflict ? '#ef4444' : isRowConflictResolved ? '#22c55e' : 'transparent', color: (isRowAltConflict || isRowConflictResolved || isRowConflictPartial) ? 'white' : 'transparent', fontSize: '10px', fontWeight: 'bold', flexShrink: 0, lineHeight: 1, userSelect: 'none', cursor: tableConflictPairsMap.has(String(s.id)) ? 'pointer' : 'default' }}
                             >{tr('ctrl.k')}</span>
                             {isRowDeviation && !isRowDeviationAck ? (
                               <span
