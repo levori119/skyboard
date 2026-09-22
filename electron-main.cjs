@@ -151,10 +151,37 @@ function resolveTarget() {
 // מונע היא עבודה בנתק - הצפייה מה-cache ממשיכה לעבוד גם בלעדיו.
 const localDb = { url: null, child: null };
 
+/**
+ * איפה יושב שרת ה-API המקומי, לפי איך שהעמדה מורצת.
+ *
+ * שתי צורות, ובכוונה:
+ *   · **התקנה** - `electron/local-server.mjs`, קובץ אחד שנארז ב-build
+ *     (scripts/build-local-server.mjs). זה מה שמגיע לעמדה בשטח.
+ *   · **ריפו** - `server/local.js` המקורי, כדי שפיתוח לא ידרוש bundling בכל
+ *     שינוי בשרת.
+ *
+ * ⚠️ **§asar.** התהליך הבן הוא Node רגיל ואינו יודע לקרוא מתוך `app.asar`.
+ * לכן ה-bundle ו-PGlite מוצאים מה-asar (`asarUnpack`), וכאן מתורגם הנתיב.
+ * בלי התרגום ה-fork נופל ב-ENOENT, `localDb.url` נשאר null, והעמדה חוזרת
+ * בשקט להיות מסך צפייה - בדיוק הכשל שהסתיר את הפיצ'ר עד כה.
+ */
+function localServerEntry() {
+  const unpacked = __dirname.replace(`app.asar${path.sep}`, `app.asar.unpacked${path.sep}`);
+  const candidates = [
+    path.join(unpacked, 'electron', 'local-server.mjs'),
+    path.join(__dirname, 'electron', 'local-server.mjs'),
+    path.join(__dirname, 'server', 'local.js'),
+  ];
+  return candidates.find(p => { try { return fs.existsSync(p); } catch { return false; } }) || null;
+}
+
 function startLocalDbServer(cfg) {
   if (cfg && cfg.LOCAL_DB === false) return;
-  const entry = path.join(__dirname, 'server', 'local.js');
-  if (!fs.existsSync(entry)) return; // גרסת לקוח דק - אין שרת ארוז
+  const entry = localServerEntry();
+  if (!entry) {
+    console.warn('[station] אין שרת מקומי ארוז - נתק יאפשר צפייה בלבד');
+    return;
+  }
 
   try {
     const { fork } = require('child_process');

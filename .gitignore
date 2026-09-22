@@ -166,3 +166,6 @@ SECURITY_AUDIT.html
 # מאגר מקומי בעמדה (PGlite) — נתוני הפעלה, לא קוד
 .skyking-local-db/
 .e2e-local-db/
+
+# bundle של שרת ה-API המקומי - נבנה ב-build (scripts/build-local-server.mjs)
+electron/local-server.mjs

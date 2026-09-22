@@ -9,8 +9,8 @@
   "files": [
     "electron-main.cjs",
     "electron-preload.cjs",
-    "electron/whisper.cjs",
-    "electron/screenRecorder.cjs",
+    "electron/*.cjs",
+    "!electron/*.test.js",
     "shared/screenRecording.js",
     "shared/recordingWriter.js",
     "electron-status.html",
@@ -41,7 +41,9 @@
     "target": [
       {
         "target": "nsis",
-        "arch": ["x64"]
+        "arch": [
+          "x64"
+        ]
       }
     ]
   },
@@ -49,7 +51,10 @@
     "target": [
       {
         "target": "dmg",
-        "arch": ["x64", "arm64"]
+        "arch": [
+          "x64",
+          "arm64"
+        ]
       }
     ],
     "category": "public.app-category.utilities"
@@ -58,7 +63,9 @@
     "target": [
       {
         "target": "AppImage",
-        "arch": ["x64"]
+        "arch": [
+          "x64"
+        ]
       }
     ],
     "category": "Utility"

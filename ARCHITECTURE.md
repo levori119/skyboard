@@ -314,6 +314,12 @@ Client A ──── strip_updated event ────> Server ──── broa
 סכמות תרגול, `ANY($1::int[])`. PGlite מריץ את `init.js` ואת **457 ה-endpoints**
 בלי שורת קוד שמשתנה. SQLite היה מחייב גרסה שנייה לכל שאילתה.
 
+**איך הוא מגיע לעמדה:** `scripts/build-local-server.mjs` אורז את השרת המקומי
+לקובץ אחד (esbuild, 2.3MB), ו-`electron-builder` מוציא אותו ואת PGlite מה-asar
+(`asarUnpack`). שניהם חובה: התהליך הבן הוא Node רגיל ו**אינו יודע לקרוא מתוך
+`app.asar`**. עד 2026-09-22 שום קובץ שרת לא נארז כלל, ולכן המאגר המקומי עבד רק
+כשמריצים Electron מתוך הריפו - ראה [REFACTOR_LOG.md](REFACTOR_LOG.md).
+
 **נקודת ההחלפה יחידה:** `rawPool` ב-[server/db/pool.js](server/db/pool.js).
 כך פיצ'ר חדש עובד בנתק ביום שהוא נכתב, בלי לזכור לתמוך בו.
 
