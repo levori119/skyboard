@@ -151,6 +151,32 @@ export function isSubTableColumn(col: { isTable?: boolean; tableKey?: string } |
 }
 
 /**
+ * ── מוד טבלאי ────────────────────────────────────────────────────────────────
+ * אילו טבלאות במוד הטבלה הנתון אפשר להעלות ל**רמה ראשונה** (במקום הפ"מ).
+ *
+ * רק עמודות שהן טבלת בן **רשומה**: קונפיג ישן עלול להחזיק `tableKey` של טבלה
+ * שכבר אינה קיימת, ובלי הסינון היא הייתה מופיעה בתפריט כבחירה שלא עושה דבר.
+ */
+export function tabularCandidateColumns<T extends { isTable?: boolean; tableKey?: string }>(columns: unknown): T[] {
+  return Array.isArray(columns) ? (columns as T[]).filter(c => isSubTableColumn(c)) : [];
+}
+
+/**
+ * העמודה שהועלתה לרמה ראשונה, או `null` כשהמוד כבוי.
+ *
+ * **מחזיר `null` גם כשהטבלה שנבחרה אינה במוד הטבלה הפעיל** - הפקח יכול להחליף
+ * מוד טבלה אחרי שבחר, ובלי הבדיקה העמדה הייתה נתקעת על תצוגה ריקה. הבחירה
+ * נשמרת כפי שהיא, וחוזרת לעצמה ברגע שחוזרים למוד שיש בו את הטבלה.
+ */
+export function resolveTabularColumn<T extends { isTable?: boolean; tableKey?: string }>(
+  columns: unknown,
+  key: string | null | undefined,
+): T | null {
+  if (!key) return null;
+  return tabularCandidateColumns<T>(columns).find(c => c.tableKey === key) ?? null;
+}
+
+/**
  * ברירת המחדל של עמודות טבלת בן שזה עתה נוספה למוד טבלה.
  *
  * לא כל 15 העמודות: טבלה שנפתחת עם הכל דוחקת את שאר הפ"מ מהמסך, והמקנפג ממילא

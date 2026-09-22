@@ -2010,6 +2010,22 @@
       "he": "📋 טבלה",
       "en": "📋 Table"
     },
+    "tabularIdentity": {
+      "he": "או\"ק / טייסת",
+      "en": "Callsign / Squadron"
+    },
+    "tabularMode": {
+      "he": "מוד טבלאי",
+      "en": "Tabular mode"
+    },
+    "tabularNoSubTables": {
+      "he": "אין טבלאות במוד הטבלה הפעיל",
+      "en": "No tables in the active table mode"
+    },
+    "tabularOff": {
+      "he": "כבוי - תצוגת פ\"מים",
+      "en": "Off - strips view"
+    },
     "takeoff": {
       "he": "✈ המראה",
       "en": "✈ Takeoff"

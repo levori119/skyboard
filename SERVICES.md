@@ -680,7 +680,9 @@ DB מנוהל היה נופל יחד עם העמדה.
 
 ### `src/types/subTables.ts`
 **תפקיד:** **רישום טבלאות הבן של הפ"מ** — ישות שיש לה כמה שורות לכל פ"מ (כרגע: נקודות מכוון). ממנו נגזרים תפריט **"הוסף טבלה"** בהגדרת מוד הטבלה, בוחר השדות שבתוך הטבלה, והרינדור בעמדה. טבלת בן חדשה = רשומה אחת כאן.
-**מייצא:** `SubTableDef`, `SubTableColumnDef`, `STRIP_SUB_TABLES`, `SUB_TABLE_BY_KEY`, `getSubTable`, `isSubTableColumn`, `defaultSubTableColumns`, `SUB_TABLE_DEFAULT_KEYS`, `subTableAccent` (צבע זיהוי מותאם-תמה). בעמדה הטבלה נפרסת כ**שורה** מתחת לפ"מ בלחיצה על + שליד הפ"מ, וכמה פ"מים יכולים להיות פרוסים בו-זמנית.
+**מייצא:** `SubTableDef`, `SubTableColumnDef`, `STRIP_SUB_TABLES`, `SUB_TABLE_BY_KEY`, `getSubTable`, `isSubTableColumn`, `defaultSubTableColumns`, `SUB_TABLE_DEFAULT_KEYS`, `subTableAccent` (צבע זיהוי מותאם-תמה), `tabularCandidateColumns` + `resolveTabularColumn` (**מוד טבלאי**). בעמדה הטבלה נפרסת כ**שורה** מתחת לפ"מ בלחיצה על + שליד הפ"מ, וכמה פ"מים יכולים להיות פרוסים בו-זמנית.
+
+**מוד טבלאי** (תפריט תצוגה ← טבלה ← "מוד טבלאי"): טבלת בן אחת עולה ל**רמה ראשונה** במקום הפ"מ - עמודות הפ"מ יורדות מהמסך (ואיתן קיבוע העמודות), הטבלה נפרסת ל**כל** הפ"מים ותמיד פתוחה, ובצידה **או"ק וטייסת גדולים** שאומרים של מי הטבלה. לחצני הפעולה (⋮ / ✂ פיצול / ⊕ מיזוג / קליק ימני / גרירה להעברה) נשארים כפי שהם - זהו מוד תצוגה, לא מוד קריאה בלבד. הבלוק עצמו הוא `renderSubBlock` ב-SectorDashboard - **אותו רכיב** לשורה הנפרסת בתצוגה הרגילה ולתא שליד האו"ק במוד הטבלאי. הבחירה היא מצב של העמדה (לא DB), ו-`resolveTabularColumn` מחזיר `null` כשהטבלה שנבחרה אינה במוד הטבלה הפעיל - כך החלפת מוד טבלה לא משאירה לוח ריק.
 
 ### `src/types/missionDesk.ts`
 **תפקיד:** טיפוסי דסק משימה כללי — עץ פריסה (BSP), שירותים (buttons/freetext/table/image/label/**map**/**strips**/**view_tables**), config ו-state. שירותי `map`/`strips` הם חלון מפה וחלון הפ"ממים שלו: הדסק מקצה להם אזור, והתוכן מגיע מהעמדה (`mission_desk_map_config`). `view_tables` ("טבלאות מתצוגה") מציג טבלאות מתפריט התצוגה בתוך המשבצת; אילו - פר-עמדה ב-`mission_desk_view_tables`.

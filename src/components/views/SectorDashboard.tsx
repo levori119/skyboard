@@ -87,7 +87,7 @@ import { windowFrame, frameColor } from '../../utils/windowFrame';
 import { deskBackgroundStyle, normalizeDeskBackground, DESK_BG_MIN_SIZE, DESK_BG_MAX_SIZE, type DeskBackground } from '../../utils/deskBackground';
 import { AimPointsSummary, AimPointsWindow } from '../strips/AimPointsTable';
 import { AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY, COORD_PLACEHOLDER, aimFieldText, isValidCoord, normalizeCoord, toAimPoints, type AimPoint } from '../../types/aimPoints';
-import { getSubTable, isSubTableColumn, subTableAccent, subTableRows, subTableFrozenCount, subTableFrozenLayout } from '../../types/subTables';
+import { getSubTable, isSubTableColumn, resolveTabularColumn, subTableAccent, subTableRows, subTableFrozenCount, subTableFrozenLayout, tabularCandidateColumns } from '../../types/subTables';
 import { aircraftRowWrite } from '../../types/stripAircraft';
 import { pollingRegistry, usePolling } from '../../hooks/usePollingRegistry';
 import HandwritingCalibration from '../shared/HandwritingCalibration';
@@ -1484,6 +1484,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const k = `${stripId}__${tableKey}`;
     setExpandedSubTableRows(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n; });
   }, []);
+  // ── מוד טבלאי ──────────────────────────────────────────────────────────────
+  // הטבלה הבת עולה ל**רמה ראשונה**: עמודות הפ"מ יורדות מהמסך, הטבלה שנבחרה
+  // נפרסת ל**כל** הפ"מים, ובצידה או"ק וטייסת גדולים שאומרים של מי הטבלה.
+  // לחצני הפעולה (⋮ / ✂ / ⊕ / קליק ימני / גרירה) נשארים כפי שהם - זהו מוד
+  // תצוגה ולא מוד קריאה בלבד.
+  // `null` = כבוי, כלומר תצוגת הפ"מים הרגילה.
+  const [tabularTableKey, setTabularTableKey] = useState<string | null>(null);
   const [tableEditableCols, setTableEditableCols] = useState<Set<string>>(new Set());
   const [tableSerialViewPopup, setTableSerialViewPopup] = useState<{ x: number; y: number; station: string; stripId: string } | null>(null);
   const [serialPopupKnownUntilId, setSerialPopupKnownUntilId] = useState<string | null>(null);
@@ -5091,6 +5098,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const tableShowsPending = (s: any) =>
     showPendingTransfer || s.status !== 'pending_transfer'
     || (tableHasTransferAcceptCol && incomingByStrip.has(String(s.id).replace(/^s/, '')));
+
+  // ── מוד טבלאי - אילו טבלאות אפשר להעלות לרמה ראשונה ───────────────────────
+  // רק טבלאות הבן שהוגדרו במוד הטבלה **הפעיל**. אין כאלה = אין מה לבחור, ולכן
+  // תפריט התצוגה אומר זאת במפורש במקום להציג פקד שנדלק בלי שקורה דבר.
+  const tabularModeColumns = availableTableModes.find((tm: any) => tm.id === selectedTableModeId)?.columns;
+  const tabularCandidates: any[] = React.useMemo(
+    () => tabularCandidateColumns<any>(tabularModeColumns),
+    [tabularModeColumns],
+  );
+  /** עמודת הטבלה שהועלתה לרמה ראשונה - null כשהמוד כבוי או כשהטבלה אינה במוד הפעיל */
+  const tabularColumn: any = resolveTabularColumn<any>(tabularModeColumns, tabularTableKey);
 
   // Computed strips order for table display (tableOnBoard = strips ON the board / center table)
   const tableDisplayStrips = (() => {
@@ -12253,6 +12271,40 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             </div>
                           ))
                         }
+                        {/* ── מוד טבלאי ──────────────────────────────────────
+                            מעלה טבלת בן ל**רמה ראשונה**: עמודות הפ"מ יורדות,
+                            הטבלה נפרסת לכל הפ"מים, ובצידה או"ק וטייסת גדולים.
+                            כשאין טבלאות במוד הפעיל - נאמר כאן למה, ולא מוצג
+                            פקד שנדלק בלי שקורה דבר (CLAUDE.md §Do NOT). */}
+                        <div style={{ borderTop: `1px solid ${menuBorder}`, padding: '6px 20px 3px', fontSize: '10px', color: menuMuted, direction: dir }}>
+                          {tr('ctrl.tabularMode')}
+                        </div>
+                        {tabularCandidates.length === 0 ? (
+                          <div style={{ padding: '2px 20px 8px', color: menuMuted, fontSize: '11px', direction: dir }}>
+                            {tr('ctrl.tabularNoSubTables')}
+                          </div>
+                        ) : (
+                          [{ key: null as string | null, label: tr('ctrl.tabularOff') }]
+                            .concat(tabularCandidates.map((c: any) => ({
+                              key: c.tableKey as string | null,
+                              label: c.label || tr(getSubTable(c.tableKey)?.labelKey || c.tableKey),
+                            })))
+                            .map(opt => {
+                              const active = tabularTableKey === opt.key;
+                              return (
+                                <div
+                                  key={opt.key ?? '__off'}
+                                  data-testid={`tabular-opt-${opt.key ?? 'off'}`}
+                                  onClick={() => { setTabularTableKey(opt.key); setShowTableDropdown(false); setShowViewMenu(false); }}
+                                  style={{ padding: '6px 26px', cursor: 'pointer', fontSize: '12px', color: menuText, direction: dir, background: active ? '#1e40af' : '' }}
+                                  onMouseEnter={e => (e.currentTarget.style.background = '#2563eb')}
+                                  onMouseLeave={e => (e.currentTarget.style.background = active ? '#1e40af' : '')}
+                                >
+                                  {active ? '✓ ' : ''}{opt.label}
+                                </div>
+                              );
+                            })
+                        )}
                       </div>
                     )}
                   </div>
@@ -15429,7 +15481,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {/* Table Mode */}
           {!isGroundMode && !isMissionDeskMode && !isClassicMode && !isCivilianMode && tableMode && (() => {
             const activeMode = availableTableModes.find(tm => tm.id === selectedTableModeId);
-            const columns: any[] = activeMode?.columns && activeMode.columns.length > 0
+            const baseColumns: any[] = activeMode?.columns && activeMode.columns.length > 0
               ? activeMode.columns
               : [
                   { key: 'callSign', label: 'או"ק', editable: 'none' },
@@ -15442,8 +15494,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   { key: 'transfer', label: 'העבר', editable: 'none' },
                 ];
 
+            // ── מוד טבלאי ────────────────────────────────────────────────
+            // טבלת הבן שנבחרה עולה ל**רמה ראשונה**: עמודות הפ"מ יורדות מהמסך
+            // (ואיתן קיבוע העמודות, שאין לו על מה לשבת), והטבלה הנבחרת היא
+            // טבלת הבן היחידה שנפרסת - לכל פ"מ, תמיד פתוחה, ובצידה האו"ק.
+            const tabularCol: any = tabularColumn;
+            const isTabular = !!tabularCol;
+            const columns: any[] = isTabular ? [] : baseColumns;
+
             // עמודות המוד שהן טבלת בן. קיומן הוא שמדליק את ה-+ ליד הפ"מ.
-            const subTableColumns: any[] = columns.filter((c: any) => c.isTable && isSubTableColumn(c));
+            const subTableColumns: any[] = isTabular
+              ? [tabularCol]
+              : baseColumns.filter((c: any) => c.isTable && isSubTableColumn(c));
 
             // כמה תאים לדלג עליהם כדי שהטבלה הנפרסת תתחיל **בקו העמודה
             // השנייה של הפ"מ**: שני תאי הידית (סימון קונפליקט + ⠿) ועוד
@@ -16426,13 +16488,254 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               }
             };
 
-            const frozenCount = activeMode?.frozenColumns || 0;
+            /**
+             * בלוק טבלת הבן של פ"מ - **רכיב אחד** לשני המקומות שבהם הוא מופיע:
+             * השורה הנפרסת מתחת לפ"מ בתצוגה הרגילה, והתא שליד האו"ק במוד הטבלאי.
+             * שכפול שלו היה מייצר שתי טבלאות שמתפצלות בהתנהגות (CLAUDE.md §DRY).
+             *
+             * `sticky` - עיגון לגלילה הצידית. קיים רק בתצוגה הרגילה, שם הבלוק יושב
+             * בשורה שרוחבה כל הטבלה; במוד הטבלאי הוא יושב בתא משלו ואין מה לעגן.
+             * `forceOpen` - השורות תמיד פרוסות (במוד הטבלאי **הטבלה היא התצוגה**),
+             * ולכן גם כפתור הכיווץ יורד - הוא היה פקד שמכבה את כל מה שרואים.
+             * `showStripName` - שם הפ"מ בכותרת. מיותר במוד הטבלאי, שם האו"ק ענק בצד.
+             */
+            const renderSubBlock = (
+              s: any,
+              col: any,
+              opts: { sticky?: { anchor: number; width: number }; forceOpen?: boolean; showStripName?: boolean } = {},
+            ) => {
+              const k = `${s.id}__${col.tableKey}`;
+              const subDef = getSubTable(col.tableKey)!;
+              const subCols: any[] = (Array.isArray(col.columns) && col.columns.length > 0) ? col.columns : [];
+              const rows = subTableRows(subDef, s);
+
+              // ── שמירה של תא ────────────────────────────────────────
+              // שתי טבלאות הבן נשמרות אחרת, ולכן `rowWrite` בהגדרה ולא
+              // תנאי כאן: נקודות המכוון הן מערך על הפ"מ ונכתבות כולן,
+              // ושורת מטוס היא רשומת DB ונשמרת לבדה במסלול שלה - כתיבת
+              // מערך שלם הייתה דורסת שורות שעמדה אחרת עדכנה באותו רגע.
+              const persistRows = async (next: AimPoint[]) => {
+                setStrips(prev => prev.map(st => st.id === s.id ? { ...st, [subDef.stripField]: next } : st));
+                try {
+                  await fetch(`${API_URL}/strips/${s.id}`, {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ [subDef.stripField]: next }),
+                  });
+                } catch (e) { console.error(e); }
+              };
+
+              const persistAircraftCell = async (rowIdx: number, key: string, val: string | boolean) => {
+                const write = aircraftRowWrite(s.id, rows[rowIdx] as any, key, val);
+                if (!write) return;
+                // עדכון אופטימי: השרת מחזיר את השורה, אבל הפ"מ נטען
+                // בסקר הבא - בלי זה התא היה קופץ חזרה לערך הישן
+                setStrips(prev => prev.map(st => st.id === s.id
+                  ? { ...st, aircraft: (Array.isArray((st as any).aircraft) ? (st as any).aircraft : []).map((a: any) =>
+                      Number(a?.idx) === Number(rows[rowIdx].idx) ? { ...a, ...write.body } : a) }
+                  : st));
+                try {
+                  await fetch(`${API_URL}${write.path}`, {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(write.body),
+                  });
+                } catch (e) { console.error(e); }
+              };
+
+              const setField = (rowIdx: number, key: string, val: string | boolean) =>
+                subDef.rowWrite === 'aircraft-row'
+                  ? persistAircraftCell(rowIdx, key, val)
+                  : persistRows(rows.map((r, i) => i === rowIdx ? { ...r, [key]: val } : r) as unknown as AimPoint[]);
+
+              // השורות פתוחות? הטבלה עצמה נפרסת מכווצת (רק הכותרת)
+              const rowsOpen = opts.forceOpen || expandedSubTableRows.has(k);
+              const subBlockAnchor = opts.sticky?.anchor ?? 0;
+              const subBlockWidth = opts.sticky?.width ?? 0;
+              // גלילה צידית עצמאית: הבלוק **נעגן** לקצה העמודות המקובעות ומקבל
+              // את רוחב חלון התצוגה, כך שגלילת טבלת הפ"מים לא סוחבת אותו,
+              // והגלילה הפנימית שלו (העוטף שלמטה) לא מזיזה את טבלת הפ"מים.
+              return (
+                <div style={{
+                  display: 'flex', flexDirection: 'column', gap: '5px', minWidth: 0,
+                  paddingInlineStart: '6px',
+                  ...(subBlockWidth > 0
+                    ? { position: 'sticky' as const, insetInlineStart: subBlockAnchor, width: subBlockWidth, maxWidth: '100%', boxSizing: 'border-box' as const }
+                    : {}),
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    {/* + / − של **הטבלה הזו**: פותח וסוגר את השורות
+                        שלה בלבד. שורת הכותרת נשארת תמיד, כדי שרואים
+                        איזו טבלה יש לפ"מ וכמה שורות יש בה.
+                        במוד הטבלאי אין אותו: הטבלה **היא** התצוגה, וכפתור
+                        שמכווץ את כל מה שרואים אינו פקד אלא מלכודת. */}
+                    {!opts.forceOpen && <button
+                      onClick={e => { e.stopPropagation(); toggleSubTableRows(s.id, col.tableKey); }}
+                      onPointerDown={e => e.stopPropagation()}
+                      title={rowsOpen ? tr('ctrl.collapseSubTable') : tr('ctrl.expandSubTable')}
+                      style={{
+                        width: '16px', height: '16px', lineHeight: 1, padding: 0, flexShrink: 0,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', borderRadius: '3px',
+                        background: rowsOpen ? SUB_ACC : 'transparent',
+                        color: rowsOpen ? '#062c38' : SUB_ACC,
+                        border: `1px solid ${SUB_ACC}`,
+                      }}
+                    >{rowsOpen ? '−' : '+'}</button>}
+                    <span style={{ fontSize: '11px', fontWeight: 'bold', color: SUB_ACC }}>
+                      {col.label || tr(subDef.labelKey)}
+                    </span>
+                    <span style={{ fontSize: '10px', color: T.muted }}>
+                      {tr('ctrl.subTableRowCount', { count: rows.length })}
+                    </span>
+                    {/* שיוך מפורש לפ"מ - השורה רחבה, והכותרת עלולה
+                        להיקרא כשייכת לפ"מ שמעליה או שמתחתיה. במוד הטבלאי
+                        האו"ק ענק בצד הטבלה, ולכן החזרה כאן רק מרעישה. */}
+                    {opts.showStripName !== false && (
+                      <span style={{ fontSize: '10px', color: T.muted }}>
+                        {tr('ctrl.subTableOfStrip', { name: getFormationDisplayName(s) })}
+                      </span>
+                    )}
+                    {/* עורך נקודות המכוון שייך לטבלה שלה בלבד */}
+                    {subDef.key === AIM_POINTS_FIELD_KEY && (
+                      <button
+                        onClick={() => setAimPointsEditor({ stripId: s.id, title: getFormationDisplayName(s) })}
+                        style={{ background: 'transparent', border: 'none', color: frameColor('edit', themeMode), fontSize: '10px', cursor: 'pointer', padding: 0, marginInlineStart: 'auto' }}
+                      >{tr('strips.openAimPointsEditor')}</button>
+                    )}
+                  </div>
+
+                  {!rowsOpen ? null : rows.length === 0 || subCols.length === 0 ? (
+                    <span style={{ fontSize: '11px', color: T.muted, fontStyle: 'italic' }}>
+                      {subCols.length === 0 ? tr('ctrl.subTableNoColumns') : tr(subDef.emptyKey)}
+                    </span>
+                  ) : (() => {
+                    // עמודות מקובעות: נשארות גלויות כשהטבלה נגללת
+                    // לצדדים, אחרת עמודות הזיהוי יוצאות מהמסך
+                    // והמספרים נשארים בלי למי הם שייכים.
+                    const LEAD_W = 22;
+                    const frozen = subTableFrozenCount(col.tableKey, col.frozenColumns, subCols.length);
+                    const layout = subTableFrozenLayout(subDef, subCols, frozen, LEAD_W);
+                    const subBg = lightMode ? '#eef7fa' : '#07222c';
+                    const frozenCell = (i: number): React.CSSProperties => {
+                      const L = layout[i];
+                      if (!L) return {};
+                      return {
+                        position: 'sticky', insetInlineStart: L.offset, zIndex: 2,
+                        width: L.width, minWidth: L.width, maxWidth: L.width,
+                        background: subBg, overflow: 'hidden', textOverflow: 'ellipsis',
+                        ...(i === frozen - 1 ? { borderInlineEnd: `2px solid ${SUB_ACC}` } : {}),
+                      };
+                    };
+                    return (
+                    <div style={{ overflowX: 'auto', maxWidth: '100%', overscrollBehaviorX: 'contain' }}>
+                      <table style={{ borderCollapse: 'collapse', fontSize: '12px', minWidth: 'max-content' }}>
+                        <thead>
+                          <tr>
+                            <th style={{ padding: '2px 6px', width: LEAD_W, color: T.muted, fontSize: '10px', fontWeight: 'normal', borderBottom: `1px solid ${lightMode ? '#bae6fd' : '#164e63'}`, ...(frozen > 0 ? { position: 'sticky', insetInlineStart: 0, zIndex: 2, background: subBg } : {}) }}>#</th>
+                            {subCols.map((sc, sci) => (
+                              <th key={sc.key} style={{ padding: '2px 8px', textAlign: 'start', fontWeight: 'bold', color: T.muted, fontSize: '10px', borderBottom: `1px solid ${lightMode ? '#bae6fd' : '#164e63'}`, whiteSpace: 'nowrap', ...frozenCell(sci) }}>
+                                {sc.label || tr(subDef.columns.find(c => c.key === sc.key)?.labelKey || sc.key)}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map((row, rowIdx) => (
+                            <tr key={rowIdx} style={{ background: row.abort_attack ? (lightMode ? '#fee2e2' : '#450a0a') : undefined }}>
+                              <td style={{ padding: '2px 6px', color: T.muted, fontSize: '10px', textAlign: 'center', ...(frozen > 0 ? { position: 'sticky', insetInlineStart: 0, zIndex: 2, background: subBg } : {}) }}>{rowIdx + 1}</td>
+                              {subCols.map((sc, sci) => {
+                                const scDef = subDef.columns.find(c => c.key === sc.key);
+                                const isFlag = (scDef?.editableOptions || []).includes('toggle');
+                                const cellId = `${s.id}__${col.key}__${rowIdx}__${sc.key}`;
+                                // **ההגדרה בניהול היא מקור האמת היחיד.** שדה שהוגדר
+                                // לעריכה בהגדרות הטבלה פתוח לעריכה בעמדה, נקודה - בלי
+                                // מתג נעילה נוסף בעמדה. נעילה כזו הייתה קיימת כאן, ובגללה
+                                // מקנפג שהגדיר שדה לעריכה ראה תא נעול בלי לדעת למה:
+                                // המתג ישב בכותרת הטבלה הראשית, מגולל הרחק מהטבלה
+                                // הפרוסה. מי שלא רוצה שדה פתוח - לא מגדיר אותו לעריכה.
+                                const editable = sc.editable && sc.editable !== 'none';
+
+                                if (isFlag) {
+                                  const on = (row as any)[sc.key] === true;
+                                  // אדום = דגל שמשמעותו בעיה (עצור תקיפה / תקלה במטוס).
+                                  // ה-⛔ שמור לעצירת התקיפה בלבד; תקלה היא ✓ אדום.
+                                  const danger = sc.key === 'abort_attack' || sc.key === 'has_fault';
+                                  const stopGlyph = sc.key === 'abort_attack';
+                                  return (
+                                    <td key={sc.key} style={{ padding: '2px 8px', textAlign: 'center', ...frozenCell(sci) }}>
+                                      {editable ? (
+                                        <input type="checkbox" checked={on} onChange={e => setField(rowIdx, sc.key, e.target.checked)}
+                                          style={{ width: 14, height: 14, margin: 0, cursor: 'pointer', accentColor: danger ? '#ef4444' : undefined }} />
+                                      ) : (
+                                        <span style={{ color: on ? (danger ? '#ef4444' : '#22c55e') : T.muted }}>{on ? (stopGlyph ? '⛔' : '✓') : '–'}</span>
+                                      )}
+                                    </td>
+                                  );
+                                }
+
+                                // ערך כטקסט - דגל מוצג כ-✓ ולא כ-"false"
+                                const text = aimFieldText(row as any, sc.key);
+                                return (
+                                  <td key={sc.key} style={{ padding: '2px 8px', whiteSpace: 'nowrap', ...frozenCell(sci) }}>
+                                    {editable && tableEditingCell === cellId ? (
+                                      <>
+                                      {/* מהות התקלה נבחרת מהתפריט שמנוהל במסך ניהול מערכת.
+                                          datalist ולא select: הרשימה מנחה, אבל מהות שטרם
+                                          נרשמה בתפריט עדיין ניתנת להקלדה ולא חוסמת דיווח.
+                                          רק תא אחד בעריכה בכל רגע, ולכן ה-id יחיד. */}
+                                      {sc.key === 'fault_type' && (
+                                        <datalist id="sub-table-fault-types">
+                                          {faultTypes.map(ft => <option key={ft} value={ft} />)}
+                                        </datalist>
+                                      )}
+                                      <input
+                                        autoFocus
+                                        defaultValue={text}
+                                        list={sc.key === 'fault_type' ? 'sub-table-fault-types' : undefined}
+                                        placeholder={sc.key === 'coord' ? COORD_PLACEHOLDER : undefined}
+                                        title={sc.key === 'coord' ? tr('strips.aimCoordHint') : undefined}
+                                        onBlur={e => {
+                                          const v = sc.key === 'coord' ? normalizeCoord(e.target.value) : e.target.value;
+                                          if (v !== text) setField(rowIdx, sc.key, v);
+                                          setTableEditingCell(null);
+                                        }}
+                                        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setTableEditingCell(null); }}
+                                        style={{ width: `${Math.max(COORD_PLACEHOLDER.length, text.length + 3)}ch`, background: lightMode ? '#ffffff' : '#0f172a', border: '1px solid #6d28d9', borderRadius: '3px', color: lightMode ? '#1e293b' : 'white', padding: '1px 4px', fontSize: '12px', fontFamily: 'inherit', direction: dir }}
+                                      />
+                                      </>
+                                    ) : (
+                                      <span
+                                        onClick={() => editable && setTableEditingCell(cellId)}
+                                        // נ"צ שאינו תואם את הפורמט מסומן אדום - הפקח רואה
+                                        // את השגיאה בטבלה, בלי לפתוח את העורך
+                                        title={sc.key === 'coord' && !isValidCoord(text) ? tr('strips.aimCoordHint') : undefined}
+                                        style={{ cursor: editable ? 'text' : 'default', userSelect: 'none',
+                                          color: sc.key === 'coord' && !isValidCoord(text) ? '#ef4444' : (lightMode ? '#0f172a' : '#e2e8f0'),
+                                          textDecoration: sc.key === 'coord' && !isValidCoord(text) ? 'underline wavy #ef4444' : undefined }}
+                                      >{text || (editable ? '…' : '–')}</span>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ); })()}
+                </div>
+              );
+            };
+
+            // במוד הטבלאי אין עמודות פ"מ, ולכן אין מה לקבע
+            const frozenCount = isTabular ? 0 : (activeMode?.frozenColumns || 0);
             const hasFrozen = frozenCount > 0;
 
             // רווח דק בין פ"מ לפ"מ: שורה ריקה בצבע הלוח, אחרי הפ"מ ואחרי
             // טבלאות הבן שנפרסו לו - כך כל פ"מ נקרא כיחידה אחת ולא כרצף שורות.
             const STRIP_GAP_PX = 9;
-            const totalColSpan = columns.length + 2 + (showFullPicture ? 1 : 0);
+            // במוד הטבלאי מצטרפים שני תאים במקום עמודות הפ"מ: הזהות (או"ק
+            // וטייסת) והטבלה עצמה
+            const totalColSpan = columns.length + 2 + (showFullPicture ? 1 : 0) + (isTabular ? 2 : 0);
 
             return (
               <>
@@ -16530,6 +16833,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         </th>
                       );
                     })}
+                    {/* מוד טבלאי - שתי הכותרות שמחליפות את עמודות הפ"מ */}
+                    {isTabular && (<>
+                      <th style={{ padding: '8px 12px', textAlign: 'start', color: T.muted, borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, zIndex: 10, background: 'inherit', fontSize: '11px', whiteSpace: 'nowrap', minWidth: '120px' }}>
+                        {tr('ctrl.tabularIdentity')}
+                      </th>
+                      <th style={{ padding: '8px 12px', textAlign: 'start', color: SUB_ACC, borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, zIndex: 10, background: 'inherit', fontSize: '11px', whiteSpace: 'nowrap', width: '100%' }}>
+                        {tabularCol.label || tr(getSubTable(tabularCol.tableKey)?.labelKey || tabularCol.tableKey)}
+                      </th>
+                    </>)}
                     {showFullPicture && (
                       <th style={{ padding: '8px 10px', textAlign: 'start', color: T.muted, borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, zIndex: 10, background: 'inherit', fontSize: '11px', whiteSpace: 'nowrap', minWidth: '120px' }}>
                         {tr('ctrl.whoseDesk')}
@@ -16579,7 +16891,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             });
                           }}
                         >
-                          <td colSpan={columns.length + 3 + (showFullPicture ? 1 : 0)} style={{ padding: '0', direction: dir }}>
+                          {/* +1 על totalColSpan - גם התא האפסי שבקצה (משולש ההעברה) */}
+                          <td colSpan={totalColSpan + 1} style={{ padding: '0', direction: dir }}>
                             <div style={{ position: 'sticky', right: 0, display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '5px 12px' }}>
                               <span data-drag-handle style={{ color: (themeMode === 'light' || themeMode === 'ocean') ? 'rgba(255,255,255,0.7)' : T.muted, fontSize: '14px', cursor: 'grab', flexShrink: 0 }}>⠿</span>
                               <span style={{ fontSize: '11px', color: (themeMode === 'light' || themeMode === 'ocean') ? 'rgba(255,255,255,0.9)' : '#a78bfa', transition: 'transform 0.15s', transform: item.collapsed ? 'rotate(-90deg)' : 'rotate(0deg)', flexShrink: 0 }}>▾</span>
@@ -16604,7 +16917,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     // השתקת קונפליקטים מכבה את **ההבהוב** בלבד: הסימון "ק" (אדום/כתום/ירוק)
                     // ורצפת המסגרת נשארים, כי הם אומרים *מה מצב הפ"מ* ולא *שים לב עכשיו*.
                     const isRowConflictFlashing = isRowAltConflict && !muteConflictAlerts;
-                    const hasOpenSubTable = subTableColumns.some((c: any) => expandedSubTables.has(`${s.id}__${c.tableKey}`));
+                    // במוד הטבלאי הטבלה יושבת **בתוך** שורת הפ"מ ולא בשורה נפרדת,
+                    // ולכן רצפת המסגרת נשארת על השורה עצמה - היא היחידה כולה.
+                    const hasOpenSubTable = !isTabular && subTableColumns.some((c: any) => expandedSubTables.has(`${s.id}__${c.tableKey}`));
                     // שורות הרווח מזיזות את מיקום הפ"מ בתוך ה-tbody, ולכן הזברה
                     // מסומנת במחלקה מפורשת במקום להישען על nth-child (ראה App.css).
                     // רק שורה במצב רגיל מקבלת אותה - שורה במצב מיוחד (גרירה, קונפליקט,
@@ -16774,7 +17089,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             {/* פורס את טבלאות הבן של הפ"מ. יושב **בראש השורה**,
                                 צמוד לפ"מ עצמו, ולא תלוי במקום שבו הוצבה עמודת
                                 הטבלה בהגדרת המוד. */}
-                            {subTableColumns.length > 0 && (() => {
+                            {subTableColumns.length > 0 && !isTabular && (() => {
                               const anyOpen = subTableColumns.some((c: any) => expandedSubTables.has(`${s.id}__${c.tableKey}`));
                               const total = subTableColumns.reduce((n: number, c: any) => {
                                 const d = getSubTable(c.tableKey);
@@ -16848,6 +17163,25 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           }
                           return cell;
                         })}
+                        {/* ── מוד טבלאי: זהות + הטבלה, בשורה אחת ──────────────
+                            הטבלה יושבת **בתוך שורת הפ"מ** ולא מתחתיה, כדי
+                            שהאו"ק יהיה *לצד* הטבלה ולא מעליה - במבט אחד רואים
+                            של מי הטבלה בלי לחפש שורה אחרת. */}
+                        {isTabular && (<>
+                          <td style={{ padding: '6px 12px', verticalAlign: 'middle', direction: dir, whiteSpace: 'nowrap' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', lineHeight: 1.1 }}>
+                              <span style={{ fontSize: `${Math.round(tableFontSize * 2)}px`, fontWeight: 'bold', color: T.text, letterSpacing: '0.02em' }}>
+                                {bidiAuto(getFormationDisplayName(s))}
+                              </span>
+                              <span style={{ fontSize: `${Math.max(11, Math.round(tableFontSize * 1.1))}px`, color: T.muted }}>
+                                {bidiAuto(String(s.sq || s.squadron || '')) || '—'}
+                              </span>
+                            </div>
+                          </td>
+                          <td style={{ padding: '2px 0 6px', verticalAlign: 'middle', direction: dir, width: '100%' }}>
+                            {renderSubBlock(s, tabularCol, { forceOpen: true, showStripName: false })}
+                          </td>
+                        </>)}
                         {showFullPicture && (() => {
                           const myPresetName = workstationPresets.find((p: any) => Number(p.id) === Number(session.presetId))?.name || '';
                           const deskPresets: string[] = s._deskPresets || [];
@@ -16877,53 +17211,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           פס אנכי בצבע הטבלה בצד הפ"מ, הזחה, ורקע נבדל. הגבול
                           התחתון העבה עובר לשורה האחרונה שנפרסה, כך שהפ"מ
                           והטבלאות שלו נקראים כגוש אחד ולא כשורות נפרדות. */}
-                      {subTableColumns.map((col: any, sti: number) => {
+                      {!isTabular && subTableColumns.map((col: any, sti: number) => {
                         const k = `${s.id}__${col.tableKey}`;
                         if (!expandedSubTables.has(k)) return null;
-                        const subDef = getSubTable(col.tableKey)!;
-                        const subCols: any[] = (Array.isArray(col.columns) && col.columns.length > 0) ? col.columns : [];
-                        const rows = subTableRows(subDef, s);
                         const isLastOpen = sti === subTableColumns.map((c: any) => expandedSubTables.has(`${s.id}__${c.tableKey}`)).lastIndexOf(true);
-
-                        // ── שמירה של תא ────────────────────────────────────────
-                        // שתי טבלאות הבן נשמרות אחרת, ולכן `rowWrite` בהגדרה ולא
-                        // תנאי כאן: נקודות המכוון הן מערך על הפ"מ ונכתבות כולן,
-                        // ושורת מטוס היא רשומת DB ונשמרת לבדה במסלול שלה - כתיבת
-                        // מערך שלם הייתה דורסת שורות שעמדה אחרת עדכנה באותו רגע.
-                        const persistRows = async (next: AimPoint[]) => {
-                          setStrips(prev => prev.map(st => st.id === s.id ? { ...st, [subDef.stripField]: next } : st));
-                          try {
-                            await fetch(`${API_URL}/strips/${s.id}`, {
-                              method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ [subDef.stripField]: next }),
-                            });
-                          } catch (e) { console.error(e); }
-                        };
-
-                        const persistAircraftCell = async (rowIdx: number, key: string, val: string | boolean) => {
-                          const write = aircraftRowWrite(s.id, rows[rowIdx] as any, key, val);
-                          if (!write) return;
-                          // עדכון אופטימי: השרת מחזיר את השורה, אבל הפ"מ נטען
-                          // בסקר הבא - בלי זה התא היה קופץ חזרה לערך הישן
-                          setStrips(prev => prev.map(st => st.id === s.id
-                            ? { ...st, aircraft: (Array.isArray((st as any).aircraft) ? (st as any).aircraft : []).map((a: any) =>
-                                Number(a?.idx) === Number(rows[rowIdx].idx) ? { ...a, ...write.body } : a) }
-                            : st));
-                          try {
-                            await fetch(`${API_URL}${write.path}`, {
-                              method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify(write.body),
-                            });
-                          } catch (e) { console.error(e); }
-                        };
-
-                        const setField = (rowIdx: number, key: string, val: string | boolean) =>
-                          subDef.rowWrite === 'aircraft-row'
-                            ? persistAircraftCell(rowIdx, key, val)
-                            : persistRows(rows.map((r, i) => i === rowIdx ? { ...r, [key]: val } : r) as unknown as AimPoint[]);
-
-                        // השורות פתוחות? הטבלה עצמה נפרסת מכווצת (רק הכותרת)
-                        const rowsOpen = expandedSubTableRows.has(k);
 
                         // הקו של העמודה השנייה - שם מתחיל הבלוק, ושם הוא נעצר
                         // בגלילה הצידית של טבלת הפ"מים
@@ -16948,174 +17239,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 style={{ padding: '2px 0 6px', direction: dir,
                                   // בלי תא הזחה (אין עמודת או"ק) הדופן יושבת כאן
                                   ...(subTableIndentCols > 0 ? {} : { borderInlineStart: `2px solid ${SUB_ACC}` }) }}>
-                              {/* גלילה צידית עצמאית: הבלוק **נעגן** לקצה העמודות
-                                  המקובעות ומקבל את רוחב חלון התצוגה, כך שגלילת
-                                  טבלת הפ"מים לא סוחבת אותו, והגלילה הפנימית שלו
-                                  (העוטף שלמטה) לא מזיזה את טבלת הפ"מים. */}
-                              <div style={{
-                                display: 'flex', flexDirection: 'column', gap: '5px', minWidth: 0,
-                                paddingInlineStart: '6px',
-                                ...(subBlockWidth > 0
-                                  ? { position: 'sticky' as const, insetInlineStart: subBlockAnchor, width: subBlockWidth, maxWidth: '100%', boxSizing: 'border-box' as const }
-                                  : {}),
-                              }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                  {/* + / − של **הטבלה הזו**: פותח וסוגר את השורות
-                                      שלה בלבד. שורת הכותרת נשארת תמיד, כדי שרואים
-                                      איזו טבלה יש לפ"מ וכמה שורות יש בה */}
-                                  <button
-                                    onClick={e => { e.stopPropagation(); toggleSubTableRows(s.id, col.tableKey); }}
-                                    onPointerDown={e => e.stopPropagation()}
-                                    title={rowsOpen ? tr('ctrl.collapseSubTable') : tr('ctrl.expandSubTable')}
-                                    style={{
-                                      width: '16px', height: '16px', lineHeight: 1, padding: 0, flexShrink: 0,
-                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                      fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', borderRadius: '3px',
-                                      background: rowsOpen ? SUB_ACC : 'transparent',
-                                      color: rowsOpen ? '#062c38' : SUB_ACC,
-                                      border: `1px solid ${SUB_ACC}`,
-                                    }}
-                                  >{rowsOpen ? '−' : '+'}</button>
-                                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: SUB_ACC }}>
-                                    {col.label || tr(subDef.labelKey)}
-                                  </span>
-                                  <span style={{ fontSize: '10px', color: T.muted }}>
-                                    {tr('ctrl.subTableRowCount', { count: rows.length })}
-                                  </span>
-                                  {/* שיוך מפורש לפ"מ - השורה רחבה, והכותרת עלולה
-                                      להיקרא כשייכת לפ"מ שמעליה או שמתחתיה */}
-                                  <span style={{ fontSize: '10px', color: T.muted }}>
-                                    {tr('ctrl.subTableOfStrip', { name: getFormationDisplayName(s) })}
-                                  </span>
-                                  {/* עורך נקודות המכוון שייך לטבלה שלה בלבד */}
-                                  {subDef.key === AIM_POINTS_FIELD_KEY && (
-                                    <button
-                                      onClick={() => setAimPointsEditor({ stripId: s.id, title: getFormationDisplayName(s) })}
-                                      style={{ background: 'transparent', border: 'none', color: frameColor('edit', themeMode), fontSize: '10px', cursor: 'pointer', padding: 0, marginInlineStart: 'auto' }}
-                                    >{tr('strips.openAimPointsEditor')}</button>
-                                  )}
-                                </div>
-
-                                {!rowsOpen ? null : rows.length === 0 || subCols.length === 0 ? (
-                                  <span style={{ fontSize: '11px', color: T.muted, fontStyle: 'italic' }}>
-                                    {subCols.length === 0 ? tr('ctrl.subTableNoColumns') : tr(subDef.emptyKey)}
-                                  </span>
-                                ) : (() => {
-                                  // עמודות מקובעות: נשארות גלויות כשהטבלה נגללת
-                                  // לצדדים, אחרת עמודות הזיהוי יוצאות מהמסך
-                                  // והמספרים נשארים בלי למי הם שייכים.
-                                  const LEAD_W = 22;
-                                  const frozen = subTableFrozenCount(col.tableKey, col.frozenColumns, subCols.length);
-                                  const layout = subTableFrozenLayout(subDef, subCols, frozen, LEAD_W);
-                                  const subBg = lightMode ? '#eef7fa' : '#07222c';
-                                  const frozenCell = (i: number): React.CSSProperties => {
-                                    const L = layout[i];
-                                    if (!L) return {};
-                                    return {
-                                      position: 'sticky', insetInlineStart: L.offset, zIndex: 2,
-                                      width: L.width, minWidth: L.width, maxWidth: L.width,
-                                      background: subBg, overflow: 'hidden', textOverflow: 'ellipsis',
-                                      ...(i === frozen - 1 ? { borderInlineEnd: `2px solid ${SUB_ACC}` } : {}),
-                                    };
-                                  };
-                                  return (
-                                  <div style={{ overflowX: 'auto', maxWidth: '100%', overscrollBehaviorX: 'contain' }}>
-                                    <table style={{ borderCollapse: 'collapse', fontSize: '12px', minWidth: 'max-content' }}>
-                                      <thead>
-                                        <tr>
-                                          <th style={{ padding: '2px 6px', width: LEAD_W, color: T.muted, fontSize: '10px', fontWeight: 'normal', borderBottom: `1px solid ${lightMode ? '#bae6fd' : '#164e63'}`, ...(frozen > 0 ? { position: 'sticky', insetInlineStart: 0, zIndex: 2, background: subBg } : {}) }}>#</th>
-                                          {subCols.map((sc, sci) => (
-                                            <th key={sc.key} style={{ padding: '2px 8px', textAlign: 'start', fontWeight: 'bold', color: T.muted, fontSize: '10px', borderBottom: `1px solid ${lightMode ? '#bae6fd' : '#164e63'}`, whiteSpace: 'nowrap', ...frozenCell(sci) }}>
-                                              {sc.label || tr(subDef.columns.find(c => c.key === sc.key)?.labelKey || sc.key)}
-                                            </th>
-                                          ))}
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {rows.map((row, rowIdx) => (
-                                          <tr key={rowIdx} style={{ background: row.abort_attack ? (lightMode ? '#fee2e2' : '#450a0a') : undefined }}>
-                                            <td style={{ padding: '2px 6px', color: T.muted, fontSize: '10px', textAlign: 'center', ...(frozen > 0 ? { position: 'sticky', insetInlineStart: 0, zIndex: 2, background: subBg } : {}) }}>{rowIdx + 1}</td>
-                                            {subCols.map((sc, sci) => {
-                                              const scDef = subDef.columns.find(c => c.key === sc.key);
-                                              const isFlag = (scDef?.editableOptions || []).includes('toggle');
-                                              const cellId = `${s.id}__${col.key}__${rowIdx}__${sc.key}`;
-                                              // **ההגדרה בניהול היא מקור האמת היחיד.** שדה שהוגדר
-                                              // לעריכה בהגדרות הטבלה פתוח לעריכה בעמדה, נקודה - בלי
-                                              // מתג נעילה נוסף בעמדה. נעילה כזו הייתה קיימת כאן, ובגללה
-                                              // מקנפג שהגדיר שדה לעריכה ראה תא נעול בלי לדעת למה:
-                                              // המתג ישב בכותרת הטבלה הראשית, מגולל הרחק מהטבלה
-                                              // הפרוסה. מי שלא רוצה שדה פתוח - לא מגדיר אותו לעריכה.
-                                              const editable = sc.editable && sc.editable !== 'none';
-
-                                              if (isFlag) {
-                                                const on = (row as any)[sc.key] === true;
-                                                // אדום = דגל שמשמעותו בעיה (עצור תקיפה / תקלה במטוס).
-                                                // ה-⛔ שמור לעצירת התקיפה בלבד; תקלה היא ✓ אדום.
-                                                const danger = sc.key === 'abort_attack' || sc.key === 'has_fault';
-                                                const stopGlyph = sc.key === 'abort_attack';
-                                                return (
-                                                  <td key={sc.key} style={{ padding: '2px 8px', textAlign: 'center', ...frozenCell(sci) }}>
-                                                    {editable ? (
-                                                      <input type="checkbox" checked={on} onChange={e => setField(rowIdx, sc.key, e.target.checked)}
-                                                        style={{ width: 14, height: 14, margin: 0, cursor: 'pointer', accentColor: danger ? '#ef4444' : undefined }} />
-                                                    ) : (
-                                                      <span style={{ color: on ? (danger ? '#ef4444' : '#22c55e') : T.muted }}>{on ? (stopGlyph ? '⛔' : '✓') : '–'}</span>
-                                                    )}
-                                                  </td>
-                                                );
-                                              }
-
-                                              // ערך כטקסט - דגל מוצג כ-✓ ולא כ-"false"
-                                              const text = aimFieldText(row as any, sc.key);
-                                              return (
-                                                <td key={sc.key} style={{ padding: '2px 8px', whiteSpace: 'nowrap', ...frozenCell(sci) }}>
-                                                  {editable && tableEditingCell === cellId ? (
-                                                    <>
-                                                    {/* מהות התקלה נבחרת מהתפריט שמנוהל במסך ניהול מערכת.
-                                                        datalist ולא select: הרשימה מנחה, אבל מהות שטרם
-                                                        נרשמה בתפריט עדיין ניתנת להקלדה ולא חוסמת דיווח.
-                                                        רק תא אחד בעריכה בכל רגע, ולכן ה-id יחיד. */}
-                                                    {sc.key === 'fault_type' && (
-                                                      <datalist id="sub-table-fault-types">
-                                                        {faultTypes.map(ft => <option key={ft} value={ft} />)}
-                                                      </datalist>
-                                                    )}
-                                                    <input
-                                                      autoFocus
-                                                      defaultValue={text}
-                                                      list={sc.key === 'fault_type' ? 'sub-table-fault-types' : undefined}
-                                                      placeholder={sc.key === 'coord' ? COORD_PLACEHOLDER : undefined}
-                                                      title={sc.key === 'coord' ? tr('strips.aimCoordHint') : undefined}
-                                                      onBlur={e => {
-                                                        const v = sc.key === 'coord' ? normalizeCoord(e.target.value) : e.target.value;
-                                                        if (v !== text) setField(rowIdx, sc.key, v);
-                                                        setTableEditingCell(null);
-                                                      }}
-                                                      onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setTableEditingCell(null); }}
-                                                      style={{ width: `${Math.max(COORD_PLACEHOLDER.length, text.length + 3)}ch`, background: lightMode ? '#ffffff' : '#0f172a', border: '1px solid #6d28d9', borderRadius: '3px', color: lightMode ? '#1e293b' : 'white', padding: '1px 4px', fontSize: '12px', fontFamily: 'inherit', direction: dir }}
-                                                    />
-                                                    </>
-                                                  ) : (
-                                                    <span
-                                                      onClick={() => editable && setTableEditingCell(cellId)}
-                                                      // נ"צ שאינו תואם את הפורמט מסומן אדום - הפקח רואה
-                                                      // את השגיאה בטבלה, בלי לפתוח את העורך
-                                                      title={sc.key === 'coord' && !isValidCoord(text) ? tr('strips.aimCoordHint') : undefined}
-                                                      style={{ cursor: editable ? 'text' : 'default', userSelect: 'none',
-                                                        color: sc.key === 'coord' && !isValidCoord(text) ? '#ef4444' : (lightMode ? '#0f172a' : '#e2e8f0'),
-                                                        textDecoration: sc.key === 'coord' && !isValidCoord(text) ? 'underline wavy #ef4444' : undefined }}
-                                                    >{text || (editable ? '…' : '–')}</span>
-                                                  )}
-                                                </td>
-                                              );
-                                            })}
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                ); })()}
-                              </div>
+                              {renderSubBlock(s, col, { sticky: { anchor: subBlockAnchor, width: subBlockWidth } })}
                             </td>
                           </tr>
                         );

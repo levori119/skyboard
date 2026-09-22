@@ -233,5 +233,5 @@ GAPI אינו יודע על קיומן. כולן `ON DELETE CASCADE` מהפ"מ, 
 | שדה תפעולי חדש במטוס | [`server/gapi/entities.js`](server/gapi/entities.js) `AIRCRAFT_FIELDS` |
 | שדה מטוס פנימי חדש | `AIRCRAFT_INTERNAL_COLUMNS` באותו קובץ |
 | עמודה חדשה בנקודת מכוון | [`src/types/aimPoints.ts`](src/types/aimPoints.ts) `AIM_POINT_COLUMNS` |
-| **טבלת בן חדשה** מתחת לפ"מ | [`src/types/subTables.ts`](src/types/subTables.ts) - רשומה אחת, והתפריט/הבוחר/הרינדור נגזרים |
+| **טבלת בן חדשה** מתחת לפ"מ | [`src/types/subTables.ts`](src/types/subTables.ts) - רשומה אחת, והתפריט/הבוחר/הרינדור נגזרים (כולל **מוד טבלאי**, שמעלה טבלת בן לרמה ראשונה) |
 | עמודה חדשה ב-DB | [`server/db/init.js`](server/db/init.js) (`ADD COLUMN IF NOT EXISTS` בלבד) + [data-model.md](data-model.md) |
