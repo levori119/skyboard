@@ -146,18 +146,31 @@ describe('דחיפה למרכז', () => {
     expect(now.on_map).toBe(true);
   });
 
-  it('שני הצדדים נגעו, והמרכז עודכן מאוחר יותר - גרסתו מנצחת', async () => {
+  // ⚠️ **זה החוזה שהשתנה ב-2026-09-24** (הכרעת אורי): "בחזרה מנתק מה שבוצע
+  // בעמדה הספציפית דורס את המאגר המרכזי". קודם ניצח מי שכתב מאוחר יותר,
+  // ועבודה שנעשתה בנתק "נעלמה" ברגע החיבור מחדש.
+  it('המרכז עודכן מאוחר יותר - ובכל זאת העמדה שעבדה בנתק מנצחת', async () => {
     await seedMirrored();
     await localDb.query(`UPDATE public.strips SET alt = '250' WHERE id = 1`);
-    // בזמן הנתק, עמדה אחרת שינתה את אותו פ"מ במרכז - ואחרי העמדה
+    // בזמן הנתק מישהו שינה את אותו פ"מ במרכז, ואחרי העמדה
     await centralDb.query(`UPDATE public.strips SET alt = '400' WHERE id = 1`);
 
     const [r] = await push({}, op => { op.localAt = secsAgo(60); });
+    expect(r.status).toBe(RESULT.APPLIED);
+    expect(r.resolved).toBe('mine');
+    expect((await centralStrip(1)).alt).toBe('250');
+  });
+
+  // המדיניות הישנה נשמרה כאפשרות מפורשת, ועדיין נבדקת - כדי ש"האחרון מנצח"
+  // יהיה החלטה שמישהו מקבל, ולא קוד שנרקב.
+  it('policy: lww מפורש - שם עדיין המרכז מנצח כשעדכן מאוחר יותר', async () => {
+    await seedMirrored();
+    await localDb.query(`UPDATE public.strips SET alt = '250' WHERE id = 1`);
+    await centralDb.query(`UPDATE public.strips SET alt = '400' WHERE id = 1`);
+
+    const [r] = await push({ policy: 'lww' }, op => { op.localAt = secsAgo(60); });
     expect(r.status).toBe(RESULT.SUPERSEDED);
     expect(r.reason).toBe(REASON.NEWER_THERE);
-    expect(r.resolved).toBe('theirs');
-    expect(r.serverRow.alt).toBe('400');
-    // המרכז לא נדרס, והעמדה תאמץ את גרסתו
     expect((await centralStrip(1)).alt).toBe('400');
   });
 
@@ -180,17 +193,28 @@ describe('דחיפה למרכז', () => {
 
     // שעון העמדה מפגר בשעה. בלי תיקון היא הייתה מפסידה תמיד; עם `skewMs`
     // הזמן שלה מתורגם לשעון המרכז והיא מנצחת, כי בפועל עדכנה אחרי.
-    const [r] = await push({ skewMs: 3600_000 }, op => { op.localAt = secsAgo(3500); });
+    const [r] = await push({ policy: 'lww', skewMs: 3600_000 }, op => { op.localAt = secsAgo(3500); });
     expect(r.status).toBe(RESULT.APPLIED);
     expect((await centralStrip(1)).alt).toBe('250');
   });
 
-  it('בלי חותמת זמן אי אפשר להכריע - ורק אז עולה לבקר', async () => {
+  // חותמת זמן חסרה כבר אינה חוסמת: אין מה להשוות כשההכרעה אינה לפי זמן.
+  it('בלי חותמת זמן - העמדה עדיין מנצחת, ואין מסך שעוצר את הבקר', async () => {
     await seedMirrored();
     await localDb.query(`UPDATE public.strips SET alt = '250' WHERE id = 1`);
     await centralDb.query(`UPDATE public.strips SET alt = '400' WHERE id = 1`);
 
     const [r] = await push({}, op => { op.localAt = null; });
+    expect(r.status).toBe(RESULT.APPLIED);
+    expect((await centralStrip(1)).alt).toBe('250');
+  });
+
+  it('policy: lww בלי חותמת זמן - שם אי אפשר להכריע, ועולה לבקר', async () => {
+    await seedMirrored();
+    await localDb.query(`UPDATE public.strips SET alt = '250' WHERE id = 1`);
+    await centralDb.query(`UPDATE public.strips SET alt = '400' WHERE id = 1`);
+
+    const [r] = await push({ policy: 'lww' }, op => { op.localAt = null; });
     expect(r.status).toBe(RESULT.CONFLICT);
     expect(r.reason).toBe(REASON.NO_TIMESTAMP);
     expect((await centralStrip(1)).alt).toBe('400');
@@ -286,13 +310,43 @@ describe('דחיפה למרכז', () => {
     expect(Number(tr.strip_id)).toBe(1500000003);
   });
 
-  it('הכרעה לרעת העמדה בפ"מ אחד אינה מפילה את השאר', async () => {
+  // כל מה שהעמדה נגעה בו בנתק עובר, גם כשהמרכז שינה חלק מזה בינתיים.
+  it('שני פ"מים שנגעו בהם בנתק - שניהם דורסים את המרכז', async () => {
     await seedMirrored({ id: 1 });
     await seedMirrored({ id: 2, callsign: 'DEF' });
     await localDb.query(`UPDATE public.strips SET alt = '250' WHERE id IN (1, 2)`);
     await centralDb.query(`UPDATE public.strips SET alt = '999' WHERE id = 1`);
 
     const results = await push({}, op => { op.localAt = secsAgo(60); });
+    const byId = Object.fromEntries(results.map(r => [r.pk.id, r]));
+    expect(byId[1].status).toBe(RESULT.APPLIED);
+    expect(byId[2].status).toBe(RESULT.APPLIED);
+    expect((await centralStrip(1)).alt).toBe('250');
+    expect((await centralStrip(2)).alt).toBe('250');
+  });
+
+  // ⚠️ הגבול של "העמדה דורסת": **רק מה שהיא נגעה בו**. שורה שהמרכז שינה
+  // והעמדה לא - נשארת כפי שהמרכז קבע, ואינה נדחפת בכלל כי אינה ביומן.
+  it('שורה שהעמדה לא נגעה בה בנתק - המרכז נשאר הקובע', async () => {
+    await seedMirrored({ id: 1 });
+    await seedMirrored({ id: 2, callsign: 'DEF' });
+    await localDb.query(`UPDATE public.strips SET alt = '250' WHERE id = 1`);
+    await centralDb.query(`UPDATE public.strips SET alt = '999' WHERE id = 2`);
+
+    const results = await push({}, op => { op.localAt = secsAgo(60); });
+    expect(results.map(r => r.pk.id)).toEqual([1]);       // רק מה שנגעו בו נדחף
+    expect((await centralStrip(1)).alt).toBe('250');      // העמדה דרסה
+    expect((await centralStrip(2)).alt).toBe('999');      // המרכז נשאר
+  });
+
+  // הכרעה לרעת העמדה עדיין קיימת ב-lww, ושם שורה אחת אינה מפילה את השאר.
+  it('policy: lww - הכרעה לרעת העמדה בפ"מ אחד אינה מפילה את השאר', async () => {
+    await seedMirrored({ id: 1 });
+    await seedMirrored({ id: 2, callsign: 'DEF' });
+    await localDb.query(`UPDATE public.strips SET alt = '250' WHERE id IN (1, 2)`);
+    await centralDb.query(`UPDATE public.strips SET alt = '999' WHERE id = 1`);
+
+    const results = await push({ policy: 'lww' }, op => { op.localAt = secsAgo(60); });
     const byId = Object.fromEntries(results.map(r => [r.pk.id, r]));
     expect(byId[1].status).toBe(RESULT.SUPERSEDED);
     expect(byId[2].status).toBe(RESULT.APPLIED);
