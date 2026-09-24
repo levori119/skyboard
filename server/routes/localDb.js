@@ -46,6 +46,33 @@ async function tableExists(schema, table) {
   return rows.length > 0;
 }
 
+// ── מצב העלייה, למסך הכניסה ───────────────────────────────────────────────────
+//
+// ⚠️ **ללא הזדהות, ובכוונה.** מסך הכניסה שואל את זה **לפני** שיש משתמש, וזו
+// כל התועלת שלו: המפעיל צריך לדעת שהעמדה עלתה בנתק **לפני** שהוא מתחיל
+// לעבוד, ולא לגלות זאת אחרי שמידע חסר. מה שנחשף כאן הוא **מצב בלבד** - אין
+// כאן שום מידע שדה. הנתיב קיים רק במאגר המקומי (`localOnly`), והשרת המקומי
+// מאזין ל-127.0.0.1 בלבד.
+router.get('/api/__localdb/startup', localOnly, async (_req, res) => {
+  const m = mirrorDaemonState();
+  let rows = null;
+  try {
+    // ספירה אחת זולה שמספרת אם בכלל יש על מה לעבוד בנתק
+    const r = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM ${ident(currentSchema())}."strips"`);
+    rows = r.rows[0]?.n ?? null;
+  } catch { /* הטבלה טרם נוצרה - המאגר באמצע עלייה */ }
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    startup: m.startup,        // syncing | synced | offline | off
+    startupAt: m.startupAt,
+    lastOkAt: m.lastOkAt,
+    progress: m.progress,
+    error: m.lastError,
+    strips: rows,
+  });
+});
+
 // ── סיכום: כל הטבלאות ומספר השורות בכל אחת ───────────────────────────────────
 //
 // `COUNT(*)` על כל טבלה ולא הערכה מ-`pg_class.reltuples`: במאגר של עמדה

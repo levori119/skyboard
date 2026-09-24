@@ -50,6 +50,17 @@ const state = {
   failures: 0,
   /** טבלאות שנכשלו גם בסיבוב השני - תקלה אמיתית, לא סדר תלויות */
   failedTables: [],
+  /**
+   * איך העמדה **עלתה**. זו השאלה שמסך הכניסה עונה עליה, והיא נקבעת פעם אחת
+   * בסיבוב הראשון ואינה משתנה אחריו:
+   *   'syncing' - הסנכרון הראשון רץ עכשיו
+   *   'synced'  - עלתה מסונכרנת מול המרכז
+   *   'offline' - עלתה בנתק, ותעבוד עצמאית מול המאגר המקומי
+   *   'off'     - השירות כבוי (אין אסימון עמדה)
+   */
+  startup: 'off',
+  /** מתי הושלם הסנכרון של העלייה */
+  startupAt: null,
 };
 
 export const mirrorDaemonState = () => ({ ...state });
@@ -122,6 +133,11 @@ async function runOnce({ central, headers, pool, schema, protectedKeys, log }) {
     state.lastError = null;
     state.failures = 0;
     state.rounds++;
+    if (state.startup === 'syncing') {
+      state.startup = 'synced';
+      state.startupAt = Date.now();
+      log('[mirror] העמדה עלתה **מסונכרנת** מול המאגר המרכזי');
+    }
     log(`[mirror] סיבוב ${state.rounds}: ${tables.length} טבלאות · ${upserted} שורות · ${state.lastDurationMs}ms`);
     return true;
   } finally {
@@ -160,6 +176,7 @@ export function startMirrorDaemon({
   };
 
   state.enabled = true;
+  state.startup = 'syncing';
   let stopped = false;
   let timer = null;
 
@@ -173,6 +190,14 @@ export function startMirrorDaemon({
       state.failures++;
       state.lastError = String(err?.message || err);
       state.progress = null;
+      // ⚠️ **הסיבוב הראשון קובע את מצב העלייה.** נכשל - העמדה עלתה בנתק
+      // ותעבוד עצמאית מול המאגר המקומי. זה מה שמסך הכניסה חייב לומר למפעיל
+      // **לפני** שהוא מתחיל לעבוד, ולא אחרי שהוא יגלה שמידע חסר.
+      if (state.startup === 'syncing') {
+        state.startup = 'offline';
+        state.startupAt = Date.now();
+        log('[mirror] העמדה עלתה **בנתק** - תעבוד עצמאית מול המאגר המקומי');
+      }
       // נסיגה מתגברת: רשת מבודדת שנפלה יכולה להיות למטה שעות, ובקשה כל 10
       // שניות לאורך כל הזמן הזה היא רעש בלוג ועומס על שער היציאה.
       wait = Math.min(RETRY_MIN_MS * 2 ** Math.min(state.failures - 1, 5), RETRY_MAX_MS);

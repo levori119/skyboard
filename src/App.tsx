@@ -29,6 +29,9 @@ import KeyboardLangIndicator from './components/shared/KeyboardLangIndicator';
 import StationCrewForm from './components/shared/StationCrewForm';
 import StationLoadingScreen from './components/shared/StationLoadingScreen';
 import StationPicker from './components/shared/StationPicker';
+// איך העמדה עלתה - מסונכרנת מהמרכז או עצמאית מול המאגר המקומי. במסך הכניסה
+// דווקא, כי המפעיל צריך לדעת זאת **לפני** שהוא מתחיל לעבוד.
+import StartupModeBanner from './components/shared/StartupModeBanner';
 import { openStationSession } from './utils/stationSession';
 import ManpowerPage from './components/manpower/ManpowerPage';
 import { LeoLogo } from './components/shared/LeoLogo';
@@ -584,6 +587,11 @@ const WorkstationLogin = ({ onLogin, onManagement, initialCrewMember }: { onLogi
         
         {error && <p style={{ color: '#ef4444', textAlign: 'center', marginTop: '15px' }}>{error}</p>}
       </div>
+
+      {/* איך העמדה עלתה - מסונכרנת מהמרכז, או עצמאית מול המאגר המקומי.
+          מתחת לכרטיס ההתחברות ולא בפוטר: הפוטר הוא LTR, אפור ו-pointerEvents:none,
+          וזו הודעה שהמפעיל חייב לקרוא **לפני** שהוא נכנס. */}
+      <StartupModeBanner />
 
       {/* סימן היצרן + מספר גרסה ותאריך הגרסה — מוצג בעליית המערכת.
           הלוגו יושב בפוטר ולא בכרטיס ההתחברות, כדי לא לדחוף את שדות הכניסה מטה. */}

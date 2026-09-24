@@ -189,6 +189,18 @@
     "reason.no_pk": {
       "he": "שורה בלי מפתח ראשי",
       "en": "Row without a primary key"
+    },
+    "startupSyncing": {
+      "he": "מסנכרן מהמאגר המרכזי... ({{done}}/{{total}})",
+      "en": "Syncing from the central database... ({{done}}/{{total}})"
+    },
+    "startupSynced": {
+      "he": "העמדה מסונכרנת עם המאגר המרכזי",
+      "en": "Station is synced with the central database"
+    },
+    "startupOffline": {
+      "he": "אין קשר למרכז - העמדה עובדת עצמאית מול המאגר המקומי ({{n}} פ\"מים)",
+      "en": "No connection to the centre - the station works standalone against its local database ({{n}} strips)"
     }
   }
 }
