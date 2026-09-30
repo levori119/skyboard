@@ -200,3 +200,34 @@ describe('נתק מדומה', () => {
     router.health.stop();
   });
 });
+
+// ── חזרה מנתק: לא למרכז לפני שהעבודה נדחפה ───────────────────────────────────
+// הדיווח: "מטוס בנקודת העברה, מנתק ומחבר את הקשר - זה לא קובע מה שיש בעמדה
+// אלא מסנכרן מה שיש במאגר". המנגנון עצמו תקין (יש על כך בדיקות אינטגרציה),
+// אבל **הסדר** לא היה: הנתב החזיר את העמדה למרכז ברגע שהקשר חזר, בעוד
+// שהדחיפה רצה בדפדפן בטיק הבא. בשניות שביניהן המסך הציג את גרסת המרכז על
+// שורות שהעמדה שינתה בנתק - והפ"מ "קפץ אחורה" מול עיני הפקח.
+describe('chooseTarget - ניקוז היומן לפני חזרה למרכז', () => {
+  const base = { mode: 'auto', hasLocal: true, simulated: false };
+
+  it('הקשר חזר אבל יש עבודה שלא נדחפה - נשארים מקומיים', () => {
+    expect(chooseTarget({ ...base, remoteOnline: true, drainPending: true })).toBe('local');
+  });
+
+  it('היומן התרוקן - חוזרים למרכז', () => {
+    expect(chooseTarget({ ...base, remoteOnline: true, drainPending: false })).toBe('remote');
+  });
+
+  it('בלי מאגר מקומי אין מה לנקז - למרכז', () => {
+    expect(chooseTarget({ ...base, hasLocal: false, remoteOnline: true, drainPending: true })).toBe('remote');
+  });
+
+  // `mode: 'remote'` הוא בקשה מפורשת לעקוף את כל המנגנון (אבחון), ולכן גובר.
+  it('mode remote מפורש גובר גם על ניקוז', () => {
+    expect(chooseTarget({ ...base, mode: 'remote', remoteOnline: true, drainPending: true })).toBe('remote');
+  });
+
+  it('נתק מדומה גובר על הכל', () => {
+    expect(chooseTarget({ ...base, simulated: true, remoteOnline: true, drainPending: false })).toBe('local');
+  });
+});

@@ -113,10 +113,16 @@ function createRemoteHealth({ apiTarget, probeIntervalMs = PROBE_INTERVAL_MS, ti
  *
  * @returns {'remote'|'local'|'none'}
  */
-function chooseTarget({ mode, remoteOnline, hasLocal, simulated }) {
+function chooseTarget({ mode, remoteOnline, hasLocal, simulated, drainPending = false }) {
   if (simulated) return hasLocal ? 'local' : 'none';
   if (mode === 'remote' || !hasLocal) return 'remote';
   if (mode === 'local') return 'local';
+  // ⚠️ **הקשר חזר, אבל עבודה מהנתק עדיין לא נדחפה.** החלפה מיידית למרכז
+  // פירושה שהמסך מציג את גרסת המרכז על שורות שהעמדה שינתה בנתק - והפ"מ
+  // "קופץ אחורה" מול עיני הפקח, בדיוק בשניות שבין חזרת הקשר לדחיפה. זהו
+  // הדיווח "מסנכרן מה שיש במאגר במקום מה שבעמדה". נשארים מקומיים עד
+  // שהיומן מתרוקן (ראה drainPending ב-createApiRouter).
+  if (remoteOnline && drainPending) return 'local';
   return remoteOnline ? 'remote' : 'local'; // auto
 }
 
@@ -133,6 +139,46 @@ function createApiRouter({ apiTarget, localTarget = () => null, mode = 'auto', p
   let currentMode = mode;
   let simulated = false;
   let simulatedSince = null;
+
+  // ── המתנה לניקוז היומן ──────────────────────────────────────────────────
+  // כמה עבודה מהנתק עדיין לא נדחפה. נקרא מהמאגר המקומי ברקע, ולא בתוך
+  // ההכרעה עצמה: `resolve()` נקרא **בכל בקשה** ואסור לו לחכות לרשת.
+  let pendingCount = 0;
+  let drainUntil = 0;
+  let pendingTimer = null;
+
+  /**
+   * ⚠️ **תקרת זמן, ולא המתנה אינסופית.** יומן שנתקע (סתירה שאיש אינו מכריע,
+   * שורה שנדחית שוב ושוב) היה משאיר את העמדה מנותקת מהמרכז לנצח - כלומר
+   * הגנה שהופכת לתקלה חמורה יותר מזו שהיא מונעת.
+   */
+  const DRAIN_MAX_MS = 60_000;
+  const PENDING_POLL_MS = 2000;
+
+  const readPending = () => {
+    const local = localTarget();
+    if (!local) { pendingCount = 0; return; }
+    let url;
+    try { url = new URL('/api/__localdb/pending', local); } catch { return; }
+    const req = http.get(url, { timeout: 2000 }, res => {
+      let body = '';
+      res.on('data', c => { body += c; });
+      res.on('end', () => {
+        try { pendingCount = Number(JSON.parse(body).pending) || 0; } catch { pendingCount = 0; }
+        if (pendingCount > 0 && !drainUntil) drainUntil = Date.now() + DRAIN_MAX_MS;
+        if (pendingCount === 0) drainUntil = 0;
+      });
+    });
+    req.on('error', () => { pendingCount = 0; });
+    req.on('timeout', () => req.destroy());
+  };
+
+  // נדגם רק כשיש בכלל מאגר מקומי. בעמדה בלי מאגר זו פעולה ריקה.
+  pendingTimer = setInterval(readPending, PENDING_POLL_MS);
+  pendingTimer.unref?.();
+  readPending();
+
+  const drainPending = () => pendingCount > 0 && drainUntil > Date.now();
 
   return {
     health,
@@ -163,6 +209,7 @@ function createApiRouter({ apiTarget, localTarget = () => null, mode = 'auto', p
         remoteOnline: health.snapshot().online,
         hasLocal: !!local,
         simulated,
+        drainPending: drainPending(),
       });
       return {
         which,

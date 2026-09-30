@@ -365,3 +365,103 @@ describe('דחיפה למרכז', () => {
     expect(r.reason).toBe(REASON.NOT_SYNCED);
   });
 });
+
+// ── פ"מ בנקודת העברה, נתק וחזרה ──────────────────────────────────────────────
+// התרחיש שדווח: "מטוס בנקודת העברה, מנתק ומחבר את הקשר למרכז - זה לא קובע מה
+// שיש בעמדה עצמה, אלא מסנכרן מה שיש במאגר".
+//
+// ⚠️ **הלב כאן הוא הסדר.** כשהקשר חוזר רצים **שני** מנגנונים בלי תיאום
+// ביניהם: שירות המראה (בתהליך המאגר, כל 5 דקות) והדחיפה (בדפדפן, כל 10
+// שניות). אם המראה מקדימה, היא מביאה את גרסת המרכז אל שורה שהעמדה שינתה
+// בנתק - ואם ההגנה לא תופסת, העבודה נמחקת **לפני** שהספיקה להידחף.
+describe('פ"מ בנקודת העברה - נתק וחזרה', () => {
+  const ingestMirror = async (snapshotTables) => {
+    const { ingestSnapshot } = await import('./mirror.js');
+    const { protectedKeys } = await import('../routes/sync.js');
+    // בדיוק כמו שירות המראה: קודם קורא מה מוגן ביומן, ואז קולט
+    const keys = await protectedKeys((sql, params) => localDb.query(sql, params ?? []));
+    return ingestSnapshot(clientFor(localDb), 'public', {
+      schema: 'public', at: new Date().toISOString(), tables: snapshotTables,
+    }, keys);
+  };
+
+  /** צילום המרכז, כמו שהוא מגיע מ-/api/sync/mirror */
+  const snapshotOfCentral = async () => {
+    const strips = (await centralDb.query('SELECT to_jsonb(t) AS row FROM public.strips t')).rows.map(r => r.row);
+    const trs = (await centralDb.query('SELECT to_jsonb(t) AS row FROM public.strip_transfers t')).rows.map(r => r.row);
+    return [{ table: 'strips', rows: strips }, { table: 'strip_transfers', rows: trs }];
+  };
+
+  const localTransfer = async (id) => (await localDb.query(
+    'SELECT status FROM public.strip_transfers WHERE id = $1', [id])).rows[0];
+  const centralTransfer = async (id) => (await centralDb.query(
+    'SELECT status FROM public.strip_transfers WHERE id = $1', [id])).rows[0];
+
+  beforeEach(async () => {
+    for (const db of [localDb, centralDb]) {
+      await db.query('DELETE FROM public.strip_transfers');
+      await db.query('DELETE FROM public.strips');
+    }
+  });
+
+  it('העמדה קיבלה את הפ"מ בנתק - המראה שרצה לפני הדחיפה אינה מוחקת זאת', async () => {
+    // מצב פתיחה: פ"מ בהעברה, זהה בשני הצדדים
+    await centralDb.query(`INSERT INTO public.strips (id, callsign) VALUES (1, 'ע402')`);
+    await centralDb.query(
+      `INSERT INTO public.strip_transfers (id, strip_id, status) VALUES ('tr1', 1, 'pending')`);
+    await mirror(`INSERT INTO public.strips (id, callsign) VALUES (1, 'ע402')`);
+    await mirror(
+      `INSERT INTO public.strip_transfers (id, strip_id, status) VALUES ('tr1', 1, 'pending')`);
+
+    // בנתק: הפקח קיבל את הפ"מ בנקודת ההעברה
+    await localDb.query(`UPDATE public.strip_transfers SET status = 'accepted' WHERE id = 'tr1'`);
+    expect((await localTransfer('tr1')).status).toBe('accepted');
+    expect(await pending()).toHaveLength(1);
+
+    // הקשר חוזר. ⚠️ המראה מקדימה את הדחיפה - זה המצב שדווח.
+    await ingestMirror(await snapshotOfCentral());
+
+    // ההגנה חייבת לתפוס: מה שהפקח עשה עדיין שם, והיומן עדיין ממתין
+    expect((await localTransfer('tr1')).status).toBe('accepted');
+    expect(await pending()).toHaveLength(1);
+
+    // ורק אז הדחיפה - והעמדה קובעת
+    const results = await push();
+    expect(results.every(r => r.status === RESULT.APPLIED)).toBe(true);
+    expect((await centralTransfer('tr1')).status).toBe('accepted');
+  });
+
+  it('גם כשהמרכז שינה את אותה העברה בינתיים - העמדה קובעת', async () => {
+    await centralDb.query(`INSERT INTO public.strips (id, callsign) VALUES (1, 'ע402')`);
+    await centralDb.query(
+      `INSERT INTO public.strip_transfers (id, strip_id, status) VALUES ('tr1', 1, 'pending')`);
+    await mirror(`INSERT INTO public.strips (id, callsign) VALUES (1, 'ע402')`);
+    await mirror(
+      `INSERT INTO public.strip_transfers (id, strip_id, status) VALUES ('tr1', 1, 'pending')`);
+
+    await localDb.query(`UPDATE public.strip_transfers SET status = 'accepted' WHERE id = 'tr1'`);
+    await centralDb.query(`UPDATE public.strip_transfers SET status = 'cancelled' WHERE id = 'tr1'`);
+
+    await ingestMirror(await snapshotOfCentral());
+    expect((await localTransfer('tr1')).status).toBe('accepted');   // לא נדרס
+
+    await push();
+    expect((await centralTransfer('tr1')).status).toBe('accepted'); // העמדה קובעת
+  });
+
+  // העברה **שנולדה** בעמדה בנתק אינה קיימת במרכז כלל, ולכן המראה "רואה" שורה
+  // מקומית שאין לה מקבילה - ובטבלה מסונכרנת זה בדיוק מה שהיא מוחקת.
+  it('העברה שנוצרה בנתק אינה נמחקת ע"י המראה', async () => {
+    await centralDb.query(`INSERT INTO public.strips (id, callsign) VALUES (1, 'ע402')`);
+    await mirror(`INSERT INTO public.strips (id, callsign) VALUES (1, 'ע402')`);
+
+    await localDb.query(
+      `INSERT INTO public.strip_transfers (id, strip_id, status) VALUES ('new-in-outage', 1, 'pending')`);
+
+    await ingestMirror(await snapshotOfCentral());
+    expect(await localTransfer('new-in-outage')).toBeTruthy();
+
+    await push();
+    expect((await centralTransfer('new-in-outage')).status).toBe('pending');
+  });
+});
