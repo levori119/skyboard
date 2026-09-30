@@ -92,7 +92,11 @@ if ($Install) {
     log     = $LogPath
   }
   if ($Token) { $cfg.token = $Token }
-  $cfg | ConvertTo-Json -Depth 3 | Set-Content -Path $CfgPath -Encoding utf8
+  # ⚠️ **UTF-8 בלי BOM.** `Set-Content -Encoding utf8` ב-Windows PowerShell 5.1
+  # כותב BOM, ו-`JSON.parse` ב-node נחנק עליו ב-`Unexpected token 'ï»¿'`.
+  # זה מה שהפיל את ההתקנה האמיתית הראשונה, בלי שום לוג.
+  $json = $cfg | ConvertTo-Json -Depth 3
+  [System.IO.File]::WriteAllText($CfgPath, $json, (New-Object System.Text.UTF8Encoding($false)))
 
   $acl = Get-Acl $CfgPath
   $acl.SetAccessRuleProtection($true, $false)   # ניתוק ירושה
@@ -104,11 +108,24 @@ if ($Install) {
   Write-Host "✓ תצורה נכתבה: $CfgPath (SYSTEM ו-Administrators בלבד)" -ForegroundColor Green
 
   # ── המשימה ─────────────────────────────────────────────────────────────
-  $argList = @("`"$(Join-Path $Root 'scripts\station.mjs')`"", "--config=`"$CfgPath`"")
-  if ($Dist) { $argList += '--dist' }
+  #
+  # ⚠️ **דרך cmd עם הפניה לקובץ, ולא node ישירות.** בגרסה הראשונה המשימה
+  # הריצה את node ישירות, היא נכשלה ב-exit 1, ו**לא נשאר שום לוג** - כי
+  # הכשל קרה לפני שהלוג של האפליקציה הוקם. כשל עלייה בלי ראיה הוא בדיוק
+  # המצב שאי אפשר לאבחן ממנו. ההפניה כאן תופסת גם כשל של node עצמו
+  # (DLL חסר, נתיב לא נגיש, הרשאה), עוד לפני ששורת JS אחת רצה.
+  #
+  # `--quiet` כדי שהאפליקציה לא תכתוב פעמיים - ללוג שלה וגם לקובץ האתחול.
+  $script   = Join-Path $Root 'scripts\station.mjs'
+  $bootLog  = Join-Path $LogDir 'station-agent-boot.log'
+  $inner    = "`"$node`" `"$script`" --config=`"$CfgPath`" --quiet"
+  if ($Dist) { $inner += ' --dist' }
+  # `2>&1` אחרי ההפניה: גם stderr נכנס לאותו קובץ. המרכאות הכפולות בקצוות
+  # נדרשות ל-cmd /c כשיש מרכאות בפנים.
+  $cmdArgs  = "/c `"$inner >> `"$bootLog`" 2>&1`""
 
-  $action = New-ScheduledTaskAction -Execute $node `
-    -Argument ($argList -join ' ') -WorkingDirectory $Root
+  $action = New-ScheduledTaskAction -Execute "$env:SystemRoot\System32\cmd.exe" `
+    -Argument $cmdArgs -WorkingDirectory $Root
 
   # באתחול המחשב, לא בכניסת משתמש: העמדה צריכה לסנכרן גם לפני שמישהו התחבר.
   $trigger = New-ScheduledTaskTrigger -AtStartup
@@ -147,6 +164,7 @@ if ($Install) {
   Write-Host "✓ המשימה הותקנה והופעלה" -ForegroundColor Green
   Write-Host "  טריגר:  באתחול המחשב (SYSTEM)"
   Write-Host "  לוג:    $LogPath"
+  Write-Host "  לוג אתחול: $bootLog   (כשלים שקורים לפני שהלוג עולה)"
   Write-Host "  כתובת:  http://127.0.0.1:$Port"
   Write-Host ""
   Write-Host "  הסנכרון הראשון לוקח כדקה. לבדיקה:" -ForegroundColor Cyan
@@ -176,8 +194,24 @@ if ($Restart) {
 
 # ── לוג ──────────────────────────────────────────────────────────────────────
 if ($Logs) {
-  if (-not (Test-Path $LogPath)) { Write-Host "אין עדיין לוג ב-$LogPath"; return }
-  Get-Content -Path $LogPath -Tail 40
+  $bootLog = Join-Path $LogDir 'station-agent-boot.log'
+  # ⚠️ **לוג האתחול קודם.** כשהסוכן לא עולה בכלל, הלוג שלו ריק או לא קיים,
+  # והראיה היחידה נמצאת שם. להציג רק את הלוג ה"רגיל" פירושו לומר "אין לוג"
+  # דווקא במקרה שבו הכי צריך אותו.
+  if (Test-Path $bootLog) {
+    $boot = Get-Content -Path $bootLog -Tail 20
+    if ($boot) {
+      Write-Host "── לוג אתחול ($bootLog) ──" -ForegroundColor Yellow
+      $boot
+      Write-Host ""
+    }
+  }
+  if (Test-Path $LogPath) {
+    Write-Host "── לוג הסוכן ($LogPath) ──" -ForegroundColor Cyan
+    Get-Content -Path $LogPath -Tail 40
+  } else {
+    Write-Host "אין עדיין לוג סוכן ב-$LogPath - הסוכן לא הגיע לשלב הזה"
+  }
   return
 }
 

@@ -17,7 +17,7 @@
 //
 // דגלים: --port · --api=<url> · --vite=<url> · --dist (להגיש build במקום Vite)
 //        --token=<אסימון עמדה> - מדליק את שירות המראה ברקע · --env=<מספר סביבה>
-//        --config=<קובץ> · --log=<קובץ>  (ראה scripts/station-service.ps1)
+//        --config=<קובץ> · --log=<קובץ> · --quiet  (ראה scripts/station-service.ps1)
 
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -54,7 +54,12 @@ const CONFIG_PATH = rawArg('config')
 let fileCfg = {};
 if (existsSync(CONFIG_PATH)) {
   try {
-    fileCfg = JSON.parse(readFileSync(CONFIG_PATH, 'utf8')) || {};
+    // ⚠️ **הסרת BOM.** `Set-Content -Encoding utf8` ב-Windows PowerShell 5.1
+    // כותב UTF-8 **עם BOM**, וגם Notepad עושה זאת - ו-`JSON.parse` נחנק
+    // עליו ב-`Unexpected token 'ï»¿'`. זה הפיל את הסוכן בהתקנה האמיתית
+    // הראשונה, ובלי לוג האתחול לא היה שום סימן לכך.
+    const rawCfg = readFileSync(CONFIG_PATH, 'utf8').replace(/^﻿/, '');
+    fileCfg = JSON.parse(rawCfg) || {};
   } catch (err) {
     // ⚠️ **נופלים, ולא ממשיכים בלי תצורה.** קובץ פגום פירושו סוכן בלי אסימון
     // ובלי לוג - כלומר עמדה שעולה, נראית תקינה, והמאגר המקומי שלה לעולם לא
@@ -92,10 +97,13 @@ if (LOG_PATH) {
       try { appendFileSync(LOG_PATH, `${stamp()} ${level} ${line}
 `); } catch { /* דיסק מלא */ }
     };
+    // `--quiet`: כשהמשימה המתוזמנת מפנה את הפלט לקובץ אתחול, כתיבה גם
+    // ל-stdout הייתה מכפילה כל שורה בשני קבצים.
+    const quiet = flag('quiet');
     const origLog = console.log.bind(console);
     const origErr = console.error.bind(console);
-    console.log = (...a) => { origLog(...a); write('INFO', a); };
-    console.error = (...a) => { origErr(...a); write('ERR ', a); };
+    console.log = (...a) => { if (!quiet) origLog(...a); write('INFO', a); };
+    console.error = (...a) => { if (!quiet) origErr(...a); write('ERR ', a); };
     console.log(`[station] לוג: ${LOG_PATH}`);
   } catch (err) {
     console.error(`[station] לא ניתן לכתוב ללוג ${LOG_PATH}: ${err.message}`);
