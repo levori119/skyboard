@@ -1,0 +1,94 @@
+# סביבת גיבוי מקומית: PostgreSQL אמיתי + האפליקציה, על מחשב אחד.
+#
+# מה זה נותן שאין במאגר המקומי המוטמע (PGlite): Postgres מלא שמקבל את הנתונים
+# ב**רפליקציה לוגית** של Postgres עצמו - לא קוד סנכרון שאנחנו מתחזקים. פחות
+# קוד שלנו במסלול, ויותר מנגנון בדוק.
+#
+# ⚠️ **מה זה לא מחליף.** רפליקציה לוגית היא חד-כיוונית, והמנוי הוא **קריאה
+# בלבד** בפועל: כתיבה מקומית לטבלה מנויה תתנגש כשהרפליקציה תחזור, והמנוי
+# יפסיק להחיל שינויים. לכן זה מחליף את **כיוון המראה** בלבד; העבודה בנתק
+# והדחיפה חזרה נשארות במסלול הקיים (server/sync/).
+#
+# הרצה:  docker compose --env-file .env up -d
+# עצירה: docker compose down          (הנתונים נשארים ב-volume)
+# ניקוי: docker compose down -v       (מוחק גם את הנתונים)
+
+name: skyking-local
+
+services:
+  # ── המאגר המקומי ────────────────────────────────────────────────────────────
+  db:
+    image: postgres:15
+    container_name: skyking-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${LOCAL_DB_USER:-skyking}
+      POSTGRES_PASSWORD: ${LOCAL_DB_PASSWORD:?חסר LOCAL_DB_PASSWORD ב-.env}
+      POSTGRES_DB: ${LOCAL_DB_NAME:-skyking}
+      # עברית בנתונים - לוקאל שאינו UTF-8 שובר מיון והשוואות
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    command:
+      # ⚠️ **המנוי דורש את שלושת אלה.** בלי `wal_level=logical` הפקודה
+      # `CREATE SUBSCRIPTION` נכשלת, ובלי הסלוטים המנוי אינו עולה.
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"
+      - "-c"
+      - "max_replication_slots=10"
+      - "-c"
+      - "max_logical_replication_workers=10"
+      - "-c"
+      - "max_worker_processes=16"
+      # חלון תחזוקה: העמדה אינה שרת, ו-autovacuum אגרסיבי גוזל ממנה CPU
+      - "-c"
+      - "autovacuum_naptime=60s"
+    volumes:
+      # ⚠️ **volume בשם ולא bind mount.** תיקיית הנתונים של Postgres דורשת
+      # הרשאות POSIX; bind mount לכונן Windows שובר אותן ו-initdb נכשל.
+      - skyking-pgdata:/var/lib/postgresql/data
+      # סקריפטים שרצים **פעם אחת**, ביצירת ה-volume בלבד
+      - ./replication/00-init-subscriber.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+    ports:
+      # נחשף ללוקלהוסט בלבד. מאגר שמאזין ל-0.0.0.0 על עמדה הוא משטח תקיפה.
+      - "127.0.0.1:${LOCAL_DB_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${LOCAL_DB_USER:-skyking} -d ${LOCAL_DB_NAME:-skyking}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── האפליקציה ───────────────────────────────────────────────────────────────
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: skyking-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      # ⚠️ **שתי הכתובות, וההכרעה ביניהן בזמן עלייה.** נקודת הכניסה בודקת מי
+      # מהן עונה ובוחרת - ראה docker/scripts/pick-database-url.sh.
+      CENTRAL_DATABASE_URL: ${CENTRAL_DATABASE_URL:-}
+      LOCAL_DATABASE_URL: postgresql://${LOCAL_DB_USER:-skyking}:${LOCAL_DB_PASSWORD}@db:5432/${LOCAL_DB_NAME:-skyking}
+      # `local` כופה עבודה מול המאגר המקומי גם כשיש קשר (תרגול, בדיקות)
+      DB_MODE: ${DB_MODE:-auto}
+      AUTH_SECRET: ${AUTH_SECRET:?חסר AUTH_SECRET ב-.env}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+      STATION_TOKEN: ${STATION_TOKEN:-}
+    ports:
+      - "127.0.0.1:${APP_PORT:-3001}:3001"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s   # initDb על סכמה מלאה לוקח זמן בעלייה ראשונה
+
+volumes:
+  skyking-pgdata:
+    name: skyking-pgdata

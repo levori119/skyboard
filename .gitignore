@@ -169,3 +169,6 @@ SECURITY_AUDIT.html
 
 # bundle של שרת ה-API המקומי - נבנה ב-build (scripts/build-local-server.mjs)
 electron/local-server.mjs
+
+# סודות סביבת ה-Docker המקומית
+docker/.env
