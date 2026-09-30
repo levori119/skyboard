@@ -12643,7 +12643,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         if (!res.ok) { const e = await res.json().catch(() => ({})); setPosClearToast('❌ ניקוי נכשל: ' + (e.error || res.status)); setTimeout(() => setPosClearToast(null), 4000); return; }
                         const d = await res.json();
                         await loadData();
-                        setPosClearToast(`🧹 נוקו הקצאות העמדה: ${d.strips} פ"ממ · ${d.zoneAssignments} אזורים · ${d.tableAssignments} שולחנות · ${d.transfers} העברות`);
+                        setPosClearToast(`🧹 נוקו הקצאות העמדה: ${d.strips} פ"ממ · ${d.zoneAssignments} אזורים · ${d.tableAssignments} שולחנות · ${d.civilianAssignments ?? 0} אזרחיים · ${d.transfers} העברות`);
                         setTimeout(() => setPosClearToast(null), 4500);
                       } catch { setPosClearToast('❌ שגיאה בחיבור לשרת'); setTimeout(() => setPosClearToast(null), 4000); }
                     }}

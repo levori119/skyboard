@@ -554,9 +554,14 @@ router.post('/api/strip-zone-assignments', async (req, res) => {
     res.json(r.rows[0]);
   } catch (err) { console.error(err); res.status(500).json({ error: 'Failed' }); }
 });
+// ניתוק הפ"מ מהאזור. **שתי הטבלאות יחד**: הקצאת האזור הראשי ו"האזורים
+// המחוברים" (`strip_zone_extra_zones`) הן שני חלקים של אותו סיכה אחת, ומחיקה
+// של הראשית בלבד השאירה אזורים מחוברים יתומים - הם המשיכו להופיע דרך
+// `extra_zones` ב-GET למעלה. הלקוח פיצה על כך בקריאה שנייה; כל קורא אחר לא.
 router.delete('/api/strip-zone-assignments/:strip_id', async (req, res) => {
   try {
     await pool.query('DELETE FROM strip_zone_assignments WHERE strip_id=$1', [req.params.strip_id]);
+    await pool.query('DELETE FROM strip_zone_extra_zones WHERE strip_id=$1', [req.params.strip_id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });

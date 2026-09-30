@@ -351,9 +351,11 @@ router.post('/api/strips/reset-placement', async (req, res) => {
     const za = await client.query('DELETE FROM strip_zone_assignments');
     await client.query('DELETE FROM strip_zone_extra_zones');
     const ta = await client.query('DELETE FROM strip_table_assignments');
+    // גם התצוגה האזרחית - אחרת "ניתוק כל הפ"מים" השאיר אותם מוצבים בעמדה אזרחית
+    const ca = await client.query('DELETE FROM civilian_strip_assignments');
     const tr = await client.query(`DELETE FROM strip_transfers WHERE status = 'pending'`);
     await client.query('COMMIT');
-    res.json({ ok: true, zoneAssignments: za.rowCount ?? 0, tableAssignments: ta.rowCount ?? 0, transfers: tr.rowCount ?? 0 });
+    res.json({ ok: true, zoneAssignments: za.rowCount ?? 0, tableAssignments: ta.rowCount ?? 0, civilianAssignments: ca.rowCount ?? 0, transfers: tr.rowCount ?? 0 });
   } catch (e) {
     await client.query('ROLLBACK');
     console.error('[reset-placement]', e);
@@ -372,30 +374,58 @@ router.post('/api/strips/reset-placement-preset', async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    // כל הפ"ממים שהעמדה הזו הציבה: בעלות, הקצאת טבלה של העמדה, או הקצאת אזור על מפת/מפות העמדה
-    const owned = await client.query(
-      `SELECT DISTINCT s.id FROM strips s
-       LEFT JOIN strip_table_assignments sta ON sta.strip_id = s.id AND sta.preset_id = $1
-       LEFT JOIN strip_zone_assignments sza ON sza.strip_id = s.id AND sza.map_id = ANY($2::int[])
-       WHERE (s.workstation_preset_id = $1 OR sta.preset_id = $1 OR sza.strip_id IS NOT NULL)
-         AND s.status NOT IN ('cancelled','rejected')`,
+    // ⚠️ הקצאות האזור נבחרות לפי **`sza.preset_id`** - אותה עמודה שממנה נגזר
+    // "נמצא בעמדה" (`at_preset_names` למעלה). הבחירה הקודמת הייתה לפי
+    // `sza.map_id = ANY(המפות הפתוחות)`, ושתי עמודות שונות לאותה שאלה נתנו שתי
+    // תקלות הפוכות: הקצאה שהעמדה עשתה על מפה שאינה פתוחה ברגע הניקוי לא נמחקה
+    // ונשארה **מחוברת** (ואם לא הייתה מפה פתוחה כלל - שום אזור לא נוקה), ובמקביל
+    // הקצאה של **עמדה אחרת** על מפה משותפת נגזלה. דווח מהשטח: "ניקה חלק ועדיין
+    // השאיר הקצאות מחוברות".
+    // שורות legacy (preset_id NULL, מלפני הוספת העמודה) עדיין נתפסות לפי המפה.
+    const zoneRes = await client.query(
+      `SELECT sza.strip_id FROM strip_zone_assignments sza
+         JOIN strips s ON s.id = sza.strip_id
+        WHERE (sza.preset_id = $1 OR (sza.preset_id IS NULL AND sza.map_id = ANY($2::int[])))
+          AND s.status NOT IN ('cancelled','rejected')`,
       [presetId, mapIdsParam]
     );
-    const ids = owned.rows.map(r => r.id);
+    const zoneIds = zoneRes.rows.map(r => r.strip_id);
+    // הפ"ממים שעל הדסק של העמדה, ואלה שהעמדה מחזיקה בבעלות
+    const restRes = await client.query(
+      `SELECT DISTINCT s.id FROM strips s
+        WHERE (s.workstation_preset_id = $1
+               OR EXISTS (SELECT 1 FROM strip_table_assignments sta WHERE sta.strip_id = s.id AND sta.preset_id = $1))
+          AND s.status NOT IN ('cancelled','rejected')`,
+      [presetId]
+    );
+    const ids = [...new Set([...zoneIds, ...restRes.rows.map(r => r.id)])];
     // הקצאות טבלה של העמדה הזו בלבד
     const ta = await client.query('DELETE FROM strip_table_assignments WHERE preset_id = $1', [presetId]);
+    // הקצאות התצוגה האזרחית של העמדה - גם הן "הקצאות של עמדה", ועד כה שרדו את הניקוי
+    const ca = await client.query('DELETE FROM civilian_strip_assignments WHERE preset_id = $1', [presetId]);
     let za = { rowCount: 0 }, tr = { rowCount: 0 };
-    if (ids.length) {
-      za = await client.query('DELETE FROM strip_zone_assignments WHERE strip_id = ANY($1::int[])', [ids]);
-      await client.query('DELETE FROM strip_zone_extra_zones WHERE strip_id = ANY($1::int[])', [ids]);
-      tr = await client.query(`DELETE FROM strip_transfers WHERE strip_id = ANY($1::int[]) AND status = 'pending'`, [ids]);
-      // ניתוק מהמפה/טבלה; בעלות מתאפסת רק אם הייתה של העמדה הזו (לא לגזול מעמדה אחרת)
+    if (zoneIds.length) {
+      za = await client.query('DELETE FROM strip_zone_assignments WHERE strip_id = ANY($1::int[])', [zoneIds]);
+      await client.query('DELETE FROM strip_zone_extra_zones WHERE strip_id = ANY($1::int[])', [zoneIds]);
+      // ניתוק מהמפה - רק לפ"ממים שההקצאה שלהם אכן נמחקה. `strips.on_map` גלובלי,
+      // ואיפוס שלו לפ"מ שעמדה אחרת הציבה היה מעלים אותו מהמפה **שלה**.
       await client.query(
         `UPDATE strips SET
            on_map = FALSE, x = 0, y = 0,
            map_lat = NULL, map_lon = NULL, map_pin_x = NULL, map_pin_y = NULL,
-           map_zone_name = '', map_zone_alts = '',
-           in_table = FALSE,
+           map_zone_name = '', map_zone_alts = ''
+         WHERE id = ANY($1::int[])`,
+        [zoneIds]
+      );
+    }
+    if (ids.length) {
+      tr = await client.query(`DELETE FROM strip_transfers WHERE strip_id = ANY($1::int[]) AND status = 'pending'`, [ids]);
+      // `in_table` יורד רק כשלא נשארה לפ"מ אף הקצאת דסק (הדסקים של עמדות אחרות
+      // כבר נמחקו או לא - ה-EXISTS נקרא אחרי המחיקה שלי);
+      // בעלות מתאפסת רק אם הייתה של העמדה הזו (לא לגזול מעמדה אחרת)
+      await client.query(
+        `UPDATE strips SET
+           in_table = EXISTS (SELECT 1 FROM strip_table_assignments sta WHERE sta.strip_id = strips.id),
            workstation_preset_id = CASE WHEN workstation_preset_id = $1 THEN NULL ELSE workstation_preset_id END,
            status = CASE WHEN status = 'pending_transfer' THEN 'active' ELSE status END
          WHERE id = ANY($2::int[])`,
@@ -403,7 +433,11 @@ router.post('/api/strips/reset-placement-preset', async (req, res) => {
       );
     }
     await client.query('COMMIT');
-    res.json({ ok: true, strips: ids.length, zoneAssignments: za.rowCount ?? 0, tableAssignments: ta.rowCount ?? 0, transfers: tr.rowCount ?? 0 });
+    res.json({
+      ok: true, strips: ids.length,
+      zoneAssignments: za.rowCount ?? 0, tableAssignments: ta.rowCount ?? 0,
+      civilianAssignments: ca.rowCount ?? 0, transfers: tr.rowCount ?? 0,
+    });
   } catch (e) {
     await client.query('ROLLBACK');
     console.error('[reset-placement-preset]', e);
