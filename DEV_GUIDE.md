@@ -414,6 +414,22 @@ npm run station
 > **בלי סוכן על המחשב אין מאגר מקומי, ואי אפשר לעקוף זאת.** PGlite ו-457
 > ה-endpoints דורשים תהליך Node על המחשב, ולטאב בכרום אין כזה.
 
+### שהסוכן יעלה עם המחשב
+
+```powershell
+# מחלון PowerShell **כמנהל**
+.\scripts\station-service.ps1 -Install -ApiUrl https://sky-king.up.railway.app -Token '<אסימון>' -Dist
+.\scripts\station-service.ps1 -Status     # רץ? מה מצב הסנכרון?
+.\scripts\station-service.ps1 -Logs       # 40 השורות האחרונות
+```
+
+| | |
+|---|---|
+| **משימה מתוזמנת ולא שירות** | שירות Windows אמיתי דורש עוטף חיצוני (NSSM). ברשת מבודדת כל תלות חיצונית היא בעיית זמינות ושרשרת אספקה - והמתזמן מובנה, עולה באתחול, ומתאושש מקריסה |
+| **האסימון לא בשורת הפקודה** | `schtasks /query /v` חושף אותה לכל משתמש מקומי. התצורה ב-`station-agent.json` עם ACL ל-SYSTEM ו-Administrators בלבד, והמשימה מקבלת רק את הנתיב |
+| **לוג** | `C:\ProgramData\SKY-KING\logs\station-agent.log`, סיבוב ב-5MB |
+| **קובץ תצורה פגום** | הסוכן **נופל** במקום לעלות בלי אסימון. עמדה שעולה "תקינה" והמאגר שלה לא מתמלא היא הכשל השקט שאנחנו הכי רוצים למנוע |
+
 **אימות:** `npm run verify:web-agent` (אחרי `npm run build`) מרים שרת מרכזי
 מדומה, סוכן ודפדפן אמיתי, ובודק את כל השרשרת.
 

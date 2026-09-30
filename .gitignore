@@ -172,3 +172,6 @@ electron/local-server.mjs
 
 # סודות סביבת ה-Docker המקומית
 docker/.env
+
+# תצורת סוכן העמדה - מכילה את אסימון העמדה
+station-agent.json
