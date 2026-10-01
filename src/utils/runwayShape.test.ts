@@ -17,6 +17,10 @@ import {
   runwayQuad,
   stepWidthScale,
   thresholdBars,
+  RUNWAY_USE_ANGLE_DEG,
+  normalizeRunwayIdent,
+  runwayUseArrows,
+  runwayUseArrowShape,
 } from './runwayShape';
 
 // מסלול המראה מצויר כ**מסלול** ולא כקו: מלבן אספלט ברוחב אמיתי, ספי מסלול
@@ -279,5 +283,93 @@ describe('מכפיל רוחב המסלול', () => {
       expect(w).toBeGreaterThan(1);
       expect(w).toBeLessThan(15);
     }
+  });
+});
+
+// ── חצי המראה ונחיתה על המסלול בשימוש ───────────────────────────────────────
+describe('runwayUseArrows - חצי המסלול בשימוש', () => {
+  // מסלול אנכי: קצה A (33) למטה, B (15) למעלה. אורך 40 יחידות iso.
+  const V = { start_x_pct: 50, start_y_pct: 70, end_x_pct: 50, end_y_pct: 30, heading_a: '33', heading_b: '15' };
+  // מסלול אופקי: A (27) משמאל, B (09) מימין
+  const H = { start_x_pct: 20, start_y_pct: 50, end_x_pct: 60, end_y_pct: 50, heading_a: '27', heading_b: '09' };
+  const L = 40;
+
+  it('בלי קצה בשימוש - אין חצים', () => {
+    expect(runwayUseArrows(V, 1, {})).toEqual([]);
+    expect(runwayUseArrows(V, 1, { takeoff: ['18'], landing: ['36'] })).toEqual([]);
+  });
+
+  it('קצה מזוהה לפי הכיוון, גם עם אפס מוביל ורווחים', () => {
+    expect(normalizeRunwayIdent(' 09l ')).toBe('9L');
+    const [a] = runwayUseArrows(H, 1, { takeoff: ['9'] });
+    expect(a.end).toBe('b');
+    expect(a.use).toBe('takeoff');
+  });
+
+  it('המראה - קרקע לקראת סוף המסלול, ואז עלייה מעבר לקצה', () => {
+    const [a] = runwayUseArrows(V, 1, { takeoff: ['33'] });
+    expect(a.end).toBe('a');
+    expect(a.ground).not.toBeNull();
+    // הגלגול על הקרקע במחצית האחרונה של המסלול, כיוון הטיסה A→B
+    expect(a.ground![0].along).toBeGreaterThan(L * 0.75);
+    expect(a.ground![1].along).toBeGreaterThan(a.ground![0].along);
+    expect(a.ground![0].h).toBe(0);
+    // ההינתקות בתוך המסלול, והחץ מסתיים באוויר מעבר לקצה
+    expect(a.air[0].h).toBe(0);
+    expect(a.air[0].along).toBeLessThanOrEqual(L);
+    expect(a.air[1].along).toBeGreaterThan(L);
+    expect(a.air[1].h).toBeGreaterThan(0);
+  });
+
+  it('המראה מקצה B - הכיוון מתהפך, והעלייה מעבר לקצה A', () => {
+    const [a] = runwayUseArrows(V, 1, { takeoff: ['15'] });
+    expect(a.end).toBe('b');
+    expect(a.ground![0].along).toBeLessThan(L * 0.25);
+    expect(a.air[1].along).toBeLessThan(0);
+    expect(a.air[1].h).toBeGreaterThan(0);
+  });
+
+  it('נחיתה - ירידה מלפני הסף אל נגיעה בתחילת המסלול', () => {
+    const [a] = runwayUseArrows(V, 1, { landing: ['15'] });
+    expect(a.use).toBe('landing');
+    expect(a.ground).toBeNull();
+    // מתחיל באוויר לפני סף B (along > L) ונוגע מעט אחרי הסף
+    expect(a.air[0].along).toBeGreaterThan(L);
+    expect(a.air[0].h).toBeGreaterThan(0);
+    expect(a.air[1].h).toBe(0);
+    expect(a.air[1].along).toBeLessThan(L);
+    expect(a.air[1].along).toBeGreaterThan(L * 0.8);
+  });
+
+  it('זווית העלייה והירידה קבועה', () => {
+    for (const a of runwayUseArrows(V, 1, { takeoff: ['33'], landing: ['33'] })) {
+      const run = Math.abs(a.air[1].along - a.air[0].along);
+      const rise = Math.abs(a.air[1].h - a.air[0].h);
+      expect(Math.atan2(rise, run) * 180 / Math.PI).toBeCloseTo(RUNWAY_USE_ANGLE_DEG, 5);
+    }
+  });
+
+  it('המראה ונחיתה על אותו קצה - שני חצים', () => {
+    const arrows = runwayUseArrows(V, 1, { takeoff: ['33'], landing: ['33'] });
+    expect(arrows.map(a => a.use).sort()).toEqual(['landing', 'takeoff']);
+  });
+
+  it('במפה השטוחה הגובה הוא "למעלה" על המסך', () => {
+    const [to] = runwayUseArrows(H, 1, { takeoff: ['27'] });
+    const s = runwayUseArrowShape(H, 1, to, 3);
+    // מסלול אופקי ב-y=50: קצה החץ מעל הקו, ההינתקות עליו
+    expect(s.air[0].y).toBeCloseTo(50, 5);
+    expect(s.air[1].y).toBeLessThan(50);
+    // הצל על קו המרכז, וקו ההורדה מהקצה אל הצל
+    expect(s.shadow[1].y).toBeCloseTo(50, 5);
+    expect(s.drop[0]).toEqual(s.air[1]);
+    expect(s.head).toHaveLength(3);
+  });
+
+  it('מסלול אנכי - ההרמה הצידה ולא לאורך המסלול (אחרת הזווית נעלמת)', () => {
+    const [ld] = runwayUseArrows(V, 1, { landing: ['33'] });
+    const s = runwayUseArrowShape(V, 1, ld, 3);
+    expect(Math.abs(s.air[0].x - 50)).toBeGreaterThan(0.5);
+    expect(s.air[1].x).toBeCloseTo(50, 5);
   });
 });

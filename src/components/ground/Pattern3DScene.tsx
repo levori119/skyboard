@@ -9,7 +9,8 @@ import {
 } from '../../utils/trafficPattern';
 import {
   derivedRunwayWidth, designatorFontSize, designatorText, runwayAxis, runwayQuad, type RunwayGeo,
-  RUNWAY_CLOSED_COLOR,
+  RUNWAY_CLOSED_COLOR, RUNWAY_USE_COLOR, arrowHeadPoints, runwayUseArrows,
+  type ProfilePt, type RunwayUseSpec,
 } from '../../utils/runwayShape';
 import { CLASSIFICATION_COLOR } from '../../../shared/airTrafficApi';
 import { airPictureStore } from '../../airPicture/store';
@@ -69,6 +70,12 @@ interface Props {
   joiningAircraft: JoiningAircraftRow[];
   /** `is_closed` - NOTAM סגירה, בדיוק כמו שהמפה השטוחה מקבלת אותו (RunwayLayer). */
   runways: (RunwayGeo & { id?: number | string; is_closed?: boolean | null })[];
+  /**
+   * הקצוות בשימוש - **אותו פרופיל** של החץ במפה השטוחה (`runwayUseArrows`),
+   * אבל כאן הגובה הוא גובה אמיתי בסצנה: המראה עולה מסוף המסלול, נחיתה יורדת
+   * אל תחילתו.
+   */
+  runwayUse?: RunwayUseSpec;
   /** יחס תמונת המפה (רוחב/גובה) - בלעדיו ההקפה יוצאת מעוותת. */
   aspect: number;
   /** גובה פני השדה ברגל. בלעדיו בלוקי הגבהים (מוחלטים) יעופו לגובה הלא נכון. */
@@ -142,7 +149,7 @@ const altStepFor = (maxFt: number): number =>
 export default function Pattern3DScene({
   patterns, aircraft, joiningPoints, joiningStrips, joiningAircraft, runways,
   aspect, elevFt, camera, pan, onCameraChange, onPanChange, themeMode = 'dark',
-  layers, display, airPicture = null,
+  layers, display, airPicture = null, runwayUse,
 }: Props) {
   const C = colors(themeMode);
   const labelScale = useMapLabelScale();
@@ -235,8 +242,15 @@ export default function Pattern3DScene({
     const w = derivedRunwayWidth(ax.length);
     const quad = runwayQuad(rw, aspect, w);
     if (!quad) return null;
+    // נקודת פרופיל (מרחק לאורך הציר + גובה) → נקודה בסצנה. הגובה ביחידות iso
+    // כמו המרחק, ולכן זווית העלייה נשמרת כפי שהוגדרה.
+    const o = { x: ax.from.x * aspect, y: ax.from.y };
+    const at3 = (p: ProfilePt): Vec3 => ({ x: o.x + ax.dir.x * p.along, y: o.y + ax.dir.y * p.along, z: p.h });
     return {
       rw,
+      width: w,
+      useArrows: !rw.is_closed && runwayUse ? runwayUseArrows(rw, aspect, runwayUse) : [],
+      at3,
       quad: quad.map(p => ({ x: p.x * aspect, y: p.y })),
       des: designatorText(rw, aspect),
       fontSize: designatorFontSize(w),
@@ -244,11 +258,14 @@ export default function Pattern3DScene({
     };
   }).filter(Boolean) as {
     rw: RunwayGeo & { id?: number | string; is_closed?: boolean | null };
+    width: number;
+    useArrows: ReturnType<typeof runwayUseArrows>;
+    at3: (p: ProfilePt) => Vec3;
     quad: Pt[];
     des: ReturnType<typeof designatorText>;
     fontSize: number;
     mid: Pt;
-  }[], [runways, aspect]);
+  }[], [runways, aspect, runwayUse]);
 
   // מטוסים על הצלעות - **אותה פונקציה** של השכבה השטוחה, ולכן אותה צלע ואותו שבר
   const acOnLegs = React.useMemo(() => placePatternAircraft(aircraft).map(({ ac, frac, leg }) => {
@@ -694,6 +711,37 @@ export default function Pattern3DScene({
                 <line x1={q[1].x} y1={q[1].y} x2={q[3].x} y2={q[3].y} />
               </g>
             )}
+            {/* חצי המסלול בשימוש - הצל על האספלט, קו הורדה מהנקודה הגבוהה,
+                והחץ עצמו באוויר. ראש החץ מחושב **אחרי** ההיטל, כדי שיישאר
+                משולש שטוח מול המסך בכל סיבוב והטיה. */}
+            {s.useArrows.map(arrow => {
+              const col = RUNWAY_USE_COLOR[arrow.use];
+              const [a0, a1] = arrow.air;
+              const high = a0.h > a1.h ? a0 : a1;
+              const pa0 = P(s.at3(a0)), pa1 = P(s.at3(a1));
+              const ph = P(s.at3(high)), phg = P(s.at3({ along: high.along, h: 0 }));
+              const sa0 = P(s.at3({ along: a0.along, h: 0 })), sa1 = P(s.at3({ along: a1.along, h: 0 }));
+              const headLen = Math.max(1, s.width * 0.45);
+              const head = arrowHeadPoints(pa0, pa1, headLen, headLen * 0.55);
+              const sw = 0.42 * k;
+              return (
+                <g key={`use-${arrow.use}-${arrow.end}`} data-testid="p3d-runway-use-arrow"
+                  data-use={arrow.use} data-end={arrow.end} stroke={col} strokeLinecap="round">
+                  <line x1={sa0.x} y1={sa0.y} x2={sa1.x} y2={sa1.y} strokeWidth={sw * 0.6}
+                    strokeDasharray={`${0.6 * k},${0.5 * k}`} opacity={0.7} />
+                  <line x1={ph.x} y1={ph.y} x2={phg.x} y2={phg.y} strokeWidth={sw * 0.45}
+                    strokeDasharray={`${0.4 * k},${0.4 * k}`} opacity={0.7} />
+                  {arrow.ground && (() => {
+                    const g0 = P(s.at3(arrow.ground[0])), g1 = P(s.at3(arrow.ground[1]));
+                    return <line x1={g0.x} y1={g0.y} x2={g1.x} y2={g1.y} strokeWidth={sw} />;
+                  })()}
+                  <line x1={pa0.x} y1={pa0.y} x2={pa1.x} y2={pa1.y} strokeWidth={sw} />
+                  <polygon points={head.map(p => `${f(p.x)},${f(p.y)}`).join(' ')} fill={col}
+                    strokeWidth={sw * 0.4} strokeLinejoin="round" />
+                  <title>{bidiAuto(tr(arrow.use === 'takeoff' ? 'map.runwayUseTakeoff' : 'map.runwayUseLanding', { rwy: arrow.ident }))}</title>
+                </g>
+              );
+            })}
             {/* מספר הכיוון בכל קצה - **אותו טקסט ואותו מקום** של המפה השטוחה,
                 אבל **בלי הסיבוב** שלה: על המפה הוא מסובב לכיוון הטיסה כמו על
                 האספלט, וכאן סיבוב אל מישור הקרקע היה הופך אותו לבלתי קריא.

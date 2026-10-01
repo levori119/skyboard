@@ -485,6 +485,14 @@
     "zoomOut": {
       "he": "הקטן",
       "en": "Zoom out"
+    },
+    "runwayUseTakeoff": {
+      "he": "המראה {{rwy}}",
+      "en": "Takeoff {{rwy}}"
+    },
+    "runwayUseLanding": {
+      "he": "נחיתה {{rwy}}",
+      "en": "Landing {{rwy}}"
     }
   }
 }

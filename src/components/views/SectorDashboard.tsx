@@ -1444,6 +1444,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // עמדה של אותו שדה, ומסונכרנים למסלולים מקושרים (אותו מסלול פיזי בשדה אחר).
   const [towerTakeoffRunways, setTowerTakeoffRunways] = useState<string[]>([]);
   const [towerLandingRunways, setTowerLandingRunways] = useState<string[]>([]);
+  // חצי המראה/נחיתה על המסלול (מפה ותלת מימד) - יציב, כדי שהסצנה לא תחשב בכל רינדור
+  const towerRunwayEndUse = useMemo(
+    () => ({ takeoff: towerTakeoffRunways, landing: towerLandingRunways }),
+    [towerTakeoffRunways, towerLandingRunways]);
   // מיקום גרירה של פאנל "מסלולים בשימוש" (null = המקום הקבוע בתחתית). מגע/עט ו---s מטופלים ב-hook
   const towerRwyPanelRef = useRef<HTMLDivElement | null>(null);
   const towerRwyDrag = useDragPosition(towerRwyPanelRef);
@@ -14748,6 +14752,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 airfieldPatterns={airfieldPatterns}
                 // ההקפה נדלקת לפי מה שסומן בפאנל "מסלולים בשימוש" - המראה ונחיתה
                 activeRunwayIdents={[...towerTakeoffRunways, ...towerLandingRunways]}
+                // חצי המראה/נחיתה על המסלול עצמו - המפה והתלת מימד
+                runwayEndUse={towerRunwayEndUse}
                 airfieldRunwayNotams={airfieldRunwayNotams}
                 linkedRouteNotams={linkedRouteNotams}
                 runwayAidStatuses={runwayAidStatuses}

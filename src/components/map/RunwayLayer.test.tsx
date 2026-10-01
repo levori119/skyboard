@@ -98,3 +98,28 @@ describe('RunwayLayer - סימון אמצעי נחיתה', () => {
     expect(aidGroups(m)).toEqual([]);
   });
 });
+
+describe('RunwayLayer - חצי המסלול בשימוש', () => {
+  const arrows = (m: string) => m.match(/data-testid="runway-use-arrow"[^>]*/g) || [];
+  const renderUse = (inUse: any, rw: RunwayRow = RW) =>
+    renderToStaticMarkup(<RunwayLayer runways={[rw]} aspect={1} sz={1} inUse={inUse} />);
+
+  it('בלי קצה בשימוש - אין חץ', () => {
+    expect(arrows(renderToStaticMarkup(<RunwayLayer runways={[RW]} aspect={1} sz={1} />))).toHaveLength(0);
+    expect(arrows(renderUse({ takeoff: [], landing: [] }))).toHaveLength(0);
+  });
+
+  it('המראה ונחיתה - חץ לכל אחד, בקצה הנכון ובצבעו', () => {
+    const m = renderUse({ takeoff: ['33'], landing: ['15'] });
+    const a = arrows(m);
+    expect(a).toHaveLength(2);
+    expect(a.some(x => x.includes('data-use="takeoff"') && x.includes('data-end="a"'))).toBe(true);
+    expect(a.some(x => x.includes('data-use="landing"') && x.includes('data-end="b"'))).toBe(true);
+    expect(m).toContain('#38bdf8');
+    expect(m).toContain('#f59e0b');
+  });
+
+  it('מסלול סגור - אין חץ, ה-X גובר', () => {
+    expect(arrows(renderUse({ takeoff: ['33'] }, { ...RW, is_closed: true }))).toHaveLength(0);
+  });
+});

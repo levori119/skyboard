@@ -19,6 +19,7 @@ import {
 import { elementSymbolKey, elementStateColor } from '../../../shared/elementSymbols';
 import { datkNumberOf } from '../../../shared/landingPriority';
 import RunwayLayer from '../map/RunwayLayer';
+import type { RunwayUseSpec } from '../../utils/runwayShape';
 import TrafficPatternLayer from '../map/TrafficPatternLayer';
 import type { PatternRow } from '../map/TrafficPatternLayer';
 import JoiningPointPanel, { type JoiningPointView, type LandingRunway } from '../ground/JoiningPointPanel';
@@ -73,7 +74,7 @@ const RUNWAY_PANEL_RESERVE = 120;
 /** כמה מפאנל השכבות חייב להישאר בתוך שטח המפה בגרירה - שלא ייגרר אל מחוץ להישג יד. */
 const LAYERS_KEEP_VISIBLE = 70;
 
-export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onUpdateStripAircraftFault, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, canAddVehicle = false, onDeleteElement, hideStrips, hideElementPanel, hidePatternControls = false, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], linkedRouteNotams = [], runwayAidStatuses = [], airfieldPatterns = [], activeRunwayIdents = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, onCloseLayersPanel, onOpenLayersPanel, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark',
+export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onUpdateStripAircraftFault, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, canAddVehicle = false, onDeleteElement, hideStrips, hideElementPanel, hidePatternControls = false, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], linkedRouteNotams = [], runwayAidStatuses = [], airfieldPatterns = [], activeRunwayIdents = [], runwayEndUse, activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, onCloseLayersPanel, onOpenLayersPanel, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark',
   joiningPoints = [], joiningPointStrips = [], joiningPointAircraft = [], landingRunways = [],
   onAssignJoiningStrip, onRemoveJoiningAircraft, onAcceptToJoiningPoint, onRemoveJoiningStrip, onCoordinateJoiningStrip, onSplitJoiningStrip, onSetJoiningPointAircraftOnly,
   onUpdateJoiningAircraft, onSetFlightStatus, onSetGreens, onMoveJoiningPoint, onResetJoiningPoint, onReorderJoiningRunways,
@@ -203,6 +204,8 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   airfieldPatterns?: PatternRow[];
   /** קצוות המסלול שסומנו בשימוש (המראה/נחיתה) - ההקפה נדלקת לפיהם */
   activeRunwayIdents?: string[];
+  /** אותם קצוות, **מופרדים** להמראה ולנחיתה - לחצים על המסלול (מפה ותלת מימד) */
+  runwayEndUse?: RunwayUseSpec;
   activeTakeoffs?: {stripId: number|string; callsign: string; runway: string; routeName: string}[];
   airfieldTaxiways?: any[];
   showTaxiwayOpenOnly?: boolean;
@@ -3080,6 +3083,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 joiningStrips={joiningPointStrips}
                 joiningAircraft={joiningPointAircraft}
                 runways={drawableRunways}
+                runwayUse={runwayEndUse}
                 /* בלי מפה עדיין אין letterbox למדוד - `boundsAspect(null)`
                    מחזיר 1, וזה בדיוק היחס הנכון למסגרת ריבועית. */
                 aspect={boundsAspect(imgBounds)}
@@ -3537,6 +3541,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 aidStatuses={runwayAidStatuses}
                 paletteMode={mapDisplaySettings.runwayPalette}
                 widthScale={mapDisplaySettings.runwayWidthScale}
+                inUse={runwayEndUse}
               />
             </svg>
           )}

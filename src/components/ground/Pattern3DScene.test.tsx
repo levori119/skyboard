@@ -513,3 +513,25 @@ describe('Pattern3DScene - תמונ"א בגובה אמיתי', () => {
     expect(trackY(withAp({ patterns: tall, elevFt: 5000 }))).toBeGreaterThan(high);
   });
 });
+
+describe('Pattern3DScene - חצי המסלול בשימוש', () => {
+  const arrows = (m: string) => m.match(/data-testid="p3d-runway-use-arrow"[^>]*/g) || [];
+
+  it('בלי קצה בשימוש - אין חץ', () => {
+    expect(arrows(render({ runways: [NAMED_RW] }))).toHaveLength(0);
+  });
+
+  it('המראה ונחיתה - **אותם חצים** של המפה השטוחה', () => {
+    const inUse = { takeoff: ['15'], landing: ['33'] };
+    const m = render({ runways: [NAMED_RW], runwayUse: inUse });
+    const flat = renderToStaticMarkup(<RunwayLayer runways={[NAMED_RW as any]} aspect={1} sz={1} inUse={inUse} />);
+    const key = (s: string) => s.replace(/data-testid="[^"]*"/, '').trim();
+    expect(arrows(m).map(key).sort()).toEqual(
+      (flat.match(/data-testid="runway-use-arrow"[^>]*/g) || []).map(key).sort());
+    expect(arrows(m)).toHaveLength(2);
+  });
+
+  it('מסלול סגור - אין חץ', () => {
+    expect(arrows(render({ runways: [{ ...NAMED_RW, is_closed: true }], runwayUse: { takeoff: ['15'] } }))).toHaveLength(0);
+  });
+});

@@ -237,3 +237,153 @@ export const clampWidthScale = (v: unknown): number => {
 /** צעד אחד למעלה או למטה, מוצמד לתחום ומעוגל כדי שלא יצטברו שברי פיקסל. */
 export const stepWidthScale = (v: unknown, dir: 1 | -1): number =>
   clampWidthScale(Math.round((clampWidthScale(v) + dir * WIDTH_SCALE_STEP) * 100) / 100);
+
+// ── חצי המסלול בשימוש: המראה ונחיתה ──────────────────────────────────────────
+//
+// קצה שסומן בפאנל "מסלולים בשימוש" מקבל חץ על המסלול עצמו, כדי שהפקח יראה
+// במבט אחד **לאן** ממריאים ו**מאיפה** נוחתים - בלי לקרוא את הפאנל:
+//
+//   המראה - גלגול על הקרקע לקראת סוף המסלול, ואז עלייה בזווית מעבר לקצה
+//   נחיתה - ירידה בזווית מלפני הסף, ונגיעה בתחילת המסלול
+//
+// הצורה מוגדרת פעם אחת כ**פרופיל** (מרחק לאורך הציר + גובה), ושני המבטים
+// מציירים אותו פרופיל: בתלת מימד הגובה הוא גובה אמיתי, ובמפה השטוחה הוא היסט
+// כלפי מעלה על המסך (ראה `runwayUseArrowShape`). כך החץ לא יכול לומר דבר אחד
+// במפה ודבר אחר בתלת מימד.
+
+export type RunwayUse = 'takeoff' | 'landing';
+
+/** הקצוות שסומנו בשימוש, לפי שם הקצה (`end_name` של runway-end-use). */
+export interface RunwayUseSpec { takeoff?: string[] | null; landing?: string[] | null }
+
+/** נקודה בפרופיל: `along` מסף A לאורך הציר, `h` גובה - שניהם ביחידות iso. */
+export interface ProfilePt { along: number; h: number }
+
+export interface RunwayUseArrow {
+  use: RunwayUse;
+  end: 'a' | 'b';
+  ident: string;
+  /** הגלגול על הקרקע לפני ההינתקות (המראה בלבד) */
+  ground: [ProfilePt, ProfilePt] | null;
+  /** הקטע באוויר, **בכיוון הטיסה** - ראש החץ ב-`air[1]` */
+  air: [ProfilePt, ProfilePt];
+}
+
+/**
+ * זווית העלייה/הירידה בשרטוט. סכמטית בכוונה - 3° אמיתיות היו נראות כקו ישר,
+ * והחץ היה מאבד בדיוק את מה שהוא בא לומר.
+ */
+export const RUNWAY_USE_ANGLE_DEG = 25;
+
+/**
+ * צבעי החצים - **צבעי סטטוס**, קבועים בכל תמה ומשותפים לשני המבטים. לא ירוק:
+ * ירוק על המסלול הוא כבר "אמצעי נחיתה תקין" (runwayAids).
+ */
+export const RUNWAY_USE_COLOR: Record<RunwayUse, string> = {
+  takeoff: '#38bdf8',
+  landing: '#f59e0b',
+};
+
+/** "09l " → "9L": אותו קצה נכתב לפעמים עם אפס מוביל ולפעמים בלי. */
+export const normalizeRunwayIdent = (s: unknown): string =>
+  String(s ?? '').trim().toUpperCase().replace(/^0+(?=\d)/, '');
+
+/** שמות שני הקצוות - אותו מקור של `designatorText` (כיוונים, ובהיעדרם השם). */
+const endIdents = (rw: RunwayGeo): { a: string; b: string } => {
+  const parts = String(rw.name ?? '').split('/').map(s => s.trim());
+  return {
+    a: String(rw.heading_a ?? '').trim() || parts[0] || '',
+    b: String(rw.heading_b ?? '').trim() || parts[1] || '',
+  };
+};
+
+export function runwayUseArrows(rw: RunwayGeo, aspect: number, use: RunwayUseSpec): RunwayUseArrow[] {
+  const ax = runwayAxis(rw, aspect);
+  if (!ax) return [];
+  const L = ax.length;
+  const tan = Math.tan(RUNWAY_USE_ANGLE_DEG * RAD);
+  /** אורך הקטע באוויר - יחסי לאורך המסלול, וחסום כדי שיישאר חץ ולא יציף את המפה */
+  const run = Math.min(9, Math.max(3, L * 0.18));
+  const ids = endIdents(rw);
+  const out: RunwayUseArrow[] = [];
+  for (const kind of ['takeoff', 'landing'] as const) {
+    const wanted = new Set((use[kind] || []).map(normalizeRunwayIdent).filter(Boolean));
+    if (!wanted.size) continue;
+    for (const end of ['a', 'b'] as const) {
+      const ident = ids[end];
+      if (!ident || !wanted.has(normalizeRunwayIdent(ident))) continue;
+      // `s` = מרחק מהסף של הקצה הזה בכיוון הטיסה; מכאן אל `along` שנמדד מסף A
+      const pt = (s: number, h: number): ProfilePt => ({ along: end === 'a' ? s : L - s, h });
+      if (kind === 'takeoff') {
+        // הגלגול נשאר מעבר למספר הכיוון של הקצה הנגדי, כדי לא לדרוס אותו
+        const liftoff = L * 0.95;
+        out.push({
+          use: kind, end, ident,
+          ground: [pt(L * 0.86, 0), pt(liftoff, 0)],
+          air: [pt(liftoff, 0), pt(liftoff + run, run * tan)],
+        });
+      } else {
+        // הנגיעה מעט אחרי הסף - לפני מספר הכיוון שהנוחת קורא
+        const touchdown = L * 0.08;
+        out.push({
+          use: kind, end, ident,
+          ground: null,
+          air: [pt(-run, (run + touchdown) * tan), pt(touchdown, 0)],
+        });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * כיוון "למעלה" של הפרופיל במפה השטוחה, במרחב iso: ניצב למסלול, לצד שפונה
+ * למעלה על המסך - כמו מבט צד שהונח על המפה, כשהשמיים בראש המסך. במסלול אנכי
+ * "למעלה" מתלכד עם הציר עצמו והזווית הייתה נעלמת, ולכן שם ההרמה לימין.
+ */
+const liftDir = (ax: RunwayAxis): Pt => {
+  const { lat } = ax;
+  if (Math.abs(lat.y) < 1e-6) return { x: Math.abs(lat.x), y: 0 };
+  return lat.y < 0 ? lat : { x: -lat.x, y: -lat.y };
+};
+
+/** משולש ראש חץ שקצהו ב-`tip` ומכוון מ-`from`. מרחב איזוטרופי בלבד. */
+export function arrowHeadPoints(from: Pt, tip: Pt, len: number, halfW: number): Pt[] {
+  const dx = tip.x - from.x, dy = tip.y - from.y;
+  const d = Math.hypot(dx, dy) || 1;
+  const ux = dx / d, uy = dy / d;
+  const bx = tip.x - ux * len, by = tip.y - uy * len;
+  return [tip, { x: bx - uy * halfW, y: by + ux * halfW }, { x: bx + uy * halfW, y: by - ux * halfW }];
+}
+
+export interface RunwayUseArrowShape {
+  ground: [Pt, Pt] | null;
+  air: [Pt, Pt];
+  /** הטלת הקטע שבאוויר על קו המרכז - המיקום האופקי האמיתי */
+  shadow: [Pt, Pt];
+  /** קו הורדה מהנקודה הגבוהה אל הצל שלה */
+  drop: [Pt, Pt];
+  head: Pt[];
+}
+
+/** הפרופיל כשרטוט במפה השטוחה (אחוזי תמונה). `width` = רוחב המסלול המצויר. */
+export function runwayUseArrowShape(rw: RunwayGeo, aspect: number, arrow: RunwayUseArrow, width: number): RunwayUseArrowShape {
+  const ax = runwayAxis(rw, aspect)!;
+  const lift = liftDir(ax);
+  const o = toIso(ax.from, aspect);
+  const iso = (p: ProfilePt): Pt => ({
+    x: o.x + ax.dir.x * p.along + lift.x * p.h,
+    y: o.y + ax.dir.y * p.along + lift.y * p.h,
+  });
+  const pct = (p: Pt) => toPct(p, aspect);
+  const [a0, a1] = arrow.air;
+  const high = a0.h > a1.h ? a0 : a1;
+  const headLen = Math.max(1, width * 0.45);
+  return {
+    ground: arrow.ground ? [pct(iso(arrow.ground[0])), pct(iso(arrow.ground[1]))] : null,
+    air: [pct(iso(a0)), pct(iso(a1))],
+    shadow: [pct(iso({ along: a0.along, h: 0 })), pct(iso({ along: a1.along, h: 0 }))],
+    drop: [pct(iso(high)), pct(iso({ along: high.along, h: 0 }))],
+    head: arrowHeadPoints(iso(a0), iso(a1), headLen, headLen * 0.55).map(pct),
+  };
+}

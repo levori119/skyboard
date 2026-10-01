@@ -14,6 +14,10 @@ import {
   type RunwayGeo,
   type RunwayPaletteMode,
   RUNWAY_CLOSED_COLOR,
+  RUNWAY_USE_COLOR,
+  runwayUseArrows,
+  runwayUseArrowShape,
+  type RunwayUseSpec,
 } from '../../utils/runwayShape';
 import {
   AID_STATUS_KEY,
@@ -61,13 +65,18 @@ interface Props {
    * מצוירים כתקינים - כך שגם עמדת הניהול, שאין לה מצב חי, מראה את הסימון.
    */
   aidStatuses?: RunwayAidStatusRow[];
+  /**
+   * הקצוות שסומנו בפאנל "מסלולים בשימוש". קצה בהמראה מקבל חץ עולה לקראת סוף
+   * המסלול, וקצה בנחיתה חץ יורד אל תחילתו. מסלול סגור אינו מקבל חץ - ה-X גובר.
+   */
+  inUse?: RunwayUseSpec;
 }
 
 const CLOSED = RUNWAY_CLOSED_COLOR;
 /** רקע משבצת אמצעי הנחיתה - כהה וחצי-שקוף, כדי שהכיתוב לא ייבלע במיסעה */
 const CHIP_BG = '#020617';
 
-export default function RunwayLayer({ runways, aspect, sz, width, widthScale, paletteMode, showLabels = true, aidStatuses = [] }: Props) {
+export default function RunwayLayer({ runways, aspect, sz, width, widthScale, paletteMode, showLabels = true, aidStatuses = [], inUse }: Props) {
   const P = runwayPalette(paletteMode);
   return (
     <g data-testid="runway-layer">
@@ -148,6 +157,30 @@ export default function RunwayLayer({ runways, aspect, sz, width, widthScale, pa
                   </g>
                 );
               });
+            })}
+
+            {/* חצי המסלול בשימוש - הגלגול והקטע באוויר מלאים, והצל שלו על קו
+                המרכז מקווקו: הצל הוא המיקום האמיתי, והחץ שמעליו אומר "עולה"
+                או "יורד". אותו פרופיל של הסצנה התלת מימדית. */}
+            {!closed && inUse && runwayUseArrows(rw, aspect, inUse).map(arrow => {
+              const s = runwayUseArrowShape(rw, aspect, arrow, w);
+              const col = RUNWAY_USE_COLOR[arrow.use];
+              const sw = 0.42 * sz;
+              const ln = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+                ({ x1: a.x, y1: a.y, x2: b.x, y2: b.y });
+              return (
+                <g key={`use-${arrow.use}-${arrow.end}`} data-testid="runway-use-arrow"
+                  data-use={arrow.use} data-end={arrow.end} stroke={col} strokeLinecap="round">
+                  <line {...ln(s.shadow[0], s.shadow[1])} strokeWidth={sw * 0.6}
+                    strokeDasharray={`${0.6 * sz},${0.5 * sz}`} opacity={0.7} />
+                  <line {...ln(s.drop[0], s.drop[1])} strokeWidth={sw * 0.45}
+                    strokeDasharray={`${0.4 * sz},${0.4 * sz}`} opacity={0.7} />
+                  {s.ground && <line {...ln(s.ground[0], s.ground[1])} strokeWidth={sw} />}
+                  <line {...ln(s.air[0], s.air[1])} strokeWidth={sw} />
+                  <polygon points={pts(s.head)} fill={col} strokeWidth={sw * 0.4} strokeLinejoin="round" />
+                  <title>{bidiAuto(tr(arrow.use === 'takeoff' ? 'map.runwayUseTakeoff' : 'map.runwayUseLanding', { rwy: arrow.ident }))}</title>
+                </g>
+              );
             })}
 
             {/* מספר הכיוון בכל קצה, מסובב לכיוון הטיסה מאותו קצה */}
