@@ -120,6 +120,18 @@ export async function snapshotTables(client, schema, tables = MIRROR_TABLES) {
   return { schema, at: new Date().toISOString(), tables: out };
 }
 
+/**
+ * האם השורה המקומית נכתבה **אחרי** שהצילום נלקח במרכז.
+ *
+ * מסתמך על `updated_at`/`created_at` של השורה עצמה. אין להן ערך - מחזיר
+ * `false`, כלומר ההתנהגות הישנה: אי-ודאות אינה סיבה לשמור שורה שהמרכז מחק.
+ */
+function isNewerThanSnapshot(row, snapshotAt) {
+  if (!Number.isFinite(snapshotAt)) return false;
+  const t = Date.parse(row?.updated_at ?? row?.created_at ?? '');
+  return Number.isFinite(t) && t > snapshotAt;
+}
+
 /** מפתח יציב לשורה - חייב להיות זהה לזה שביומן (`coalesce.rowKey`). */
 const keyOf = (table, pk) =>
   `${table}#${JSON.stringify(Object.keys(pk).sort().map(k => [k, pk[k]]))}`;
@@ -138,7 +150,10 @@ const keyOf = (table, pk) =>
  * @param {Set<string>} pendingKeys מפתחות שורה שממתינים ביומן (`table#pk`)
  */
 export async function ingestSnapshot(client, schema, snapshot, pendingKeys = new Set()) {
-  const stats = { tables: 0, upserted: 0, deleted: 0, skipped: 0, failedTables: [] };
+  const stats = { tables: 0, upserted: 0, deleted: 0, skipped: 0, keptNewer: 0, failedTables: [] };
+  // זמן הצילום במרכז. בלעדיו (צילום מגרסה ישנה) אין במה להשוות, ואז
+  // ההתנהגות חוזרת למה שהייתה - עדיף לשמור שורה מיותרת מאשר למחוק עבודה.
+  const snapshotAt = Date.parse(snapshot?.at ?? '');
   const present = new Set(await existingTables(client, schema, snapshot.tables.map(t => t.table)));
   // גם בקליטה ולא רק בצילום: צילום מגרסה מוקדמת יותר עלול להגיע בסדר אחר.
   const order = sortByDependency(snapshot.tables.map(t => t.table));
@@ -216,7 +231,8 @@ export async function ingestSnapshot(client, schema, snapshot, pendingKeys = new
 
       if (!REPLACE_TABLES.has(table)) continue;
 
-      // מה שנעלם במרכז נמחק גם כאן - פרט למה שנולד בעמדה ולמה שממתין ביומן.
+      // מה שנעלם במרכז נמחק גם כאן - פרט למה שנולד בעמדה, למה שממתין ביומן,
+      // ולמה ש**חדש מהצילום עצמו**.
       const local = await client.query(
         `SELECT to_jsonb(t) AS row FROM ${tbl} t`);
       for (const { row } of local.rows) {
@@ -224,6 +240,19 @@ export async function ingestSnapshot(client, schema, snapshot, pendingKeys = new
         const key = keyOf(table, pk);
         if (seen.has(key) || pendingKeys.has(key)) continue;
         if (pkCols.length === 1 && isLocalId(pk[pkCols[0]])) continue;
+        // ⚠️ **מרוץ בין זמן הצילום לזמן הקליטה.** הצילום נלקח במרכז ברגע
+        // אחד, והקליטה רצה אחריו - סיבוב מלא נמשך עשרות שניות. בין השניים
+        // הדפדפן יכול היה לדחוף שורה חדשה: היא כבר **אינה ממתינה ביומן**
+        // (ולכן אינה מוגנת), ועדיין **אינה בצילום** (שנלקח לפניה). פסקת
+        // המחיקה ראתה שורה מקומית שאין לה מקבילה - ומחקה אותה.
+        //
+        // כך נעלם פ"מ שהוצב בנקודת העברה בנתק, ברגע שהקשר חזר. מזהה UUID
+        // אינו מוגן ע"י `isLocalId` (הוא בודק טווח מספרי), ולכן דווקא
+        // `strip_transfers` נפגעה.
+        //
+        // שורה שנכתבה **אחרי** זמן הצילום אינה יכולה היה להיות בו, ולכן
+        // היעדרה ממנו אינו אומר דבר.
+        if (isNewerThanSnapshot(row, snapshotAt)) { stats.keptNewer++; continue; }
         // מחיקת הורה שעדיין יש לו ילדים תיכשל, ותפיל את **הטבלה** הזו בלבד
         // (סייפפוינט הטבלה) - היא תנוקה בסיבוב הבא, אחרי שילדיה ילכו.
         await client.query(

@@ -529,3 +529,84 @@ describe('הכרעה ברמת השדה - לא דורסים שדות שלא נג�
     expect(now.alt).toBe('120');
   });
 });
+
+// ── המרוץ שמחק פ"מ מנקודת העברה ──────────────────────────────────────────────
+// הדיווח: "בנתק שמתי פ"מ בנקודת העברה. בחזרה מנתק הפ"מ נעלם מנקודת העברה."
+//
+// הרצף שגרם לזה:
+//   1. הקשר חוזר. המראה מצלמת את `strip_transfers` במרכז - ההעברה עדיין לא שם
+//   2. הדפדפן דוחף אותה. המרכז מקבל, והיומן עובר ל-synced
+//   3. המראה קולטת, קוראת את המוגנים - ההעברה כבר אינה ממתינה, ולכן אינה מוגנת
+//   4. פסקת המחיקה רואה שורה מקומית שאינה בצילום (הישן) - ומוחקת אותה
+//
+// ⚠️ `strip_transfers.id` הוא UUID, ו-`isLocalId` בודק **טווח מספרי** - ולכן
+// ההגנה על "שורה שנולדה בעמדה" לא חלה עליה. דווקא היא נפגעה.
+describe('מרוץ צילום-קליטה - פ"מ בנקודת העברה אינו נמחק', () => {
+  const ingest = async (snapshot, pendingKeys = new Set()) => {
+    const { ingestSnapshot } = await import('./mirror.js');
+    return ingestSnapshot(clientFor(localDb), 'public', snapshot, pendingKeys);
+  };
+
+  beforeEach(async () => {
+    for (const db of [localDb, centralDb]) {
+      await db.query('DELETE FROM public.strip_transfers');
+      await db.query('DELETE FROM public.strips');
+    }
+  });
+
+  it('העברה שנדחפה אחרי שהצילום נלקח - שורדת', async () => {
+    await centralDb.query(`INSERT INTO public.strips (id, callsign) VALUES (1, 'ע402')`);
+    await mirror(`INSERT INTO public.strips (id, callsign) VALUES (1, 'ע402')`);
+
+    // (1) הצילום נלקח במרכז - ההעברה עדיין לא קיימת בשום מקום
+    const snapshotAt = new Date(Date.now() - 1000).toISOString();
+
+    // (2) בנתק: הפקח שם את הפ"מ בנקודת ההעברה
+    await localDb.query(
+      `INSERT INTO public.strip_transfers (id, strip_id, status) VALUES ('uuid-abc', 1, 'pending')`);
+    // (3) הדחיפה הצליחה, והיומן כבר אינו "ממתין" - כלומר אין הגנה
+    await push();
+    expect((await centralDb.query(
+      `SELECT 1 FROM public.strip_transfers WHERE id = 'uuid-abc'`)).rows).toHaveLength(1);
+
+    // (4) ועכשיו נקלט הצילום **הישן**, בלי ההעברה ובלי שום מפתח מוגן
+    const stats = await ingest({
+      schema: 'public', at: snapshotAt,
+      tables: [{ table: 'strip_transfers', rows: [] }],
+    }, new Set());
+
+    const still = await localDb.query(`SELECT status FROM public.strip_transfers WHERE id = 'uuid-abc'`);
+    expect(still.rows).toHaveLength(1);           // ⚠️ זה מה שנעלם קודם
+    expect(still.rows[0].status).toBe('pending');
+    expect(stats.keptNewer).toBeGreaterThan(0);
+  });
+
+  // הצד השני של המטבע: מחיקה אמיתית במרכז **כן** חייבת להגיע לעמדה, אחרת
+  // העמדה תחזיק לנצח העברות שבוטלו.
+  it('שורה ישנה שנמחקה במרכז - עדיין נמחקת בעמדה', async () => {
+    await mirror(`INSERT INTO public.strips (id, callsign) VALUES (1, 'ע402')`);
+    await mirror(
+      `INSERT INTO public.strip_transfers (id, strip_id, status, updated_at)
+       VALUES ('uuid-old', 1, 'pending', NOW() - INTERVAL '1 hour')`);
+
+    const stats = await ingest({
+      schema: 'public', at: new Date().toISOString(),
+      tables: [{ table: 'strip_transfers', rows: [] }],
+    }, new Set());
+
+    expect((await localDb.query(
+      `SELECT 1 FROM public.strip_transfers WHERE id = 'uuid-old'`)).rows).toHaveLength(0);
+    expect(stats.deleted).toBeGreaterThan(0);
+  });
+
+  it('צילום בלי חותמת זמן - חוזרים להתנהגות הישנה ולא שומרים בטעות', async () => {
+    await mirror(`INSERT INTO public.strips (id, callsign) VALUES (1, 'ע402')`);
+    await mirror(`INSERT INTO public.strip_transfers (id, strip_id, status) VALUES ('uuid-x', 1, 'pending')`);
+
+    const stats = await ingest({
+      schema: 'public', at: null,
+      tables: [{ table: 'strip_transfers', rows: [] }],
+    }, new Set());
+    expect(stats.deleted).toBeGreaterThan(0);
+  });
+});
