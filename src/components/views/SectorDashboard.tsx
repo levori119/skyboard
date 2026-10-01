@@ -16726,9 +16726,29 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               );
             };
 
-            // במוד הטבלאי אין עמודות פ"מ, ולכן אין מה לקבע
+            // במוד הטבלאי אין עמודות פ"מ, ולכן `frozenColumns` (שסופר אותן)
+            // אינו חל. אבל **כן יש מה לקבע**: תא זהות הפ"מ הוא העוגן של השורה,
+            // ובלעדיו גלילה צידית של טבלת הבן סוחבת אותו החוצה והפקח מאבד את
+            // ההקשר - איזה פ"מ הוא בכלל רואה. זה מה שדווח כ"הקיבוע לא עובד".
             const frozenCount = isTabular ? 0 : (activeMode?.frozenColumns || 0);
             const hasFrozen = frozenCount > 0;
+
+            // ── עוגני המוד הטבלאי ───────────────────────────────────────────
+            // סדר הכותרות: [0] תא סימון · [1] ידית גרירה · ואז `columns`, ורק
+            // אחריהן זהות הפ"מ וטבלת הבן. `tableStickyOffsets` נמדד על **כל**
+            // הכותרות ולא רק על המקובעות, ולכן הוא זמין כאן גם בלי קיבוע.
+            //
+            // ⚠️ נגזר מ-`columns.length` ולא מקובע על 2/3: במוד הטבלאי הרשימה
+            // ריקה היום, אבל אינדקס קשיח היה נשבר **בשקט** ברגע שתתווסף
+            // עמודה - והתסמין (קיבוע שמקבע את העמודה הלא נכונה) קשה לאבחון.
+            const tabularIdentityIdx = 2 + columns.length;
+            const tabularIdentityLeft = isTabular ? (tableStickyOffsets[tabularIdentityIdx] ?? 0) : 0;
+            const tabularSubAnchor = isTabular ? (tableStickyOffsets[tabularIdentityIdx + 1] ?? 0) : 0;
+            const tabularSubWidth = isTabular && tableViewportWidth > 0
+              ? Math.max(160, tableViewportWidth - tabularSubAnchor) : 0;
+            // תא הסימון וידית הגרירה חייבים להיות דביקים גם הם, אחרת הם נגללים
+            // מתחת לזהות ונפער רווח שבו נראות שורות אחרות.
+            const stickyLead = hasFrozen || isTabular;
 
             // רווח דק בין פ"מ לפ"מ: שורה ריקה בצבע הלוח, אחרי הפ"מ ואחרי
             // טבלאות הבן שנפרסו לו - כך כל פ"מ נקרא כיחידה אחת ולא כרצף שורות.
@@ -16759,7 +16779,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       style={{
                         padding: '8px 6px', width: '28px', color: T.muted, borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`,
                         position: 'sticky', top: 0, zIndex: hasFrozen ? 15 : 10, fontSize: '11px',
-                        ...(hasFrozen ? { insetInlineStart: tableStickyOffsets[1] ?? 0, background: lightMode ? '#e2e8f0' : '#1e293b' } : {})
+                        ...(stickyLead ? { insetInlineStart: tableStickyOffsets[1] ?? 0, background: lightMode ? '#e2e8f0' : '#1e293b' } : {})
                       }}
                       title={tr('ctrl.dragToReorder')}
                     >⠿</th>
@@ -16835,7 +16855,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     })}
                     {/* מוד טבלאי - שתי הכותרות שמחליפות את עמודות הפ"מ */}
                     {isTabular && (<>
-                      <th style={{ padding: '8px 12px', textAlign: 'start', color: T.muted, borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, zIndex: 10, background: 'inherit', fontSize: '11px', whiteSpace: 'nowrap', minWidth: '120px' }}>
+                      <th style={{ padding: '8px 12px', textAlign: 'start', color: T.muted, borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, insetInlineStart: tabularIdentityLeft, zIndex: 15, background: lightMode ? '#e2e8f0' : '#1e293b', fontSize: '11px', whiteSpace: 'nowrap', minWidth: '120px' }}>
                         {tr('ctrl.tabularIdentity')}
                       </th>
                       <th style={{ padding: '8px 12px', textAlign: 'start', color: SUB_ACC, borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, zIndex: 10, background: 'inherit', fontSize: '11px', whiteSpace: 'nowrap', width: '100%' }}>
@@ -17046,7 +17066,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         </td>
                         <td
                           className={hasFrozen ? 'frozen-col' : undefined}
-                          style={{ padding: '6px 4px', color: '#475569', textAlign: 'center', cursor: (tableSortBySector || tableSortKey) ? 'default' : 'grab', fontSize: '16px', verticalAlign: 'middle', touchAction: 'none', ...(hasFrozen ? { position: 'sticky', insetInlineStart: tableStickyOffsets[1] ?? 0, background: rowBg ?? 'inherit', zIndex: 3 } : {}) }}
+                          style={{ padding: '6px 4px', color: '#475569', textAlign: 'center', cursor: (tableSortBySector || tableSortKey) ? 'default' : 'grab', fontSize: '16px', verticalAlign: 'middle', touchAction: 'none', ...(stickyLead ? { position: 'sticky' as const, insetInlineStart: tableStickyOffsets[1] ?? 0, background: rowBg ?? 'inherit', zIndex: 3 } : {}) }}
                           onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setTableRowCtxMenu({ stripId: s.id, x: e.clientX, y: e.clientY }); }}
                           onPointerDown={e => {
                             if (tableSortBySector || tableSortKey) return;
@@ -17168,7 +17188,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             שהאו"ק יהיה *לצד* הטבלה ולא מעליה - במבט אחד רואים
                             של מי הטבלה בלי לחפש שורה אחרת. */}
                         {isTabular && (<>
-                          <td style={{ padding: '6px 12px', verticalAlign: 'middle', direction: dir, whiteSpace: 'nowrap' }}>
+                          {/* תא הזהות מקובע: הוא העוגן של השורה, וגלילה צידית
+                              של טבלת הבן אינה אמורה לסחוב אותו החוצה. */}
+                          <td style={{ padding: '6px 12px', verticalAlign: 'middle', direction: dir, whiteSpace: 'nowrap',
+                            position: 'sticky', insetInlineStart: tabularIdentityLeft, zIndex: 4,
+                            background: rowBg ?? (lightMode ? '#e2e8f0' : '#1e293b') }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', lineHeight: 1.1 }}>
                               <span style={{ fontSize: `${Math.round(tableFontSize * 2)}px`, fontWeight: 'bold', color: T.text, letterSpacing: '0.02em' }}>
                                 {bidiAuto(getFormationDisplayName(s))}
@@ -17179,7 +17203,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             </div>
                           </td>
                           <td style={{ padding: '2px 0 6px', verticalAlign: 'middle', direction: dir, width: '100%' }}>
-                            {renderSubBlock(s, tabularCol, { forceOpen: true, showStripName: false })}
+                            {/* ⚠️ **העוגן הוא כל ההבדל.** בלי `sticky` הבלוק זורם
+                                עם הטבלה החיצונית, וגלילה צידית מזיזה את הכל יחד -
+                                כולל תא הזהות. עם עוגן הוא נצמד לקצה המקובע ומקבל
+                                את רוחב חלון התצוגה, ולכן נגלל **בתוך עצמו**. זה
+                                בדיוק מה שהנתיב הלא-טבלאי עושה, ומה שנשכח כאן. */}
+                            {renderSubBlock(s, tabularCol, {
+                              forceOpen: true, showStripName: false,
+                              sticky: { anchor: tabularSubAnchor, width: tabularSubWidth },
+                            })}
                           </td>
                         </>)}
                         {showFullPicture && (() => {
