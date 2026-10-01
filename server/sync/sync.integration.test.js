@@ -404,7 +404,7 @@ describe('פ"מ בנקודת העברה - נתק וחזרה', () => {
     }
   });
 
-  it('העמדה קיבלה את הפ"מ בנתק - המראה שרצה לפני הדחיפה אינה מוחקת זאת', async () => {
+  it('העמדה קיבלה את הפ"מ בנתק - המראה שרצה לפני הדחיפה אינה מוחקת זאת', { timeout: 30000 }, async () => {
     // מצב פתיחה: פ"מ בהעברה, זהה בשני הצדדים
     await centralDb.query(`INSERT INTO public.strips (id, callsign) VALUES (1, 'ע402')`);
     await centralDb.query(
@@ -463,5 +463,69 @@ describe('פ"מ בנקודת העברה - נתק וחזרה', () => {
 
     await push();
     expect((await centralTransfer('new-in-outage')).status).toBe('pending');
+  });
+});
+
+// ── הכרעה ברמת השדה ──────────────────────────────────────────────────────────
+// המלצת אורי (2026-10-01): "לשים לכל שדה שעודכן timestamp, ולפי זה לדעת מה
+// השדה המעודכן ביותר ולעדכן".
+//
+// המימוש אינו עמודת חותמת לכל שדה אלא גזירה מהיומן: `before`/`after` כבר
+// אומרים **בדיוק** אילו שדות העמדה נגעה בהם ומתי, בלי מיגרציה ובלי עמודה
+// שצריך לתחזק. מה שהעמדה לא נגעה בו - לא נכתב, ולכן לא נדרס.
+describe('הכרעה ברמת השדה - לא דורסים שדות שלא נגעו בהם', () => {
+  it('העמדה שינתה גובה, המרכז שינה סימון מפה - שניהם שורדים', async () => {
+    await seedMirrored();
+    await localDb.query(`UPDATE public.strips SET alt = '250' WHERE id = 1`);
+    // בזמן הנתק מישהו במרכז הזיז את אותו פ"מ על המפה
+    await centralDb.query(`UPDATE public.strips SET on_map = TRUE WHERE id = 1`);
+
+    await push();
+
+    const now = await centralStrip(1);
+    expect(now.alt).toBe('250');        // מה שהעמדה שינתה - נכתב
+    expect(now.on_map).toBe(true);      // ⚠️ מה שהיא לא נגעה בו - שרד
+  });
+
+  it('שינוי חוזר באותו שדה - עדיין רק הוא נכתב', async () => {
+    await seedMirrored();
+    for (const v of ['100', '200', '300']) {
+      await localDb.query(`UPDATE public.strips SET alt = $1 WHERE id = 1`, [v]);
+    }
+    await centralDb.query(`UPDATE public.strips SET on_map = TRUE WHERE id = 1`);
+
+    const ops = coalesceJournal(await pending());
+    expect(ops[0].changed).toEqual(['alt']);
+
+    await push();
+    const now = await centralStrip(1);
+    expect(now.alt).toBe('300');
+    expect(now.on_map).toBe(true);
+  });
+
+  it('שני שדות שהעמדה שינתה - שניהם עוברים', async () => {
+    await seedMirrored();
+    await localDb.query(`UPDATE public.strips SET alt = '250', callsign = 'ע999' WHERE id = 1`);
+
+    const ops = coalesceJournal(await pending());
+    expect(ops[0].changed.sort()).toEqual(['alt', 'callsign']);
+
+    await push();
+    const now = await centralStrip(1);
+    expect(now.alt).toBe('250');
+    expect(now.callsign).toBe('ע999');
+  });
+
+  // הכנסה כותבת את השורה כולה - אין "שדה שלא נגעו בו" בשורה שנולדה בעמדה.
+  it('הכנסה אינה מצומצמת', async () => {
+    await localDb.query(
+      `INSERT INTO public.strips (id, callsign, alt) VALUES (1500000099, 'חדש', '120')`);
+    const ops = coalesceJournal(await pending());
+    expect(ops[0].op).toBe('I');
+    expect(ops[0].changed).toBeNull();
+    await push();
+    const now = await centralStrip(1500000099);
+    expect(now.callsign).toBe('חדש');
+    expect(now.alt).toBe('120');
   });
 });

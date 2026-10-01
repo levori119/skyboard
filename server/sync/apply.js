@@ -34,6 +34,28 @@ import { currentRow, insertRow, updateRow, deleteRow } from '../db/rowOps.js';
 const SERVER_OWNED = ['rev', 'updated_at'];
 
 /**
+ * מצמצמת את השורה לשדות שהעמדה **באמת** נגעה בהם.
+ *
+ * ⚠️ **זה מה שמונע אובדן שקט.** בלי הצמצום הדחיפה כותבת את כל השורה, ומוחקת
+ * שדות שהמרכז עדכן בזמן הנתק והעמדה לא ראתה מעולם: הפקח שינה גובה, מישהו
+ * במרכז הוסיף הערה - ואחרי הסנכרון ההערה נעלמת, בלי שאף אחד מבחין.
+ *
+ * רשימת השדות נגזרת מ-`before`/`after` שביומן (`coalesceJournal`), ולכן אין
+ * צורך בחותמת זמן לכל עמודה ובמיגרציה שתתחזק אותה.
+ *
+ * `changed` ריק או חסר (דחיפה מגרסה ישנה של העמדה) - חוזרים לשורה המלאה,
+ * כי עדיף לכתוב יותר מדי מאשר לא לכתוב כלום.
+ */
+function narrowToChanged(row, changed) {
+  if (!row || !Array.isArray(changed) || !changed.length) return row;
+  const out = {};
+  for (const k of changed) {
+    if (Object.prototype.hasOwnProperty.call(row, k)) out[k] = row[k];
+  }
+  return Object.keys(out).length ? out : row;
+}
+
+/**
  * מדיניות ההכרעה.
  *
  * ⚠️ **ברירת המחדל היא `STATION`: העמדה שעבדה בנתק דורסת את המרכז.**
@@ -194,12 +216,12 @@ export async function applyOp(client, op, schema, opts = {}) {
     const who = decide();
     if (who === null) return undecided();
     if (who === 'theirs') return theirs(REASON.NEWER_THERE);
-    await updateRow(client, schema, table, op.pk, op.row, SERVER_OWNED);
+    await updateRow(client, schema, table, op.pk, narrowToChanged(op.row, op.changed), SERVER_OWNED);
     return { ...base, status: RESULT.APPLIED, reason: REASON.NEWER_HERE, resolved: 'mine', serverRow: now };
   }
 
   // איש לא נגע - הנתיב המהיר, וגם הנפוץ ביותר בפועל
-  await updateRow(client, schema, table, op.pk, op.row, SERVER_OWNED);
+  await updateRow(client, schema, table, op.pk, narrowToChanged(op.row, op.changed), SERVER_OWNED);
   return { ...base, status: RESULT.APPLIED };
 }
 

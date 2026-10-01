@@ -39,6 +39,27 @@ function revOf(row) {
   return v === undefined || v === null || v === '' ? null : Number(v);
 }
 
+/** עמודות שהמרכז מתחזק בעצמו - שינוי בהן אינו "העמדה נגעה בשדה". */
+const SERVER_OWNED = new Set(['rev', 'updated_at']);
+
+/**
+ * אוספת את השדות שהשתנו בשורת יומן אחת.
+ *
+ * `INSERT` - כל השדות שיש בשורה. `UPDATE` - רק מה ששונה בין `before`
+ * ל-`after`. ההשוואה ב-JSON כדי שאובייקטים (JSONB) ותאריכים יושוו לפי ערך
+ * ולא לפי זהות.
+ */
+function collectChanged(set, e) {
+  const after = e.after;
+  if (!after || typeof after !== 'object') return;
+  const before = e.before && typeof e.before === 'object' ? e.before : null;
+  for (const k of Object.keys(after)) {
+    if (SERVER_OWNED.has(k)) continue;
+    if (!before) { set.add(k); continue; }
+    if (JSON.stringify(before[k]) !== JSON.stringify(after[k])) set.add(k);
+  }
+}
+
 /**
  * מאחד שורות יומן (בסדר כתיבה עולה) לפעולות נטו.
  *
@@ -65,6 +86,12 @@ export function coalesceJournal(entries) {
         firstSeen: Number(e.id),
         localAt: null,
         journalIds: [],
+        // ⚠️ **אילו שדות העמדה באמת נגעה בהם.** בלי זה הדחיפה כותבת את
+        // **כל** השורה, ומוחקת שדות שהמרכז עדכן והעמדה לא ראתה מעולם -
+        // אובדן שקט שאיש אינו מבחין בו עד שמחפשים את הערך. היומן כבר
+        // מחזיק `before` ו-`after`, ולכן אפשר לגזור את זה בלי שום עמודה
+        // חדשה ובלי מיגרציה.
+        changed: new Set(),
       };
       byRow.set(key, acc);
     }
@@ -74,6 +101,7 @@ export function coalesceJournal(entries) {
     // באותה טרנזקציה, ולכן הוא הזמן של השינוי ולא של הרישום עליו.
     acc.localAt = (e.after && e.after.updated_at) || (e.before && e.before.updated_at) || e.at || acc.localAt;
     if (e.after) acc.row = e.after;
+    collectChanged(acc.changed, e);
     acc.journalIds.push(Number(e.id));
   }
 
@@ -101,6 +129,8 @@ export function coalesceJournal(entries) {
       op,
       baseRev: acc.baseRev,
       row: acc.row,
+      // רק בעדכון: בהכנסה ממילא נכתבת השורה כולה, ובמחיקה אין שדות.
+      changed: op === 'U' ? [...acc.changed] : null,
       journalIds: acc.journalIds,
       firstSeen: acc.firstSeen,
       localAt: acc.localAt,
