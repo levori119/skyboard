@@ -588,11 +588,6 @@ const WorkstationLogin = ({ onLogin, onManagement, initialCrewMember }: { onLogi
         {error && <p style={{ color: '#ef4444', textAlign: 'center', marginTop: '15px' }}>{error}</p>}
       </div>
 
-      {/* איך העמדה עלתה - מסונכרנת מהמרכז, או עצמאית מול המאגר המקומי.
-          מתחת לכרטיס ההתחברות ולא בפוטר: הפוטר הוא LTR, אפור ו-pointerEvents:none,
-          וזו הודעה שהמפעיל חייב לקרוא **לפני** שהוא נכנס. */}
-      <StartupModeBanner />
-
       {/* סימן היצרן + מספר גרסה ותאריך הגרסה — מוצג בעליית המערכת.
           הלוגו יושב בפוטר ולא בכרטיס ההתחברות, כדי לא לדחוף את שדות הכניסה מטה. */}
       <div style={{
@@ -607,6 +602,9 @@ const WorkstationLogin = ({ onLogin, onManagement, initialCrewMember }: { onLogi
           <span style={{ margin: '0 8px', opacity: 0.5 }}>·</span>
           <span>{APP_VERSION_DATE}</span>
         </div>
+        {/* הקשר למאגר והסנכרון - בפוטר ובקטן, כדי שמסך הכניסה יישאר כפי שהיה.
+            `pointerEvents` מוחזר עליו בלבד: במצב חסימה יש בו כפתור. */}
+        <StartupModeBanner />
       </div>
 
       {/* Workstation Selection Modal */}

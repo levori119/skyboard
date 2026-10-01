@@ -5,6 +5,10 @@
 // לפני** שהוא מתחיל, ולא לגלות זאת באמצע משמרת כשמידע חסר. עד היום השאלה
 // "על מה אני עובד" נענתה רק אחרי הכניסה, ורק למי שהסתכל על הפקד בפינה.
 //
+// ⚠️ **בפוטר ובקטן, לא באמצע המסך** (הכרעת אורי): מסך הכניסה נשאר כפי שהיה,
+// והחיווי יושב שורה אחת מתחת למספר הגרסה. מי שמחפש אותו מוצא; מי שלא -
+// המסך לא השתנה עבורו.
+//
 // ⚠️ **נקרא בלי הזדהות, ולכן מציג מצב בלבד.** הנתיב `/api/__localdb/startup`
 // קיים רק במאגר המקומי ומחזיר מצב עלייה - לא מידע שדה. ראה server/routes/localDb.js.
 
@@ -82,16 +86,16 @@ export default function StartupModeBanner() {
 
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: 8,
-      margin: '0 auto 14px', maxWidth: 420, padding: '8px 14px',
-      borderRadius: 8, fontSize: 13, fontWeight: 700,
-      // מסגרת ולא מילוי: זו הודעת מצב, לא התראה שדורשת פעולה
-      border: `1px solid ${TONE[st.startup]}`,
+      display: 'flex', alignItems: 'center', gap: 6,
+      // הפוטר כופה LTR ומונוספייס על כל מה שבתוכו; שניהם מעוותים עברית.
+      direction: 'rtl',
+      fontFamily: 'system-ui, "Segoe UI", Arial, sans-serif',
+      fontSize: 11, fontWeight: 600, letterSpacing: 0,
       color: TONE[st.startup],
-      background: 'rgba(15,23,42,.55)',
+      opacity: 0.9,
     }}>
       <span style={{
-        width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+        width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
         background: TONE[st.startup],
       }} />
       <span>{text}</span>
