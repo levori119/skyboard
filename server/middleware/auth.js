@@ -80,6 +80,9 @@ function serviceTokenOk(req) {
 const STATION_PATHS = [
   ['GET', '/api/sync/mirror/tables'],
   ['GET', '/api/sync/mirror'],
+  // משתמשי המיראז' להעתק שבעמדה (כניסה בנתק). ⚠️ נושא טביעות סיסמה, ולכן
+  // ה-handler עצמו דוחה כל זהות שאינה אסימון עמדה - גם משתמש מחובר.
+  ['GET', '/api/sync/mirror/mirage-users'],
   ['GET', '/api/health'],
 ];
 

@@ -175,3 +175,4 @@ docker/.env
 
 # תצורת סוכן העמדה - מכילה את אסימון העמדה
 station-agent.json
+station-seed.json

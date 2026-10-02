@@ -34,6 +34,8 @@
     "mirageRateLimited": "Too many failed attempts - try again in a minute",
     "miragePasswordNotSet": "No password set in MIRAGE - contact the system administrator",
     "mirageDenied": "Not authorized for SKY-KING in MIRAGE - contact the system administrator",
+    "localNoCredential": "The station is offline and does not recognize this personal number - it has not received the users from the server yet. Contact the system administrator",
+    "localCredentialExpired": "The station is offline and the identity saved on it has expired - log in when the connection returns or contact the system administrator",
     "mirageUnavailable": "MIRAGE is currently unavailable - please try again or contact support",
     "mirageSwapHint": "Only crew members authorized for this workstation in MIRAGE are shown",
     "mirageSwapCurrent": "Current",

@@ -24,6 +24,18 @@ describe('mirageAuthErrorKey', () => {
     expect(await mirageAuthErrorKey(res(403, { error: 'not_authorized' }))).toBe('login.mirageDenied');
   });
 
+  // כניסה בעמדה מנותקת: "אין לך הרשאה במיראז'" שולח את המפעיל לחפש בהרשאות,
+  // כשהבעיה היא שהעמדה עוד לא קיבלה את המשתמשים מהמרכז.
+  it('403 עם no_local_credential (עמדה בנתק) → המשתמש אינו מוכר בעמדה', async () => {
+    expect(await mirageAuthErrorKey(res(403, { error: 'no_local_credential', source: 'local' })))
+      .toBe('login.localNoCredential');
+  });
+
+  it('403 עם local_credential_expired (עמדה בנתק) → האסמכתא בעמדה פגה', async () => {
+    expect(await mirageAuthErrorKey(res(403, { error: 'local_credential_expired', source: 'local' })))
+      .toBe('login.localCredentialExpired');
+  });
+
   it('429 → חסימת ניסיונות', async () => {
     expect(await mirageAuthErrorKey(res(429))).toBe('login.mirageRateLimited');
   });

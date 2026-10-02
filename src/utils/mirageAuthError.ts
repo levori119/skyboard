@@ -24,9 +24,12 @@ export async function mirageAuthErrorKey(res: MirageErrorResponse): Promise<stri
         ? 'login.miragePasswordNotSet'
         : 'login.mirageBadCredentials';
     case 403:
-      return body?.error === 'workstation_not_permitted'
-        ? 'login.mirageWorkstationDenied'
-        : 'login.mirageDenied';
+      if (body?.error === 'workstation_not_permitted') return 'login.mirageWorkstationDenied';
+      // עמדה בנתק שלא מכירה את המשתמש - לא שלילת הרשאה, אלא עמדה שעוד לא
+      // קיבלה את המשתמשים מהמרכז (server/auth/mirageReplica.js)
+      if (body?.error === 'no_local_credential') return 'login.localNoCredential';
+      if (body?.error === 'local_credential_expired') return 'login.localCredentialExpired';
+      return 'login.mirageDenied';
     case 429:
       return 'login.mirageRateLimited';
     case 502:

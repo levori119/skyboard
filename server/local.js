@@ -98,6 +98,10 @@ export async function startLocalServer({ port = PORT, host = HOST } = {}) {
       await ensureLocalCredentialsTable(pool);
       const purged = await purgeExpiredCredentials(pool);
       if (purged) console.log(`[local] ${purged} אסמכתאות שפג תוקפן נמחקו`);
+      // המיראז' במאגר המקומי - כניסה בנתק לכל משתמש מורשה (auth/mirageReplica.js).
+      // גם היא של העמדה בלבד, מאותה סיבה בדיוק.
+      const { ensureMirageReplicaTable } = await import('./auth/mirageReplica.js');
+      await ensureMirageReplicaTable(pool);
     });
     // יומן הסנכרון וטווח המזהים — **אחרי** initDb ו-seedDb, ובכוונה:
     //   · הטריגר מוקלט מרגע התקנתו, ונתוני האתחול אינם עבודה של מפעיל שצריך
@@ -126,6 +130,23 @@ export async function startLocalServer({ port = PORT, host = HOST } = {}) {
       const moved = await applyLocalIdRange(pool, key);
       console.log(`[local] טווח מזהים מקומי מ-${localIdStart(key)} (${moved} רצפים הוזזו)`);
     });
+    // ── חבילת האתחול ──────────────────────────────────────────────────────
+    // עמדה שמעולם לא ראתה את המרכז עולה ריקה - בלי שדה ובלי משתמשים. חבילה
+    // שהובאה ביד (`SKYKING_SEED_FILE`) נקלטת כאן, **לפני** המראה, ורק אם היא
+    // חדשה ממה שכבר בעמדה. ראה sync/stationSeed.js.
+    //
+    // ⚠️ **אחרי** יומן הסנכרון ולא לפניו: הקליטה רצה תחת `withoutJournal`
+    // (בתוך ingestSnapshot), ולכן היא אינה נרשמת כעבודה לדחוף - אבל
+    // `protectedKeys` צריך את היומן קיים כדי לא לדרוס עבודה שטרם נדחפה.
+    await timed('חבילת אתחול', async () => {
+      const file = (process.env.SKYKING_SEED_FILE || '').trim();
+      if (!file) return;
+      const { default: pool } = await import('./db/pool.js');
+      const { applySeedIfNewer } = await import('./sync/stationSeed.js');
+      const { protectedKeys } = await import('./routes/sync.js');
+      const r = await applySeedIfNewer({ pool, file, dataDir, protectedKeys });
+      if (!r.applied && r.reason !== 'no_file') console.log(`[local] חבילת האתחול לא נקלטה (${r.reason}) - ${file}`);
+    });
     // ── שירות המראה ────────────────────────────────────────────────────────
     // רץ **בתוך התהליך הזה** ולא כאפליקציה נפרדת: PGlite נועל את תיקיית
     // המאגר, ותהליך שני לא יכול לפתוח אותה. זו דווקא הקלה - הצד המקומי הוא
@@ -143,6 +164,7 @@ export async function startLocalServer({ port = PORT, host = HOST } = {}) {
         env: process.env.SKYKING_STATION_ENV || '1',
         pool,
         protectedKeys,
+        dataDir,
       });
     });
     markReady();

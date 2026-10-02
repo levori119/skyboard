@@ -6,10 +6,13 @@ import { Router } from 'express';
 import pool from '../db/pool.js';
 import { signToken, DEFAULT_TTL_MS } from '../auth/token.js';
 import { isLocalDbMode } from '../db/localPool.js';
+import { ROLE } from '../middleware/auth.js';
 import { normalizeNationalId } from '../auth/driverIdentity.js';
 import {
   cacheCredential, verifyLocalLogin, createLoginLimiter, LOCAL_LOGIN,
 } from '../auth/localCredentials.js';
+import { MIRAGE_POSITIONS, mirageAppEntry as entryOf } from '../auth/mirageApps.js';
+import { verifyReplicaLogin, REPLICA_LOGIN } from '../auth/mirageReplica.js';
 
 const router = new Router();
 
@@ -102,26 +105,10 @@ const wsMatchesPreset = (w, preset) =>
   (w.id != null && Number(preset.id) === Number(w.id)) ||
   (w.name && String(preset.name).trim() === String(w.name).trim());
 
-// תפקידים מקצועיים במיראז' (ציר נפרד מ-roles שהוא ציר ההרשאה).
-// bakar = בקר (יב"א) · pakach = פקח (מגדל) — שני מקצועות נפרדים.
-export const MIRAGE_POSITIONS = ['bakar', 'pakach', 'mashak', 'mefale'];
+export { MIRAGE_POSITIONS };
 
-// רשומת האפליקציה של משתמש מיראז' — פורמט ישן (מערך) או מורחב
-// ({roles, workstations, positions})
-const mirageAppEntry = (user) => {
-  const entry = (user.apps || {})[MIRAGE_APP_NAME];
-  if (Array.isArray(entry)) return { roles: entry, workstations: [], positions: [] };
-  if (entry && typeof entry === 'object') {
-    return {
-      roles: Array.isArray(entry.roles) ? entry.roles : [],
-      workstations: Array.isArray(entry.workstations) ? entry.workstations : [],
-      positions: Array.isArray(entry.positions)
-        ? entry.positions.filter(p => MIRAGE_POSITIONS.includes(p))
-        : [],
-    };
-  }
-  return { roles: [], workstations: [], positions: [] };
-};
+// רשומת האפליקציה של משתמש מיראז' - הפענוח המשותף (auth/mirageApps.js)
+const mirageAppEntry = (user) => entryOf(user.apps, MIRAGE_APP_NAME);
 
 /** מורשה לעמדה = יש לו תפקיד באפליקציה, ואין הגבלת עמדות או שהעמדה ברשימה */
 const isEligibleForPreset = (entry, preset) =>
@@ -163,8 +150,17 @@ router.post('/api/auth/mirage-login', async (req, res) => {
   }
 
   if (sendMirageDenial(res, mirage)) return;
-  const auth = mirage.body;
+  return respondWithMirageSession(res, { auth: mirage.body, personalNumber, presetId, source: 'mirage' });
+});
 
+/**
+ * מתשובת מיראז' שאישרה (`authorized`) לסשן של SKY-KING: איחוד עם איש צוות,
+ * פענוח העמדות המורשות והאסימון.
+ *
+ * משותף לכניסה המקוונת ולכניסה בנתק מול ההעתק במאגר המקומי
+ * (auth/mirageReplica.js) - אותו משתמש מקבל אותן הרשאות בדיוק, עם קשר או בלעדיו.
+ */
+async function respondWithMirageSession(res, { auth, personalNumber, presetId = null, source }) {
   const roles = Array.isArray(auth.roles) ? auth.roles : [];
   const is_admin = roles.includes('admin');
   const is_team_lead = roles.includes('team_lead');
@@ -246,8 +242,8 @@ router.post('/api/auth/mirage-login', async (req, res) => {
     approvedWorkstations: mirageApproved || [],
   });
 
-  res.json({ crewMember, roles, source: 'mirage', token, expiresInMs: DEFAULT_TTL_MS });
-});
+  res.json({ crewMember, roles, source, token, expiresInMs: DEFAULT_TTL_MS });
+}
 
 // ── הזדהות בעמדה מנותקת ───────────────────────────────────────────────────────
 //
@@ -293,6 +289,35 @@ async function localLogin(req, res) {
     return res.status(429).json({ error: 'rate_limited', retryInMs: gate.retryInMs, source: 'local' });
   }
 
+  // ── קודם: המיראז' שבמאגר המקומי ────────────────────────────────────────────
+  // ההעתק של המיראז' (auth/mirageReplica.js) הוא המקור המעודכן יותר: הוא
+  // מתחדש בכל סיבוב מראה, ומכסה גם מי שמעולם לא נכנס בעמדה הזו. משתמש
+  // שנמצא בו מוכרע **רק** מולו - סיסמה שהוחלפה במיראז' לא תיכנס דרך
+  // האסמכתא הישנה שנשמרה כאן לפני ההחלפה.
+  let replica = null;
+  try {
+    replica = await verifyReplicaLogin(pool, { personalNumber, password, appName: MIRAGE_APP_NAME });
+  } catch (err) {
+    // טבלה חסרה (עמדה מגרסה קודמת) - ממשיכים לאסמכתא השמורה, כמו קודם
+    console.warn('[local-auth] העתק המיראז\' אינו זמין:', err.message);
+  }
+  if (replica && replica.reason !== REPLICA_LOGIN.NOT_FOUND) {
+    if (replica.ok) {
+      localLimiter.succeed(personalNumber);
+      console.log(`[local-auth] כניסה מקומית מול המיראז' שבעמדה: ${personalNumber}`);
+      const presetId = req.body?.presetId != null ? Number(req.body.presetId) : null;
+      return respondWithMirageSession(res, { auth: replica.auth, personalNumber, presetId, source: 'local' });
+    }
+    if (replica.reason === REPLICA_LOGIN.BAD_PASSWORD) {
+      localLimiter.fail(personalNumber);
+      return res.status(401).json({ error: 'bad_credentials', source: 'local' });
+    }
+    if (replica.reason === REPLICA_LOGIN.PASSWORD_NOT_SET) {
+      return res.status(401).json({ error: 'password_not_set', source: 'local' });
+    }
+    return res.status(403).json({ error: 'not_authorized', reason: replica.reason, source: 'local' });
+  }
+
   let result;
   try {
     result = await verifyLocalLogin(pool, { personalNumber, password });
@@ -314,6 +339,36 @@ async function localLogin(req, res) {
   console.log(`[local-auth] כניסה מקומית: ${personalNumber}`);
   res.json(loginResponse({ ...result.claims, personalId: personalNumber }, 'local'));
 }
+
+// ── במרכז: משתמשי המיראז' להעתק שבעמדה ───────────────────────────────────────
+//
+// שירות המראה של העמדה (sync/daemon.js) וחבילת האתחול (sync/stationSeed.js)
+// מושכים מכאן. המרכז הוא המתווך כי רק לו יש אסימון השירות של המיראז' -
+// לעמדה יש אסימון עמדה בלבד, קריאה בלבד (STATION_PATHS ב-middleware/auth.js).
+//
+// ⚠️ **התשובה תמיד `ok:true` עם מערך, או שגיאה.** העמדה מחליפה את ההעתק
+// כולו במה שהגיע, ולכן "המיראז' לא ענה" חייב להיראות אחרת מ"אין משתמשים" -
+// אחרת נפילה רגעית של המיראז' הייתה מוחקת את כל המשתמשים מכל העמדות.
+router.get('/api/sync/mirror/mirage-users', async (req, res) => {
+  // ⚠️ **אסימון עמדה בלבד.** שאר נתיבי המראה פתוחים גם למשתמש מחובר (הדפדפן
+  // מושך מהם), אבל כאן יוצאות טביעות סיסמה של כל הצוות - פקח מחובר אינו
+  // אמור לקבל אותן. נאכף כאן ולא רק בטבלת המדיניות, כי שם ברירת המחדל לכל
+  // נתיב היא USER.
+  if (req.user?.role !== ROLE.STATION) {
+    return res.status(403).json({ error: 'forbidden', message: 'נתיב זה לסוכן עמדה בלבד' });
+  }
+  let mirage;
+  try {
+    mirage = await fetchMirage(`/api/credentials-export?app=${encodeURIComponent(MIRAGE_APP_NAME)}`);
+  } catch (err) {
+    console.error('[mirage] ייצוא משתמשים לעמדות נכשל:', err.message);
+    return res.status(502).json({ error: 'mirage_unavailable' });
+  }
+  if (!mirage.ok || mirage.body?.ok !== true || !Array.isArray(mirage.body?.users)) {
+    return res.status(502).json({ error: 'mirage_unavailable', reason: mirage.body?.error || `HTTP ${mirage.status}` });
+  }
+  res.json({ ok: true, at: mirage.body.at || new Date().toISOString(), users: mirage.body.users });
+});
 
 /**
  * שמירת אסמכתא לשימוש בנתק. נקראת **מהעמדה עצמה** (שרת העמדה) מיד אחרי

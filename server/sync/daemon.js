@@ -19,6 +19,8 @@
 // (`STATION_PATHS` ב-middleware/auth.js), ולכן גם אם ייגנב - אי אפשר לכתוב בו.
 
 import { ingestSnapshot } from './mirror.js';
+import { replaceMirageUsers } from '../auth/mirageReplica.js';
+import { writeSnapshotMarker } from './stationSeed.js';
 
 /**
  * כמה טבלאות בבקשה אחת.
@@ -60,6 +62,9 @@ const state = {
   failures: 0,
   /** טבלאות שנכשלו גם בסיבוב השני - תקלה אמיתית, לא סדר תלויות */
   failedTables: [],
+  /** כמה משתמשי מיראז' בהעתק המקומי אחרי הסיבוב האחרון, ולמה לא עודכנו */
+  mirageUsers: null,
+  mirageError: null,
   /**
    * איך העמדה **עלתה**. זו השאלה שמסך הכניסה עונה עליה, והיא נקבעת פעם אחת
    * בסיבוב הראשון ואינה משתנה אחריו:
@@ -88,7 +93,7 @@ async function getJson(url, headers, signal) {
  * הסנכרון - כלומר עבודה שהמפעיל עשה בנתק וטרם נדחפה. בלי זה סיבוב מראה אחד
  * היה מוחק אותה בשקט.
  */
-async function runOnce({ central, headers, pool, schema, protectedKeys, log }) {
+async function runOnce({ central, headers, pool, schema, protectedKeys, log, dataDir }) {
   const t0 = Date.now();
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS * 4);
@@ -102,6 +107,8 @@ async function runOnce({ central, headers, pool, schema, protectedKeys, log }) {
 
     let upserted = 0;
     let failed = [];
+    /** זמן הצילום המוקדם בסיבוב - נרשם כסימון, ראה stationSeed.js */
+    let roundAt = null;
     for (let i = 0; i < tables.length; i += BATCH) {
       const batch = tables.slice(i, i + BATCH);
       state.progress = { done: i, total: tables.length };
@@ -109,6 +116,7 @@ async function runOnce({ central, headers, pool, schema, protectedKeys, log }) {
         `${central}/api/sync/mirror?tables=${encodeURIComponent(batch.join(','))}`,
         headers, ctrl.signal,
       );
+      roundAt ??= snap.at;
       const keys = await protectedKeys(q);
       const stats = await ingestSnapshot({ query: q }, schema, snap, keys);
       upserted += stats.upserted;
@@ -136,6 +144,26 @@ async function runOnce({ central, headers, pool, schema, protectedKeys, log }) {
         + (stillFailing.length ? ` · עדיין נופלות: ${stillFailing.join(', ')}` : ' · הכל נסגר'));
     }
     state.failedTables = stillFailing;
+
+    // ── משתמשי המיראז' - להעתק שבמאגר המקומי ──────────────────────────────
+    // כך כל משתמש מורשה נכנס בנתק, גם אם מעולם לא נכנס בעמדה הזו. ראה
+    // auth/mirageReplica.js. ⚠️ כשל כאן **אינו** מפיל את הסיבוב: המיראז' יכול
+    // להיות למטה כשהמרכז חי, וההעתק הקודם נשאר תקף - עדיף משתמשים מלפני
+    // רבע שעה מאשר אף משתמש.
+    try {
+      const mirage = await getJson(`${central}/api/sync/mirror/mirage-users`, headers, ctrl.signal);
+      if (mirage?.ok === true && Array.isArray(mirage.users)) {
+        const { count } = await replaceMirageUsers(pool, mirage.users);
+        state.mirageUsers = count;
+        state.mirageError = null;
+      } else {
+        throw new Error('תשובה לא תקינה');
+      }
+    } catch (err) {
+      state.mirageError = String(err?.message || err);
+      log(`[mirror] משתמשי המיראז' לא עודכנו (${state.mirageError}) - ההעתק הקודם נשאר`);
+    }
+    writeSnapshotMarker(dataDir, Date.parse(roundAt ?? ''));
 
     state.progress = null;
     state.lastOkAt = Date.now();
@@ -169,6 +197,7 @@ export function startMirrorDaemon({
   pool,
   schema = 'public',
   protectedKeys,
+  dataDir = null,
   intervalMs = Number(process.env.SKYKING_MIRROR_INTERVAL_MS) || DEFAULT_INTERVAL_MS,
   log = console.log,
 } = {}) {
@@ -195,7 +224,7 @@ export function startMirrorDaemon({
     state.running = true;
     let wait = intervalMs;
     try {
-      await runOnce({ central: base, headers, pool, schema, protectedKeys, log });
+      await runOnce({ central: base, headers, pool, schema, protectedKeys, log, dataDir });
     } catch (err) {
       state.failures++;
       state.lastError = String(err?.message || err);

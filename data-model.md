@@ -743,6 +743,10 @@ COALESCE(last_seen, entered_at) > NOW() - INTERVAL '240 seconds'
 > נוצרת ומנוהלת ע"י אפליקציית המיראז' (`mirage/store.js`), לא ע"י `initDb` של SKY-KING.
 > בפרודקשן (יש `DATABASE_URL`) המיראז' עובד מולה; בפיתוח/בדיקות — מול `mirage/data.json`.
 > בהפעלה ראשונה מול טבלה ריקה מתבצע ייבוא חד-פעמי מ-data.json.
+>
+> **גם במאגר המקומי של העמדה** (2026-10-02): העתק לכניסה בנתק, עם `password_hash`
+> (`s2$salt$hash`), שנוצר ב-`server/local.js` (`ensureMirageReplicaTable`) ומוחלף כולו
+> בכל סיבוב מראה ומחבילת האתחול. לא קיים במאגר המרכזי. מחוץ ליומן הביטול (`UNDO_DENYLIST`).
 
 | עמודה | סוג | תיאור |
 |---|---|---|
@@ -2059,6 +2063,10 @@ COALESCE(last_seen, entered_at) > NOW() - INTERVAL '240 seconds'
 > נוצרת ומנוהלת ע"י אפליקציית המיראז' (`mirage/store.js`), לא ע"י `initDb` של SKY-KING.
 > בפרודקשן (יש `DATABASE_URL`) המיראז' עובד מולה; בפיתוח/בדיקות — מול `mirage/data.json`.
 > בהפעלה ראשונה מול טבלה ריקה מתבצע ייבוא חד-פעמי מ-data.json.
+>
+> **גם במאגר המקומי של העמדה** (2026-10-02): העתק לכניסה בנתק, עם `password_hash`
+> (`s2$salt$hash`), שנוצר ב-`server/local.js` (`ensureMirageReplicaTable`) ומוחלף כולו
+> בכל סיבוב מראה ומחבילת האתחול. לא קיים במאגר המרכזי. מחוץ ליומן הביטול (`UNDO_DENYLIST`).
 
 | עמודה | סוג | תיאור |
 |---|---|---|

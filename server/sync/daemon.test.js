@@ -11,7 +11,7 @@ let pool, central, centralUrl, seen;
 
 /** מרכז מדומה: מחזיר רשימת טבלאות ואז צילום לכל קבוצה. */
 const startCentral = () => {
-  seen = { tables: 0, batches: [], headers: [], fail: 0 };
+  seen = { tables: 0, batches: [], headers: [], fail: 0, mirage: { status: 200, body: { ok: true, users: [] } } };
   const srv = http.createServer((req, res) => {
     seen.headers.push({
       token: req.headers['x-station-token'],
@@ -38,6 +38,11 @@ const startCentral = () => {
         tables: names.map(t => ({ table: t, rows: rowsFor(t) })) }));
       return;
     }
+    if (url.pathname === '/api/sync/mirror/mirage-users') {
+      res.writeHead(seen.mirage.status, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(seen.mirage.body));
+      return;
+    }
     res.writeHead(404); res.end('{}');
   });
   return srv;
@@ -49,6 +54,8 @@ beforeAll(async () => {
   ({ default: pool } = await import('../db/pool.js'));
   await pool.query(`CREATE TABLE strips (id INTEGER PRIMARY KEY, callsign VARCHAR(50))`);
   await pool.query(`CREATE TABLE notes (id INTEGER PRIMARY KEY, body TEXT)`);
+  const { ensureMirageReplicaTable } = await import('../auth/mirageReplica.js');
+  await ensureMirageReplicaTable(pool);
 
   central = startCentral();
   await new Promise(r => central.listen(0, '127.0.0.1', r));
@@ -182,5 +189,43 @@ describe('קליטה בסדר לא תקין - מפתחות זרים אינם נ�
     await expect(
       pool.query(`INSERT INTO child_rows (id, parent_id, label) VALUES (77, 888888, 'ידני')`)
     ).rejects.toThrow(/foreign key|violates/i);
+  });
+});
+
+// ── המיראז' במאגר המקומי ──────────────────────────────────────────────────────
+// כל סיבוב מראה מביא גם את משתמשי המיראז', כך שכל משתמש מורשה נכנס בנתק.
+describe("שירות המראה - משתמשי המיראז'", () => {
+  const U = (pn) => ({ personalNumber: pn, firstName: 'א', lastName: pn, apps: { 'SKY-KING': ['user'] }, passwordHash: 's2$x$y' });
+  const count = async () => (await pool.query('SELECT COUNT(*)::int AS n FROM mirage_users')).rows[0].n;
+
+  it('הסיבוב מחליף את ההעתק ברשימה מהמרכז', async () => {
+    seen.mirage = { status: 200, body: { ok: true, users: [U('1'), U('2')] } };
+    await runDaemonOnce();
+    expect(await count()).toBe(2);
+  });
+
+  // המיראז' יכול ליפול כשהמרכז חי. ההעתק הקודם נשאר - עדיף משתמשים מלפני
+  // רבע שעה מאשר אף משתמש - והמראה של השדה עצמה אינה נפגעת.
+  it("המיראז' לא זמין - הסיבוב מצליח וההעתק הקודם נשאר", async () => {
+    seen.mirage = { status: 200, body: { ok: true, users: [U('1'), U('2')] } };
+    await runDaemonOnce();
+    seen.mirage = { status: 502, body: { error: 'mirage_unavailable' } };
+    await expect(runDaemonOnce()).resolves.toBe(true);
+    expect(await count()).toBe(2);
+    const { rows } = await pool.query('SELECT callsign FROM strips ORDER BY id');
+    expect(rows).toHaveLength(2);
+  });
+
+  it('סיבוב מוצלח רושם את זמן הצילום - כדי שחבילת אתחול ישנה לא תדרוס אותו', async () => {
+    const { mkdtempSync, rmSync } = await import('fs');
+    const { tmpdir } = await import('os');
+    const path = await import('path');
+    const { readSnapshotMarker } = await import('./stationSeed.js');
+    const dir = mkdtempSync(path.join(tmpdir(), 'daemon-marker-'));
+    try {
+      const before = Date.now();
+      await runDaemonOnce({ dataDir: dir });
+      expect(readSnapshotMarker(dir)).toBeGreaterThanOrEqual(before - 1000);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });

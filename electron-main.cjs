@@ -96,7 +96,9 @@ function writeBundledConfigTemplate() {
       'AGENT: true - העמדה רצה בלי חלון והפקח פותח אותה בדפדפן (כתובת 127.0.0.1 ו-STATION_PORT). ' +
       'LOCAL_DB: false - כיבוי המאגר המקומי; נתק יאפשר צפייה בלבד. ' +
       'STATION_TOKEN - אסימון העמדה מול השרת המרכזי. בלעדיו שירות המראה כבוי, ' +
-      'והמאגר המקומי יתעדכן רק כשהאפליקציה פתוחה ומישהו מחובר.',
+      'והמאגר המקומי יתעדכן רק כשהאפליקציה פתוחה ומישהו מחובר. ' +
+      'SEED_FILE - חבילת אתחול (npm run station:seed) לעמדה שמעולם לא ראתה את השרת; ' +
+      'בלי ערך נבדק station-seed.json ליד קובץ זה.',
     mode: 'bundled',
     API_URL: DEFAULT_APP_URL,
     STATION_PORT: DEFAULT_STATION_PORT,
@@ -182,6 +184,23 @@ function localServerEntry() {
   return candidates.find(p => { try { return fs.existsSync(p); } catch { return false; } }) || null;
 }
 
+/**
+ * חבילת האתחול של העמדה, אם יש. שלושה מקומות, הראשון שקיים:
+ *   1. `SEED_FILE` בקובץ התצורה - נתיב מפורש (למשל דיסק און קי)
+ *   2. `station-seed.json` ליד קובץ התצורה - המקום שמעתיקים אליו ביד
+ *   3. `station-seed.json` בתוך ההתקנה - חבילה שנארזה עם ה-installer
+ * השרת המקומי קולט אותה רק אם היא חדשה ממה שכבר בעמדה, ולכן אין נזק בכך
+ * שהיא נשארת במקומה אחרי הקליטה.
+ */
+function stationSeedFile(cfg) {
+  const candidates = [
+    cfg && typeof cfg.SEED_FILE === 'string' ? cfg.SEED_FILE.trim() : '',
+    path.join(app.getPath('userData'), 'station-seed.json'),
+    process.resourcesPath ? path.join(process.resourcesPath, 'station-seed.json') : '',
+  ].filter(Boolean);
+  return candidates.find(p => { try { return fs.existsSync(p); } catch { return false; } }) || null;
+}
+
 function startLocalDbServer(cfg) {
   if (cfg && cfg.LOCAL_DB === false) return;
   const entry = localServerEntry();
@@ -206,6 +225,8 @@ function startLocalDbServer(cfg) {
         SKYKING_CENTRAL_URL: (cfg && cfg.API_URL) || '',
         SKYKING_STATION_TOKEN: (cfg && cfg.STATION_TOKEN) || process.env.SKYKING_STATION_TOKEN || '',
         SKYKING_STATION_ENV: String((cfg && cfg.ENV) || '1'),
+        // חבילת אתחול - עמדה שמעולם לא ראתה את המרכז (server/sync/stationSeed.js)
+        SKYKING_SEED_FILE: stationSeedFile(cfg) || '',
       },
       stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
     });

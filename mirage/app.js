@@ -343,6 +343,35 @@ export function createMirageApp({ dataFile, skykingUrl, databaseUrl } = {}) {
     }
   });
 
+  // ── ייצוא אסמכתאות לעמדות - כניסה בנתק ──────────────────────────────────
+  // עמדה עצמאית מחזיקה העתק של משתמשי האפליקציה, כדי שכל משתמש מורשה יוכל
+  // להיכנס כשאין קשר - גם אם מעולם לא נכנס בעמדה הזו. ההעתק מגיע דרך השרת
+  // המרכזי (`/api/sync/mirror/mirage-users`), שמחזיק את אסימון השירות.
+  //
+  // ⚠️ **זה ה-endpoint היחיד שמוציא טביעות סיסמה, ולכן השער הצר ביותר:**
+  // אסימון שירות בלבד. גם אסימון מנהל לא מספיק - למסך הניהול אין צורך
+  // בטביעות, ואסימון מנהל שדלף לא אמור להפוך לרשימת טביעות של כל הצוות.
+  // ורק מה שהעמדה צריכה: משתמשים עם תפקיד באפליקציה ועם סיסמה, ורק הרשומה
+  // של האפליקציה המבוקשת ולא של שאר האפליקציות.
+  app.get('/api/credentials-export', async (req, res) => {
+    if (!serviceTokenOk(req)) return res.status(401).json({ error: 'unauthenticated' });
+    const appName = String(req.query.app || MIRAGE_BOOTSTRAP_APP).trim();
+    try {
+      const users = (await store.listUsers())
+        .filter(u => u.passwordHash && appEntry(u, appName).roles.length > 0)
+        .map(u => ({
+          personalNumber: u.personalNumber,
+          firstName: u.firstName || '',
+          lastName: u.lastName || '',
+          apps: { [appName]: (u.apps || {})[appName] },
+          passwordHash: u.passwordHash,
+        }));
+      res.json({ ok: true, app: appName, at: new Date().toISOString(), users });
+    } catch {
+      res.status(503).json({ error: 'store_unavailable' });
+    }
+  });
+
   // ── ניהול משתמשים (עבור מסך הניהול של הדמו) ─────────────────────────────
   app.get('/api/users', requireAdminOrService, async (req, res) => {
     res.json((await store.listUsers()).map(publicUser));
