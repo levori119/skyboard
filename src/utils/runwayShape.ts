@@ -270,10 +270,10 @@ export interface RunwayUseArrow {
 }
 
 /**
- * זווית העלייה/הירידה בשרטוט. סכמטית בכוונה - 3° אמיתיות היו נראות כקו ישר,
- * והחץ היה מאבד בדיוק את מה שהוא בא לומר.
+ * זווית העלייה/הירידה בשרטוט. סכמטית בכוונה - 3° אמיתיות היו נראות כקו ישר.
+ * 25° (הגרסה הראשונה) נראו כפנייה חדה החוצה מהמסלול ולא כטיפוס, ולכן מתונה.
  */
-export const RUNWAY_USE_ANGLE_DEG = 25;
+export const RUNWAY_USE_ANGLE_DEG = 12;
 
 /**
  * צבעי החצים - **צבעי סטטוס**, קבועים בכל תמה ומשותפים לשני המבטים. לא ירוק:
@@ -303,7 +303,7 @@ export function runwayUseArrows(rw: RunwayGeo, aspect: number, use: RunwayUseSpe
   const L = ax.length;
   const tan = Math.tan(RUNWAY_USE_ANGLE_DEG * RAD);
   /** אורך הקטע באוויר - יחסי לאורך המסלול, וחסום כדי שיישאר חץ ולא יציף את המפה */
-  const run = Math.min(9, Math.max(3, L * 0.18));
+  const run = Math.min(11, Math.max(4, L * 0.22));
   const ids = endIdents(rw);
   const out: RunwayUseArrow[] = [];
   for (const kind of ['takeoff', 'landing'] as const) {
@@ -347,14 +347,57 @@ const liftDir = (ax: RunwayAxis): Pt => {
   return lat.y < 0 ? lat : { x: -lat.x, y: -lat.y };
 };
 
-/** משולש ראש חץ שקצהו ב-`tip` ומכוון מ-`from`. מרחב איזוטרופי בלבד. */
-export function arrowHeadPoints(from: Pt, tip: Pt, len: number, halfW: number): Pt[] {
-  const dx = tip.x - from.x, dy = tip.y - from.y;
-  const d = Math.hypot(dx, dy) || 1;
-  const ux = dx / d, uy = dy / d;
-  const bx = tip.x - ux * len, by = tip.y - uy * len;
-  return [tip, { x: bx - uy * halfW, y: by + ux * halfW }, { x: bx + uy * halfW, y: by - ux * halfW }];
+/** נקודות החץ ברצף, מהזנב לקצה: גלגול + עלייה בהמראה, ירידה בנחיתה. */
+export const runwayUseArrowPath = (arrow: RunwayUseArrow): ProfilePt[] =>
+  arrow.ground ? [arrow.ground[0], ...arrow.air] : [...arrow.air];
+
+/**
+ * מתאר של **חץ רחב וחלול** לאורך מסלול שבור: גוף ברוחב `2*halfW`, ובסוף ראש
+ * ברוחב `2*headHalfW` ובאורך `headLen`. חץ בקו דק נקרא כ"קו נוסף על המסלול" -
+ * הצורה הרחבה היא מה שאומר "זה כיוון". הפינות ב-miter כדי שהגוף לא יצטמק
+ * בשבירה (ההינתקות). מרחב איזוטרופי בלבד - ולכן גם אחרי היטל תלת מימדי.
+ */
+export function hollowArrowOutline(path: Pt[], halfW: number, headLen: number, headHalfW: number): Pt[] {
+  if (path.length < 2) return [];
+  const unit = (a: Pt, b: Pt): Pt => {
+    const d = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    return { x: (b.x - a.x) / d, y: (b.y - a.y) / d };
+  };
+  const tip = path[path.length - 1];
+  const prev = path[path.length - 2];
+  const uLast = unit(prev, tip);
+  const lastLen = Math.hypot(tip.x - prev.x, tip.y - prev.y);
+  const hl = Math.min(headLen, lastLen * 0.9);
+  const base = { x: tip.x - uLast.x * hl, y: tip.y - uLast.y * hl };
+  const body = [...path.slice(0, -1), base];
+  const nrm = (u: Pt): Pt => ({ x: u.y, y: -u.x });
+  const offs = body.map((v, i) => {
+    const nIn = i > 0 ? nrm(unit(body[i - 1], v)) : null;
+    const nOut = i < body.length - 1 ? nrm(unit(v, body[i + 1])) : null;
+    if (!nIn || !nOut) return { x: (nIn ?? nOut)!.x * halfW, y: (nIn ?? nOut)!.y * halfW };
+    const m = { x: nIn.x + nOut.x, y: nIn.y + nOut.y };
+    const ml = Math.hypot(m.x, m.y) || 1;
+    const cos = Math.max(0.3, (m.x * nIn.x + m.y * nIn.y) / ml);
+    return { x: (m.x / ml) * halfW / cos, y: (m.y / ml) * halfW / cos };
+  });
+  const nl = nrm(uLast);
+  const side1 = body.map((v, i) => ({ x: v.x + offs[i].x, y: v.y + offs[i].y }));
+  const side2 = body.map((v, i) => ({ x: v.x - offs[i].x, y: v.y - offs[i].y })).reverse();
+  return [
+    ...side1,
+    { x: base.x + nl.x * headHalfW, y: base.y + nl.y * headHalfW },
+    tip,
+    { x: base.x - nl.x * headHalfW, y: base.y - nl.y * headHalfW },
+    ...side2,
+  ];
 }
+
+/** מידות החץ החלול, נגזרות מרוחב המסלול המצויר - אותן מידות בשני המבטים. */
+export const runwayUseArrowSize = (width: number) => ({
+  halfW: width * 0.16,
+  headLen: width * 0.75,
+  headHalfW: width * 0.4,
+});
 
 export interface RunwayUseArrowShape {
   ground: [Pt, Pt] | null;
@@ -363,7 +406,8 @@ export interface RunwayUseArrowShape {
   shadow: [Pt, Pt];
   /** קו הורדה מהנקודה הגבוהה אל הצל שלה */
   drop: [Pt, Pt];
-  head: Pt[];
+  /** מתאר החץ הרחב והחלול */
+  outline: Pt[];
 }
 
 /** הפרופיל כשרטוט במפה השטוחה (אחוזי תמונה). `width` = רוחב המסלול המצויר. */
@@ -378,12 +422,12 @@ export function runwayUseArrowShape(rw: RunwayGeo, aspect: number, arrow: Runway
   const pct = (p: Pt) => toPct(p, aspect);
   const [a0, a1] = arrow.air;
   const high = a0.h > a1.h ? a0 : a1;
-  const headLen = Math.max(1, width * 0.45);
+  const sz = runwayUseArrowSize(width);
   return {
     ground: arrow.ground ? [pct(iso(arrow.ground[0])), pct(iso(arrow.ground[1]))] : null,
     air: [pct(iso(a0)), pct(iso(a1))],
     shadow: [pct(iso({ along: a0.along, h: 0 })), pct(iso({ along: a1.along, h: 0 }))],
     drop: [pct(iso(high)), pct(iso({ along: high.along, h: 0 }))],
-    head: arrowHeadPoints(iso(a0), iso(a1), headLen, headLen * 0.55).map(pct),
+    outline: hollowArrowOutline(runwayUseArrowPath(arrow).map(iso), sz.halfW, sz.headLen, sz.headHalfW).map(pct),
   };
 }

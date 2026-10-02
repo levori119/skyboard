@@ -159,9 +159,10 @@ export default function RunwayLayer({ runways, aspect, sz, width, widthScale, pa
               });
             })}
 
-            {/* חצי המסלול בשימוש - הגלגול והקטע באוויר מלאים, והצל שלו על קו
-                המרכז מקווקו: הצל הוא המיקום האמיתי, והחץ שמעליו אומר "עולה"
-                או "יורד". אותו פרופיל של הסצנה התלת מימדית. */}
+            {/* חצי המסלול בשימוש - חץ רחב וחלול לאורך כל התנועה (גלגול+עלייה
+                או ירידה), והצל של הקטע שבאוויר על קו המרכז מקווקו: הצל הוא
+                המיקום האמיתי, והחץ אומר "עולה" או "יורד". אותו פרופיל ואותן
+                מידות של הסצנה התלת מימדית. */}
             {!closed && inUse && runwayUseArrows(rw, aspect, inUse).map(arrow => {
               const s = runwayUseArrowShape(rw, aspect, arrow, w);
               const col = RUNWAY_USE_COLOR[arrow.use];
@@ -175,9 +176,9 @@ export default function RunwayLayer({ runways, aspect, sz, width, widthScale, pa
                     strokeDasharray={`${0.6 * sz},${0.5 * sz}`} opacity={0.7} />
                   <line {...ln(s.drop[0], s.drop[1])} strokeWidth={sw * 0.45}
                     strokeDasharray={`${0.4 * sz},${0.4 * sz}`} opacity={0.7} />
-                  {s.ground && <line {...ln(s.ground[0], s.ground[1])} strokeWidth={sw} />}
-                  <line {...ln(s.air[0], s.air[1])} strokeWidth={sw} />
-                  <polygon points={pts(s.head)} fill={col} strokeWidth={sw * 0.4} strokeLinejoin="round" />
+                  {/* החץ עצמו - רחב וחלול: מילוי שקוף-למחצה ומתאר בצבע */}
+                  <polygon points={pts(s.outline)} fill={col} fillOpacity={0.18}
+                    strokeWidth={sw} strokeLinejoin="round" />
                   <title>{bidiAuto(tr(arrow.use === 'takeoff' ? 'map.runwayUseTakeoff' : 'map.runwayUseLanding', { rwy: arrow.ident }))}</title>
                 </g>
               );

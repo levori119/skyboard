@@ -9,7 +9,8 @@ import {
 } from '../../utils/trafficPattern';
 import {
   derivedRunwayWidth, designatorFontSize, designatorText, runwayAxis, runwayQuad, type RunwayGeo,
-  RUNWAY_CLOSED_COLOR, RUNWAY_USE_COLOR, arrowHeadPoints, runwayUseArrows,
+  RUNWAY_CLOSED_COLOR, RUNWAY_USE_COLOR, hollowArrowOutline, runwayUseArrowPath,
+  runwayUseArrowSize, runwayUseArrows,
   type ProfilePt, type RunwayUseSpec,
 } from '../../utils/runwayShape';
 import { CLASSIFICATION_COLOR } from '../../../shared/airTrafficApi';
@@ -712,17 +713,17 @@ export default function Pattern3DScene({
               </g>
             )}
             {/* חצי המסלול בשימוש - הצל על האספלט, קו הורדה מהנקודה הגבוהה,
-                והחץ עצמו באוויר. ראש החץ מחושב **אחרי** ההיטל, כדי שיישאר
-                משולש שטוח מול המסך בכל סיבוב והטיה. */}
+                והחץ הרחב והחלול באוויר. המתאר מחושב **אחרי** ההיטל, כדי שהחץ
+                יישאר שטוח מול המסך ובאותו רוחב בכל סיבוב והטיה. */}
             {s.useArrows.map(arrow => {
               const col = RUNWAY_USE_COLOR[arrow.use];
               const [a0, a1] = arrow.air;
               const high = a0.h > a1.h ? a0 : a1;
-              const pa0 = P(s.at3(a0)), pa1 = P(s.at3(a1));
               const ph = P(s.at3(high)), phg = P(s.at3({ along: high.along, h: 0 }));
               const sa0 = P(s.at3({ along: a0.along, h: 0 })), sa1 = P(s.at3({ along: a1.along, h: 0 }));
-              const headLen = Math.max(1, s.width * 0.45);
-              const head = arrowHeadPoints(pa0, pa1, headLen, headLen * 0.55);
+              const size = runwayUseArrowSize(s.width);
+              const outline = hollowArrowOutline(runwayUseArrowPath(arrow).map(p => P(s.at3(p))),
+                size.halfW, size.headLen, size.headHalfW);
               const sw = 0.42 * k;
               return (
                 <g key={`use-${arrow.use}-${arrow.end}`} data-testid="p3d-runway-use-arrow"
@@ -731,13 +732,8 @@ export default function Pattern3DScene({
                     strokeDasharray={`${0.6 * k},${0.5 * k}`} opacity={0.7} />
                   <line x1={ph.x} y1={ph.y} x2={phg.x} y2={phg.y} strokeWidth={sw * 0.45}
                     strokeDasharray={`${0.4 * k},${0.4 * k}`} opacity={0.7} />
-                  {arrow.ground && (() => {
-                    const g0 = P(s.at3(arrow.ground[0])), g1 = P(s.at3(arrow.ground[1]));
-                    return <line x1={g0.x} y1={g0.y} x2={g1.x} y2={g1.y} strokeWidth={sw} />;
-                  })()}
-                  <line x1={pa0.x} y1={pa0.y} x2={pa1.x} y2={pa1.y} strokeWidth={sw} />
-                  <polygon points={head.map(p => `${f(p.x)},${f(p.y)}`).join(' ')} fill={col}
-                    strokeWidth={sw * 0.4} strokeLinejoin="round" />
+                  <polygon points={outline.map(p => `${f(p.x)},${f(p.y)}`).join(' ')} fill={col}
+                    fillOpacity={0.18} strokeWidth={sw} strokeLinejoin="round" />
                   <title>{bidiAuto(tr(arrow.use === 'takeoff' ? 'map.runwayUseTakeoff' : 'map.runwayUseLanding', { rwy: arrow.ident }))}</title>
                 </g>
               );

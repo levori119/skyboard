@@ -21,6 +21,7 @@ import {
   normalizeRunwayIdent,
   runwayUseArrows,
   runwayUseArrowShape,
+  hollowArrowOutline,
 } from './runwayShape';
 
 // מסלול המראה מצויר כ**מסלול** ולא כקו: מלבן אספלט ברוחב אמיתי, ספי מסלול
@@ -363,7 +364,8 @@ describe('runwayUseArrows - חצי המסלול בשימוש', () => {
     // הצל על קו המרכז, וקו ההורדה מהקצה אל הצל
     expect(s.shadow[1].y).toBeCloseTo(50, 5);
     expect(s.drop[0]).toEqual(s.air[1]);
-    expect(s.head).toHaveLength(3);
+    // חץ רחב וחלול לאורך כל המסלול שלו: גלגול + עלייה = 2 צלעות, כל צד 3 נקודות + ראש 3
+    expect(s.outline).toHaveLength(9);
   });
 
   it('מסלול אנכי - ההרמה הצידה ולא לאורך המסלול (אחרת הזווית נעלמת)', () => {
@@ -371,5 +373,25 @@ describe('runwayUseArrows - חצי המסלול בשימוש', () => {
     const s = runwayUseArrowShape(V, 1, ld, 3);
     expect(Math.abs(s.air[0].x - 50)).toBeGreaterThan(0.5);
     expect(s.air[1].x).toBeCloseTo(50, 5);
+  });
+});
+
+describe('hollowArrowOutline - חץ רחב וחלול', () => {
+  it('קטע ישר: גוף ברוחב קבוע וראש רחב יותר, הקצה בסוף הקטע', () => {
+    const o = hollowArrowOutline([{ x: 0, y: 0 }, { x: 10, y: 0 }], 0.5, 3, 1.2);
+    expect(o).toHaveLength(7);
+    expect(o[3]).toEqual({ x: 10, y: 0 });               // קצה החץ
+    const ys = o.map(p => p.y);
+    expect(Math.max(...ys)).toBeCloseTo(1.2, 5);           // רוחב הראש
+    expect(o[0].y).toBeCloseTo(-0.5, 5);                   // רוחב הגוף
+    expect(o[6].y).toBeCloseTo(0.5, 5);
+    expect(o[1].x).toBeCloseTo(7, 5);                      // בסיס הראש
+  });
+
+  it('קטע עם שבירה - הגוף שומר על הרוחב גם בפינה (miter)', () => {
+    const o = hollowArrowOutline([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 20, y: -4 }], 0.5, 3, 1.2);
+    expect(o).toHaveLength(9);
+    // נקודת הפינה בצד אחד רחוקה מהשבירה לפחות חצי רוחב
+    expect(Math.hypot(o[1].x - 10, o[1].y)).toBeGreaterThanOrEqual(0.5 - 1e-9);
   });
 });
