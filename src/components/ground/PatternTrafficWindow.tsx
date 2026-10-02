@@ -29,6 +29,8 @@ interface Props {
   trackIdByKey: Map<string, string>;
   /** `strip|idx` של מטוסים בקונפליקט עם רכיב זר בהקפה (§10) - השורה מהבהבת. */
   conflictKeys?: Set<string>;
+  /** ממשיכים בהקפה כבויה (PATTERN_FLIP_SPEC.md) - השורה מהבהבת בכתום עד הנחיתה. */
+  keptKeys?: Set<string>;
   elevFt: number | null;
   themeMode: FrameTheme;
   onClose: () => void;
@@ -54,7 +56,7 @@ const palette = (themeMode: FrameTheme) =>
 const GREENS_ON = '#16a34a';
 const ALERT = '#dc2626';
 
-export default function PatternTrafficWindow({ aircraft, patterns, trackIdByKey, conflictKeys, elevFt, themeMode, onClose, onFlightStatus, onGreens }: Props) {
+export default function PatternTrafficWindow({ aircraft, patterns, trackIdByKey, conflictKeys, keptKeys, elevFt, themeMode, onClose, onFlightStatus, onGreens }: Props) {
   const C = palette(themeMode);
   // הגובה של הרכיב משתנה בכל דגימה בלי שהשורות משתנות. המנוי כאן ולא במסך
   // המגדל - כמו בסצנה התלת מימדית - כדי שדגימה תרנדר את החלון ולא את העמדה.
@@ -140,7 +142,9 @@ export default function PatternTrafficWindow({ aircraft, patterns, trackIdByKey,
                   <tr key={r.key} data-testid="pattern-traffic-row" data-strip-id={r.stripId} data-aircraft-idx={r.idx}
                     data-greens-alert={r.greensAlert ? '1' : '0'}
                     data-conflict={conflictKeys?.has(r.key) ? '1' : '0'}
-                    style={{ animation: r.greensAlert || conflictKeys?.has(r.key) ? 'skyking-greens-tr-blink 0.6s steps(1) infinite' : undefined }}>
+                    data-kept={keptKeys?.has(r.key) ? '1' : '0'}
+                    style={{ animation: r.greensAlert || conflictKeys?.has(r.key) ? 'skyking-greens-tr-blink 0.6s steps(1) infinite'
+                      : keptKeys?.has(r.key) ? 'skyking-pattern-kept-blink 0.8s steps(1) infinite' : undefined }}>
                     <td style={{ ...td, fontWeight: 'bold' }}>
                       <span title={r.altSource === 'track' ? tr('joining.ptTracked') : tr('joining.ptUntracked')}
                         style={{ color: r.altSource === 'track' ? '#22c55e' : C.muted, marginInlineEnd: '4px' }}>

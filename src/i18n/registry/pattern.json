@@ -165,6 +165,46 @@
     "tolBelow": {
       "he": "מתחת לגובה",
       "en": "Below"
+    },
+    "flipTitle": {
+      "he": "היפוך הקפה - יש מטוסים בהקפה",
+      "en": "Pattern flipped - aircraft in the pattern"
+    },
+    "flipBody": {
+      "he": "ההקפה של {{rwy}} כבר לא בשימוש, ויש עליה {{count}} מטוסים. להמשיך בה עד הנחיתה או להעביר?",
+      "en": "The {{rwy}} pattern is no longer in use and has {{count}} aircraft on it. Continue to landing or move them?"
+    },
+    "flipKeepAll": {
+      "he": "↻ כולם ממשיכים ב-{{rwy}}",
+      "en": "↻ All continue on {{rwy}}"
+    },
+    "flipMoveAll": {
+      "he": "← כולם להקפה {{rwy}}",
+      "en": "→ All to pattern {{rwy}}"
+    },
+    "flipKeep": {
+      "he": "ממשיך ב-{{rwy}}",
+      "en": "Continue on {{rwy}}"
+    },
+    "flipNoTargets": {
+      "he": "אין הקפה פעילה להעברה - אפשר רק להמשיך בהקפה הנוכחית",
+      "en": "No active pattern to move to - aircraft can only continue on the current one"
+    },
+    "flipShared": {
+      "he": "מוצג בכל עמדות המגדל - ההכרעה הראשונה קובעת",
+      "en": "Shown at all tower stations - the first decision applies"
+    },
+    "flipConfirm": {
+      "he": "אשר",
+      "en": "Confirm"
+    },
+    "flipFailed": {
+      "he": "ההכרעה לא נשמרה - נסה שוב",
+      "en": "Decision not saved - try again"
+    },
+    "flipTo": {
+      "he": "← {{rwy}}",
+      "en": "→ {{rwy}}"
     }
   }
 }

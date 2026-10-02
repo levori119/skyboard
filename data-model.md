@@ -1101,6 +1101,7 @@ COALESCE(last_seen, entered_at) > NOW() - INTERVAL '240 seconds'
 | `pattern_frac` | FLOAT | מיקום על צלע "עם הרוח" (0..1) |
 | `alt` | VARCHAR(10) | **גובה חריג למטוס הבודד** - פיצול המבנה בין שני בלוקים. NULL = הולך עם הפ"מ |
 | `runway_auto` | BOOLEAN NOT NULL DEFAULT FALSE | TRUE = המסלול נקבע בחלוקה האוטומטית לפי סדר העדיפויות של הדת"ק (מודגש בטבלה). FALSE = נבחר ידנית. PUT שמשנה את המסלול מכבה; PUT שמשאיר אותו (הקפה, צלע) שומר |
+| `pattern_orphan` | VARCHAR(10) | **היפוך הקפה** ([PATTERN_FLIP_SPEC.md](PATTERN_FLIP_SPEC.md)): `NULL` = ההקפה פעילה / הוכרע להעביר · `pending` = ההקפה כבתה וממתין להכרעה (התראה בכל עמדות המגדל) · `kept` = ממשיך בהקפה הכבויה עד הנחיתה (מהבהב). נקבע ב-`reconcilePatternOrphans` אחרי `PUT /api/runway-end-use`; `PUT` עם הקפה **אחרת** מאפס |
 | `updated_at` | TIMESTAMPTZ | חותמת |
 
 > **פיצול מבנה בין שני גבהים** אינו מפצל את הפ"מ לשתי רשומות: המטוסים שנבחרו
@@ -2418,6 +2419,7 @@ COALESCE(last_seen, entered_at) > NOW() - INTERVAL '240 seconds'
 | `in_pattern` | BOOLEAN | FALSE = נגרר להקפה, מסגרת מקווקוות; TRUE = **בהקפה**, מסגרת קבועה ויצא מהטבלה |
 | `pattern_frac` | FLOAT | מיקום על צלע "עם הרוח" (0..1) |
 | `alt` | VARCHAR(10) | **גובה חריג למטוס הבודד** - פיצול המבנה בין שני בלוקים. NULL = הולך עם הפ"מ |
+| `pattern_orphan` | VARCHAR(10) | **היפוך הקפה** ([PATTERN_FLIP_SPEC.md](PATTERN_FLIP_SPEC.md)): `NULL` = ההקפה פעילה / הוכרע להעביר · `pending` = ההקפה כבתה וממתין להכרעה (התראה בכל עמדות המגדל) · `kept` = ממשיך בהקפה הכבויה עד הנחיתה (מהבהב). נקבע ב-`reconcilePatternOrphans` אחרי `PUT /api/runway-end-use`; `PUT` עם הקפה **אחרת** מאפס |
 | `updated_at` | TIMESTAMPTZ | חותמת |
 
 > **פיצול מבנה בין שני גבהים** אינו מפצל את הפ"מ לשתי רשומות: המטוסים שנבחרו

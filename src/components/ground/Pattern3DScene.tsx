@@ -15,6 +15,7 @@ import {
 } from '../../utils/runwayShape';
 import { CLASSIFICATION_COLOR } from '../../../shared/airTrafficApi';
 import { airPictureStore } from '../../airPicture/store';
+import { PATTERN_KEPT_COLOR } from '../../utils/patternFlip';
 import { ageSec, STALE_AFTER_SEC, trackLabelLines, trackSymbolPoints } from '../../airPicture/track';
 import { TREND_COLOR, TREND_OFFSET, trendArrowPoints } from '../../airPicture/trend';
 import { placeTracks3D } from '../../airPicture/track3d';
@@ -92,6 +93,13 @@ interface Props {
    * שהפקח לא יכול לסמוך עליו. מה שאין לו מקבילה בתלת מימד פשוט אינו נקרא כאן.
    */
   layers?: { runways?: boolean; patterns?: boolean; points?: boolean };
+  /**
+   * היפוך הקפה (PATTERN_FLIP_SPEC.md): הקפות **כבויות** שעדיין יש עליהן מטוס -
+   * מצוירות מעומעמות, כמו במפה השטוחה. בלעדיהן המטוס היה נעלם מהתלת מימד.
+   */
+  dimPatternIds?: Set<number>;
+  /** מטוסים שממשיכים בהקפה כבויה - מסגרת כתומה מהבהבת. */
+  keptKeys?: Set<string>;
   /** הגדרות התצוגה של אותו פאנל: שמות ההקפה ושמות הישויות. */
   display?: { showPatternNames?: boolean; showNames?: boolean };
   /**
@@ -150,7 +158,7 @@ const altStepFor = (maxFt: number): number =>
 export default function Pattern3DScene({
   patterns, aircraft, joiningPoints, joiningStrips, joiningAircraft, runways,
   aspect, elevFt, camera, pan, onCameraChange, onPanChange, themeMode = 'dark',
-  layers, display, airPicture = null, runwayUse,
+  layers, display, airPicture = null, runwayUse, dimPatternIds, keptKeys,
 }: Props) {
   const C = colors(themeMode);
   const labelScale = useMapLabelScale();
@@ -470,6 +478,7 @@ export default function Pattern3DScene({
     const q = P(a.pos);
     const ground = P(W(a.pos.x, a.pos.y, 0));
     const label = a.ac.label || String(a.ac.aircraft_idx);
+    const kept = !!keptKeys?.has(`${a.ac.strip_id}|${a.ac.aircraft_idx}`);
     const fs = FONT * k;
     const w = Math.max(4.7, label.length * 0.77 + 1.6) * k;
     const h = 2.3 * k;
@@ -478,15 +487,21 @@ export default function Pattern3DScene({
       el: (
         <g key={`ac-${a.ac.strip_id}-${a.ac.aircraft_idx}`} data-testid="p3d-aircraft"
           data-strip-id={String(a.ac.strip_id)} data-aircraft-idx={a.ac.aircraft_idx}
-          data-in-pattern={a.ac.in_pattern ? '1' : '0'}>
+          data-in-pattern={a.ac.in_pattern ? '1' : '0'}
+          data-kept={kept ? '1' : '0'}>
           {/* קו ההורדה - הופך "איפה הוא באוויר" לשתי נקודות ידועות */}
           <line x1={q.x} y1={q.y} x2={ground.x} y2={ground.y}
             stroke={a.color} strokeWidth={0.22 * k} strokeDasharray={`${0.7 * k},${0.7 * k}`} opacity={0.6} />
           <ellipse cx={ground.x} cy={ground.y} rx={0.7 * k} ry={0.7 * k * Math.sin(camera.tilt * Math.PI / 180)}
             fill={a.color} opacity={0.4} />
           <rect x={q.x - w / 2} y={q.y - h / 2} width={w} height={h} rx={0.6 * k}
-            fill="#000000cc" stroke={a.color} strokeWidth={0.4 * k}
-            strokeDasharray={a.ac.in_pattern ? undefined : `${1.1 * k},${0.8 * k}`} />
+            fill="#000000cc" stroke={kept ? PATTERN_KEPT_COLOR : a.color} strokeWidth={(kept ? 0.8 : 0.4) * k}
+            strokeDasharray={a.ac.in_pattern ? undefined : `${1.1 * k},${0.8 * k}`}>
+            {kept && (
+              <animate attributeName="stroke-opacity" values="1;1;0.15;0.15" keyTimes="0;0.5;0.5;1"
+                dur="1s" repeatCount="indefinite" />
+            )}
+          </rect>
           <text x={q.x} y={q.y} textAnchor="middle" dominantBaseline="central"
             fill={a.color} fontSize={fs} fontWeight="bold" style={{ userSelect: 'none' }}>
             {bidiAuto(label)}
@@ -779,7 +794,9 @@ export default function Pattern3DScene({
           const line = p.path.map(n => scr(P(W(n.x, n.y, n.z)))).join(' ');
           const ident = (p.row.runway_ident || '').trim();
           return (
-            <g key={p.row.id} data-testid="p3d-pattern" data-pattern-id={p.row.id}>
+            <g key={p.row.id} data-testid="p3d-pattern" data-pattern-id={p.row.id}
+              data-dim={dimPatternIds?.has(Number(p.row.id)) ? '1' : '0'}
+              opacity={dimPatternIds?.has(Number(p.row.id)) ? 0.35 : undefined}>
               {/* 4: צל ההקפה - המיקום האופקי האמיתי, בלי הטיית הגובה */}
               <polyline points={shadow} fill="none" stroke={C.shadow} strokeWidth={0.35 * k}
                 strokeDasharray={`${1.6 * k},${1.2 * k}`} opacity={0.85} />

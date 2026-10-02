@@ -802,6 +802,11 @@ body.map-panning.fz-pairing [data-map-panel] * {
   50%, 100% { box-shadow: 0 0 0 2px transparent; }
 }
 /* שורת טבלה: box-shadow על <tr> אינו מצויר בכל הדפדפנים, ולכן רקע שקוף-למחצה */
+/* ממשיך בהקפה כבויה (היפוך הקפה) - כתום, לא אדום: הוכרע, אין תקלה */
+@keyframes skyking-pattern-kept-blink {
+  0%, 49%   { background: rgba(245, 158, 11, 0.4); }
+  50%, 100% { background: transparent; }
+}
 @keyframes skyking-greens-tr-blink {
   0%, 49%   { background: rgba(220, 38, 38, 0.45); }
   50%, 100% { background: transparent; }

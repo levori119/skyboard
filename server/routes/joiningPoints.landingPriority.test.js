@@ -52,7 +52,7 @@ beforeAll(async () => {
       created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW(), UNIQUE(joining_point_id, strip_id))`,
     `CREATE TABLE joining_point_aircraft (id SERIAL PRIMARY KEY, joining_point_id INTEGER, strip_id INTEGER, aircraft_idx INTEGER NOT NULL,
       runway_ident VARCHAR(10) DEFAULT '', pattern_id INTEGER, in_pattern BOOLEAN NOT NULL DEFAULT FALSE, pattern_frac FLOAT,
-      alt VARCHAR(10), runway_auto BOOLEAN NOT NULL DEFAULT FALSE, updated_at TIMESTAMPTZ DEFAULT NOW(), UNIQUE(strip_id, aircraft_idx))`,
+      alt VARCHAR(10), runway_auto BOOLEAN NOT NULL DEFAULT FALSE, pattern_orphan VARCHAR(10), updated_at TIMESTAMPTZ DEFAULT NOW(), UNIQUE(strip_id, aircraft_idx))`,
     `CREATE TABLE activity_log (id SERIAL PRIMARY KEY, event_type VARCHAR(50), severity VARCHAR(20), workstation_preset_id INTEGER,
       workstation_name VARCHAR(100), crew_member_id INTEGER, crew_member_name VARCHAR(100), strip_id VARCHAR(20),
       strip_callsign VARCHAR(50), details JSONB, created_at TIMESTAMPTZ DEFAULT NOW())`,

@@ -1829,6 +1829,10 @@ async function applySchemaOnce() {
     UNIQUE(strip_id, aircraft_idx)
   )`);
   await sq(`CREATE INDEX IF NOT EXISTS idx_joining_point_aircraft_point ON joining_point_aircraft(joining_point_id)`);
+  // היפוך הקפה (PATTERN_FLIP_SPEC.md): ההקפה של המטוס כבתה. NULL = פעילה או
+  // שהוכרע להעביר · 'pending' = ממתין להכרעה (התראה בכל עמדות המגדל) ·
+  // 'kept' = ממשיך בהקפה הישנה עד הנחיתה (מהבהב).
+  await sq(`ALTER TABLE joining_point_aircraft ADD COLUMN IF NOT EXISTS pattern_orphan VARCHAR(10)`);
 
   // סטטוס הנחיתה הוא של ה**מטוס**, לא של ההצטרפות ("זה עובר לסטטוס מטוס"):
   // ירוקים / אישור לנחות / נחיתה נשארים על המטוס גם אחרי שעזב את הנקודה.

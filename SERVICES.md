@@ -238,11 +238,17 @@
 
 **הקפות (`/api/airfield-patterns`):** הקפה משוייכת ל-**קצה מסלול** (`runway_id` + `runway_ident`, למשל "33" ולא "33/15") — זה מה שמאפשר שכפול הפוך שנותן את השם ההופכי (33 ← 15). GET מחזיר כל הקפה עם `elements[]` מקוננים. `POST /:id/duplicate` מעתיק **שרטוט בלבד** — הגאומטריה והשם מגיעים מהלקוח (`src/utils/trafficPattern.ts`) כדי שלא תשוכפל לוגיקה גאומטרית לשרת.
 
-### `server/routes/joiningPoints.js` — 11 routes
+### `server/routes/joiningPoints.js` — 12 routes
 **תפקיד:** **נקודות הצטרפות (STAR)** — נקודת כניסה לשדה שבה מטוסים מצטרפים לתנועה. דומה לנקודת העברה (אותו מנגנון העברות) אבל **התצוגה שונה**: הנקודה נפרסת ל**טבלת בלוקי גבהים** ופ"מ יושב בבלוק לפי גובהו. רלוונטית רק לעמדת **שדה** (`preset_type='ground'`).
-**Endpoints:** `/api/joining-points` (הגדרה — GET/POST/PUT/DELETE + `/:id/override`), `/api/joining-point-strips` (מצב חי — שיבוץ לבלוק, הסרה, אישור קונפליקט מתואם), `/api/joining-point-aircraft/:stripId/:idx` (מסלול נחיתה / הקפה למטוס), `/api/strip-aircraft/:stripId/:idx/flight-status` (ירוקים / אישור לנחות / נחיתה).
+**Endpoints:** `/api/joining-points` (הגדרה — GET/POST/PUT/DELETE + `/:id/override`), `/api/joining-point-strips` (מצב חי — שיבוץ לבלוק, הסרה, אישור קונפליקט מתואם), `/api/joining-point-aircraft/:stripId/:idx` (מסלול נחיתה / הקפה למטוס), `/api/strip-aircraft/:stripId/:idx/flight-status` (ירוקים / אישור לנחות / נחיתה), `POST /api/pattern-orphans/resolve` (הכרעה על מטוסים בהקפה שכבתה - **הראשונה גוברת**, מעדכן רק `pending`; ראה [PATTERN_FLIP_SPEC.md](PATTERN_FLIP_SPEC.md)).
 **חלוקת הנתיבים = חלוקת ההרשאות** (`middleware/auth.js`): `/api/joining-points*` היא **הגדרה** ולכן ראש צוות או מנהל; `/api/joining-point-strips|aircraft` הם **מצב חי** ולכן כל מזוהה (הפקח בעמדה).
 **הגובה אינו משוכפל:** השיבוץ לבלוק כותב ל-`strips.alt` — הגובה שכל המערכת כבר מציגה ומזהה לפיו קונפליקטים. `joining_point_strips` מחזיק שיוך ותיאום בלבד.
+
+### `server/utils/patternOrphans.js`
+**תפקיד:** **היפוך הקפה עם מטוסים בהקפה** ([PATTERN_FLIP_SPEC.md](PATTERN_FLIP_SPEC.md)). אחרי `PUT /api/runway-end-use` מסמן `pending` מטוס שההקפה שלו כבתה ומנקה מטוס שההקפה שלו חזרה - לשדה של המסלול **ולשדות המקושרים** (הכיוון משותף לקבוצה). "פעיל" = המראה **או** נחיתה, אותו כלל של `activePatterns`. מטוס שנחת אינו מסומן. **מייצא:** `orphanTransitions` (טהורה), `activeEndsOf`, `reconcilePatternOrphans`, `airfieldsSharingRunway`.
+
+### `src/utils/patternFlip.ts` + `src/components/ground/PatternFlipAlert.tsx`
+**תפקיד:** הצד של הלקוח: `pendingGroups` (ההתראה המרוכזת), `flipTargets` (ההקפות הפעילות, הקצה הנגדי קודם), `keptKeys` (מהבהבים בכתום עד הנחיתה - מפה, תלת מימד, "בהקפה"), `ghostPatterns` (הקפה כבויה עם מטוס - מעומעמת, ונכנסת גם למעקב האוטומטי ולתלת מימד). ההתראה: **גורף + חריגים**, בלי רקע מחשיך (הפקח ממשיך לעבוד) ובלי ✕ (המצב בשרת, נסגרת אצל כולם כשאחד הכריע).
 
 ### `server/routes/base.js` — 18 routes
 **תפקיד:** בסיסי תעופה, סטטוס בסיסים (מז"א/ספיגה/ציפורים), לחץ אטמוספרי, קשרים (תדרים/ערוצים).

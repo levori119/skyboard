@@ -40,6 +40,8 @@ import { usePatternAutotrack } from '../../airPicture/usePatternAutotrack';
 import PatternTrafficWindow from '../ground/PatternTrafficWindow';
 import { leftPointToPattern, patternEntrySnapshot, type PatternEntrySnapshot } from '../../utils/patternTraffic';
 import PatternAlertPopup, { type PatternAlertItem } from '../ground/PatternAlertPopup';
+import PatternFlipAlert, { type FlipGroup } from '../ground/PatternFlipAlert';
+import { flipTargets, ghostPatterns, keptKeys, pendingGroups, toDecision } from '../../utils/patternFlip';
 import { bidiAuto } from '../../utils/bidi';
 import { ELEMENT_NEUTRAL_FILL, canChangeElementStatus, displayStateOptions, nextServiceability, serviceabilityStyle } from '../../utils/elementStatus';
 import { activePatterns, boundsAspect } from '../../utils/trafficPattern';
@@ -77,7 +79,7 @@ const LAYERS_KEEP_VISIBLE = 70;
 export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onUpdateStripAircraftFault, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, canAddVehicle = false, onDeleteElement, hideStrips, hideElementPanel, hidePatternControls = false, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], linkedRouteNotams = [], runwayAidStatuses = [], airfieldPatterns = [], activeRunwayIdents = [], runwayEndUse, activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, onCloseLayersPanel, onOpenLayersPanel, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark',
   joiningPoints = [], joiningPointStrips = [], joiningPointAircraft = [], landingRunways = [],
   onAssignJoiningStrip, onRemoveJoiningAircraft, onAcceptToJoiningPoint, onRemoveJoiningStrip, onCoordinateJoiningStrip, onSplitJoiningStrip, onSetJoiningPointAircraftOnly,
-  onUpdateJoiningAircraft, onSetFlightStatus, onSetGreens, onMoveJoiningPoint, onResetJoiningPoint, onReorderJoiningRunways,
+  onUpdateJoiningAircraft, onResolvePatternOrphans, onSetFlightStatus, onSetGreens, onMoveJoiningPoint, onResetJoiningPoint, onReorderJoiningRunways,
   airPicture, weather, geoAnchor = null, showPatternTraffic = false, onClosePatternTraffic, onOpenPatternTraffic }: {
   strips: any[];
   incomingTransfers: any[];
@@ -247,6 +249,11 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   /** מאפייני נקודת ההצטרפות בעמדה: "מטוסים בלבד" לעמדה הזו. null = חזרה לברירת המחדל של הניהול. */
   onSetJoiningPointAircraftOnly?: (pointId: number, value: boolean | null) => void;
   onUpdateJoiningAircraft?: (pointId: number | null, stripId: string, idx: number, patch: Record<string, unknown>) => void;
+  /**
+   * היפוך הקפה (PATTERN_FLIP_SPEC.md): הכרעה על מטוסים בהקפה שכבתה. בלעדיו
+   * ההתראה לא מוצגת - עמדה שאינה יכולה להכריע לא צריכה לראות כפתורים.
+   */
+  onResolvePatternOrphans?: (decisions: ReturnType<typeof toDecision>[]) => Promise<void> | void;
   onSetFlightStatus?: (stripId: string, idx: number, status: string) => void;
   onSetGreens?: (stripId: string, idx: number, greens: boolean) => void;
   onMoveJoiningPoint?: (pointId: number, xPct: number, yPct: number) => void;
@@ -301,6 +308,20 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
     const closed = closedRunwayEnds(airfieldRunways || [], airfieldRunwayNotams || []);
     return activePatterns(airfieldPatterns || [], (activeRunwayIdents || []).filter(e => !closed.has(String(e ?? '').trim())));
   }, [airfieldPatterns, activeRunwayIdents, airfieldRunways, airfieldRunwayNotams]);
+
+  // ── היפוך הקפה (PATTERN_FLIP_SPEC.md) ──
+  // הקפה כבויה שעדיין יש עליה מטוס (ממתין להכרעה או ממשיך) נשארת **מעומעמת**,
+  // ונכנסת גם למעקב האוטומטי, לטבלת "בהקפה" ולתלת מימד. עד עכשיו מטוס כזה
+  // נעלם מהתלת מימד והמעקב אחריו נעצר - בשקט.
+  const flipGhostPatterns = React.useMemo(
+    () => ghostPatterns(joiningPointAircraft || [], airfieldPatterns || [], shownPatterns),
+    [joiningPointAircraft, airfieldPatterns, shownPatterns]);
+  const patternsWithGhosts = React.useMemo(
+    () => (flipGhostPatterns.length ? [...shownPatterns, ...flipGhostPatterns] : shownPatterns),
+    [shownPatterns, flipGhostPatterns]);
+  const flipGhostIds = React.useMemo(
+    () => new Set(flipGhostPatterns.map(p => Number(p.id))), [flipGhostPatterns]);
+  const patternKeptKeys = React.useMemo(() => keptKeys(joiningPointAircraft || []), [joiningPointAircraft]);
   // ── הקפה תלת מימדית ──
   // בקרת **מבט**, אחות של הזום, ולא שכבת תוכן - ולכן היא יושבת בשורת פקדי הזום
   // ומצבה מקומי לעמדה. תצוגה נוספת בלבד: כל פעולה נשארת בטבלה ובמבט מלמעלה.
@@ -1334,7 +1355,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
       && airPictureLogicActive(airPicture.prefs, airPicture.stationLogicWhenOff !== false),
     anchor: geoAnchor,
     aspect: boundsAspect(imgBounds),
-    patterns: shownPatterns,
+    patterns: patternsWithGhosts,
     joiningPoints, joiningPointStrips, joiningPointAircraft,
     stripAircraft: stripAircraftData as any,
     presetId: currentPresetId,
@@ -1376,12 +1397,24 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
    */
   const patternAlertTrackIds = React.useMemo(() => {
     const ids = new Set<string>(autotrack.conflicts.map(c => c.trackId));
-    for (const key of [...greensAlertAll.map(r => `${r.stripId}|${r.idx}`), ...conflictKeys]) {
+    for (const key of [...greensAlertAll.map(r => `${r.stripId}|${r.idx}`), ...conflictKeys, ...patternKeptKeys]) {
       const tid = autotrack.trackIdByKey.get(key);
       if (tid) ids.add(tid);
     }
     return ids;
-  }, [greensAlertAll, conflictKeys, autotrack.conflicts, autotrack.trackIdByKey]);
+  }, [greensAlertAll, conflictKeys, patternKeptKeys, autotrack.conflicts, autotrack.trackIdByKey]);
+
+  /**
+   * ההתראה המרוכזת: מטוסים על הקפה שכבתה וממתינים להכרעה. המקור הוא **השרת**
+   * (`pattern_orphan='pending'`), ולכן היא מופיעה בכל עמדות המגדל ונסגרת אצל
+   * כולן כשאחת הכריעה. היעדים - ההקפות הפעילות, הקצה הנגדי קודם.
+   */
+  const flipGroups = React.useMemo<FlipGroup[]>(() =>
+    pendingGroups(patternAircraftRows as any[], (airfieldPatterns || []) as any[]).map(g => ({
+      pattern: g.pattern,
+      aircraft: g.aircraft,
+      targets: flipTargets(g.pattern.runway_ident, shownPatterns as any[], airfieldRunways || []),
+    })), [patternAircraftRows, airfieldPatterns, shownPatterns, airfieldRunways]);
 
   // ── התראות מתפרצות של ההקפה - תור אחד, פעם אחת לכל כניסה למצב (freshEntries) ──
   const labelOfKey = React.useCallback((key: string) =>
@@ -3036,9 +3069,10 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           {showPatternTraffic && !hidePatternControls && (
             <PatternTrafficWindow
               aircraft={patternAircraftRows as any[]}
-              patterns={shownPatterns}
+              patterns={patternsWithGhosts}
               trackIdByKey={autotrack.trackIdByKey}
               conflictKeys={conflictKeys}
+              keptKeys={patternKeptKeys}
               elevFt={airfield?.elev_ft ?? null}
               themeMode={themeMode}
               onClose={() => onClosePatternTraffic?.()}
@@ -3051,6 +3085,13 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               queue={alertPopups}
               themeMode={themeMode}
               onAck={() => setAlertPopups(q => q.slice(1))}
+            />
+          )}
+          {!hidePatternControls && onResolvePatternOrphans && flipGroups.length > 0 && (
+            <PatternFlipAlert
+              groups={flipGroups}
+              themeMode={themeMode}
+              onConfirm={choices => onResolvePatternOrphans(choices.map(c => toDecision(c.aircraft, c.choice)))}
             />
           )}
 
@@ -3077,7 +3118,9 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             // קופסה ממודדת), ולכן אותו JSX משרת את שלושת המצבים בלי שכפול.
             const scene = (
               <Pattern3DScene
-                patterns={shownPatterns}
+                patterns={patternsWithGhosts}
+                dimPatternIds={flipGhostIds}
+                keptKeys={patternKeptKeys}
                 aircraft={patternAircraftRows}
                 joiningPoints={joiningPoints}
                 joiningStrips={joiningPointStrips}
@@ -3560,6 +3603,19 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               />
             </svg>
           )}
+          {/* הקפה כבויה שעדיין יש עליה מטוס - מעומעמת (היפוך הקפה). בלעדיה התווית
+              של המטוס צפה על צלע שאינה מצוירת. */}
+          {mapLayers.patterns && imgBounds && flipGhostPatterns.length > 0 && (
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none" data-testid="pattern-flip-ghosts"
+              style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 5, opacity: 0.35 }}>
+              <TrafficPatternLayer
+                patterns={flipGhostPatterns}
+                aspect={boundsAspect(imgBounds)}
+                sz={1 / (effectiveMapScale || 1)}
+                showLabels={shouldShowPatternLabels(mapDisplaySettings.showPatternNames, hidePatternControls)}
+              />
+            </svg>
+          )}
 
           {/* ── מטוסים על ההקפה ──
               מטוס שנגרר להקפה מסומן במרכז צלע "עם הרוח". מסגרת מקווקוות = נגרר
@@ -3573,6 +3629,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 patterns={airfieldPatterns || []}
                 aircraft={patternAircraftRows}
                 conflictKeys={conflictKeys}
+                keptKeys={patternKeptKeys}
                 aspect={boundsAspect(imgBounds)}
                 sz={1 / (effectiveMapScale || 1)}
               />

@@ -740,6 +740,10 @@ router.put('/api/joining-point-aircraft/:stripId/:idx', async (req, res) => {
          in_pattern   = EXCLUDED.in_pattern,
          pattern_frac = EXCLUDED.pattern_frac,
          alt          = CASE WHEN $9 THEN EXCLUDED.alt ELSE joining_point_aircraft.alt END,
+         -- הקפה **אחרת** = הפקח העביר את המטוס ידנית (גרירה/רשימה), וזו הכרעה:
+         -- ההתראה על ההקפה שכבתה כבר לא רלוונטית (PATTERN_FLIP_SPEC.md #12)
+         pattern_orphan = CASE WHEN EXCLUDED.pattern_id IS DISTINCT FROM joining_point_aircraft.pattern_id
+                               THEN NULL ELSE joining_point_aircraft.pattern_orphan END,
          updated_at   = NOW()
        RETURNING *`,
       [int(b.joining_point_id), sid, idx, String(b.runway_ident || '').slice(0, 10),
@@ -761,6 +765,55 @@ router.put('/api/joining-point-aircraft/:stripId/:idx', async (req, res) => {
     res.json(rows[0]);
   } catch (err) {
     console.error('PUT /api/joining-point-aircraft:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/pattern-orphans/resolve — הכרעה על מטוסים בהקפה שכבתה (PATTERN_FLIP_SPEC.md).
+// כל עמדות המגדל רואות את ההתראה, ולכן **הראשונה גוברת**: עדכון רק של שורה
+// שעדיין `pending`. עמדה שמאשרת אחרי שכבר הוכרע מקבלת `applied: 0` ולא דורסת.
+//   decisions: [{ strip_id, aircraft_idx, action: 'keep' | 'move', pattern_id?, runway_ident? }]
+router.post('/api/pattern-orphans/resolve', async (req, res) => {
+  try {
+    const b = req.body || {};
+    const decisions = Array.isArray(b.decisions) ? b.decisions : [];
+    let applied = 0;
+    const done = [];
+    for (const d of decisions) {
+      const sid = stripId(d?.strip_id);
+      const idx = int(d?.aircraft_idx);
+      if (!sid || idx == null) continue;
+      let r;
+      if (d.action === 'keep') {
+        r = await pool.query(
+          `UPDATE joining_point_aircraft SET pattern_orphan = 'kept', updated_at = NOW()
+            WHERE strip_id = $1 AND aircraft_idx = $2 AND pattern_orphan = 'pending'
+            RETURNING runway_ident`, [sid, idx]);
+      } else if (d.action === 'move' && int(d.pattern_id)) {
+        // היעד חייב להיות הקפה של אותו שדה כמו הישנה - הגנה מפני pattern_id שגוי
+        r = await pool.query(
+          `UPDATE joining_point_aircraft jpa
+              SET pattern_id = np.id, runway_ident = np.runway_ident, runway_auto = FALSE,
+                  pattern_orphan = NULL, updated_at = NOW()
+             FROM airfield_patterns np, airfield_patterns op
+            WHERE jpa.strip_id = $1 AND jpa.aircraft_idx = $2 AND jpa.pattern_orphan = 'pending'
+              AND np.id = $3 AND op.id = jpa.pattern_id AND np.airfield_id = op.airfield_id
+            RETURNING jpa.runway_ident`, [sid, idx, int(d.pattern_id)]);
+      } else continue;
+      if (r.rowCount) {
+        applied += r.rowCount;
+        done.push({ stripId: sid, aircraftIdx: idx, action: d.action, runwayIdent: r.rows[0]?.runway_ident || '' });
+      }
+    }
+    if (done.length) {
+      await logActivity(req, {
+        event_type: 'pattern_flip_decision', preset_id: int(b.preset_id), preset_name: b.preset_name,
+        details: { decisions: done },
+      });
+    }
+    res.json({ applied });
+  } catch (err) {
+    console.error('POST /api/pattern-orphans/resolve:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

@@ -3,6 +3,7 @@ import pool from '../db/pool.js';
 import { driverBaseGuard } from '../auth/driverIdentity.js';
 import { sanitizeSvgBody } from '../../shared/sanitizeHtml.js';
 import { syncRunwayRoute } from '../utils/runwayRoute.js';
+import { airfieldsSharingRunway, reconcilePatternOrphans } from '../utils/patternOrphans.js';
 import {
   airfieldOfRunway, resolveAidStatus, resolveEndUse, resolveGrf, resolveLighting,
   resolveLinkedRouteNotams, resolveNotams,
@@ -1426,6 +1427,12 @@ router.put('/api/runway-end-use', async (req, res) => {
             AND LOWER(eu.end_name) IN (LOWER(rw.heading_a), LOWER(rw.heading_b))`,
         [runwayId, endName]);
     }
+    // היפוך הקפה: מטוסים שההקפה שלהם כבתה ממתינים להכרעה בכל עמדות המגדל, ומטוס
+    // שההקפה שלו חזרה לפעול משתחרר. גם בשדות המקושרים - הכיוון משותף לקבוצה.
+    // כשל כאן לא מבטל את שינוי הכיוון עצמו: הפקח כבר הפך, וההתראה היא תוספת.
+    try {
+      for (const af of await airfieldsSharingRunway(pq, runwayId)) await reconcilePatternOrphans(pq, af);
+    } catch (e) { console.error('reconcile pattern orphans error:', e.message); }
     res.json(rows[0]);
   } catch (err) {
     console.error('update runway end use error:', err.message);

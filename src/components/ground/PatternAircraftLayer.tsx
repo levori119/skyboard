@@ -2,6 +2,7 @@ import { bidiAuto } from '../../utils/bidi';
 import { normalizeGeometry, patternLegs, type LegKey, type Pt } from '../../utils/trafficPattern';
 import type { PatternRow } from '../map/TrafficPatternLayer';
 import { greensAlert } from '../../utils/joiningPoints';
+import { PATTERN_KEPT_COLOR } from '../../utils/patternFlip';
 
 // ─── מטוסים על ההקפה ──────────────────────────────────────────────────────────
 //
@@ -34,6 +35,11 @@ interface Props {
   aircraft: PatternAircraftRow[];
   /** `strip|idx` של מטוסים בקונפליקט עם רכיב זר בהקפה (§10) - מהבהבים כמו בלי ירוקים. */
   conflictKeys?: Set<string>;
+  /**
+   * `strip|idx` של מטוסים שהוכרע שימשיכו בהקפה **כבויה** (היפוך הקפה,
+   * PATTERN_FLIP_SPEC.md) - מהבהבים בכתום עד הנחיתה. התראה אדומה גוברת.
+   */
+  keptKeys?: Set<string>;
   aspect: number;
   sz: number;
 }
@@ -158,7 +164,7 @@ export function placePatternAircraft(aircraft: PatternAircraftRow[]): PlacedAirc
   return placed;
 }
 
-export default function PatternAircraftLayer({ patterns, aircraft, conflictKeys, aspect, sz }: Props) {
+export default function PatternAircraftLayer({ patterns, aircraft, conflictKeys, keptKeys, aspect, sz }: Props) {
   const byId = new Map(patterns.map(p => [Number(p.id), p]));
   const placed = placePatternAircraft(aircraft);
 
@@ -181,15 +187,18 @@ export default function PatternAircraftLayer({ patterns, aircraft, conflictKeys,
         // (`animate`) ולא ב-CSS, כי השכבה חיה בתוך ה-SVG של המפה.
         const alert = greensAlert(ac.flight_status, ac.greens)
           || !!conflictKeys?.has(`${ac.strip_id}|${ac.aircraft_idx}`);
+        const kept = !alert && !!keptKeys?.has(`${ac.strip_id}|${ac.aircraft_idx}`);
+        const frame = alert ? GREENS_ALERT_COLOR : kept ? PATTERN_KEPT_COLOR : col;
         return (
           <g key={`${ac.strip_id}-${ac.aircraft_idx}`} data-testid="pattern-aircraft"
             data-strip-id={String(ac.strip_id)} data-aircraft-idx={ac.aircraft_idx}
             data-in-pattern={ac.in_pattern ? '1' : '0'} data-greens-alert={alert ? '1' : '0'}
+            data-kept={kept ? '1' : '0'}
             style={{ pointerEvents: 'none' }}>
             <rect x={pt.x - w / 2} y={pt.y - h / 2} width={w} height={h} rx={0.6 * sz}
-              fill="#000000cc" stroke={alert ? GREENS_ALERT_COLOR : col} strokeWidth={(alert ? 0.8 : 0.4) * sz}
+              fill="#000000cc" stroke={frame} strokeWidth={(alert || kept ? 0.8 : 0.4) * sz}
               strokeDasharray={ac.in_pattern ? undefined : `${1.1 * sz},${0.8 * sz}`}>
-              {alert && (
+              {(alert || kept) && (
                 <animate attributeName="stroke-opacity" values="1;1;0.15;0.15" keyTimes="0;0.5;0.5;1"
                   dur="1s" repeatCount="indefinite" />
               )}

@@ -5976,6 +5976,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   };
 
   /**
+   * היפוך הקפה (PATTERN_FLIP_SPEC.md): ההכרעה על מטוסים בהקפה שכבתה. השרת מעדכן
+   * רק מטוס שעדיין ממתין - עמדה אחרת שהכריעה קודם גוברת, וזה תקין: ההתראה
+   * נסגרת כאן בטעינה שאחרי, בלי הודעה. רק **כשל** (אין קשר / 500) מדווח.
+   */
+  const resolvePatternOrphans = async (decisions: Record<string, unknown>[]) => {
+    try {
+      const r = await fetch(`${API_URL}/pattern-orphans/resolve`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decisions, ...joiningAudit() }),
+      });
+      if (!r.ok) throw new Error(String(r.status));
+    } catch {
+      alert(tr('pattern.flipFailed'));
+    }
+    await reloadJoiningState();
+  };
+
+  /**
    * ירוקים / אישור לנחות / נחיתה - סטטוס של המטוס, לא של ההצטרפות.
    *
    * העדכון המקומי **יוצר את השורה כשאין** ולא רק ממפה שורות קיימות:
@@ -14681,6 +14699,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 onSetJoiningPointAircraftOnly={myPresetConfig?.id ? setJoiningPointAircraftOnly : undefined}
                 onReorderJoiningRunways={reorderJoiningRunways}
                 onUpdateJoiningAircraft={updateJoiningAircraft}
+                onResolvePatternOrphans={resolvePatternOrphans}
                 onSetFlightStatus={setAircraftFlightStatus}
                 onSetGreens={setAircraftGreens}
                 onMoveJoiningPoint={() => { /* ההזזה במשמרת זמנית ומנוהלת בתוך GroundView */ }}
@@ -14800,6 +14819,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         method: 'PUT', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ runway_id: rw.id, end_name: end, in_takeoff: next.takeoff.includes(end), in_landing: next.landing.includes(end) }),
                       });
+                      // השרת סימן מטוסים בהקפה שכבתה - ההתראה מיד, לא בעוד סבב פולינג
+                      void reloadJoiningState();
                     } catch { /* נתק - הפולינג יסנכרן כשהקשר יחזור */ }
                   };
                   // theme-aware palette (אור/שחור/כחול) — active (green/blue) + closed (red) stay constant
