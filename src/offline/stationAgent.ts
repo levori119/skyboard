@@ -104,14 +104,30 @@ export function targetMatches(pageOrigin: string, apiTarget: string | null): boo
   return originOf(apiTarget) === pageOrigin;
 }
 
+/** כרום הראשון שבו Local Network Access פעיל - ראה ההערה בראש הקובץ. */
+const LNA_MIN_CHROMIUM = 142;
+
 /**
- * `targetAddressSpace: 'loopback'` - הצהרה לכרום שהיעד הוא המחשב עצמו.
- * דפדפן שאינו מכיר את המפתח מתעלם ממנו, ולכן אין כאן בדיקת יכולת.
+ * האם הדפדפן מממש Local Network Access (כרום 142+).
+ *
+ * ⚠️ **זו לא אופטימיזציה - זו הגנה מקריסה.** בעמדת Electron 36 (Chromium 136)
+ * `permissions.query({ name: 'local-network-access' })` **מפיל את תהליך
+ * הרינדור** (0xC0000005) במקום לדחות promise, והעמדה נתקעה על "אין חיבור
+ * לשרת · crashed" בכל עלייה. ושם גם `targetAddressSpace: 'loopback'` אינו
+ * "מפתח לא מוכר שמתעלמים ממנו" - הוא enum לא חוקי, ו-fetch נדחה לפני שיצא
+ * לרשת. לכן שניהם רק אחרי בדיקת גרסה, ולא בבדיקת יכולת שעלולה לקרוס בעצמה.
  */
-const LOOPBACK_INIT = { targetAddressSpace: 'loopback' } as RequestInit;
+export function supportsLocalNetworkAccess(ua = globalThis.navigator?.userAgent || ''): boolean {
+  const m = /\bChrome\/(\d+)/.exec(ua);
+  return !!m && Number(m[1]) >= LNA_MIN_CHROMIUM;
+}
+
+/** `targetAddressSpace: 'loopback'` - הצהרה לכרום שהיעד הוא המחשב עצמו. */
+const loopbackInit = (): RequestInit =>
+  (supportsLocalNetworkAccess() ? { targetAddressSpace: 'loopback' } : {}) as RequestInit;
 
 async function probe(origin: string, signal?: AbortSignal): Promise<AgentInfo | null> {
-  const res = await fetch(`${origin}/api/__station/status`, { ...LOOPBACK_INIT, cache: 'no-store', signal });
+  const res = await fetch(`${origin}/api/__station/status`, { ...loopbackInit(), cache: 'no-store', signal });
   if (!res.ok) return null;
   const d = await res.json();
   return {
@@ -123,6 +139,8 @@ async function probe(origin: string, signal?: AbortSignal): Promise<AgentInfo | 
 
 /** מתרגם את מצב ההרשאה לסיבה שמוצגת למפעיל. */
 async function blockedReason(): Promise<'none' | 'blocked' | 'prompt'> {
+  // בלי LNA אין חסימה כזו - ובכרום ישן השאלה עצמה מפילה את הדף
+  if (!supportsLocalNetworkAccess()) return 'none';
   try {
     const q = (navigator as Navigator & { permissions?: Permissions }).permissions;
     if (!q?.query) return 'none';
@@ -229,7 +247,7 @@ export function installStationAgentFetch(): () => void {
       : (input as Request).url;
     const next = rewriteToAgent(url);
     if (!next) return original(input, init);
-    const withSpace = { ...LOOPBACK_INIT, ...init } as RequestInit;
+    const withSpace = { ...loopbackInit(), ...init } as RequestInit;
     if (typeof input === 'string' || input instanceof URL) return original(next, withSpace);
     try { return original(new Request(next, input as Request), withSpace); }
     catch { return original(input, init); }

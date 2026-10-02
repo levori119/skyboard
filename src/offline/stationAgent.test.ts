@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   rewriteToAgent, targetMatches, installStationAgentFetch, discoverStationAgent,
-  __setAgentForTests, getAgentState, DEFAULT_AGENT_ORIGIN,
+  __setAgentForTests, getAgentState, DEFAULT_AGENT_ORIGIN, supportsLocalNetworkAccess,
 } from './stationAgent';
 
 const AGENT = DEFAULT_AGENT_ORIGIN;
@@ -127,5 +127,62 @@ describe('discoverStationAgent', () => {
   it('הדף עצמו מוגש מהסוכן - אין מה לשכתב', async () => {
     expect(await discoverStationAgent(AGENT)).toBeNull();
     expect(getAgentState().reason).toBe('self');
+  });
+});
+
+// ⚠️ עמדת Electron 36 רצה על Chromium 136. שם `permissions.query` עם
+// 'local-network-access' **מפיל את תהליך הרינדור** (0xC0000005) - לא דוחה
+// promise, אלא קורס. העמדה נתקעה על "אין חיבור לשרת · crashed" בכל עלייה.
+const UA_ELECTRON_36 = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) sky-king/1.0.0 Chrome/136.0.7103.177 Electron/36.9.5 Safari/537.36';
+const UA_CHROME_142 = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36';
+const UA_FIREFOX = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0';
+
+describe('supportsLocalNetworkAccess - רק כרום 142 ומעלה', () => {
+  it('Electron 36 (Chromium 136) - לא', () => {
+    expect(supportsLocalNetworkAccess(UA_ELECTRON_36)).toBe(false);
+  });
+  it('כרום 142 - כן', () => {
+    expect(supportsLocalNetworkAccess(UA_CHROME_142)).toBe(true);
+  });
+  it('דפדפן שאינו Chromium - לא', () => {
+    expect(supportsLocalNetworkAccess(UA_FIREFOX)).toBe(false);
+  });
+});
+
+describe('discoverStationAgent - Local Network Access לפי גרסת הדפדפן', () => {
+  let query: ReturnType<typeof vi.fn>;
+  const inits: (RequestInit | undefined)[] = [];
+  const stubBrowser = (userAgent: string, state: PermissionState) => {
+    query = vi.fn(async () => ({ state }));
+    vi.stubGlobal('navigator', { userAgent, permissions: { query } });
+    inits.length = 0;
+    globalThis.fetch = vi.fn(async (_u: RequestInfo | URL, init?: RequestInit) => {
+      inits.push(init);
+      throw new TypeError('Failed to fetch');
+    }) as unknown as typeof fetch;
+  };
+  afterEach(() => { vi.unstubAllGlobals(); __setAgentForTests({ agent: null }); });
+
+  it('Chromium 136 - לא שואלים את ההרשאה, כי השאלה עצמה מפילה את הדף', async () => {
+    stubBrowser(UA_ELECTRON_36, 'denied');
+    expect(await discoverStationAgent(PAGE)).toBeNull();
+    expect(query).not.toHaveBeenCalled();
+    expect(getAgentState().reason).toBe('none');
+  });
+
+  // Chromium 136 דוחה את הערך 'loopback' כ-enum לא חוקי, ולכן כל פנייה לסוכן
+  // נכשלה עוד לפני שיצאה לרשת - סוכן שרץ לא היה נמצא לעולם.
+  it('Chromium 136 - הפנייה יוצאת בלי targetAddressSpace', async () => {
+    stubBrowser(UA_ELECTRON_36, 'granted');
+    await discoverStationAgent(PAGE);
+    expect(inits[0]).not.toHaveProperty('targetAddressSpace');
+  });
+
+  it('כרום 142 - הפנייה מצהירה loopback, וחסימה מזוהה כ"הדפדפן חוסם"', async () => {
+    stubBrowser(UA_CHROME_142, 'denied');
+    await discoverStationAgent(PAGE);
+    expect(inits[0]).toHaveProperty('targetAddressSpace', 'loopback');
+    expect(query).toHaveBeenCalled();
+    expect(getAgentState().reason).toBe('blocked');
   });
 });
