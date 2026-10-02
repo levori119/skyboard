@@ -477,6 +477,39 @@ describe("מיראז' — אימות ניהול המשתמשים (SK-54)", () =>
   });
 });
 
+// העמדה מחזיקה העתק של המשתמשים כדי לאמת כניסה בנתק. זה ה-endpoint היחיד
+// שמוציא טביעות סיסמה מהמיראז', ולכן השער שלו הצר ביותר: אסימון שירות
+// בלבד. גם מנהל מחובר לא מקבל טביעות - למסך הניהול אין בהן צורך.
+describe("מיראז' — ייצוא אסמכתאות לעמדות (credentials-export)", () => {
+  const SVC = 'service-token-for-export-test';
+  beforeAll(() => { process.env.MIRAGE_SERVICE_TOKEN = SVC; });
+  afterAll(() => { delete process.env.MIRAGE_SERVICE_TOKEN; });
+  const exportWith = (headers) => fetch(`${baseUrl}/api/credentials-export?app=SKY-KING`, { headers });
+
+  it('בלי אסימון שירות - 401', async () => {
+    expect((await exportWith({})).status).toBe(401);
+  });
+
+  it('אסימון מנהל אינו מספיק - 401', async () => {
+    expect((await exportWith(authHeaders())).status).toBe(401);
+  });
+
+  it('עם אסימון שירות - רק מורשי SKY-KING עם סיסמה, ורק הרשומה של SKY-KING', async () => {
+    const res = await exportWith({ 'X-Service-Token': SVC });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    const pns = body.users.map(u => u.personalNumber);
+    expect(pns).toContain('34234');
+    expect(pns).toContain('1111111');
+    expect(pns).not.toContain('7654321'); // אפליקציה אחרת
+    expect(pns).not.toContain('9990001'); // בלי סיסמה
+    const u = body.users.find(x => x.personalNumber === '34234');
+    expect(u.passwordHash).toMatch(/^s2\$/);
+    expect(Object.keys(u.apps)).toEqual(['SKY-KING']);
+  });
+});
+
 // ── כשל ערוץ מול כשל הרשאה ────────────────────────────────────────────────────
 // רגרסיה לתקלה אמיתית: אחרי שנוסף אסימון השירות (SK-54), אי-התאמה בין שני
 // התהליכים גרמה למיראז להחזיר 401, ו-SKY-KING מיפה כל תשובה שאינה authorized
