@@ -106,12 +106,19 @@ export default function ConnectionBanner({ themeMode: themeOverride }: { themeMo
   };
 
   const gapiStale = !!gapi?.enabled && !gapi.connected;
+  // ⚠️ **הגשה מקומית היא טריגר בפני עצמו.** היא **אינה** נראית ב-`stale`: הסוכן
+  // מחזיר 200 עם מידע טרי מהמאגר המקומי, ולכן המידע באמת טרי - הוא פשוט לא
+  // מהמרכז, ועבודת המפעיל אינה נראית לעמדות האחרות. בלי זה נתק (יזום או
+  // אמיתי) בעמדה עם סוכן היה עובר **בלי שום חיווי**.
+  const servingLocal = net.servingLocal;
   // הטריגר הוא "המידע שעל המסך אינו חי" ולא "אין קשר": שרת שעונה 5xx לאורך זמן
   // מקפיא את התמונה בדיוק כמו כבל מנותק, והמפעיל חייב לדעת גם עליו.
-  const nothingToShow = !net.stale && !showRestored && !blockedAt && !gapiStale && net.queued === 0;
+  const nothingToShow = !net.stale && !servingLocal && !showRestored && !blockedAt
+    && !gapiStale && net.queued === 0;
   if (nothingToShow) return null;
 
-  const bg = net.stale ? STATUS.offline : showRestored ? STATUS.restored : STATUS.offline;
+  const bg = net.stale || servingLocal ? STATUS.offline
+    : showRestored ? STATUS.restored : STATUS.offline;
 
   // `left` פיזי בכוונה (ולא `insetInlineStart`): הפינה נבחרה מפורשות כמקום
   // שהחיווי יושב בו, והיא לא אמורה לקפוץ לצד השני כשעוברים לאנגלית.
@@ -152,11 +159,24 @@ export default function ConnectionBanner({ themeMode: themeOverride }: { themeMo
     <>
       <div
         style={bubble}
-        className={!net.online ? 'conn-bubble-alert' : undefined}
+        className={!net.online || servingLocal ? 'conn-bubble-alert' : undefined}
         role="status"
         aria-live="polite"
       >
-        {net.stale ? (
+        {servingLocal ? (
+          <>
+            {/* נתק יזום מול נתק שנפל - שתי הודעות שונות. מי שתרגל צריך לדעת
+                שזה התרגול שלו, ולא לחשוד בתקלה אמיתית באמצע משמרת. */}
+            <span>⚠ {tr(net.outageSimulated ? 'offline.localSimTitle' : 'offline.localTitle')}</span>
+            <div style={row}>
+              {net.servingLocalSince != null && (
+                <span style={chip}>{tr('offline.sinceLabel')} {clockOf(net.servingLocalSince)}</span>
+              )}
+              {net.queued > 0 && <span style={chip}>{net.queued} {tr('offline.queued')}</span>}
+            </div>
+            <span style={{ color: C.sub, fontWeight: 600, fontSize: 10.5 }}>{tr('offline.sharingOff')}</span>
+          </>
+        ) : net.stale ? (
           <>
             <span>⚠ {tr(net.online ? 'offline.staleTitle' : 'offline.title')}</span>
             <div style={row}>
@@ -178,9 +198,9 @@ export default function ConnectionBanner({ themeMode: themeOverride }: { themeMo
           <span>✓ {tr('offline.restored')}</span>
         ) : null}
 
-        {(net.queued > 0 || gapiStale) && (
+        {((net.queued > 0 && !servingLocal) || gapiStale) && (
           <div style={row}>
-            {net.queued > 0 && (
+            {net.queued > 0 && !servingLocal && (
               <span style={chip}>{net.queued} {tr('offline.queued')}</span>
             )}
             {gapiStale && (

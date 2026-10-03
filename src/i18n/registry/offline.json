@@ -26,6 +26,18 @@
       "he": "שיתוף מידע בין עמדות מושבת",
       "en": "Cross-station sharing disabled"
     },
+    "localTitle": {
+      "he": "נתק מהמרכז - העמדה עובדת על המאגר המקומי",
+      "en": "Disconnected from the centre - the station is working on its local database"
+    },
+    "localSimTitle": {
+      "he": "נתק יזום - העמדה עובדת על המאגר המקומי",
+      "en": "Simulated outage - the station is working on its local database"
+    },
+    "sinceLabel": {
+      "he": "מאז",
+      "en": "Since"
+    },
     "queued": {
       "he": "ממתינות לשליחה",
       "en": "queued to send"

@@ -10,6 +10,7 @@ import { installStationFetchInterceptor } from './utils/undoStation'
 import { installPeekWriteGuard, installPeekPollThrottle } from './utils/stationPeek'
 import { installOfflineFetch } from './offline'
 import { installStationAgentFetch, startAgentDiscovery } from './offline/stationAgent'
+import { startStationWatch } from './offline/stationWatch'
 import App from './App'
 
 // הפרדה בין פיתוח לפרודקשן: הרצה מקומית נצבעת ורוד (ראה body.dev-mode ב-App.css).
@@ -33,6 +34,11 @@ if (import.meta.env.DEV && localStorage.getItem('bt-dev-marker') !== 'off') {
 // מזהים נתיב יחסי בלבד. בלי סוכן זו פעולה ריקה.
 installStationAgentFetch()
 startAgentDiscovery()
+
+// ניטור הנתב: כשהסוכן מותקן, נתק מנותב למאגר המקומי ומוחזר כ-200 עם מידע
+// טרי - כלומר הדפדפן אינו רואה שום כשל, ו-ConnectionBanner לא עולה. בלי
+// הדגימה הזו העמדה עוברת למאגר מבודד **בשקט**. ראה src/offline/stationWatch.ts
+startStationWatch()
 
 // אימות (SK-01): כל קריאת API נושאת את אסימון ההזדהות. **ראשון בשרשרת** —
 // כך הוא עוטף גם את יירוט הסביבה וגם את יירוט הנתק, ולכן משודר מחדש מה-outbox

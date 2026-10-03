@@ -47,6 +47,23 @@ export type NetSnapshot = {
   queued: number;
   /** הפעולה המשותפת האחרונה שנחסמה (לצורך הודעה למשתמש) */
   lastBlocked: { path: string; at: number } | null;
+  /**
+   * העמדה מגישה כרגע **מהמאגר המקומי** ולא מהמרכז.
+   *
+   * ⚠️ **זה ממד נפרד מ-`online`, ובלעדיו הנתק שקוף למסך.** כל שאר השדות כאן
+   * נגזרים מהשאלה "האם הגיעה תשובה": כשהסוכן מותקן הוא מנתב למאגר המקומי
+   * ומחזיר **200 עם מידע טרי**, ולכן `markOnline` מתאפס, `stale` נשאר שקר,
+   * והבאנר לא עולה. כלומר המנגנון שנבנה לנתק עבד רק כל עוד **לא** היה
+   * מאגר מקומי להיפול אליו - ודווקא בעמדה שמוכנה לנתק, המפעיל לא ידע
+   * שהוא עובד על העתק מבודד ושעבודתו אינה נראית לעמדות האחרות.
+   *
+   * המקור הוא הנתב עצמו (`/api/__station/status`), ולא הצלחה או כשל של בקשה.
+   */
+  servingLocal: boolean;
+  /** מאז מתי מוגש מקומי (ms epoch) */
+  servingLocalSince: number | null;
+  /** הנתק הופעל **ביד** בעמדה הזו (תרגול), ולא נפל מעצמו */
+  outageSimulated: boolean;
 };
 
 const CLEAN: NetSnapshot = {
@@ -57,6 +74,9 @@ const CLEAN: NetSnapshot = {
   degradedSince: null,
   queued: 0,
   lastBlocked: null,
+  servingLocal: false,
+  servingLocalSince: null,
+  outageSimulated: false,
 };
 
 let state: NetSnapshot = { ...CLEAN };
@@ -90,6 +110,26 @@ export function getNetSnapshot(): NetSnapshot {
 export function subscribeNet(listener: () => void): () => void {
   listeners.add(listener);
   return () => { listeners.delete(listener); };
+}
+
+/**
+ * הנתב דיווח לאן הבקשות הולכות. **לא** נגזר מהצלחת בקשה - ראה `servingLocal`.
+ *
+ * `serving` שאינו ידוע (אין סוכן, או שהשאילתה נכשלה) מכבה את החיווי ולא
+ * מכריז הגשה מקומית שלא הוכחה.
+ */
+export function noteStationServing(
+  info: { serving?: string | null; simulated?: boolean } | null,
+  now: number = Date.now(),
+) {
+  const local = info?.serving === 'local';
+  update({
+    servingLocal: local,
+    // הרגע נשמר פעם אחת ואינו נדחף קדימה בכל דגימה, אחרת "מאז 14:32" היה
+    // מתעדכן לשעה הנוכחית והמפעיל לא היה יודע כמה זמן הוא בנתק.
+    servingLocalSince: local ? (state.servingLocalSince ?? now) : null,
+    outageSimulated: local && !!info?.simulated,
+  });
 }
 
 /** בקשת API החזירה מידע — הקשר חי והמידע שעל המסך טרי. */
