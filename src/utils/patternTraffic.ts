@@ -87,37 +87,33 @@ export function patternTrafficGroups(p: {
 
 // ─── פתיחה אוטומטית של "בהקפה" ───────────────────────────────────────────────
 //
-// מטוס שיצא מנקודת ההצטרפות להקפה (עבר לעם הרוח, "שים בהקפה", גרירה אל ההקפה)
-// יוצא מהטבלה של הנקודה - ואם חלון "בהקפה" סגור, הוא נעלם מהעין בדיוק ברגע
-// שמתחיל להתקרב לנחיתה. לכן היציאה פותחת את החלון.
+// מטוס בהקפה מתקרב לנחיתה, והוא אינו מופיע בטבלת נקודת ההצטרפות - אם חלון
+// "בהקפה" סגור, אין בעמדה שום מקום שבו רואים אותו. לכן **מטוס שנכנס להקפה
+// פותח את החלון**, בלי קשר לדרך שבה הגיע: יצא מהנקודה (עם הרוח, "שים בהקפה",
+// גרירה), נוצר כבר בהקפה, או הגיע מעמדה אחרת דרך הפולינג.
 //
-// "כניסה" = **מעבר** מהנקודה להקפה בין שתי תמונות, לא "יש מטוס בהקפה": טעינה
-// ראשונה ורענון אינם פותחים את החלון שוב אחרי שהפקח סגר אותו, ומטוס שהגיע
-// מהפולינג כבר בהקפה (בלי שישב בנקודה) אינו כניסה.
+// גם **עליית העמדה** נחשבת: פקח שמתחיל משמרת כשכבר יש מטוסים בהקפה מקבל את
+// הטבלה פתוחה, ולא צריך לדעת לחפש אותה בתפריט "תצוגה".
+//
+// מה שאינו כניסה: מטוס שכבר היה בהקפה בתמונה הקודמת. בלעדיו החלון היה נפתח
+// שוב בכל פולינג (5 שניות) אחרי שהפקח סגר אותו.
 
-export interface PatternEntrySnapshot {
-  /** `strip|idx` של מטוסים בהקפה שטרם נחתו. */
-  inPattern: Set<string>;
-  /** פ"מים שיושבים בנקודה (כולו, או חלק ממטוסיו). */
-  atPointStrips: Set<string>;
-}
-
-export function patternEntrySnapshot(pointStrips: Row[], aircraft: Row[]): PatternEntrySnapshot {
-  const inPattern = new Set<string>();
-  const atPointStrips = new Set<string>((pointStrips || []).map(r => String(r.strip_id)));
+/** `strip|idx` של כל מטוס שנמצא עכשיו בהקפה וטרם נחת. */
+export function inPatternKeys(aircraft: Row[]): Set<string> {
+  const keys = new Set<string>();
   for (const a of aircraft || []) {
-    if (a.in_pattern === true) {
-      if (normalizeLeg(a.flight_status) !== 'landed') inPattern.add(`${a.strip_id}|${Number(a.aircraft_idx)}`);
-    } else if (a.joining_point_id != null) {
-      atPointStrips.add(String(a.strip_id));
+    if (a.in_pattern === true && normalizeLeg(a.flight_status) !== 'landed') {
+      keys.add(`${a.strip_id}|${Number(a.aircraft_idx)}`);
     }
   }
-  return { inPattern, atPointStrips };
+  return keys;
 }
 
-/** המטוסים שעברו מהנקודה להקפה בין `prev` ל-`next`. `prev=null` = תמונה ראשונה. */
-export function leftPointToPattern(prev: PatternEntrySnapshot | null, next: PatternEntrySnapshot): string[] {
-  if (!prev) return [];
-  return [...next.inPattern].filter(key =>
-    !prev.inPattern.has(key) && prev.atPointStrips.has(key.slice(0, key.lastIndexOf('|'))));
+/**
+ * מי **נכנס** להקפה מאז התמונה הקודמת.
+ * `prev=null` = התמונה הראשונה בעמדה, וכל מי שבהקפה נחשב כניסה (עליית העמדה).
+ */
+export function enteredPattern(prev: Set<string> | null, next: Set<string>): string[] {
+  if (!prev) return [...next];
+  return [...next].filter(key => !prev.has(key));
 }

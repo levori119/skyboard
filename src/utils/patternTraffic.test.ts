@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { leftPointToPattern, patternEntrySnapshot, patternTrafficGroups } from './patternTraffic';
+import { enteredPattern, inPatternKeys, patternTrafficGroups } from './patternTraffic';
 
 const PAT = { id: 7, runway_ident: '36', downwind_alt_ft: 3000, base_alt_ft: 1500, geometry: { anchor: { x: 50, y: 60 }, bearing: 0, side: 'right', rwyLen: 10, upwind: 5, width: 8, baseExt: 5 } };
 const PAT2 = { ...PAT, id: 8, runway_ident: '18' };
@@ -61,46 +61,41 @@ describe('patternTrafficGroups - טבלת "בהקפה"', () => {
   });
 });
 
-describe('leftPointToPattern - פתיחה אוטומטית של "בהקפה"', () => {
-  const at = (pointStrips: any[], aircraft: any[]) => patternEntrySnapshot(pointStrips, aircraft);
-  const S10 = [{ strip_id: 10, joining_point_id: 1 }];
+describe('enteredPattern - פתיחה אוטומטית של "בהקפה"', () => {
+  const at = (aircraft: any[]) => inPatternKeys(aircraft);
+  const entered = (prev: any[] | null, next: any[]) =>
+    enteredPattern(prev === null ? null : at(prev), at(next));
 
-  it('טעינה ראשונה אינה כניסה - מטוס שכבר בהקפה לא פותח את החלון', () => {
-    expect(leftPointToPattern(null, at([], [row({})]))).toEqual([]);
+  it('עליית העמדה כשכבר יש מטוס בהקפה - פותחת את החלון', () => {
+    expect(entered(null, [row({})])).toEqual(['10|1']);
+  });
+
+  it('עליית עמדה בלי מטוסים בהקפה - לא פותחת', () => {
+    expect(entered(null, [row({ in_pattern: false })])).toEqual([]);
   });
 
   it('מטוס שיצא מהנקודה לעם הרוח - כניסה', () => {
-    const prev = at(S10, []);
-    const next = at([], [row({})]);
-    expect(leftPointToPattern(prev, next)).toEqual(['10|1']);
+    expect(entered([row({ in_pattern: false })], [row({})])).toEqual(['10|1']);
   });
 
-  it('מטוס בנקודה עם שורת מטוס (in_pattern=false) שעבר להקפה - כניסה', () => {
-    const prev = at([], [row({ in_pattern: false, joining_point_id: 1 })]);
-    expect(leftPointToPattern(prev, at([], [row({})]))).toEqual(['10|1']);
-  });
-
-  it('מטוס שלא ישב בנקודה (הגיע כבר בהקפה מהפולינג) - לא כניסה', () => {
-    expect(leftPointToPattern(at([], []), at([], [row({})]))).toEqual([]);
+  it('מטוס שהגיע כבר בהקפה (נוצר שם, או מעמדה אחרת דרך הפולינג) - כניסה', () => {
+    expect(entered([], [row({})])).toEqual(['10|1']);
   });
 
   it('מטוס שכבר היה בהקפה - לא כניסה חוזרת בכל רענון', () => {
-    const snap = at(S10, [row({})]);
-    expect(leftPointToPattern(snap, at(S10, [row({})]))).toEqual([]);
+    expect(entered([row({})], [row({})])).toEqual([]);
   });
 
-  it('מבנה מפוצל: רק המטוס שיצא עכשיו נחשב', () => {
-    const prev = at(S10, [row({}), row({ aircraft_idx: 2, in_pattern: false, joining_point_id: 1 })]);
-    const next = at([], [row({}), row({ aircraft_idx: 2 })]);
-    expect(leftPointToPattern(prev, next)).toEqual(['10|2']);
+  it('מבנה מפוצל: רק המטוס שנכנס עכשיו נחשב', () => {
+    const prev = [row({}), row({ aircraft_idx: 2, in_pattern: false })];
+    expect(entered(prev, [row({}), row({ aircraft_idx: 2 })])).toEqual(['10|2']);
   });
 
-  it('מטוס שנחת אינו כניסה להקפה', () => {
-    expect(leftPointToPattern(at(S10, []), at([], [row({ flight_status: 'landed' })]))).toEqual([]);
+  it('מטוס שנחת אינו בהקפה', () => {
+    expect(entered([], [row({ flight_status: 'landed' })])).toEqual([]);
   });
 
   it('יצא מההקפה וחזר לנקודה, ואז נכנס שוב - כניסה חוזרת', () => {
-    const back = at(S10, [row({ in_pattern: false, joining_point_id: 1 })]);
-    expect(leftPointToPattern(back, at([], [row({})]))).toEqual(['10|1']);
+    expect(entered([row({ in_pattern: false })], [row({})])).toEqual(['10|1']);
   });
 });

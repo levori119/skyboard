@@ -38,7 +38,7 @@ import { DEFAULT_CAMERA, shouldRenderPattern3D, shouldShowPatternLabels, type Ca
 import { altToDisplay, collectGreensAlerts, freshEntries, greensAlert, greensPoint, type GreensAlertRow } from '../../utils/joiningPoints';
 import { usePatternAutotrack } from '../../airPicture/usePatternAutotrack';
 import PatternTrafficWindow from '../ground/PatternTrafficWindow';
-import { leftPointToPattern, patternEntrySnapshot, type PatternEntrySnapshot } from '../../utils/patternTraffic';
+import { enteredPattern, inPatternKeys } from '../../utils/patternTraffic';
 import PatternAlertPopup, { type PatternAlertItem } from '../ground/PatternAlertPopup';
 import PatternFlipAlert, { type FlipGroup } from '../ground/PatternFlipAlert';
 import { flipTargets, ghostPatterns, keptKeys, pendingGroups, toDecision } from '../../utils/patternFlip';
@@ -187,7 +187,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   /** חלון "בהקפה" פתוח (מתפריט תצוגה) - PATTERN_AUTOTRACK_SPEC §7. */
   showPatternTraffic?: boolean;
   onClosePatternTraffic?: () => void;
-  /** מטוס יצא מנקודת ההצטרפות להקפה - לפתוח את "בהקפה" (leftPointToPattern). */
+  /** מטוס נכנס להקפה (או שהעמדה עלתה ויש מטוסים בהקפה) - לפתוח את "בהקפה". */
   onOpenPatternTraffic?: () => void;
   onDeleteElement?: (elementId: number) => Promise<void>;
   hideStrips?: boolean;
@@ -1445,15 +1445,16 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
     setAlertPopups(prev => [...prev.filter(i => seen.has(i.key)), ...fresh]);
   }, [patternAlertItems]);
 
-  // מטוס שיצא מהנקודה להקפה (עם הרוח, "שים בהקפה", גרירה) - פותח את "בהקפה",
-  // אחרת הוא נעלם מהעין בדיוק כשהוא יוצא מטבלת הנקודה. רק במעבר, לא בכל רענון.
-  const patternEntryRef = useRef<PatternEntrySnapshot | null>(null);
+  // מטוס שנכנס להקפה פותח את "בהקפה" - מכל דרך שהגיע, וגם כשהעמדה עולה ויש
+  // כבר מטוסים בהקפה. בלי זה מטוס שמתקרב לנחיתה אינו נראה בעמדה בשום מקום.
+  // רק **כניסה**, לא "יש מטוס בהקפה": אחרת החלון נפתח שוב בכל פולינג אחרי סגירה.
+  const patternEntryRef = useRef<Set<string> | null>(null);
   React.useEffect(() => {
-    const snap = patternEntrySnapshot(joiningPointStrips, joiningPointAircraft);
-    const entered = leftPointToPattern(patternEntryRef.current, snap);
-    patternEntryRef.current = snap;
+    const keys = inPatternKeys(joiningPointAircraft);
+    const entered = enteredPattern(patternEntryRef.current, keys);
+    patternEntryRef.current = keys;
     if (entered.length && !hidePatternControls && !showPatternTraffic) onOpenPatternTraffic?.();
-  }, [joiningPointStrips, joiningPointAircraft]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [joiningPointAircraft]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const ptPos = (x_pct: number, y_pct: number) => imgBounds
     ? { left: `${imgBounds.left + (x_pct / 100) * imgBounds.width}px`, top: `${imgBounds.top + (y_pct / 100) * imgBounds.height}px` }
