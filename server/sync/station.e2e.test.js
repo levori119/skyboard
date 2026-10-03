@@ -50,7 +50,13 @@ function forkLocal({ label, seed = false, secret = null }) {
     cwd: ROOT, env, stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
   });
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`${label} לא עלה בזמן`)), 120000);
+    // ⚠️ **התקרה מיושרת לזו של ה-beforeAll העוטף (300 שניות).** היא הייתה
+    // 120 שניות - הדוק יותר ממה שעוטף אותה - והבדיקה עברה ב-122 וב-150
+    // שניות בהרצה מלאה, כלומר ממש על הגבול. הסיבה אינה הקוד: הבדיקה מפצלת
+    // שני שרתים שלמים, כל אחד עם PGlite משלו, בעוד 220 קבצי בדיקה נוספים
+    // מתחרים על אותו מעבד. תקרה פנימית שנופלת לפני החיצונית רק מסתירה
+    // איזה צד באמת איחר.
+    const timer = setTimeout(() => reject(new Error(`${label} לא עלה בזמן`)), 280000);
     child.on('message', msg => {
       if (msg?.type === 'local-api-ready') {
         clearTimeout(timer);

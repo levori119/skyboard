@@ -37,15 +37,27 @@ function walk(dir: string): string[] {
   );
 }
 
-function sourceFiles(): { rel: string; src: string }[] {
+/**
+ * ⚠️ **נקרא פעם אחת לכל ההרצה, ובכוונה.** שלוש הבדיקות כאן סורקות את **אותם**
+ * קבצים, וכשכל אחת קראה אותם מהדיסק מחדש (ועוד הריצה `stripComments` על
+ * כולם) הסריקה לבדה לקחה כ-5 שניות - בדיוק תקרת הזמן של בדיקה. התוצאה
+ * הייתה כשל שתלוי בעומס המכונה: "Test timed out in 5000ms" בהרצה מלאה,
+ * ירוק בהרצה מבודדת, ובלי שום קשר לטקסט שהשומר אמור למצוא.
+ */
+let CACHE: { rel: string; src: string; clean: string }[] | null = null;
+
+function sourceFiles(): { rel: string; src: string; clean: string }[] {
+  if (CACHE) return CACHE;
   const files = [
     ...walk(path.join(ROOT, 'src/components')).filter(f => f.endsWith('.tsx')),
     path.join(ROOT, 'src/App.tsx'),
   ];
-  return files
+  CACHE = files
     .filter(f => !f.endsWith('.test.tsx') && !f.endsWith('.test.ts'))
     .map(f => ({ rel: path.relative(ROOT, f).split(path.sep).join('/'), src: fs.readFileSync(f, 'utf8') }))
-    .filter(f => !(f.rel in ALLOWLIST));
+    .filter(f => !(f.rel in ALLOWLIST))
+    .map(f => ({ ...f, clean: stripComments(f.src) }));
+  return CACHE;
 }
 
 /** מסיר הערות כדי שלא ייחשבו כטקסט תצוגה */
@@ -58,8 +70,7 @@ const CODEISH = /=>|;|`|\$\{|\breturn\b|=\s*['"]/;
 describe('i18n guard — טקסט תצוגה חייב לחיות ב-registry, לא בקוד', () => {
   it('אין טקסט עברי ב-JSX — כולל טקסט צמוד לביטוי ({icon} תצוגה {arrow})', () => {
     const bad: string[] = [];
-    for (const { rel, src } of sourceFiles()) {
-      const clean = stripComments(src);
+    for (const { rel, clean } of sourceFiles()) {
       // ⚠️ טקסט JSX מתחיל אחרי `>` **או `}`** ומסתיים לפני `<` **או `{`**.
       // הגרסה הראשונה בדקה רק `>טקסט<` — ולכן פספסה את "תצוגה" בסרגל העליון,
       // שיושב בין `}` ל-`{`:  {icon} תצוגה {arrow}
@@ -87,8 +98,7 @@ describe('i18n guard — טקסט תצוגה חייב לחיות ב-registry, ל
 
   it('אין טקסט עברי ב-attributes תצוגה (title/placeholder/aria-label/alt)', () => {
     const bad: string[] = [];
-    for (const { rel, src } of sourceFiles()) {
-      const clean = stripComments(src);
+    for (const { rel, clean } of sourceFiles()) {
       for (const m of clean.matchAll(/\b(title|placeholder|aria-label|alt)=(["'])([^"'\n]*[֐-׿][^"'\n]*)\2/g)) {
         const line = clean.slice(0, m.index).split('\n').length;
         bad.push(`${rel}:${line}  ${m[1]}="${m[3]}"`);

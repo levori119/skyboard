@@ -45,5 +45,13 @@ export default defineConfig({
   // vitest = בדיקות יחידה בלבד. e2e/ שייך ל-Playwright (npm run test:e2e).
   test: {
     exclude: ['**/node_modules/**', '**/dist/**', 'e2e/**'],
+    // ⚠️ **תקרת ההוק מורמת בשביל PGlite.** הוק שמקים מאגר מקומי
+    // (`createLocalPool({ dataDir: 'memory://' })`) מאתחל PostgreSQL ב-WASM,
+    // וזה לוקח שניות. בתקרת ברירת המחדל (10 שניות) הוא עובר כשמריצים את
+    // הקובץ לבד ו**נופל כשהסוויטה עמוסה** - כלומר כשל שתלוי בעומס המכונה
+    // ולא בקוד. בדיוק זה קרה ל-mirageReplica.test.js ול-stationSeed.test.js:
+    // שניהם "Hook timed out in 10000ms" בהרצה מלאה, ושניהם ירוקים בהרצה
+    // מבודדת. בדיקה שנופלת לפי מי עוד רץ במקביל אינה מלמדת דבר.
+    hookTimeout: 60_000,
   },
 } as any);

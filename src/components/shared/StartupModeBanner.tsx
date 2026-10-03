@@ -26,12 +26,52 @@ type Status = {
   strips: number | null;
 };
 
+/** מה שהנתב מדווח: לאן הבקשות **באמת** הולכות עכשיו. */
+type Router = {
+  serving?: 'local' | 'remote';
+  remote?: { online?: boolean } | null;
+  simulated?: boolean;
+};
+
+/** מה שמוצג בפועל - ולא בהכרח `startup` כפי שהמראה רשמה אותו. */
+export type Display = 'syncing' | 'synced' | 'lagging' | 'offline' | null;
+
+/**
+ * מכריעה מה לומר למפעיל, מתוך **שני** מקורות: שירות המראה והנתב.
+ *
+ * ⚠️ **למה לא די ב-`startup` לבדו** (התקלה שדווחה): `startup` מתאר את
+ * **ההעתק המקומי** - האם המראה הספיקה למשוך את המרכז. הוא **אינו** מתאר אם
+ * יש קשר למרכז. עמדה שעלתה ב-WEB מקבלת את הדף **מהמרכז עצמו**, וכל בקשה
+ * שלה הולכת לשם (`serving: 'remote'`), ובכל זאת המסך הכריז "אין קשר
+ * למרכז - העמדה עובדת עצמאית מול המאגר המקומי". זה שקר כפול: גם יש קשר,
+ * וגם המידע שעל המסך הגיע מהמרכז ולא מהמאגר המקומי.
+ *
+ * התשובה ל"האם יש קשר" שייכת לנתב, כי הוא זה שמנתב. המראה עונה רק על
+ * "האם ההעתק המקומי מעודכן", וכשהקשר קיים אבל ההעתק מפגר - זו **הסתייגות
+ * לגבי הנתק הבא**, לא הכרזה על נתק עכשיו.
+ */
+export function decideDisplay(st: Status | null, rt: Router | null): Display {
+  if (!st || st.startup === 'off') return null;
+  // הנתב הוא הקובע לשאלת הקשר. נתק מדומה נחשב נתק - הוא הופעל בכוונה.
+  const linkUp = !!rt && !rt.simulated
+    && (rt.serving === 'remote' || rt.remote?.online === true);
+
+  if (st.startup === 'synced') return 'synced';
+  // אין נתב לשאול (עמדת Electron בלי השכבה, או שהשאילתה נכשלה) - נשארים
+  // עם מה שהמראה אומרת, כי זו האמת היחידה שבידינו.
+  if (!linkUp) return st.startup === 'syncing' ? 'syncing' : 'offline';
+  // יש קשר, וההעתק המקומי עדיין לא שלם
+  return st.startup === 'syncing' ? 'syncing' : 'lagging';
+}
+
 /** צבעי משמעות, קבועים: מסך הכניסה אינו מקבל תמה. */
-const TONE: Record<Startup, string> = {
+const TONE: Record<Exclude<Display, null>, string> = {
   synced: '#22c55e',
   syncing: '#38bdf8',
+  // מפגר אינו נתק, אבל גם אינו "הכל תקין": אם הקשר ייפול עכשיו, ההעתק
+  // שהעמדה תיפול אליו אינו שלם. זו הסתייגות, ולכן צבע של הסתייגות.
+  lagging: '#f59e0b',
   offline: '#f59e0b',
-  off: '#64748b',
 };
 
 /**
@@ -40,33 +80,42 @@ const TONE: Record<Startup, string> = {
  * אותה תבנית כמו בדף המאגר המקומי: עמדת Electron מגישה את הדף בעצמה, ובעמדה
  * שעולה ב-WEB הדף מגיע מהמרכז והסוכן יושב על 127.0.0.1.
  */
-async function readStartup(): Promise<Status | null> {
-  const paths = [`${location.origin}/api/__local/__localdb/startup`,
-    `${agentOrigin()}/api/__local/__localdb/startup`];
-  for (const url of paths) {
+async function probe<T>(path: string, ok: (d: any) => boolean): Promise<T | null> {
+  for (const base of [location.origin, agentOrigin()]) {
     try {
-      const res = await fetch(url, {
+      const res = await fetch(`${base}${path}`, {
         cache: 'no-store',
         ...({ targetAddressSpace: 'loopback' } as RequestInit),
       });
+      // המרכז אינו מכיר את הנתיבים האלה ועונה 401 - מדלגים וממשיכים לסוכן
       if (!res.ok) continue;
       const d = await res.json();
-      if (typeof d?.startup !== 'string') continue;
-      return d as Status;
-    } catch { /* אין מאגר מקומי שם - ממשיכים */ }
+      if (!ok(d)) continue;
+      return d as T;
+    } catch { /* אין שם מי שיענה - ממשיכים */ }
   }
   return null;
 }
 
+const readStartup = () =>
+  probe<Status>('/api/__local/__localdb/startup', d => typeof d?.startup === 'string');
+
+/** הנתב של העמדה. אין אחד - מחזיר null, וההכרעה נופלת בחזרה למראה בלבד. */
+const readRouter = () =>
+  probe<Router>('/api/__station/status', d => typeof d?.serving === 'string');
+
 export default function StartupModeBanner() {
   const [st, setSt] = React.useState<Status | null>(null);
+  const [rt, setRt] = React.useState<Router | null>(null);
 
   React.useEffect(() => {
     let alive = true;
     const tick = async () => {
-      const d = await readStartup();
+      // במקביל: שתי שאילתות בלתי תלויות, ושתיהן זולות
+      const [d, r] = await Promise.all([readStartup(), readRouter()]);
       if (!alive) return;
       setSt(d);
+      setRt(r);
       // כל עוד הסנכרון הראשון רץ, מרעננים מהר - זה מד התקדמות, לא חיווי סטטי
       if (d?.startup === 'syncing') setTimeout(() => { void tick(); }, 2000);
     };
@@ -74,15 +123,18 @@ export default function StartupModeBanner() {
     return () => { alive = false; };
   }, []);
 
+  const mode = decideDisplay(st, rt);
   // אין מאגר מקומי בעמדה הזו - אין מה לומר, ולא ממציאים חיווי ריק
-  if (!st || st.startup === 'off') return null;
+  if (!mode || !st) return null;
 
-  const text = st.startup === 'syncing'
+  const text = mode === 'syncing'
     ? tr('sync.startupSyncing', {
         done: st.progress?.done ?? 0, total: st.progress?.total ?? 0 })
-    : st.startup === 'synced'
+    : mode === 'synced'
       ? tr('sync.startupSynced')
-      : tr('sync.startupOffline', { n: st.strips ?? 0 });
+      : mode === 'lagging'
+        ? tr('sync.startupLagging')
+        : tr('sync.startupOffline', { n: st.strips ?? 0 });
 
   return (
     <div style={{
@@ -91,12 +143,12 @@ export default function StartupModeBanner() {
       direction: 'rtl',
       fontFamily: 'system-ui, "Segoe UI", Arial, sans-serif',
       fontSize: 11, fontWeight: 600, letterSpacing: 0,
-      color: TONE[st.startup],
+      color: TONE[mode],
       opacity: 0.9,
     }}>
       <span style={{
         width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-        background: TONE[st.startup],
+        background: TONE[mode],
       }} />
       <span>{text}</span>
     </div>

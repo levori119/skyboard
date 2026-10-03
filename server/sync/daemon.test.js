@@ -229,3 +229,63 @@ describe("שירות המראה - משתמשי המיראז'", () => {
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });
+
+// ── החיווי משקף את הסיבוב האחרון, לא את הראשון ───────────────────────────────
+// התקלה שדווחה: "העליתי עמדה דרך השרת וכותב שיש נתק למרכז - מה הסיבה?"
+// העמדה **לא** הייתה מנותקת: הלוג הראה סיבובים 2, 3 ו-4 מצליחים (9292 שורות
+// כל אחד) ו-`lastOkAt` עדכני - אבל `startup` נשאר `offline` מהסיבוב הראשון
+// שנכשל, והמסך הכריז "אין קשר למרכז" לנצח. חיווי שמשקר גרוע מחיווי שאינו קיים.
+describe('מצב העלייה מתעדכן לפי הסיבוב האחרון', () => {
+  const freshDaemon = async () => {
+    vi.resetModules();
+    return import('./daemon.js');
+  };
+
+  it('סיבוב ראשון נכשל ואז מצליח - החיווי עובר ל-synced', async () => {
+    const { startMirrorDaemon, mirrorDaemonState, __internals } = await freshDaemon();
+    const stop = startMirrorDaemon({
+      central: centralUrl, token: 'T', pool, protectedKeys: noKeys,
+      intervalMs: 3_600_000, log: () => {},
+    });
+    try {
+      // הסיבוב שהדאימון הפעיל בעצמו עלול להצליח; מאלצים כשל ואז הצלחה
+      seen.fail = 1;
+      await __internals.runOnce({
+        central: centralUrl, headers: {}, pool, schema: 'public',
+        protectedKeys: noKeys, log: () => {},
+      }).catch(() => {});
+
+      await __internals.runOnce({
+        central: centralUrl, headers: {}, pool, schema: 'public',
+        protectedKeys: noKeys, log: () => {},
+      });
+      expect(mirrorDaemonState().startup).toBe('synced');
+    } finally { stop(); }
+  });
+
+  it('אחרי הצלחה, כשל מחזיר את החיווי ל-offline - המפעיל צריך לדעת', async () => {
+    const { startMirrorDaemon, mirrorDaemonState } = await freshDaemon();
+    // מרווח קצר: כאן בודקים דווקא את **הלולאה**, כי מעבר המצב בכשל קורה
+    // ב-catch שלה ולא ב-runOnce. נסיגת הכשל מתחילה ב-10 שניות, ולכן
+    // מודדים את המעבר הראשון בלבד.
+    const stop = startMirrorDaemon({
+      central: centralUrl, token: 'T', pool, protectedKeys: noKeys,
+      intervalMs: 150, log: () => {},
+    });
+    try {
+      const until = async (pred, ms = 15000) => {
+        const t0 = Date.now();
+        while (Date.now() - t0 < ms) {
+          if (pred()) return true;
+          await new Promise(r => setTimeout(r, 50));
+        }
+        return false;
+      };
+      expect(await until(() => mirrorDaemonState().startup === 'synced')).toBe(true);
+
+      // ומעכשיו המרכז נופל
+      seen.fail = 99;
+      expect(await until(() => mirrorDaemonState().startup === 'offline')).toBe(true);
+    } finally { stop(); seen.fail = 0; }
+  });
+});

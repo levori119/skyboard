@@ -201,6 +201,10 @@
     "startupOffline": {
       "he": "אין קשר למרכז - העמדה עובדת עצמאית מול המאגר המקומי ({{n}} פ\"מים)",
       "en": "No connection to the centre - the station works standalone against its local database ({{n}} strips)"
+    },
+    "startupLagging": {
+      "he": "עובדת מול המאגר המרכזי - ההעתק המקומי עדיין לא שלם",
+      "en": "Working against the central database - the local copy is not complete yet"
     }
   }
 }

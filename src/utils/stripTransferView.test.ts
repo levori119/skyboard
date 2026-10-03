@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { projectStripsForStation } from './stripTransferView';
+import { projectStripsForStation, type PendingTransferParty } from './stripTransferView';
 
 // המקרה שנשבר בשטח (2026-09-21): או"ק "דחליל" הוחזק גם בבת"ק אריק וגם בבת"ק בגין.
 // אריק שלח אותו לנקודת העברה - והוא **נעלם גם מבגין**, כי `status='pending_transfer'`
@@ -11,8 +11,11 @@ const strip = (over = {}) => ({
   workstation_preset_id: DEST, table_preset_ids: [ARIK, BEGIN], at_preset_names: ['אריק', 'בגין'],
   ...over,
 });
-const T = [{ strip_id: 7, from_workstation_id: ARIK, to_workstation_id: DEST, from_preset_id: null, to_preset_id: null }];
-const project = (ids: number[], names: string[], rows = [strip()], transfers = T) =>
+const T: PendingTransferParty[] = [{ strip_id: 7, from_workstation_id: ARIK, to_workstation_id: DEST, from_preset_id: null, to_preset_id: null }];
+// ⚠️ הטיפוס מוצהר על הפרמטר ולא מוסק מברירת המחדל: בלעדיו TypeScript מצמיד
+// ל-`transfers` את הצורה המדויקת של `T` (כל ארבעת השדות), ומקרה שמעביר
+// העברה **לפי עמדה בלבד** - בדיוק מה שהבדיקה למטה בודקת - נפסל בטעות.
+const project = (ids: number[], names: string[], rows = [strip()], transfers: PendingTransferParty[] = T) =>
   projectStripsForStation(rows as any, ids, names, transfers as any)[0] as any;
 
 describe('projectStripsForStation', () => {
