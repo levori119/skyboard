@@ -11,7 +11,12 @@ let pool, central, centralUrl, seen;
 
 /** מרכז מדומה: מחזיר רשימת טבלאות ואז צילום לכל קבוצה. */
 const startCentral = () => {
-  seen = { tables: 0, batches: [], headers: [], fail: 0, mirage: { status: 200, body: { ok: true, users: [] } } };
+  seen = {
+    tables: 0, batches: [], headers: [], fail: 0,
+    mirage: { status: 200, body: { ok: true, users: [] } },
+    // הסיבוב המהיר: מה הדלתא מחזירה, ואילו `since` הגיעו אליה
+    deltaSince: [], deltaRows: [], deltaKeys: [],
+  };
   const srv = http.createServer((req, res) => {
     seen.headers.push({
       token: req.headers['x-station-token'],
@@ -36,6 +41,17 @@ const startCentral = () => {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ schema: 'public', at: new Date().toISOString(),
         tables: names.map(t => ({ table: t, rows: rowsFor(t) })) }));
+      return;
+    }
+    // הסיבוב המהיר: רק מה שהשתנה, ולצידו רשימת המפתחות המלאה
+    if (url.pathname === '/api/sync/mirror/delta') {
+      seen.deltaSince.push(url.searchParams.get('since'));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        schema: 'public', at: new Date().toISOString(), delta: true,
+        since: url.searchParams.get('since'),
+        tables: [{ table: 'strips', rows: seen.deltaRows, keys: seen.deltaKeys, full: false }],
+      }));
       return;
     }
     if (url.pathname === '/api/sync/mirror/mirage-users') {
@@ -287,5 +303,79 @@ describe('מצב העלייה מתעדכן לפי הסיבוב האחרון', ()
       seen.fail = 99;
       expect(await until(() => mirrorDaemonState().startup === 'offline')).toBe(true);
     } finally { stop(); seen.fail = 0; }
+  });
+});
+
+// ── הסיבוב המהיר ──────────────────────────────────────────────────────────────
+// הדרישה: "שיסתנכרן כל הזמן". הסיבוב המלא יקר (70 שניות מול הייצור) ולכן רץ
+// כל 5 דקות; הדלתא זולה ולכן רצה כל 15 שניות. מה שנבדק כאן הוא שהיא באמת
+// מביאה שינויים ומחיקות - ושהיא לא מוחקת את מה שלא השתנה.
+describe('הסיבוב המהיר (דלתא)', () => {
+  const runDelta = async (opts = {}) => {
+    const { __internals } = await import('./daemon.js');
+    return __internals.runDelta({
+      central: centralUrl,
+      headers: { 'X-Station-Token': 'T', 'X-Station-Key': 'twr-1', 'X-Env': '1' },
+      pool, schema: 'public', protectedKeys: noKeys, log: () => {},
+      ...opts,
+    });
+  };
+
+  it('שורה שהשתנתה במרכז מגיעה בדלתא', async () => {
+    await runDaemonOnce();                       // בסיס: ALPHA + BRAVO
+    seen.deltaRows = [{ id: 2, callsign: 'CHARLIE' }];
+    seen.deltaKeys = [{ id: 1 }, { id: 2 }];
+
+    await runDelta();
+    const { rows } = await pool.query('SELECT callsign FROM strips ORDER BY id');
+    expect(rows.map(r => r.callsign)).toEqual(['ALPHA', 'CHARLIE']);
+  });
+
+  it('מה שלא השתנה **אינו נמחק** - זו הסכנה המרכזית בדלתא', async () => {
+    await runDaemonOnce();
+    seen.deltaRows = [];                          // שום שינוי
+    seen.deltaKeys = [{ id: 1 }, { id: 2 }];      // ושתי השורות עדיין שם
+
+    const stats = await runDelta();
+    expect(stats.deleted).toBe(0);
+    const { rows } = await pool.query('SELECT id FROM strips ORDER BY id');
+    expect(rows.map(r => Number(r.id))).toEqual([1, 2]);
+  });
+
+  it('שורה שנעלמה מרשימת המפתחות נמחקת - בלי להמתין לסיבוב המלא', async () => {
+    await runDaemonOnce();
+    seen.deltaRows = [];
+    seen.deltaKeys = [{ id: 1 }];                 // 2 נמחק במרכז
+
+    const stats = await runDelta();
+    expect(stats.deleted).toBe(1);
+    const { rows } = await pool.query('SELECT id FROM strips');
+    expect(rows.map(r => Number(r.id))).toEqual([1]);
+  });
+
+  it('הדלתא הבאה שואלת מהחותמת של הקודמת - שעון המרכז מול עצמו', async () => {
+    await runDaemonOnce();
+    seen.deltaRows = []; seen.deltaKeys = [{ id: 1 }, { id: 2 }];
+    seen.deltaSince = [];
+
+    await runDelta();
+    await runDelta();
+    // הראשונה נשענת על חותמת הסיבוב המלא, השנייה על חותמת הדלתא הראשונה
+    expect(seen.deltaSince).toHaveLength(2);
+    expect(seen.deltaSince[0]).toBeTruthy();
+    expect(seen.deltaSince[1]).toBeTruthy();
+    expect(Date.parse(seen.deltaSince[1])).toBeGreaterThanOrEqual(Date.parse(seen.deltaSince[0]));
+  });
+
+  it('דלתא מוצלחת מעדכנת את מדד הטריות שהמסך מציג', async () => {
+    const { mirrorDaemonState } = await import('./daemon.js');
+    await runDaemonOnce();
+    seen.deltaRows = []; seen.deltaKeys = [{ id: 1 }, { id: 2 }];
+
+    await new Promise(r => setTimeout(r, 20));
+    await runDelta();
+    const st = mirrorDaemonState();
+    expect(st.lastFastOkAt).toBeGreaterThan(0);
+    expect(st.lastOkAt).toBeGreaterThanOrEqual(st.lastFastOkAt);
   });
 });

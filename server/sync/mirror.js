@@ -120,6 +120,83 @@ export async function snapshotTables(client, schema, tables = MIRROR_TABLES) {
   return { schema, at: new Date().toISOString(), tables: out };
 }
 
+// ── הסיבוב המהיר: רק מה שהשתנה ────────────────────────────────────────────────
+//
+// **הבעיה:** הצילום המלא הוא 128 טבלאות, 4.6MB ו-70 שניות מול הייצור, ולכן הוא
+// רץ כל 5 דקות. המשמעות התפעולית היא שהעתק העמדה מפגר אחרי המרכז עד 5 דקות -
+// ובמשמרת פעילה זה נצח. "שיסתנכרן כל הזמן" (הכרעת אורי) מחייב סיבוב שעלותו
+// קרובה לאפס כשאין שינויים.
+//
+// **מה הסיבוב המהיר מכסה:** שש הטבלאות שמשתנות תוך כדי משמרת - אלה שנושאות
+// `rev`/`updated_at` (`versionedTables.js`). השאר הן הגדרות שמשתנות בניהול
+// ונשארות באחריות הסיבוב המלא.
+//
+// ⚠️ **מחיקות.** דלתא לפי `updated_at` אינה יכולה לראות שורה ש**נמחקה** -
+// היא כבר אינה שם. לכן כל טבלה מחזירה גם את **רשימת המפתחות המלאה** שלה,
+// וממנה הקליטה מסיקה מה נעלם. זה זול (מזהים בלבד: 113 פ"מים הם כ-2KB)
+// והוא מה שמונע פ"מ רפאים שנשאר על המפה עד הסיבוב המלא הבא.
+
+/** הטבלאות של הסיבוב המהיר: מה שמשתנה תוך כדי משמרת. */
+export const FAST_TABLES = sortByDependency(VERSIONED_TABLES);
+
+/**
+ * חפיפה לאחור על `since`.
+ *
+ * שורה שנכתבה **בזמן** הצילום הקודם (בין קריאת הטבלה לבין חותמת `at`) הייתה
+ * נופלת בין הכיסאות: מאוחרת מדי לצילום ההוא, ומוקדמת מדי לדלתא הבאה. שנייתיים
+ * של חפיפה סוגרות את החלון, והמחיר הוא שידור חוזר של שורה בודדת - `upsert`
+ * אידמפוטנטי ממילא.
+ */
+const DELTA_OVERLAP_MS = 2000;
+
+/**
+ * צילום **דלתא**: רק שורות שהשתנו מאז `since`, ולצידן מפתחות כל השורות.
+ *
+ * @param {string|null} since חותמת ISO **בשעון המרכז** (ה-`at` של הסיבוב הקודם).
+ *   `null` = אין בסיס, ולכן מוחזר הכל - כמו צילום מלא של שש הטבלאות.
+ */
+export async function snapshotDelta(client, schema, since, tables = FAST_TABLES) {
+  const sinceMs = Date.parse(since ?? '');
+  const from = Number.isFinite(sinceMs)
+    ? new Date(sinceMs - DELTA_OVERLAP_MS).toISOString()
+    : null;
+
+  const present = sortByDependency(await existingTables(client, schema, tables));
+  const out = [];
+  for (const table of present) {
+    const tbl = qualified(schema, table);
+    const pkCols = await pkColumns(client, schema, table);
+    if (!pkCols.length) continue;
+
+    // טבלה בלי `updated_at` אינה יכולה לענות "מה השתנה", ולכן היא נשלחת
+    // במלואה. בפועל כל שש הטבלאות נושאות אותה (init.js מוסיף אותה לכל
+    // טבלה ב-VERSIONED_TABLES), וזו רשת ביטחון לסכמה שהתפצלה.
+    const cols = await currentColumns(client, schema, table);
+    const canDelta = from && cols.includes('updated_at');
+
+    const { rows } = canDelta
+      ? await client.query(
+        `SELECT to_jsonb(t) AS row FROM ${tbl} t
+          WHERE t.updated_at > $1::timestamptz
+          LIMIT ${MIRROR_ROW_CAP + 1}`, [from])
+      : await client.query(
+        `SELECT to_jsonb(t) AS row FROM ${tbl} t LIMIT ${MIRROR_ROW_CAP + 1}`);
+
+    // רשימת המפתחות המלאה - זה מה שמאפשר לזהות מחיקות בלי למשוך את השורות
+    const { rows: keyRows } = await client.query(
+      `SELECT ${pkCols.map(c => `t.${ident(c)}`).join(', ')} FROM ${tbl} t`);
+
+    out.push({
+      table,
+      rows: rows.slice(0, MIRROR_ROW_CAP).map(r => r.row),
+      truncated: rows.length > MIRROR_ROW_CAP,
+      keys: keyRows,
+      full: !canDelta,
+    });
+  }
+  return { schema, at: new Date().toISOString(), since: since ?? null, delta: true, tables: out };
+}
+
 /**
  * האם השורה המקומית נכתבה **אחרי** שהצילום נלקח במרכז.
  *
@@ -183,7 +260,7 @@ export async function ingestSnapshot(client, schema, snapshot, pendingKeys = new
     // אחרי הקליטה אינה רצה בלי אכיפת מפתחות זרים.
     await client.query(`SET LOCAL session_replication_role = 'replica'`);
 
-    for (const { table, rows } of ordered) {
+    for (const { table, rows, keys: fullKeys } of ordered) {
       if (!present.has(table)) continue;
       // טבלה שלמה בסייפפוינט: תקלה בטבלה אחת (עמודה שהתפצלה בין הצדדים,
       // טריגר שנכשל) לא תפיל את כל הסיבוב ואיתו את כל המאגר.
@@ -231,6 +308,22 @@ export async function ingestSnapshot(client, schema, snapshot, pendingKeys = new
 
       if (!REPLACE_TABLES.has(table)) continue;
 
+      // ── מי הסמכות לשאלה "מה קיים במרכז" ──────────────────────────────────
+      //
+      // בצילום **מלא** `rows` הוא גם רשימת המצאי, ולכן `seen` עונה על זה.
+      // בצילום **דלתא** `rows` מכיל רק את מה שהשתנה - ושימוש ב-`seen` שם היה
+      // מוחק את **כל** מה שלא השתנה, כלומר את רוב המאגר. לכן הדלתא נושאת
+      // `keys`, ורק הוא הסמכות.
+      //
+      // ⚠️ דלתא **בלי** `keys` (גרסת מרכז מוקדמת יותר) מדלגת על המחיקה
+      // לגמרי. עדיף שורה שנמחקה במרכז ושורדת כאן דקה נוספת, מאשר מאגר
+      // מקומי שמתרוקן בגלל אי-התאמת גרסאות.
+      const isDelta = snapshot?.delta === true;
+      const authority = Array.isArray(fullKeys)
+        ? new Set(fullKeys.map(k => keyOf(table, Object.fromEntries(pkCols.map(c => [c, k[c]])))))
+        : seen;
+      if (isDelta && !Array.isArray(fullKeys)) continue;
+
       // מה שנעלם במרכז נמחק גם כאן - פרט למה שנולד בעמדה, למה שממתין ביומן,
       // ולמה ש**חדש מהצילום עצמו**.
       const local = await client.query(
@@ -238,7 +331,7 @@ export async function ingestSnapshot(client, schema, snapshot, pendingKeys = new
       for (const { row } of local.rows) {
         const pk = Object.fromEntries(pkCols.map(c => [c, row[c]]));
         const key = keyOf(table, pk);
-        if (seen.has(key) || pendingKeys.has(key)) continue;
+        if (authority.has(key) || pendingKeys.has(key)) continue;
         if (pkCols.length === 1 && isLocalId(pk[pkCols[0]])) continue;
         // ⚠️ **מרוץ בין זמן הצילום לזמן הקליטה.** הצילום נלקח במרכז ברגע
         // אחד, והקליטה רצה אחריו - סיבוב מלא נמשך עשרות שניות. בין השניים

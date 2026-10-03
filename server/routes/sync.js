@@ -23,7 +23,7 @@ import { JOURNAL_TABLE, STATUS, withoutJournal } from '../db/syncJournal.js';
 import { localIdStart } from '../db/localIds.js';
 import { coalesceJournal } from '../sync/coalesce.js';
 import { applyOps, RESULT } from '../sync/apply.js';
-import { snapshotTables, ingestSnapshot, MIRROR_TABLES, mirrorRowKey } from '../sync/mirror.js';
+import { snapshotTables, snapshotDelta, ingestSnapshot, MIRROR_TABLES, mirrorRowKey } from '../sync/mirror.js';
 import { insertRow, updateRow, deleteRow, currentRow } from '../db/rowOps.js';
 import { STATION_HEADER } from '../middleware/actionContext.js';
 
@@ -351,6 +351,35 @@ router.post('/api/sync/resolve', localOnly, async (req, res) => {
 // מפתחות זרים: הורה תמיד מגיע לפני הילד.
 router.get('/api/sync/mirror/tables', (_req, res) => {
   res.json({ tables: MIRROR_TABLES, at: new Date().toISOString() });
+});
+
+// ── במרכז: דלתא - רק מה שהשתנה מאז הסיבוב הקודם ──────────────────────────────
+//
+// זה מה שהופך את המראה מ"כל 5 דקות" ל"כל הזמן": שש הטבלאות שמשתנות תוך כדי
+// משמרת, רק השורות שזזו, ולצידן רשימת המפתחות המלאה כדי שגם **מחיקות** יגיעו.
+// כשאין שינויים התשובה היא כמה קילובייטים של מזהים, ולכן אפשר להריץ אותה כל
+// כמה שניות. ראה sync/mirror.js §הסיבוב המהיר.
+//
+// `since` הוא חותמת ה-`at` של התשובה הקודמת - כלומר **שעון המרכז מול עצמו**,
+// בלי תלות בשעון העמדה.
+router.get('/api/sync/mirror/delta', async (req, res) => {
+  const since = String(req.query.since || '').trim() || null;
+  try {
+    const client = await pool.connect();
+    try {
+      // טרנזקציה אחת, מאותה סיבה כמו בצילום המלא: אחרת רשימת המפתחות של
+      // טבלה אחת והשורות של אחרת מתארות שתי נקודות זמן שונות.
+      await client.query('BEGIN');
+      const snap = await snapshotDelta(client, currentSchema(), since);
+      await client.query('COMMIT');
+      res.json(snap);
+    } finally {
+      client.release();
+    }
+  } catch (e) {
+    console.error('GET /api/sync/mirror/delta', e);
+    res.status(500).json({ error: 'צילום הדלתא נכשל' });
+  }
 });
 
 // ── במרכז: צילום המצב לשליחה לעמדה ────────────────────────────────────────────

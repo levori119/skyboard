@@ -44,6 +44,22 @@ const BATCH = 12;
  */
 const DEFAULT_INTERVAL_MS = 5 * 60_000;
 
+/**
+ * כל כמה זמן רץ ה**סיבוב המהיר** (דלתא).
+ *
+ * זה מה שעונה על "שיסתנכרן כל הזמן" (הכרעת אורי): הסיבוב המלא יקר ולכן נדיר,
+ * והדלתא זולה ולכן תכופה. היא נוגעת בשש הטבלאות שמשתנות תוך כדי משמרת, מושכת
+ * רק שורות שזזו, וכשאין שינויים התשובה היא כמה קילובייטים של מזהים.
+ *
+ * 15 שניות ולא שנייה: ההפרש התפעולי בין השתיים על לוח פ"מים זניח, וההפרש
+ * בעומס על שער היציאה הוא פי 15. לשינוי: `SKYKING_MIRROR_FAST_MS`; `0` מכבה
+ * את הסיבוב המהיר וחוזר להתנהגות הקודמת.
+ */
+const DEFAULT_FAST_MS = 15_000;
+
+/** אחרי כמה דלתאות כושלות ברצף מכריזים נתק. 3 × 15ש' = 45 שניות. */
+const FAST_FAILURES_FOR_OFFLINE = 3;
+
 /** אחרי כשל - נסיגה מתגברת, עד התקרה. רשת מבודדת יכולה ליפול לשעות. */
 const RETRY_MIN_MS = 10_000;
 const RETRY_MAX_MS = 5 * 60_000;
@@ -65,6 +81,13 @@ const state = {
   /** כמה משתמשי מיראז' בהעתק המקומי אחרי הסיבוב האחרון, ולמה לא עודכנו */
   mirageUsers: null,
   mirageError: null,
+  /** הסיבוב המהיר: חותמת `at` של הדלתא האחרונה (**בשעון המרכז**) */
+  lastDeltaAt: null,
+  /** מתי הדלתא האחרונה הצליחה, בשעון המקומי - זה מדד הטריות שהמסך מציג */
+  lastFastOkAt: null,
+  fastRounds: 0,
+  fastFailures: 0,
+  lastFastError: null,
   /**
    * מול מה העמדה עובדת **עכשיו**. זו השאלה שמסך הכניסה עונה עליה, והיא
    * משקפת את תוצאת הסיבוב האחרון:
@@ -185,7 +208,57 @@ async function runOnce({ central, headers, pool, schema, protectedKeys, log, dat
         : '[mirror] הקשר למרכז חזר - העמדה **מסונכרנת**');
     }
     log(`[mirror] סיבוב ${state.rounds}: ${tables.length} טבלאות · ${upserted} שורות · ${state.lastDurationMs}ms`);
+    // הסיבוב המלא קובע נקודת ייחוס חדשה לדלתא: כל מה שקדם לו כבר אצלנו.
+    state.lastDeltaAt = roundAt ?? new Date().toISOString();
     return true;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * סיבוב **מהיר**: רק מה שהשתנה בשש הטבלאות התפעוליות.
+ *
+ * זה מה שמחזיק את ההעתק המקומי צמוד למרכז בין הסיבובים המלאים. הוא מגיע
+ * לאותה `ingestSnapshot` בדיוק - עם כל ההגנות שלה (יומן הסנכרון, שורות
+ * שנולדו בעמדה, מרוץ צילום/קליטה) - ונבדל ממנה רק בכך שהצילום נושא `keys`
+ * במקום את כל השורות. ראה sync/mirror.js §הסיבוב המהיר.
+ */
+async function runDelta({ central, headers, pool, schema, protectedKeys, log }) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const q = (sql, params) => pool.query(sql, params);
+    const since = state.lastDeltaAt;
+    const url = `${central}/api/sync/mirror/delta`
+      + (since ? `?since=${encodeURIComponent(since)}` : '');
+    const snap = await getJson(url, headers, ctrl.signal);
+    if (!snap || !Array.isArray(snap.tables)) throw new Error('תשובת דלתא לא תקינה');
+
+    const keys = await protectedKeys(q);
+    const stats = await ingestSnapshot({ query: q }, schema, snap, keys);
+
+    state.lastDeltaAt = snap.at;
+    state.lastFastOkAt = Date.now();
+    // ⚠️ גם `lastOkAt`: זה מדד הטריות שמסך הכניסה והפקד מציגים, והשאלה
+    // שהוא עונה עליה היא "מתי לאחרונה הסתנכרנו" - לא "מתי רץ סיבוב מלא".
+    state.lastOkAt = Date.now();
+    state.fastRounds++;
+    state.fastFailures = 0;
+    state.lastFastError = null;
+
+    // התאוששות מהירה: הקשר חזר, ואין סיבה לחכות לסיבוב המלא כדי לומר זאת.
+    // **רק** מ-`offline`: `syncing` פירושו שהסיבוב המלא הראשון טרם הסתיים,
+    // ואז שש טבלאות אינן "מסונכרנת" - זו הייתה הכרזה שקרית.
+    if (state.startup === 'offline') {
+      state.startup = 'synced';
+      state.startupAt = Date.now();
+      log('[mirror] הקשר למרכז חזר - העמדה **מסונכרנת**');
+    }
+    if (stats.upserted || stats.deleted) {
+      log(`[mirror] דלתא ${state.fastRounds}: ${stats.upserted} שורות · ${stats.deleted} נמחקו`);
+    }
+    return stats;
   } finally {
     clearTimeout(timer);
   }
@@ -207,6 +280,9 @@ export function startMirrorDaemon({
   protectedKeys,
   dataDir = null,
   intervalMs = Number(process.env.SKYKING_MIRROR_INTERVAL_MS) || DEFAULT_INTERVAL_MS,
+  // `0` מכבה את הסיבוב המהיר. `??` ולא `||` כדי ש-0 יישמר כבחירה ולא ייפול
+  // לברירת המחדל.
+  fastMs = Number(process.env.SKYKING_MIRROR_FAST_MS ?? DEFAULT_FAST_MS),
   log = console.log,
 } = {}) {
   if (!central || !token) {
@@ -226,6 +302,32 @@ export function startMirrorDaemon({
   state.startup = 'syncing';
   let stopped = false;
   let timer = null;
+  let fastTimer = null;
+
+  // ── הסיבוב המהיר ─────────────────────────────────────────────────────────
+  // רץ כל 15 שניות לצד הסיבוב המלא, ו**נדחה מפניו**: `state.running` מסמן
+  // שסיבוב מלא באוויר, ושניהם כותבים לאותו מאגר בעל חיבור יחיד.
+  const fastTick = async () => {
+    if (stopped || !fastMs) return;
+    // הסיבוב המלא הראשון עדיין רץ - אין בסיס לדלתא, ואין טעם להתחרות בו
+    if (state.running || state.startup === 'syncing') return;
+    state.running = true;
+    try {
+      await runDelta({ central: base, headers, pool, schema, protectedKeys, log });
+    } catch (err) {
+      state.fastFailures++;
+      state.lastFastError = String(err?.message || err);
+      // דלתא בודדת שנפלה אינה נתק - היא יכולה להיות הבהוב. שלוש ברצף
+      // (45 שניות) הן כבר תשובה, והן מגיעות **הרבה** לפני הסיבוב המלא הבא.
+      if (state.fastFailures >= FAST_FAILURES_FOR_OFFLINE && state.startup === 'synced') {
+        state.startup = 'offline';
+        state.startupAt = Date.now();
+        log(`[mirror] הקשר למרכז אבד (${state.fastFailures} דלתאות) - העמדה עובדת מול המאגר המקומי`);
+      }
+    } finally {
+      state.running = false;
+    }
+  };
 
   const tick = async () => {
     if (stopped || state.running) return;
@@ -260,14 +362,24 @@ export function startMirrorDaemon({
     }
   };
 
-  log(`[mirror] שירות המראה פעיל - ${base} · עמדה ${stationKey} · כל ${Math.round(intervalMs / 1000)}ש'`);
+  log(`[mirror] שירות המראה פעיל - ${base} · עמדה ${stationKey}`
+    + ` · מלא כל ${Math.round(intervalMs / 1000)}ש'`
+    + (fastMs ? ` · דלתא כל ${Math.round(fastMs / 1000)}ש'` : ' · דלתא כבויה'));
   void tick();
+  if (fastMs) {
+    fastTimer = setInterval(() => { void fastTick(); }, fastMs);
+    fastTimer.unref?.();
+  }
 
   return () => {
     stopped = true;
     state.enabled = false;
     if (timer) clearTimeout(timer);
+    if (fastTimer) clearInterval(fastTimer);
   };
 }
 
-export const __internals = { BATCH, RETRY_MIN_MS, RETRY_MAX_MS, runOnce };
+export const __internals = {
+  BATCH, RETRY_MIN_MS, RETRY_MAX_MS, DEFAULT_FAST_MS, FAST_FAILURES_FOR_OFFLINE,
+  runOnce, runDelta,
+};

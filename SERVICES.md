@@ -117,13 +117,14 @@
 ### `server/sync/mirror.js`
 **תפקיד:** תמונת המצב שהמרכז שולח לעמדה, וקליטתה. בלעדיה המאגר המקומי עולה ריק והסנכרון הוא תיאטרון. קולטת תחת `withoutJournal`, **מדלגת** על שורות שממתינות ביומן (לא דורסת עבודה שלא סונכרנה), מוחקת רק בחמש הטבלאות המסונכרנות, ולא נוגעת בשורות שנולדו בעמדה (טווח המזהים המקומי). `MIRROR_DENYLIST` מוציא את הכבדים (`maps.image_data`, `activity_log`, חומרי למידה).
 **⚠️ סדר הטבלאות אב-לפני-בן** (`sortByDependency`): בלעדיו הצילום נשלח בסדר שבו הרשימות כתובות - פ"מ לפני הסקטור שהוא מצביע אליו - והקליטה נופלת על "מפתח זר אינו קיים".
-**מייצא:** `MIRROR_TABLES`, `MIRROR_DENYLIST`, `MIRROR_ROW_CAP`, `snapshotTables`, `ingestSnapshot`, `mirrorRowKey`.
+**הסיבוב המהיר:** `snapshotDelta` מחזיר רק שורות שהשתנו מאז `since`, ולצידן `keys` - רשימת המפתחות המלאה. `ingestSnapshot` מזהה דלתא לפי `snapshot.delta` ומסתמך על `keys` ולא על `rows` בפסקת המחיקה; בלי זה דלתא הייתה מוחקת את כל מה שלא השתנה.
+**מייצא:** `MIRROR_TABLES`, `FAST_TABLES`, `MIRROR_DENYLIST`, `MIRROR_ROW_CAP`, `snapshotTables`, `snapshotDelta`, `ingestSnapshot`, `mirrorRowKey`.
 
 ---
 
 ## Backend — API Routes
 
-> כל קובץ route מייצא `express.Router`. סך הכל **498 endpoints**.
+> כל קובץ route מייצא `express.Router`. סך הכל **499 endpoints**.
 
 ### `server/routes/undo.js` — 3 routes
 **תפקיד:** ביטול פעולה (CTRL+Z). ראה [UNDO_SPEC.md](UNDO_SPEC.md).
@@ -132,7 +133,7 @@
 
 ### `server/routes/sync.js` — 7 routes
 **תפקיד:** סנכרון עבודה מנותקת. **שני צדדים בקובץ אחד**, כי אותו Express רץ גם במרכז וגם בעמדה. ראה [ARCHITECTURE.md](ARCHITECTURE.md) §נתק 4.
-**Endpoints (במרכז):** `POST /api/sync/push` (קליטת פעולות נטו; עד 500 בבקשה; `stationNow` לתיקון הפרש שעונים; `force` להיפוך ידני), `GET /api/sync/mirror` (צילום המצב, בטרנזקציה אחת כדי שלא תישלח העברה שמצביעה לפ"מ שאינו בצילום).
+**Endpoints (במרכז):** `GET /api/sync/mirror/delta?since=` (**הסיבוב המהיר** - רק מה שהשתנה בשש הטבלאות התפעוליות, ולצידו רשימת המפתחות המלאה כדי שגם מחיקות יגיעו; זה מה שמאפשר לסנכרן כל 15 שניות במקום כל 5 דקות), `POST /api/sync/push` (קליטת פעולות נטו; עד 500 בבקשה; `stationNow` לתיקון הפרש שעונים; `force` להיפוך ידני), `GET /api/sync/mirror` (צילום המצב, בטרנזקציה אחת כדי שלא תישלח העברה שמצביעה לפ"מ שאינו בצילום).
 **Endpoints (בעמדה, `localOnly`):** `GET /api/sync/state` (כמה ממתין + `resolved` שהוכרעו אוטומטית + `conflicts` שדורשות אדם), `GET /api/sync/outbound` (הפעולות המאוחדות לדחיפה), `POST /api/sync/ack` (סימון ביומן, **ואימוץ מיידי** של גרסת המרכז בשורות שהוכרעו לטובתה), `POST /api/sync/resolve` (`mine` - חזרה לתור ודחיפה בכפייה · `theirs` - סגירת ההכרעה), `POST /api/sync/mirror` (קליטת הצילום).
 **404 ולא 403** על נתיב מקומי במרכז: הדפדפן מזהה ומכבה את שכבת הסנכרון בשקט, כמו עם `/api/gapi/status`.
 **⚠️ חיבור יחיד:** handler שמחזיק `pool.connect()` מריץ **הכל** דרך ה-client. `pool.query()` באותו handler נועל את PGlite לנצח (נתפס כ-12 בדיקות שנתקעו ב-timeout).
