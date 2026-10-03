@@ -1991,7 +1991,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     try { return normalizeDeskBackground(JSON.parse(localStorage.getItem('skyking.freeDesk.bg') || 'null')); }
     catch { return normalizeDeskBackground(null); }
   });
-  const [showNotepadBgBar, setShowNotepadBgBar] = useState(false);
   useEffect(() => {
     try { localStorage.setItem('skyking.freeDesk.bg', JSON.stringify(notepadBg)); } catch { /* מצב פרטי */ }
   }, [notepadBg]);
@@ -20545,12 +20544,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             >
               <span style={{ fontSize: '12px', fontWeight: 'bold' }}>{tr('ctrl.freeDesk')}</span>
               <div style={{ display: 'flex', gap: '4px' }}>
-                <button
-                  data-testid="notepad-bg-toggle"
-                  onClick={() => setShowNotepadBgBar(v => !v)}
-                  title={tr('ctrl.deskBg')}
-                  style={{ padding: '2px 7px', fontSize: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', background: showNotepadBgBar ? '#3b82f6' : '#334155', color: 'white', marginInlineEnd: '4px' }}
-                >▦</button>
                 {(['keyboard', 'handwriting', 'both'] as const).map(m => (
                   <button
                     key={m}
@@ -20577,8 +20570,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </div>
             </div>
 
-            {/* סרגל רקע - סוג (ללא/שורות/משבצות), סגנון קו, גובה שורה / גודל משבצת */}
-            {showNotepadBgBar && (() => {
+            {/* סרגל רקע - סוג (ללא/שורות/משבצות), סגנון קו, גובה שורה / גודל משבצת. מוצג תמיד, בלי כפתור פתיחה */}
+            {(() => {
               const seg = (active: boolean): React.CSSProperties => ({ padding: '2px 8px', fontSize: '12px', borderRadius: '4px', border: `1px solid ${active ? '#2563eb' : '#cbd5e1'}`, background: active ? '#2563eb' : 'white', color: active ? 'white' : '#475569', cursor: 'pointer', minWidth: 30 });
               return (
                 <div data-testid="notepad-bg-bar" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '4px 8px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', flexWrap: 'wrap', direction: dir, flexShrink: 0, color: '#475569', fontSize: '11px' }}>
