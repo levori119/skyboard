@@ -60,3 +60,17 @@ export function normalizeDeskBackground(raw: unknown): DeskBackground {
   const n = typeof o.size === 'number' && Number.isFinite(o.size) ? Math.round(o.size) : DEFAULT_DESK_BACKGROUND.size;
   return { kind, line, size: Math.min(DESK_BG_MAX_SIZE, Math.max(DESK_BG_MIN_SIZE, n)) };
 }
+
+/** מפתח האחסון - פר-עמדה, כך שכל עמדה זוכרת את הרקע שהמפעיל שלה בחר
+ *  (גם כשכמה עמדות נכנסות מאותו דפדפן). */
+const deskBgKey = (presetId: number | string | null | undefined): string => `skyking.freeDesk.bg_${presetId ?? 'none'}`;
+
+/** רקע הדסק השמור לעמדה. אין בחירה / ערך שבור / אחסון חסום → ברירת המחדל (חלק) */
+export function loadDeskBackground(presetId: number | string | null | undefined): DeskBackground {
+  try { return normalizeDeskBackground(JSON.parse(localStorage.getItem(deskBgKey(presetId)) || 'null')); }
+  catch { return normalizeDeskBackground(null); }
+}
+
+export function saveDeskBackground(presetId: number | string | null | undefined, bg: DeskBackground): void {
+  try { localStorage.setItem(deskBgKey(presetId), JSON.stringify(bg)); } catch { /* מצב פרטי */ }
+}

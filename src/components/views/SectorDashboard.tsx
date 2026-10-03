@@ -84,7 +84,7 @@ import polygonClipping from 'polygon-clipping';
 import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
 import { useDragPosition } from '../../hooks/useDragPosition';
 import { windowFrame, frameColor } from '../../utils/windowFrame';
-import { deskBackgroundStyle, normalizeDeskBackground, DESK_BG_MIN_SIZE, DESK_BG_MAX_SIZE, type DeskBackground } from '../../utils/deskBackground';
+import { deskBackgroundStyle, normalizeDeskBackground, loadDeskBackground, saveDeskBackground, DESK_BG_MIN_SIZE, DESK_BG_MAX_SIZE, type DeskBackground } from '../../utils/deskBackground';
 import { AimPointsSummary, AimPointsWindow } from '../strips/AimPointsTable';
 import { AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY, COORD_PLACEHOLDER, aimFieldText, isValidCoord, normalizeCoord, toAimPoints, type AimPoint } from '../../types/aimPoints';
 import { getSubTable, isSubTableColumn, resolveTabularColumn, subTableAccent, subTableRows, subTableFrozenCount, subTableFrozenLayout, tabularCandidateColumns, toggleTabularKey } from '../../types/subTables';
@@ -1986,14 +1986,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [notepadTool, setNotepadTool] = useState<'pen' | 'eraser' | 'rect' | 'circle'>('pen');
   const [notepadColor, setNotepadColor] = useState('#000000');
   const [notepadPenSize, setNotepadPenSize] = useState(2);
-  // רקע הדסק (שורות/משבצות) - העדפה אישית של המפעיל, נזכרת בדפדפן בלבד
-  const [notepadBg, setNotepadBg] = useState<DeskBackground>(() => {
-    try { return normalizeDeskBackground(JSON.parse(localStorage.getItem('skyking.freeDesk.bg') || 'null')); }
-    catch { return normalizeDeskBackground(null); }
-  });
-  useEffect(() => {
-    try { localStorage.setItem('skyking.freeDesk.bg', JSON.stringify(notepadBg)); } catch { /* מצב פרטי */ }
-  }, [notepadBg]);
+  // רקע הדסק (שורות/משבצות) - ב"מ חלק, והבחירה נשמרת פר-עמדה (localStorage)
+  const [notepadBg, setNotepadBgState] = useState<DeskBackground>(() => loadDeskBackground(session.presetId));
+  // שמירה בעת השינוי עצמו ולא ב-effect על notepadBg: אחרת החלפת עמדה הייתה כותבת
+  // את רקע העמדה הקודמת למפתח של החדשה לפני שהספיקה להיטען
+  const setNotepadBg = (fn: (b: DeskBackground) => DeskBackground) =>
+    setNotepadBgState(b => { const next = fn(b); saveDeskBackground(session.presetId, next); return next; });
+  useEffect(() => { setNotepadBgState(loadDeskBackground(session.presetId)); }, [session.presetId]);
   const notepadShapeStartRef = useRef<{ x: number; y: number } | null>(null);
   const notepadSnapshotRef = useRef<ImageData | null>(null);
 
