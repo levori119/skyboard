@@ -432,11 +432,43 @@ router.post('/api/strips/reset-placement-preset', async (req, res) => {
         [presetId, ids]
       );
     }
+    // ── ניקוי מורחב (רק כשהמפעיל סימן בדיאלוג) ──────────────────────────────
+    // הלאמות: רק אלה ש**העמדה הזו** יצרה - הלאמה של עמדה אחרת אינה "שלי" לסיים.
+    // אותה סמנטיקה כמו PATCH .../end: status=ended + seen_end=false, כדי שהודעת
+    // הסיום תימסר לעמדות היעד (tempZoneSeizures.js).
+    let seizures = 0, restrictions = 0;
+    if (req.body?.clearSeizures === true) {
+      const sz = await client.query(
+        `UPDATE temp_zone_seizures SET status = 'ended', ended_at = NOW(), ended_by_preset_id = $1
+          WHERE creator_preset_id = $1 AND status = 'active' RETURNING id`,
+        [presetId]
+      );
+      seizures = sz.rowCount ?? 0;
+      if (seizures) {
+        await client.query(`UPDATE temp_zone_seizure_targets SET seen_end = false WHERE seizure_id = ANY($1::int[])`,
+          [sz.rows.map(r => r.id)]);
+      }
+    }
+    // הגבלות (סגור / מוגבל) הן מצב של **האזור** ולא של עמדה, ולכן ההיקף הוא
+    // המפות שפתוחות בעמדה. כמו `restriction: ''` ב-PUT map-zones: נפתח והטווח
+    // מתאפס; הערת ההגבלה (limitation_note) ובלוקי הגובה הפעילים נשמרים.
+    if (req.body?.clearRestrictions === true && mapIds.length) {
+      const rz = await client.query(
+        `UPDATE map_zone_operational_state SET
+           restriction = '', restriction_alt_min = NULL, restriction_alt_max = NULL,
+           restriction_range_ids = '[]'::jsonb, updated_at = NOW()
+         WHERE restriction <> ''
+           AND zone_id IN (SELECT id FROM map_zones WHERE map_id = ANY($1::int[]))`,
+        [mapIds]
+      );
+      restrictions = rz.rowCount ?? 0;
+    }
     await client.query('COMMIT');
     res.json({
       ok: true, strips: ids.length,
       zoneAssignments: za.rowCount ?? 0, tableAssignments: ta.rowCount ?? 0,
       civilianAssignments: ca.rowCount ?? 0, transfers: tr.rowCount ?? 0,
+      seizures, restrictions,
     });
   } catch (e) {
     await client.query('ROLLBACK');

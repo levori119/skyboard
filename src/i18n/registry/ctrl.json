@@ -310,6 +310,42 @@
       "he": "🧹 נקה הקצאות של עמדה",
       "en": "🧹 Clear a workstation's assignments"
     },
+    "clearStationConfirm": {
+      "he": "לנקות את כל ההקצאות של עמדה זו{{name}}?\nכל הפ\"ממים שהעמדה הזו הציבה בטבלה / מפה / נקודות העברה ינותקו ויחזרו לרשימה. הנתונים עצמם נשמרים.\n\nלנקות גם:",
+      "en": "Clear all assignments of this workstation{{name}}?\nAll strips this workstation placed in the table / map / transfer points will be detached and return to the list. The data itself is kept.\n\nAlso clear:"
+    },
+    "clearStationAlsoDrawings": {
+      "he": "✏️ ציורים חופשיים על המפה",
+      "en": "✏️ Free drawings on the map"
+    },
+    "clearStationAlsoSeizures": {
+      "he": "🚧 הלאמות אזור זמני שהעמדה יצרה",
+      "en": "🚧 Temporary zone seizures created by this workstation"
+    },
+    "clearStationAlsoRestrictions": {
+      "he": "⛔ הגבלות אזורים (סגור / מוגבל) במפות הפתוחות",
+      "en": "⛔ Zone restrictions (closed / restricted) on the open maps"
+    },
+    "clearStationDoneDrawings": {
+      "he": "ציורים נוקו",
+      "en": "drawings cleared"
+    },
+    "clearStationDoneSeizures": {
+      "he": "{{n}} הלאמות הסתיימו",
+      "en": "{{n}} seizures ended"
+    },
+    "clearStationDoneRestrictions": {
+      "he": "{{n}} הגבלות הוסרו",
+      "en": "{{n}} restrictions removed"
+    },
+    "clearStationFailed": {
+      "he": "❌ ניקוי נכשל: {{error}}",
+      "en": "❌ Clear failed: {{error}}"
+    },
+    "clearStationNoServer": {
+      "he": "❌ שגיאה בחיבור לשרת",
+      "en": "❌ Server connection error"
+    },
     "clearCurrentBlocks": {
       "he": "בטל בלוקים נוכחיים",
       "en": "Clear current blocks"

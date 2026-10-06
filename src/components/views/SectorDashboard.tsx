@@ -13,7 +13,7 @@ import { APP_VERSION, APP_VERSION_DATE } from '../../version';
 import { sanitizeRichText, sanitizeSvgBody } from '../../../shared/sanitizeHtml';
 import { sc } from '../../utils/scale';
 import { readStoredThemeMode } from '../../utils/themeMode';
-import { customConfirm } from '../shared/ConfirmModal';
+import { customConfirm, customConfirmOptions } from '../shared/ConfirmModal';
 import { VKTrigger, useVK } from '../../VirtualKeyboard';
 import { ClockWidget } from '../../ClockWidget';
 import { SkyKingLogo } from '../shared/SkyKingLogo';
@@ -12662,24 +12662,51 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       )}
                     </div>
                   )}
-                  {/* נקה הקצאות של עמדה — מנתק רק את מה שהעמדה הזו הציבה (טבלה/מפה/נקודות העברה) */}
+                  {/* נקה הקצאות של עמדה — מנתק רק את מה שהעמדה הזו הציבה (טבלה/מפה/נקודות העברה).
+                      באותו דיאלוג נשאל אם לנקות גם ציורים חופשיים, הלאמות שהעמדה יצרה
+                      והגבלות (סגור/מוגבל) של אזורי המפות הפתוחות - כבויים כברירת מחדל,
+                      כי הלאמה והגבלה משפיעות גם על עמדות אחרות */}
                   <button
                     onClick={async () => {
                       setShowSettingsMenu(false);
                       if (!session.presetId) return;
-                      if (!await customConfirm(`לנקות את כל ההקצאות של עמדה זו${session.workstationName ? ` (${session.workstationName})` : ''}?\nכל הפ"ממים שהעמדה הזו הציבה בטבלה / מפה / נקודות העברה ינותקו ויחזרו לרשימה. הנתונים עצמם נשמרים.`)) return;
+                      const answer = await customConfirmOptions(
+                        tr('ctrl.clearStationConfirm', { name: session.workstationName ? ` (${session.workstationName})` : '' }),
+                        [
+                          { key: 'drawings', label: tr('ctrl.clearStationAlsoDrawings') },
+                          { key: 'seizures', label: tr('ctrl.clearStationAlsoSeizures') },
+                          { key: 'restrictions', label: tr('ctrl.clearStationAlsoRestrictions') },
+                        ],
+                      );
+                      if (!answer) return;
                       try {
                         const _mapIds = [currentMapId, effMap2Id].filter((m): m is number => !!m);
                         const res = await fetch(`${API_URL}/strips/reset-placement-preset`, {
                           method: 'POST', headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ presetId: Number(session.presetId), mapIds: _mapIds })
+                          body: JSON.stringify({
+                            presetId: Number(session.presetId), mapIds: _mapIds,
+                            clearSeizures: !!answer.seizures, clearRestrictions: !!answer.restrictions,
+                          })
                         });
-                        if (!res.ok) { const e = await res.json().catch(() => ({})); setPosClearToast('❌ ניקוי נכשל: ' + (e.error || res.status)); setTimeout(() => setPosClearToast(null), 4000); return; }
+                        if (!res.ok) { const e = await res.json().catch(() => ({})); setPosClearToast(tr('ctrl.clearStationFailed', { error: e.error || res.status })); setTimeout(() => setPosClearToast(null), 4000); return; }
                         const d = await res.json();
+                        // הציורים חיים בלקוח וב-collab-state של העמדה (לא בשרת ההקצאות)
+                        if (answer.drawings) {
+                          clearCanvas();
+                          const c2 = map2CanvasRef.current;
+                          c2?.getContext('2d')?.clearRect(0, 0, c2.width, c2.height);
+                          map2PenStrokeLogRef.current = [];
+                          setMap2Shapes([]);
+                        }
                         await loadData();
-                        setPosClearToast(`🧹 נוקו הקצאות העמדה: ${d.strips} פ"ממ · ${d.zoneAssignments} אזורים · ${d.tableAssignments} שולחנות · ${d.civilianAssignments ?? 0} אזרחיים · ${d.transfers} העברות`);
+                        const extras = [
+                          answer.drawings ? tr('ctrl.clearStationDoneDrawings') : '',
+                          answer.seizures ? tr('ctrl.clearStationDoneSeizures', { n: d.seizures ?? 0 }) : '',
+                          answer.restrictions ? tr('ctrl.clearStationDoneRestrictions', { n: d.restrictions ?? 0 }) : '',
+                        ].filter(Boolean).map(x => ` · ${x}`).join('');
+                        setPosClearToast(`🧹 נוקו הקצאות העמדה: ${d.strips} פ"ממ · ${d.zoneAssignments} אזורים · ${d.tableAssignments} שולחנות · ${d.civilianAssignments ?? 0} אזרחיים · ${d.transfers} העברות${extras}`);
                         setTimeout(() => setPosClearToast(null), 4500);
-                      } catch { setPosClearToast('❌ שגיאה בחיבור לשרת'); setTimeout(() => setPosClearToast(null), 4000); }
+                      } catch { setPosClearToast(tr('ctrl.clearStationNoServer')); setTimeout(() => setPosClearToast(null), 4000); }
                     }}
                     style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', borderTop: `1px solid ${menuBorder}`, color: menuAcc('#fdba74', '#ea580c'), cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
                     onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = _menuLight ? '#fee2e2' : '#3a1a0a'}

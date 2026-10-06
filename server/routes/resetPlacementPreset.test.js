@@ -69,6 +69,19 @@ beforeAll(async () => {
     preset_id INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
     col_key VARCHAR(100) NOT NULL DEFAULT '', sub_col VARCHAR(50) NOT NULL DEFAULT '',
     sort_order INTEGER NOT NULL DEFAULT 0, UNIQUE(strip_id, preset_id))`);
+  // הלאמות והגבלות אזור - נוקות רק כשהמפעיל בחר בכך בדיאלוג הניקוי
+  await pool.query(`CREATE TABLE temp_zone_seizures (
+    id SERIAL PRIMARY KEY, name VARCHAR(120) NOT NULL DEFAULT '',
+    creator_preset_id INTEGER, creator_preset_name VARCHAR(100) NOT NULL DEFAULT '',
+    status VARCHAR(20) NOT NULL DEFAULT 'active',
+    ended_at TIMESTAMPTZ, ended_by_preset_id INTEGER)`);
+  await pool.query(`CREATE TABLE temp_zone_seizure_targets (
+    seizure_id INTEGER NOT NULL, preset_id INTEGER NOT NULL, seen_end BOOLEAN DEFAULT TRUE)`);
+  await pool.query(`CREATE TABLE map_zones (id SERIAL PRIMARY KEY, map_id INTEGER, name VARCHAR(100) DEFAULT '')`);
+  await pool.query(`CREATE TABLE map_zone_operational_state (
+    zone_id INTEGER PRIMARY KEY, active_alt_range_ids JSONB DEFAULT '[]', limitation_note TEXT DEFAULT '',
+    restriction VARCHAR(20) NOT NULL DEFAULT '', restriction_alt_min INTEGER, restriction_alt_max INTEGER,
+    restriction_range_ids JSONB DEFAULT '[]', updated_at TIMESTAMPTZ DEFAULT NOW())`);
   await pool.query(`INSERT INTO workstation_presets (id, name) VALUES (1, 'מגדל'), (2, 'בקרה')`);
 
   const app = express();
@@ -79,7 +92,8 @@ beforeAll(async () => {
 }, 120_000);
 
 beforeEach(async () => {
-  for (const t of ['civilian_strip_assignments', 'strip_transfers', 'strip_zone_extra_zones',
+  for (const t of ['temp_zone_seizure_targets', 'temp_zone_seizures', 'map_zone_operational_state', 'map_zones',
+                   'civilian_strip_assignments', 'strip_transfers', 'strip_zone_extra_zones',
                    'strip_zone_assignments', 'strip_table_assignments', 'strips']) {
     await pool.query(`DELETE FROM ${t}`);
   }
@@ -203,5 +217,72 @@ describe('ניקוי הקצאות עמדה - בעלות והעברות', () => {
     expect(json.transfers).toBe(1);
     expect((await pool.query('SELECT * FROM strip_transfers')).rowCount).toBe(0);
     expect((await stripRow(402)).status).toBe('active');
+  });
+});
+
+// ─── ניקוי מורחב: הלאמות והגבלות אזור ────────────────────────────────────────
+// "נקה הקצאות עמדה" שואל אם לנקות גם ציורים, הלאמות והגבלות. הציורים נוקים
+// בלקוח (collab-state); השניים האחרים כאן, ורק כשהדגל נשלח.
+const seizureRow = async (id) => (await pool.query('SELECT * FROM temp_zone_seizures WHERE id = $1', [id])).rows[0];
+const zoneState = async (id) => (await pool.query('SELECT * FROM map_zone_operational_state WHERE zone_id = $1', [id])).rows[0];
+
+describe('ניקוי הקצאות עמדה - הלאמות אזור זמני', () => {
+  beforeEach(async () => {
+    await pool.query(`INSERT INTO temp_zone_seizures (id, name, creator_preset_id, status) VALUES
+      (1, 'שלי', $1, 'active'), (2, 'של אחר', $2, 'active'), (3, 'שלי שהסתיימה', $1, 'ended')`, [MINE, OTHER]);
+    await pool.query(`INSERT INTO temp_zone_seizure_targets (seizure_id, preset_id, seen_end) VALUES (1, $1, TRUE)`, [OTHER]);
+  });
+
+  it('בלי הדגל - ההלאמות לא נוגעות', async () => {
+    const { json } = await clear(MINE, [MY_MAP]);
+    expect((await seizureRow(1)).status).toBe('active');
+    expect(json.seizures ?? 0).toBe(0);
+  });
+
+  it('עם הדגל - מסתיימות רק ההלאמות הפעילות שהעמדה יצרה, וההודעה נמסרת ליעדים', async () => {
+    const { status, json } = await req('POST', '/api/strips/reset-placement-preset',
+      { presetId: MINE, mapIds: [MY_MAP], clearSeizures: true });
+    expect(status).toBe(200);
+    expect(json.seizures).toBe(1);
+    const mine = await seizureRow(1);
+    expect(mine.status).toBe('ended');
+    expect(mine.ended_by_preset_id).toBe(MINE);
+    expect((await seizureRow(2)).status).toBe('active');
+    const t = (await pool.query('SELECT seen_end FROM temp_zone_seizure_targets WHERE seizure_id = 1')).rows[0];
+    expect(t.seen_end).toBe(false);
+  });
+});
+
+describe('ניקוי הקצאות עמדה - הגבלות אזור (סגור / מוגבל)', () => {
+  beforeEach(async () => {
+    await pool.query(`INSERT INTO map_zones (id, map_id) VALUES (21, $1), (22, $1), (23, $2)`, [MY_MAP, OTHER_MAP]);
+    await pool.query(`INSERT INTO map_zone_operational_state (zone_id, restriction, restriction_alt_min, restriction_alt_max, restriction_range_ids, limitation_note) VALUES
+      (21, 'closed', 10, 50, '[4]', 'הערה'), (22, 'restricted', NULL, NULL, '[]', ''), (23, 'closed', NULL, NULL, '[]', '')`);
+  });
+
+  it('בלי הדגל - ההגבלות נשארות', async () => {
+    await clear(MINE, [MY_MAP]);
+    expect((await zoneState(21)).restriction).toBe('closed');
+  });
+
+  it('עם הדגל - נפתחים האזורים של המפות שבעמדה, והטווח מתאפס; מפה אחרת לא נוגעת', async () => {
+    const { json } = await req('POST', '/api/strips/reset-placement-preset',
+      { presetId: MINE, mapIds: [MY_MAP], clearRestrictions: true });
+    expect(json.restrictions).toBe(2);
+    const z = await zoneState(21);
+    expect(z.restriction).toBe('');
+    expect(z.restriction_alt_min).toBe(null);
+    expect(z.restriction_alt_max).toBe(null);
+    expect(z.restriction_range_ids).toEqual([]);
+    expect(z.limitation_note).toBe('הערה');
+    expect((await zoneState(22)).restriction).toBe('');
+    expect((await zoneState(23)).restriction).toBe('closed');
+  });
+
+  it('עם הדגל ובלי מפה פתוחה - שום הגבלה לא נפתחת', async () => {
+    const { json } = await req('POST', '/api/strips/reset-placement-preset',
+      { presetId: MINE, mapIds: [], clearRestrictions: true });
+    expect(json.restrictions).toBe(0);
+    expect((await zoneState(21)).restriction).toBe('closed');
   });
 });
