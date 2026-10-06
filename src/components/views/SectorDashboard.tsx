@@ -446,6 +446,15 @@ const ZONE_RESTRICTION_COLOR: Record<'closed' | 'restricted', string> = {
 };
 
 /**
+ * משקל תוויות הסטטוס על המפה (הגבלה, מגבלה חופשית, מרחב מולאם).
+ *
+ * **דק בכוונה.** התווית יושבת מעל המפה ולצד שם האזור, והצבע האדום/כתום כבר
+ * צועק מספיק; משקל כבד הופך אותה ממידע לרעש שמכסה את מה שהיא אמורה לתאר.
+ * הצבע והמיקום נושאים את המשמעות - לא העובי.
+ */
+const ZONE_STATUS_WEIGHT = 300;
+
+/**
  * כמה זמן כתיבה מקומית של מצב אזור גוברת על הפולינג. שני טיקים (5 שניות כל
  * אחד) ועוד שהות: די כדי שה-PATCH יחזור ושהטיק הבא יקרא את הערך החדש.
  */
@@ -3436,25 +3445,30 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         {restrAll && <polygon points={pts.map(q => `${q.x},${q.y}`).join(' ')} fill="none" stroke={restrColor} strokeWidth="0.9" strokeDasharray="2.5,1.5" />}
         {/* המגבלה יושבת בראש האזור ולא במרכזו: במרכז נמצאת תווית תת-האזור האמצעי,
             והשתיים היו נופלות אחת על השנייה */}
-        {(limit || restr !== '') && <text x={cx} y={Math.min(...pts.map(p => p.y)) + 1.8} textAnchor="middle" dominantBaseline="middle" fill={restr !== '' ? restrColor : '#fca5a5'} fontSize="1.7" fontWeight="bold" style={{ userSelect: 'none' }}>
+        {(limit || restr !== '') && <text x={cx} y={Math.min(...pts.map(p => p.y)) + 1.8} textAnchor="middle" dominantBaseline="middle" fill={restr !== '' ? restrColor : '#fca5a5'} fontSize="1.6" fontWeight={ZONE_STATUS_WEIGHT} letterSpacing="0.05" style={{ userSelect: 'none' }}>
           {[restr !== '' ? `${restr === 'closed' ? '⛔' : '⚠'} ${bidiAuto(restrLabel)}` : '', limit ? `⚠ ${bidiAuto(limit)}` : ''].filter(Boolean).join(' · ')}
         </text>}
       </>);
     }
+    // ── הגוש כולו ממורכז ────────────────────────────────────────────────────
+    // כשיש הגבלה, שם האזור ותווית ההגבלה הם **זוג** - ולכן שניהם נדחפים יחד
+    // כלפי מעלה/מטה סביב המרכז, במקום שהשם יישאר במרכז וההגבלה תיתלה מעליו
+    // ותיחתך על גבול האזור. בלי הגבלה דבר לא זז.
+    const nameDy = restr !== '' ? 1.1 : 0;
     return (<>
-      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={nameFill} fontSize={dimmed ? ZONE_NEUTRAL_NAME_SIZE : 2.5} fontWeight={dimmed ? 'normal' : 'bold'} style={{ userSelect: 'none' }}>{bidiAuto(zone.name)}{note ? ' ✎' : ''}</text>
-      {note && <text x={cx} y={cy + 3} textAnchor="middle" dominantBaseline="middle" fill={noteFill} fontSize="1.8" style={{ userSelect: 'none' }}>{bidiAuto(note)}</text>}
+      <text x={cx} y={cy + nameDy} textAnchor="middle" dominantBaseline="middle" fill={nameFill} fontSize={dimmed ? ZONE_NEUTRAL_NAME_SIZE : 2.5} fontWeight={dimmed ? 'normal' : 'bold'} style={{ userSelect: 'none' }}>{bidiAuto(zone.name)}{note ? ' ✎' : ''}</text>
+      {note && <text x={cx} y={cy + nameDy + 3} textAnchor="middle" dominantBaseline="middle" fill={noteFill} fontSize="1.8" style={{ userSelect: 'none' }}>{bidiAuto(note)}</text>}
       {/* אזור לא מפוצל: אין בלוקים לצבוע, ולכן ההגבלה נקראת מהמסגרת ומהתווית.
           המסגרת מצוירת גם כשההגבלה טווחית - "סגור 100-140" הוא עדיין אזור שיש
           בו סגירה, והטווח עצמו כתוב בתווית שמתחת לשם. */}
       {restr !== '' && <polygon points={pts.map(q => `${q.x},${q.y}`).join(' ')} fill={`${restrColor}1f`} stroke={restrColor} strokeWidth="0.9" strokeDasharray="2.5,1.5" />}
       {restr !== '' && (
-        <text x={cx} y={cy - 2.6} textAnchor="middle" dominantBaseline="middle" fill={restrColor} fontSize="1.9" fontWeight="bold" style={{ userSelect: 'none' }}>
+        <text x={cx} y={cy - 1.6} textAnchor="middle" dominantBaseline="middle" fill={restrColor} fontSize="1.7" fontWeight={ZONE_STATUS_WEIGHT} letterSpacing="0.06" style={{ userSelect: 'none' }}>
           {restr === 'closed' ? '⛔' : '⚠'} {bidiAuto(restrLabel)}
         </text>
       )}
       {(limit || activeNames.length > 0) && (
-        <text x={cx} y={cy + (note ? 5.3 : 2.9)} textAnchor="middle" dominantBaseline="middle" fill="#fca5a5" fontSize="1.7" fontWeight="bold" style={{ userSelect: 'none' }}>
+        <text x={cx} y={cy + nameDy + (note ? 5.3 : 2.9)} textAnchor="middle" dominantBaseline="middle" fill="#fca5a5" fontSize="1.6" fontWeight={ZONE_STATUS_WEIGHT} letterSpacing="0.05" style={{ userSelect: 'none' }}>
           ⚠ {[bidiAuto(limit), activeNames.length > 0 ? `${tr('ctrl.limitedTo')} ${activeNames.map(bidiAuto).join('/')}` : ''].filter(Boolean).join(' · ')}
         </text>
       )}

@@ -54,6 +54,13 @@ export const SEIZURE_DASH = '0.01 1.1 0.01 1.1 0.01 1.1 2.6 1.4';
  * מתחרה באזורים עצמם ובפ"מים שבתוכו. התבנית והצבע נושאים את המשמעות, לא העובי.
  */
 export const SEIZURE_STROKE_W = 0.5;
+/**
+ * משקל התווית. **דק בכוונה**: התווית יושבת מעל המפה ומעל שם האזור שמתחתיה,
+ * ומשקל כבד הופך אותה מסימון למסך שמכסה את מה שהיא אמורה לתאר. הצבע והמיקום
+ * נושאים את המשמעות - לא העובי.
+ */
+export const SEIZURE_LABEL_WEIGHT = 300;
+
 /** רוחב קו התפיסה הבלתי-נראה. אצבע על Cintiq אינה מדייקת לרוחב 0.9. */
 const HIT_WIDTH = 3.2;
 
@@ -72,7 +79,9 @@ export default function SeizureLayer({ bounds, seizures, anchor, onOpen, zIndex 
       {drawable.map(({ s, pts }) => {
         const poly = pts.map(p => `${p.x},${p.y}`).join(' ');
         const cx = pts.reduce((a, p) => a + p.x, 0) / pts.length;
-        const top = Math.min(...pts.map(p => p.y));
+        // התווית יושבת ב**מרכז** המרחב ולא בראשו: בראש היא נחתכת על גבול
+        // הפוליגון וגולשת אל מחוץ לו, ובמרכז היא נקראת כשייכת למרחב שהיא מתארת.
+        const cy = pts.reduce((a, p) => a + p.y, 0) / pts.length;
         const range = seizureRangeLabel(s);
         // ⚠️ `pointerdown` ולא `click`: בעט ובאצבע ה-click המסונתז נבלע כשהמצביע
         // זז מעט בין הירידה לעלייה, והלחיצה פשוט "לא נתפסת".
@@ -92,14 +101,17 @@ export default function SeizureLayer({ bounds, seizures, anchor, onOpen, zIndex 
                 <title>{tr('seizure.clickHint')}</title>
               </polygon>
             )}
-            <text x={cx} y={top + 2} textAnchor="middle" dominantBaseline="middle"
-              fill={s.color} fontSize="2.1" fontWeight="bold"
+            {/* שתי השורות מאוזנות סביב המרכז, ולכן הגוש כולו ממורכז - ולא השורה
+                הראשונה בלבד עם השנייה תלויה מתחתיה. */}
+            <text x={cx} y={cy - 1.15} textAnchor="middle" dominantBaseline="middle"
+              fill={s.color} fontSize="2" fontWeight={SEIZURE_LABEL_WEIGHT} letterSpacing="0.06"
               onPointerDown={open}
               style={{ userSelect: 'none', pointerEvents: open ? 'all' : 'none', cursor: open ? 'pointer' : 'default' }}>
               ⛶ {bidiAuto(s.name)}
             </text>
-            <text x={cx} y={top + 4.3} textAnchor="middle" dominantBaseline="middle"
-              fill={s.color} fontSize="1.6" style={{ userSelect: 'none' }}>
+            <text x={cx} y={cy + 1.35} textAnchor="middle" dominantBaseline="middle"
+              fill={s.color} fontSize="1.45" fontWeight={SEIZURE_LABEL_WEIGHT} letterSpacing="0.04"
+              style={{ userSelect: 'none' }}>
               {bidiAuto(range || tr('seizure.allAlts'))} · {bidiAuto(s.creator_preset_name)}
             </text>
           </g>

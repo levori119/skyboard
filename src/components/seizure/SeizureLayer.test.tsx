@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import SeizureLayer, { SEIZURE_DASH, SEIZURE_STROKE_W } from './SeizureLayer';
+import SeizureLayer, { SEIZURE_DASH, SEIZURE_STROKE_W, SEIZURE_LABEL_WEIGHT } from './SeizureLayer';
 import { projectSeizure } from './useTempZoneSeizures';
 import type { MapGeoAnchor } from '../../utils/geo';
 import type { TempZoneSeizure } from '../../types';
@@ -150,5 +150,41 @@ describe('SeizureLayer - הקו והלחיצה', () => {
 
   it('קו התפיסה שקוף ואינו משנה את מראה הקו', () => {
     expect(render([SEIZURE], ANCHOR, noop)).toContain('stroke="transparent"');
+  });
+});
+
+describe('SeizureLayer - התווית', () => {
+  /** כל ערכי ה-y של אלמנטי <text>, לפי סדר הופעתם. */
+  const textYs = (html: string) =>
+    [...html.matchAll(/<text[^>]*\sy="([\d.]+)"/g)].map(m => Number(m[1]));
+
+  // הפוליגון של SEIZURE מוקרן ל-(25,25) · (50,25) · (50,50): מרכז ב-y≈33.3,
+  // וראש הפוליגון ב-y=25.
+  const CENTER_Y = (25 + 25 + 50) / 3;
+  const TOP_Y = 25;
+
+  it('התווית יושבת ב**מרכז** המרחב ולא בראשו', () => {
+    const ys = textYs(render([SEIZURE], ANCHOR));
+    expect(ys).toHaveLength(2);
+    for (const y of ys) {
+      expect(Math.abs(y - CENTER_Y)).toBeLessThan(2);   // צמוד למרכז
+      expect(Math.abs(y - TOP_Y)).toBeGreaterThan(5);   // ולא תלוי על הגבול
+    }
+  });
+
+  it('שתי השורות מאוזנות סביב המרכז - הגוש כולו ממורכז', () => {
+    const [a, b] = textYs(render([SEIZURE], ANCHOR));
+    // לא אפס מדויק בכוונה: השורה הראשונה גדולה מהשנייה, ומה שממורכז הוא
+    // ה**גוש** הנראה ולא אמצע קווי הבסיס.
+    expect(Math.abs((a + b) / 2 - CENTER_Y)).toBeLessThan(0.35);
+    expect(a).toBeLessThan(CENTER_Y);   // שורה ראשונה מעל המרכז
+    expect(b).toBeGreaterThan(CENTER_Y); // והשנייה מתחתיו
+  });
+
+  it('פונט דק - לא bold', () => {
+    const html = render([SEIZURE], ANCHOR);
+    expect(html).not.toContain('font-weight="bold"');
+    expect(html).toContain(`font-weight="${SEIZURE_LABEL_WEIGHT}"`);
+    expect(SEIZURE_LABEL_WEIGHT).toBeLessThan(400);
   });
 });
