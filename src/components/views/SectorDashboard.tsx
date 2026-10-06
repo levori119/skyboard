@@ -161,6 +161,7 @@ import StationPeekBar from '../shared/StationPeekBar';
 import { useViewStations } from '../../hooks/useViewStations';
 import { peekAvailability } from '../../utils/stationPeek';
 import { handleCellEditKeyDown, editableCellUnderline, defaultEditableCols, tableCellScroll, TABLE_CELL_MAX_LINES } from '../../utils/tableCellEdit';
+import { flyoutShownOn, toggleFlyout, type MapFlyoutOwners, type SharedMapFlyout } from '../../utils/mapToolFlyout';
 import FitScaleBox from '../shared/FitScaleBox';
 import VerticalView from './VerticalView';
 import Strip from '../strips/Strip';
@@ -945,7 +946,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [fzZoneHint, setFzZoneHint] = useState<{ zoneId: number; x: number; y: number } | null>(null);
   const [fzZoneColorPanel, setFzZoneColorPanel] = useState(false);
   const [fzAssignedZonesPanel, setFzAssignedZonesPanel] = useState<{ stripId: number; strip: any; assignment: StripZoneAssignment | null; x: number; y: number } | null>(null);
-  const [map2DrawingMode, setMap2DrawingMode] = useState(false);
   const map2CanvasRef = useRef<HTMLCanvasElement>(null);
   const map2DrawRef = useRef<{ drawing: boolean; lastX: number; lastY: number } | null>(null);
   const [map2PenColor, setMap2PenColor] = useState('#ff4444');
@@ -2455,7 +2455,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     zoom: map2Zoom, setZoom: setMap2Zoom, pan: map2Pan, setPan: setMap2Pan,
     brightness: map2Brightness, setBrightness: setMap2Brightness,
     img: map2Img, imgRef: map2ImgRef, imgBounds: map2ImgBounds, geoAnchor: map2GeoAnchor, computeBounds: computeMap2ImgBounds,
-    blind: map2BlindMode, setBlind: setMap2BlindMode, drawing: map2DrawingMode, setDrawing: setMap2DrawingMode,
+    // איחוד עמדה / דו-מפה: מפה עיוורת **פר-מפה**, ציור **משותף** - מצב ציור אחד
+    // לשתי המפות (כל מפה מציירת על הקנבס שלה), ולכן אותו state ולא סנכרון ידני.
+    blind: map2BlindMode, setBlind: setMap2BlindMode, drawing: drawingMode, setDrawing: setDrawingMode,
     shapes: map2Shapes, setShapes: setMap2Shapes, showBrightness: map2ShowBrightnessPanel, setShowBrightness: setMap2ShowBrightnessPanel,
     zones: map2Zones, assignments: dmEffAssignments(map2Zones, map2Assignments), fzMode: isFlightZonesMode,
     nMarkers: map2NeighborMarkers, nPins: map2NeighborPins, nbrs: [], canvasRef: map2CanvasRef, setNMarkers: setMap2NeighborMarkers, setNPins: setMap2NeighborPins, overlayRef: fzOverlay2Ref,
@@ -2527,9 +2529,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
    */
   const zwHighlight = (!airPicturePrefs.on && apLogicActive) ? zoneWatch.offenders : EMPTY_ZW_OFFENDERS;
 
-  // דו-מפה: כפתורי עיוורת/ציור משפיעים על שתי המפות בו-זמנית (מוגדר כאן כדי לעקוף את ההצללה של הסטרים בלולאת הרינדור).
-  const setBlindBothMaps = (nv: boolean) => { setBlindMapMode(nv); setMap2BlindMode(nv); };
-  const setDrawingBothMaps = (nv: boolean) => { setDrawingMode(nv); setMap2DrawingMode(nv); };
 
   const stripWindowId: number | null = isClassicMode && myPresetConfig?.strip_window_id ? Number(myPresetConfig.strip_window_id) : null;
   const isStripWindowMode = !!stripWindowId;
@@ -2699,7 +2698,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const val = myPresetConfig?.use_map_zones === true;
     setUseMapZonesActive(val);
     useMapZonesRef.current = val;
+    // ברירת המחדל של העמדה חלה על שתי המפות; משם כל מפה מתנהלת לבד
     setBlindMapMode(myPresetConfig?.blind_map_default === true);
+    setMap2BlindMode(myPresetConfig?.blind_map_default === true);
   }, [myPresetConfig?.use_map_zones, myPresetConfig?.blind_map_default]);
 
   React.useEffect(() => {
@@ -8828,7 +8829,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       shapeMoveRef.current = null;
       shapeResizeRef.current = null;
     }
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && drawingMode) { setDrawingMode(false); setMap2DrawingMode(false); } };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && drawingMode) setDrawingMode(false); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [drawingMode]);
@@ -9163,6 +9164,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
    * לכל אחת גובה משלה.
    */
   const [mapToolbarCols, setMapToolbarCols] = useState<{ main: 1 | 2; secondary: 1 | 2 }>({ main: 1, secondary: 1 });
+  /** באיזו מפה פתוח כל פאנל של כלי משותף - ראה utils/mapToolFlyout. */
+  const [mapFlyoutOwners, setMapFlyoutOwners] = useState<MapFlyoutOwners>({});
 
   const renderMapPanel = (cfg: MapPanelCfg) => {
             const dmMap1Region = cfg.region;
@@ -9172,6 +9175,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const toolbarGap = mapToolbarGap(toolbarCols);
             const setToolbarCols = (c: 1 | 2) => setMapToolbarCols(prev => prev[toolbarSlot] === c ? prev : { ...prev, [toolbarSlot]: c });
             const _panKey = cfg.panKey;
+            // כלים משותפים (תמונ"א, סגירות, תצוגת פ"מ): ההגדרה אחת לכל המפות,
+            // אבל הפאנל נפתח רק בסרגל שנלחץ ולא פעמיים על המסך.
+            const flyoutHere = (f: SharedMapFlyout) => flyoutShownOn(mapFlyoutOwners, f, _panKey);
+            const clickFlyout = (f: SharedMapFlyout, open: boolean, setOpen: (v: boolean) => void) => {
+              const r = toggleFlyout(open, mapFlyoutOwners, f, _panKey);
+              setMapFlyoutOwners(r.owners);
+              if (r.open !== open) setOpen(r.open);
+              return r.open;
+            };
+            const airCtlOpen = showAirPictureControls && flyoutHere('airPicture');
+            const closuresOpen = showClosuresPanel && flyoutHere('closures');
+            const pinTypeOpen = showPinTypePanel && flyoutHere('pinType');
+            const pinOnMapOpen = showPinOnMapPanel && flyoutHere('pinOnMap');
             // בזמן גרירה מוצג הפאן החי מה-ref; מחוץ לגרירה — הפאן שב-state.
             const mapZoom = cfg.zoom, setMapZoom = cfg.setZoom, mapPan = mapPanDragRef.current[_panKey] ?? cfg.pan, setMapPan = cfg.setPan;
             const mapBrightness = cfg.brightness, setMapBrightness = cfg.setBrightness;
@@ -9464,9 +9480,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 </button>
                 <button
                   data-air-picture-settings=""
-                  onClick={() => setShowAirPictureControls(v => !v)}
+                  onClick={() => clickFlyout('airPicture', showAirPictureControls, setShowAirPictureControls)}
                   title={tr('airPicture.settings')}
-                  style={{ width: MAP_TOOL_BTN, height: 20, background: showAirPictureControls ? '#1d4ed8' : '#1e293b', color: showAirPictureControls ? '#fff' : '#94a3b8', border: 'none', borderRadius: '0 0 3px 3px', cursor: 'pointer', fontSize: '12px', lineHeight: 1, padding: 0 }}>
+                  style={{ width: MAP_TOOL_BTN, height: 20, background: airCtlOpen ? '#1d4ed8' : '#1e293b', color: airCtlOpen ? '#fff' : '#94a3b8', border: 'none', borderRadius: '0 0 3px 3px', cursor: 'pointer', fontSize: '12px', lineHeight: 1, padding: 0 }}>
                   ⚙
                 </button>
                 {/* שתי תוויות זו מתחת לזו: ה-⚙ הוא כפתור נפרד ולא קישוט של
@@ -9506,7 +9522,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {/* פילטר התמונ"א - **בתוך הסרגל**, מיד מתחת לכפתור ה-✈ וליד המפה
                 העיוורת. זה המקום שבו מחפשים פקדי מפה, ולכן הוא כאן ולא בחלון
                 צף בפינה. */}
-            {airPictureActive && showAirPictureControls && (
+            {airPictureActive && airCtlOpen && (
               // עוגן מיקום בלבד: הפאנל עצמו יוצא ממנו הצידה (insetInlineEnd:100%)
               // ולכן אינו נדחס לרוחב הסרגל הצר.
               <div style={{ position: 'relative', width: MAP_TOOL_CELL_W }}>
@@ -9529,12 +9545,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {!!mapImg && (
               <MapToolCell label={tr('ctrl.tbBlindMap')}>
                 <button
-                  onClick={() => {
-                    const nv = !blindMapMode;
-                    // דו-מפה: הכפתור משפיע על שתי המפות בו-זמנית (סנכרון לערך של המפה שנלחצה)
-                    if (isDualMapMode && map2Img) setBlindBothMaps(nv);
-                    else setBlindMapMode(nv);
-                  }}
+                  // פר-מפה: באיחוד עמדה / דו-מפה כל מפה עיוורת או לא בנפרד
+                  onClick={() => setBlindMapMode(!blindMapMode)}
                   title={blindMapMode ? 'בטל מפה עיוורת' : 'מפה עיוורת — הסתר רקע, הצג אזורים בקווי מתאר'}
                   style={{ width: MAP_TOOL_BTN, height: MAP_TOOL_BTN, background: blindMapMode ? '#0f766e' : '#475569', color: 'white', border: blindMapMode ? '1px solid #2dd4bf' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '22px', lineHeight: 1, padding: 0 }}>🙈</button>
               </MapToolCell>
@@ -9542,12 +9554,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {/* Drawing mode toggle */}
             <MapToolCell label={tr('ctrl.tbDraw')}>
               <button
-                onClick={() => {
-                  const nv = !drawingMode;
-                  // דו-מפה: הכפתור משפיע על שתי המפות בו-זמנית
-                  if (isDualMapMode && map2Img) setDrawingBothMaps(nv);
-                  else setDrawingMode(nv);
-                }}
+                // משותף: map2Cfg חולק את מצב הציור של מפה 1
+                onClick={() => setDrawingMode(!drawingMode)}
                 title={drawingMode ? 'כבה ציור' : 'הפעל ציור על המפה'}
                 style={{ width: MAP_TOOL_BTN, height: MAP_TOOL_BTN, background: drawingMode ? '#7c3aed' : '#475569', color: 'white', border: drawingMode ? '1px solid #a78bfa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '24px', lineHeight: 1, padding: 0 }}>✏</button>
             </MapToolCell>
@@ -9555,9 +9563,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {!!mapGeoAnchor && (
               <MapToolCell label={tr('ctrl.tbClosures')}>
                 <button
-                  onClick={() => { if (!showClosuresPanel) fetchClosuresForMap(); setShowClosuresPanel(v => !v); }}
+                  onClick={() => { if (clickFlyout('closures', showClosuresPanel, setShowClosuresPanel) && !showClosuresPanel) fetchClosuresForMap(); }}
                   title={tr('ctrl.showClosuresOnThe')}
-                  style={{ width: MAP_TOOL_BTN, height: MAP_TOOL_BTN, background: showClosuresPanel ? '#7c3aed' : (enabledClosureIds.size > 0 ? '#92400e' : '#475569'), color: 'white', border: showClosuresPanel ? '1px solid #a78bfa' : (enabledClosureIds.size > 0 ? '1px solid #f59e0b' : 'none'), borderRadius: '3px', cursor: 'pointer', fontSize: '22px', lineHeight: 1, padding: 0 }}>🚫</button>
+                  style={{ width: MAP_TOOL_BTN, height: MAP_TOOL_BTN, background: closuresOpen ? '#7c3aed' : (enabledClosureIds.size > 0 ? '#92400e' : '#475569'), color: 'white', border: closuresOpen ? '1px solid #a78bfa' : (enabledClosureIds.size > 0 ? '1px solid #f59e0b' : 'none'), borderRadius: '3px', cursor: 'pointer', fontSize: '22px', lineHeight: 1, padding: 0 }}>🚫</button>
               </MapToolCell>
             )}
             {/* בקרות פ"מ על מפת אזורים — בורר סוג תצוגה (תצוגה מקדימה חיה) + הגדל/הקטן.
@@ -9565,12 +9573,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {isFlightZonesMode && (<>
               <div style={{ width: MAP_TOOL_CELL_W, height: '1px', background: '#334155', margin: '2px 0' }} />
               <div style={{ position: 'relative', width: MAP_TOOL_CELL_W, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <button onClick={() => setShowPinTypePanel(v => !v)} title={tr('ctrl.formationDisplay')}
-                  style={{ width: MAP_TOOL_BTN, height: MAP_TOOL_BTN, background: showPinTypePanel ? '#1d4ed8' : '#475569', color: '#fff', border: showPinTypePanel ? '1px solid #60a5fa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '24px', lineHeight: 1, padding: 0 }}>
+                <button onClick={() => clickFlyout('pinType', showPinTypePanel, setShowPinTypePanel)} title={tr('ctrl.formationDisplay')}
+                  style={{ width: MAP_TOOL_BTN, height: MAP_TOOL_BTN, background: pinTypeOpen ? '#1d4ed8' : '#475569', color: '#fff', border: pinTypeOpen ? '1px solid #60a5fa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '24px', lineHeight: 1, padding: 0 }}>
                   {fzPinDisplay === 'icon' ? '✈' : fzPinDisplay === 'small' ? '📍' : fzPinDisplay === 'handwrite' ? '✍' : '📋'}
                 </button>
                 <MapToolLabel text={tr('ctrl.formationDisplay')} />
-                {showPinTypePanel && (() => {
+                {pinTypeOpen && (() => {
                   const _samp = (myTableStrips.find((s: any) => s.status !== 'pending_transfer') || myTableStrips[0]) as any;
                   const _sq = String(_samp?.sq || _samp?.squadron || '120');
                   const _call = _samp?.callSign || _samp?.call_sign || _samp?.callsign || 'בננה';
@@ -9634,10 +9642,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   אייקונים שצריך לזכור מה כל אחד מהם עושה. */}
               <div style={{ width: MAP_TOOL_CELL_W, height: '1px', background: '#334155', margin: '2px 0' }} />
               <div style={{ position: 'relative', width: MAP_TOOL_CELL_W, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <button onClick={() => setShowPinOnMapPanel(v => !v)} title={tr('ctrl.pinOnMapMenu')}
-                  style={{ width: MAP_TOOL_BTN, height: MAP_TOOL_BTN, background: showPinOnMapPanel ? '#1d4ed8' : '#475569', color: '#fff', border: showPinOnMapPanel ? '1px solid #60a5fa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '22px', lineHeight: 1, padding: 0 }}>✈</button>
+                <button onClick={() => clickFlyout('pinOnMap', showPinOnMapPanel, setShowPinOnMapPanel)} title={tr('ctrl.pinOnMapMenu')}
+                  style={{ width: MAP_TOOL_BTN, height: MAP_TOOL_BTN, background: pinOnMapOpen ? '#1d4ed8' : '#475569', color: '#fff', border: pinOnMapOpen ? '1px solid #60a5fa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '22px', lineHeight: 1, padding: 0 }}>✈</button>
                 <MapToolLabel text={tr('ctrl.pinOnMapMenu')} />
-                {showPinOnMapPanel && (() => {
+                {pinOnMapOpen && (() => {
                   const rows: { key: string; label: string; on: boolean; act: () => void }[] = [
                     { key: 'color', label: fzPinColorMode === 'status' ? tr('ctrl.pinColorByStatusFull') : tr('ctrl.pinColorBySquadronFull'), on: fzPinColorMode === 'status',
                       act: () => setFzPinColorMode(m => m === 'squadron' ? 'status' : 'squadron') },
@@ -9682,7 +9690,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           )}
 
           {/* Closures floating panel */}
-          {showClosuresPanel && mapGeoAnchor && (
+          {closuresOpen && mapGeoAnchor && (
             <div style={{ position: 'absolute', top: 8, left: toolbarGap, zIndex: 215, background: 'rgba(15,23,42,0.97)', border: '1px solid #7c3aed', borderRadius: '8px', padding: '10px 12px', minWidth: '210px', maxWidth: '270px', maxHeight: '72vh', display: 'flex', flexDirection: 'column', boxShadow: '0 4px 20px rgba(0,0,0,0.7)', direction: dir }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexShrink: 0 }}>
                 <span style={{ fontWeight: 'bold', color: '#e2e8f0', fontSize: '12px' }}>{tr('ctrl.closuresOnMap')}</span>
