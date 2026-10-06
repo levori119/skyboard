@@ -218,6 +218,97 @@ export function cycleButtonState(btn: MDButton): number {
   return (btn.activeStateIdx + 1) % btn.states.length;
 }
 
+// ── פריסת לוח הכפתורים (מסך ניהול אמצעים) ──────────────────────────────────
+// כל המלבנים בפיקסלים יחסית לפינה השמאלית-עליונה של הלוח (גם ב-RTL).
+
+export interface MDRect { x: number; y: number; w: number; h: number }
+
+const rectsTouch = (a: MDRect, b: MDRect, gap: number) =>
+  a.x < b.x + b.w + gap && b.x < a.x + a.w + gap && a.y < b.y + b.h + gap && b.y < a.y + a.h + gap;
+
+/** הצמדה: הכפתור מיושר לשורה (אותו top) או לעמודה (אותו קצה התחלה) של כפתור
+ *  אחר - מה שקרוב יותר. עמודה ב-RTL = קצה ימני משותף, ב-LTR = קצה שמאלי. */
+export function mdSnapRect(r: MDRect, others: MDRect[], rtl: boolean): { x: number; y: number; axis: 'row' | 'col' | null } {
+  let row: { d: number; y: number } | null = null;
+  let col: { d: number; x: number } | null = null;
+  for (const o of others) {
+    const dy = Math.abs(o.y - r.y);
+    if (!row || dy < row.d) row = { d: dy, y: o.y };
+    const x = rtl ? o.x + o.w - r.w : o.x;
+    const dx = Math.abs(x - r.x);
+    if (!col || dx < col.d) col = { d: dx, x };
+  }
+  if (!row || !col) return { x: r.x, y: r.y, axis: null };
+  return row.d <= col.d ? { x: r.x, y: row.y, axis: 'row' } : { x: col.x, y: r.y, axis: 'col' };
+}
+
+/** המקום הפנוי הקרוב ביותר (סריקת רשת step) למלבן שחופף מכשול.
+ *  lock: 'row' שומר על ה-y (נשאר בשורה), 'col' על ה-x - ורק אם אין מקום
+ *  על הקו הזה נסרק כל הלוח. null = אין מקום בכלל. */
+export function mdFreeSpot(
+  r: MDRect, obstacles: MDRect[], bw: number, bh: number,
+  opts: { gap?: number; step?: number; lock?: 'row' | 'col' | null } = {},
+): { x: number; y: number } | null {
+  const gap = opts.gap ?? 6, step = opts.step ?? 10;
+  const free = (x: number, y: number) => !obstacles.some(o => rectsTouch({ x, y, w: r.w, h: r.h }, o, gap));
+  if (free(r.x, r.y)) return { x: r.x, y: r.y };
+  const maxX = Math.max(0, bw - r.w), maxY = Math.max(0, bh - r.h);
+  const range = (max: number) => { const a: number[] = []; for (let v = 0; v <= max; v += step) a.push(v); if (a[a.length - 1] !== max) a.push(max); return a; };
+  const scan = (xs: number[], ys: number[]) => {
+    let best: { x: number; y: number } | null = null, bestD = Infinity;
+    for (const y of ys) for (const x of xs) {
+      if (!free(x, y)) continue;
+      const d = (x - r.x) ** 2 + (y - r.y) ** 2;
+      if (d < bestD) { bestD = d; best = { x, y }; }
+    }
+    return best;
+  };
+  if (opts.lock === 'row') { const p = scan(range(maxX), [r.y]); if (p) return p; }
+  if (opts.lock === 'col') { const p = scan([r.x], range(maxY)); if (p) return p; }
+  return scan(range(maxX), range(maxY));
+}
+
+/** מפתח "סטטוס זהה": שם המצב הפעיל + צבעו. */
+export function mdStatusKey(btn: MDButton): string {
+  const st = btn.states[btn.activeStateIdx] || btn.states[0];
+  return st ? `${st.label.trim()}|${st.color.toLowerCase()}` : '';
+}
+
+/** סדר לפי סטטוס: כפתורים בעלי סטטוס זהה יושבים יחד, כל קבוצה פותחת שורה
+ *  חדשה (ונשברת לשורות נוספות כשאין רוחב). סדר הקבוצות: אינדקס המצב (כבוי
+ *  לפני פעיל), ואז שם המצב. בתוך קבוצה נשמר סדר הקריאה הנוכחי. */
+export function mdLayoutByStatus(
+  buttons: MDButton[], sizes: Record<string, { w: number; h: number }>, bw: number, rtl: boolean,
+  opts: { gap?: number; pad?: number } = {},
+): Record<string, { x: number; y: number }> {
+  const gap = opts.gap ?? 6, pad = opts.pad ?? 8;
+  const groups = new Map<string, MDButton[]>();
+  const reading = [...buttons].sort((a, b) => a.y - b.y || (rtl ? b.x - a.x : a.x - b.x));
+  for (const b of reading) {
+    const k = mdStatusKey(b);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k)!.push(b);
+  }
+  const ordered = [...groups.values()].sort((a, b) =>
+    Math.min(...a.map(x => x.activeStateIdx)) - Math.min(...b.map(x => x.activeStateIdx))
+    || mdStatusKey(a[0]).localeCompare(mdStatusKey(b[0]), 'he'));
+
+  const out: Record<string, { x: number; y: number }> = {};
+  let y = pad;
+  for (const group of ordered) {
+    let cursor = pad, rowH = 0;
+    for (const b of group) {
+      const s = sizes[b.id] || { w: 80, h: 40 };
+      if (cursor > pad && cursor + s.w > bw - pad) { y += rowH + gap; cursor = pad; rowH = 0; }
+      out[b.id] = { x: rtl ? bw - cursor - s.w : cursor, y };
+      cursor += s.w + gap;
+      rowH = Math.max(rowH, s.h);
+    }
+    y += rowH + gap;
+  }
+  return out;
+}
+
 // ── שיתוף (fan-out) — משמש גם את השרת (מיובא לוגית, ממומש זהה ב-route) ──────
 // mission_desk_sharing הוא JSONB עם מפתחות-מחרוזת: { "<service_id>": [preset_id,...] }
 

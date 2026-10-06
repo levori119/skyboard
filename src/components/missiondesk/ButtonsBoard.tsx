@@ -9,7 +9,8 @@ import { tr } from '../../i18n/tr';
 import { API_URL } from '../../config';
 import { customConfirm } from '../shared/ConfirmModal';
 import type { MDButton, MDButtonsState, MDButtonStateDef } from '../../types/missionDesk';
-import { cycleButtonState, mdGenId } from '../../utils/missionDesk';
+import { cycleButtonState, mdGenId, mdSnapRect, mdFreeSpot, mdLayoutByStatus } from '../../utils/missionDesk';
+import type { MDRect } from '../../utils/missionDesk';
 import type { MDTheme } from './theme';
 
 interface Props {
@@ -32,11 +33,29 @@ export default function ButtonsBoard({ serviceName, state, onChange, presetId, p
   const [menu, setMenu] = useState<{ x: number; y: number; btnId: string | null } | null>(null);
   const [editing, setEditing] = useState<MDButton | null>(null);
   const [editMode, setEditMode] = useState(false);
-  const dragRef = useRef<{ id: string; startX: number; startY: number; origX: number; origY: number; moved: boolean } | null>(null);
+  const dragRef = useRef<{
+    id: string; startX: number; startY: number; origX: number; origY: number; moved: boolean;
+    // מצב יישור: מידות הלוח והכפתורים בתחילת הגרירה (פיקסלים אמיתיים), והציר שאליו נצמד
+    self?: MDRect; others?: MDRect[]; bw?: number; bh?: number; axis?: 'row' | 'col' | null;
+  } | null>(null);
   const resizeRef = useRef<{ id: string; startX: number; startY: number; origW: number; origH: number } | null>(null);
 
   const buttons = state?.buttons || [];
-  const save = (next: MDButton[]) => onChange({ buttons: next });
+  const snap = !!state?.snap;
+  const save = (next: MDButton[]) => onChange({ ...state, buttons: next });
+
+  // מלבני הכפתורים כפי שהם על המסך - פיקסלים אמיתיים יחסית ללוח (כמו clientX)
+  const measure = () => {
+    const board = boardRef.current; if (!board) return null;
+    const br = board.getBoundingClientRect();
+    const rects = new Map<string, MDRect>();
+    board.querySelectorAll<HTMLElement>('[data-btn-id]').forEach(el => {
+      const r = el.getBoundingClientRect();
+      rects.set(el.dataset.btnId!, { x: r.left - br.left, y: r.top - br.top, w: r.width, h: r.height });
+    });
+    return { bw: br.width, bh: br.height, rects };
+  };
+  const isRtl = () => document.documentElement.dir === 'rtl';
 
   const canEditBtn = (btn: MDButton) => adminMode || !btn.fixed;
 
@@ -78,6 +97,13 @@ export default function ButtonsBoard({ serviceName, state, onChange, presetId, p
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
     dragRef.current = { id: btn.id, startX: e.clientX, startY: e.clientY, origX: btn.x, origY: btn.y, moved: false };
+    if (snap) {
+      const m = measure();
+      if (m) Object.assign(dragRef.current, {
+        self: m.rects.get(btn.id), bw: m.bw, bh: m.bh,
+        others: [...m.rects].filter(([id]) => id !== btn.id).map(([, r]) => r),
+      });
+    }
     onInteracting(true);
   };
   const onBtnPointerMove = (e: React.PointerEvent) => {
@@ -86,8 +112,15 @@ export default function ButtonsBoard({ serviceName, state, onChange, presetId, p
     const dx = e.clientX - d.startX, dy = e.clientY - d.startY;
     if (!d.moved && Math.hypot(dx, dy) < 6) return;
     d.moved = true;
-    const x = Math.min(95, Math.max(0, d.origX + (dx / r.width) * 100));
-    const y = Math.min(95, Math.max(0, d.origY + (dy / r.height) * 100));
+    let x = d.origX + (dx / r.width) * 100;
+    let y = d.origY + (dy / r.height) * 100;
+    // יישור: נצמד לשורה או לעמודה של הכפתור הקרוב - מה שקרוב יותר
+    if (snap && d.self && d.others && d.bw && d.bh) {
+      const s = mdSnapRect({ ...d.self, x: d.self.x + dx, y: d.self.y + dy }, d.others, isRtl());
+      x = (s.x / d.bw) * 100; y = (s.y / d.bh) * 100; d.axis = s.axis;
+    }
+    x = Math.min(95, Math.max(0, x));
+    y = Math.min(95, Math.max(0, y));
     save(buttons.map(b => b.id === d.id ? { ...b, x, y } : b));
   };
   const onBtnPointerUp = (_e: React.PointerEvent, btn: MDButton) => {
@@ -95,7 +128,18 @@ export default function ButtonsBoard({ serviceName, state, onChange, presetId, p
     dragRef.current = null;
     onInteracting(false);
     if (d && !d.moved) clickButton(btn);
-    else if (d?.moved) settle([d.id]); // הונח על כפתור אחר? נדחף למקום פנוי קרוב
+    else if (d?.moved) settle([d.id], d.axis); // הונח על כפתור אחר? נדחף למקום פנוי קרוב (ביישור - לאורך אותו קו)
+  };
+
+  // סדר לפי סטטוס: כפתורים בעלי סטטוס זהה מקובצים, קבוצה לכל שורה
+  const sortByStatus = () => {
+    const m = measure(); if (!m || m.bw < 50) return;
+    const sizes = Object.fromEntries([...m.rects].map(([id, r]) => [id, { w: r.w, h: r.h }]));
+    const pos = mdLayoutByStatus(buttons, sizes, m.bw, isRtl());
+    save(buttons.map(b => pos[b.id]
+      ? { ...b, x: Math.min(95, (pos[b.id].x / m.bw) * 100), y: Math.min(95, (pos[b.id].y / m.bh) * 100) }
+      : b));
+    postLog('mission_desk_buttons_sorted_by_status', { count: buttons.length });
   };
 
   // גרירת גודל — ידית ◢ בפינת הכפתור במצב עריכה (מגע/עט/עכבר)
@@ -126,44 +170,24 @@ export default function ButtonsBoard({ serviceName, state, onChange, presetId, p
   // אחרי גרירה/יצירה/שינוי-גודל (ובטעינה ראשונה) — כפתור שחופף לאחר מוזז
   // למקום הפנוי הקרוב ביותר על הלוח (סריקת רשת 10px, מרווח 6px בין כפתורים).
   // targetIds: רק הם מוזזים; השאר משמשים מכשולים במקומם.
-  const settle = (targetIds?: string[]) => {
+  // lock: במצב יישור - מחפשים קודם מקום לאורך השורה/העמודה שאליה נצמד.
+  const settle = (targetIds?: string[], lock?: 'row' | 'col' | null) => {
     requestAnimationFrame(() => {
-      const board = boardRef.current; if (!board) return;
-      const br = board.getBoundingClientRect();
-      const bw = board.clientWidth, bh = board.clientHeight;
+      const m = measure(); if (!m) return;
+      const { bw, bh, rects } = m;
       if (bw < 50 || bh < 50) return;
-      const rects = new Map<string, { x: number; y: number; w: number; h: number }>();
-      board.querySelectorAll<HTMLElement>('[data-btn-id]').forEach(el => {
-        const r = el.getBoundingClientRect();
-        rects.set(el.dataset.btnId!, { x: r.left - br.left, y: r.top - br.top, w: r.width, h: r.height });
-      });
-      const GAP = 6;
-      const inter = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) =>
-        a.x < b.x + b.w + GAP && b.x < a.x + a.w + GAP && a.y < b.y + b.h + GAP && b.y < a.y + a.h + GAP;
 
       const targets = new Set(targetIds ?? buttons.map(b => b.id));
-      const obstacles: { x: number; y: number; w: number; h: number }[] = [];
+      const obstacles: MDRect[] = [];
       buttons.forEach(b => { const r = rects.get(b.id); if (r && !targets.has(b.id)) obstacles.push(r); });
 
       const moved: Record<string, { x: number; y: number }> = {};
       for (const b of buttons) {
         if (!targets.has(b.id)) continue;
         const r = rects.get(b.id); if (!r) continue;
-        const collides = (x: number, y: number) => obstacles.some(o => inter({ x, y, w: r.w, h: r.h }, o));
         let pos = { x: r.x, y: r.y };
-        if (collides(pos.x, pos.y)) {
-          let best: { x: number; y: number } | null = null;
-          let bestD = Infinity;
-          for (let yy = 0; yy <= Math.max(0, bh - r.h); yy += 10) {
-            for (let xx = 0; xx <= Math.max(0, bw - r.w); xx += 10) {
-              if (!collides(xx, yy)) {
-                const dd = (xx - r.x) ** 2 + (yy - r.y) ** 2;
-                if (dd < bestD) { bestD = dd; best = { x: xx, y: yy }; }
-              }
-            }
-          }
-          if (best) { pos = best; moved[b.id] = pos; }
-        }
+        const spot = mdFreeSpot(r, obstacles, bw, bh, { lock });
+        if (spot && (spot.x !== r.x || spot.y !== r.y)) { pos = spot; moved[b.id] = pos; }
         obstacles.push({ x: pos.x, y: pos.y, w: r.w, h: r.h });
       }
       if (Object.keys(moved).length) {
@@ -197,12 +221,13 @@ export default function ButtonsBoard({ serviceName, state, onChange, presetId, p
   };
 
   const inputStyle: React.CSSProperties = { background: theme.inputBg, border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.text, padding: '6px 8px', fontSize: 13, width: '100%', boxSizing: 'border-box' };
-  const actionStyle: React.CSSProperties = { background: 'none', border: `1px solid ${theme.border}`, borderRadius: 8, color: theme.subtext, cursor: 'pointer', fontSize: 13, padding: '6px 12px', minHeight: 36 };
+  // סרגל קומפקטי - גובה 28 נשאר בר-לחיצה באצבע ובעט, ומשאיר יותר לוח לכפתורים
+  const actionStyle: React.CSSProperties = { background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.subtext, cursor: 'pointer', fontSize: 12, padding: '3px 8px', minHeight: 28, lineHeight: 1.2, whiteSpace: 'nowrap' };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%' }}>
       {/* פעולות גלויות — מסך מגע, בלי תלות בקליק ימני */}
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '6px 8px', borderBottom: `1px solid ${theme.border}`, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '4px 6px', borderBottom: `1px solid ${theme.border}`, flexWrap: 'wrap' }}>
         <button
           onClick={() => setEditing(newButton(38 + Math.random() * 8, 34 + Math.random() * 8))}
           style={{ ...actionStyle, color: '#4ade80', borderColor: '#166534' }}>
@@ -212,6 +237,20 @@ export default function ButtonsBoard({ serviceName, state, onChange, presetId, p
           onClick={() => setEditMode(m => !m)}
           style={{ ...actionStyle, ...(editMode ? { background: '#7c2d12', color: '#fdba74', borderColor: '#ea580c' } : {}) }}>
           ✏️ {tr('missiondesk.editMode')}
+        </button>
+        <button
+          onClick={sortByStatus}
+          disabled={buttons.length < 2}
+          title={tr('missiondesk.sortByStatusHint')}
+          style={{ ...actionStyle, ...(buttons.length < 2 ? { opacity: 0.45, cursor: 'default' } : {}) }}>
+          ⇅ {tr('missiondesk.sortByStatus')}
+        </button>
+        <button
+          onClick={() => onChange({ ...state, buttons, snap: !snap })}
+          aria-pressed={snap}
+          title={tr(snap ? 'missiondesk.snapOnHint' : 'missiondesk.snapOffHint')}
+          style={{ ...actionStyle, ...(snap ? { background: '#0c4a6e', color: '#7dd3fc', borderColor: '#0284c7' } : {}) }}>
+          📐 {tr(snap ? 'missiondesk.snapOn' : 'missiondesk.snapOff')}
         </button>
         {editMode && <span style={{ fontSize: 12, color: theme.subtext }}>{tr('missiondesk.editModeHint')}</span>}
         {adminMode && <span style={{ marginInlineStart: 'auto', fontSize: 12, color: '#fbbf24' }}>📌 {tr('missiondesk.adminButtonsHint')}</span>}

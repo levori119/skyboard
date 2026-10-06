@@ -112,7 +112,10 @@ export interface MDButton {
   states: MDButtonStateDef[];
   activeStateIdx: number;
 }
-export interface MDButtonsState { buttons: MDButton[] }
+export interface MDButtonsState {
+  buttons: MDButton[];
+  snap?: boolean;                  // יישור: גרירה נצמדת לשורה/עמודה הקרובה (ברירת מחדל - חופשי)
+}
 
 export interface MDInkStroke { points: { x: number; y: number }[]; color: string; size: number }
 export interface MDFreeTextState { strokes: MDInkStroke[] }
