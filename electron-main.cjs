@@ -4,6 +4,7 @@ const fs = require('fs');
 const { resolveSttPaths, sttStatus, transcribeWav } = require('./electron/whisper.cjs');
 const { createStationServer } = require('./electron/stationServer.cjs');
 const { createScreenRecorder } = require('./electron/screenRecorder.cjs');
+const { saveScreenshot } = require('./electron/screenshot.cjs');
 
 const isDev = !app.isPackaged;
 
@@ -408,6 +409,22 @@ function registerRecordingHandlers() {
   ipcMain.handle('rec:stop', async (event) => {
     if (!senderAllowed(event)) return { ok: false, reason: 'forbidden' };
     return screenRecorder.stop();
+  });
+}
+
+/**
+ * צילום מסך (כפתור 📷) - מצלם את החלון ששלח את הבקשה וכותב ל-Downloads.
+ * העמוד מוסר שם קובץ בלבד; התיקייה קבועה כאן (ראה electron/screenshot.cjs).
+ */
+function registerScreenshotHandlers() {
+  ipcMain.handle('shot:capture', async (event, fileName) => {
+    if (!senderAllowed(event)) return { ok: false, reason: 'forbidden' };
+    try {
+      const image = await event.sender.capturePage();
+      return saveScreenshot({ dir: app.getPath('downloads'), name: fileName, png: image.toPNG() });
+    } catch (e) {
+      return { ok: false, reason: 'capture', error: String(e && e.message || e) };
+    }
   });
 }
 

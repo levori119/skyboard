@@ -98,6 +98,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     it('userMenu', 'calibration', '✍'),
     it('userMenu', 'logout', '🚪'),
   ]),
+  topic('screenshot', '📷'),
   topic('signalBoard', '📡', c => c.hasPresetId),
   topic('pressure', '🌡'),
   topic('mazaa', '🛡'),

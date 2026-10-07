@@ -114,6 +114,18 @@
       "he": "בסרגל העליון - הכפתור הירוק שלצד שם העמדה",
       "en": "In the top bar - the green button next to the station name"
     },
+    "screenshotTitle": {
+      "he": "צילום מסך (📷)",
+      "en": "Screenshot (📷)"
+    },
+    "screenshotBody": {
+      "he": "לחיצה אחת שומרת מיד תמונה של כל המסך בתיקיית ההורדות (Downloads), בשם העמדה עם תאריך ושעה. בלי חלון שמירה.",
+      "en": "One click saves a picture of the whole screen straight to the Downloads folder, named after the station with date and time. No save dialog."
+    },
+    "screenshotWhere": {
+      "he": "בסרגל העליון - כפתור המצלמה שלצד שם העמדה",
+      "en": "In the top bar - the camera button next to the station name"
+    },
     "userMenu_switchTitle": {
       "he": "החלפת משתמש",
       "en": "Switch user"

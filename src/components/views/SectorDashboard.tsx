@@ -102,6 +102,7 @@ import HelpSpotlight from '../shared/HelpSpotlight';
 import type { HelpContext } from '../../utils/helpTopics';
 import { captureStation } from '../../utils/stationSnapshot';
 import { useScreenRecorder } from '../../hooks/useScreenRecorder';
+import ScreenshotButton from '../shared/ScreenshotButton';
 import { CRITICAL_BLINK_CLASS } from '../../utils/signalSeverity';
 import { recordingPathRoot } from '../../../shared/screenRecording';
 import { recordingBlockKey } from '../../utils/screenRecording';
@@ -11621,6 +11622,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </>)}
             </div>
             )}
+            {/* צילום מסך - לחיצה אחת, PNG ב-Downloads בשם העמדה + תאריך ושעה */}
+            <ScreenshotButton station={session.workstationName} style={{ padding: '2px 7px', fontSize: '13px' }} />
             {/* חיווי הקלטה - גלוי כל זמן שהמסך מוקלט. מסך שמוקלט
                 בלי שהיושב בו יודע הוא בעיה, ולכן זה חלק מהפיצר ולא קישוט. */}
             {screenRec.state.recording && (

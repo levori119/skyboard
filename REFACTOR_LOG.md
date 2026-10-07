@@ -6,6 +6,21 @@
 
 ---
 
+## 2026-10-07 - כפתור צילום מסך 📷 בכל מסך
+
+**הבקשה:** כפתור SCREEN SHOT בכל מסך - לחיצה שומרת מיד תמונה ל-Downloads בשם העמדה + תאריך ושעה.
+
+**המימוש:**
+- רכיב משותף [`ScreenshotButton`](src/components/shared/ScreenshotButton.tsx) - בסרגל העליון של `SectorDashboard` (בקר/מגדל/דסק משימה) ובכותרת `ManagementPage`. משוב קצר "נשמר בהורדות: <קובץ>" עם `data-nosnapshot`.
+- [`utils/screenshot.ts`](src/utils/screenshot.ts) - שם הקובץ `SKYKING_<עמדה>_YYYY-MM-DD_HH-MM-SS.png` (שניות, כדי ששני צילומים באותה דקה לא יתנגשו).
+- Electron: ערוץ `shot:capture` ב-[`electron-main.cjs`](electron-main.cjs) + [`electron/screenshot.cjs`](electron/screenshot.cjs) - `capturePage` וכתיבה ל-Downloads בלי דיאלוג. העמוד מוסר שם בלבד (כלל ה-preload: אין נתיב מהעמוד).
+- דפדפן: `html-to-image` ברזולוציה מלאה והורדה רגילה.
+- נושא עזרה `screenshot` בחלון העזרה.
+
+**QA:** tsc נקי, vitest מלא ירוק (כולל `screenshot.test.ts` ו-`electron/screenshot.test.js` - כתיבה אמיתית לתיקייה זמנית, חיתוך נתיב, אי-דריסה), `vite build` ירוק. **לא נבדק:** לחיצה בעמדת Electron חיה ובדפדפן חי.
+
+---
+
 ## 2026-10-06 - איחוד עמדה: סרגל המפה - משותף מול פר-מפה
 
 **הבעיה:** כשהעמדה מציגה שתי מפות (איחוד עמדה / דו-מפה), שני הסרגלים התנהגו

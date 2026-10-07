@@ -260,6 +260,18 @@
     "folderPicked": {
       "he": "התיקייה נבחרה - אפשר להתחיל הקלטה",
       "en": "Folder chosen - you can start recording"
+    },
+    "shotButton": {
+      "he": "צילום מסך - נשמר מיד בתיקיית ההורדות",
+      "en": "Screenshot - saved straight to Downloads"
+    },
+    "shotSaved": {
+      "he": "נשמר בהורדות: {{file}}",
+      "en": "Saved to Downloads: {{file}}"
+    },
+    "shotFailed": {
+      "he": "צילום המסך נכשל",
+      "en": "Screenshot failed"
     }
   }
 }

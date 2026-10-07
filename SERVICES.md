@@ -1140,6 +1140,10 @@ DB מנוהל היה נופל יחד עם העמדה.
 **תפקיד:** צילום מסך העמדה לתחקיר — DOM→canvas (`html-to-image`), בלי דיאלוג הרשאת מסך. `getDisplayMedia` נפסל כי הוא פותח בחירת מסך בכל צילום, ובאמצע אירוע זה צעד מיותר. הצילום קורה **לפני** שהטופס נפתח (אחרת הטופס היה מכסה את העמדה בתמונה), וכל אלמנט עם `data-nosnapshot` מסונן החוצה כרשת ביטחון. `pixelRatio: 0.5` + `skipFonts` — קריא לתחקיר ורבע מנפח ה-base64. כישלון אינו חריג: מוחזר `''` והתחקיר נשמר בלי תמונה.
 **מייצא:** `captureStation`.
 
+### `src/utils/screenshot.ts` + `src/components/shared/ScreenshotButton.tsx` + `electron/screenshot.cjs`
+**תפקיד:** כפתור צילום מסך 📷 בסרגל העליון של העמדה (כל סוגי העמדות) ובכותרת מסך הניהול. לחיצה אחת שומרת PNG ב-Downloads בשם `SKYKING_<עמדה>_YYYY-MM-DD_HH-MM-SS.png`. בעמדת Electron התהליך הראשי מצלם ב-`capturePage` (כולל מפות, קנבס ו-3D) וכותב ישר ל-`app.getPath('downloads')` בלי דיאלוג (ערוץ IPC `shot:capture`); העמוד מוסר **שם קובץ בלבד**, ו-`safePngName` חותך אותו לשם + `.png`, ושם תפוס לא נדרס ("a (2).png"). בדפדפן - `html-to-image` ברזולוציה מלאה והורדה רגילה. בניגוד ל-`captureStation` (חצי רזולוציה לתחקיר שנשמר ב-DB).
+**מייצא:** `screenshotFileName`, `takeScreenshot` · `ScreenshotButton` (default) · `safePngName`, `saveScreenshot`.
+
 ### `src/components/shared/EnvironmentBadge.tsx`
 **תפקיד:** באדג' הסביבה המחוברת בסרגל העליון — רכיב משותף ל-SectorDashboard (בקר/מגדל), ל-MissionDeskView ולכותרת מסך הניהול (ManagementPage). סביבת תרגול בולטת בכתום-אזהרה (בטיחות ATC: תרגול ≠ אמת); סביבה טסה נייטרלית נגזרת-תמה. קורא `getCurrentEnv()`.
 

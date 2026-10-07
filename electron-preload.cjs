@@ -59,4 +59,10 @@ contextBridge.exposeInMainWorld('skyking', {
 
   /** עוצר ומשלים את הקובץ */
   recStop: () => ipcRenderer.invoke('rec:stop'),
+
+  // ── צילום מסך (כפתור 📷) ──────────────────────────────────────────
+  // מוסר **שם קובץ בלבד** - התיקייה (Downloads) נקבעת בתהליך הראשי,
+  // והשם נחתך שם לשם בלבד. מחזיר { ok, path } או { ok:false, reason }.
+  screenshot: (fileName) =>
+    ipcRenderer.invoke('shot:capture', typeof fileName === 'string' ? fileName : ''),
 });

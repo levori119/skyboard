@@ -10,6 +10,7 @@ import { sc } from '../../utils/scale';
 import { customConfirm } from '../shared/ConfirmModal';
 import EnvironmentBadge from '../shared/EnvironmentBadge';
 import { LeoLogo } from '../shared/LeoLogo';
+import ScreenshotButton from '../shared/ScreenshotButton';
 import type { CrewMember, QGroup } from '../../types';
 import { loadStripFieldCatalog } from '../../utils/stripFieldCatalog';
 import { ClassicStripCard, ClassicPartnersAndPointsEditor, ClassicTransferHelpModal } from '../classic/ClassicViews';
@@ -1182,6 +1183,8 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           {/* באדג' הסביבה — רכיב משותף. במסך הניהול הוא קריטי: עריכה בתרגול מול אמת */}
           <EnvironmentBadge themeMode="dark" />
+          {/* צילום מסך - רכיב משותף לכל המסכים; שם המסך במקום שם עמדה */}
+          <ScreenshotButton station={effectiveMode === 'team_lead' ? 'ניהול עמדות' : 'ניהול מערכת'} style={{ color: '#e2e8f0', padding: '8px 12px', fontSize: '16px', borderRadius: '6px' }} />
           {/* חזרה למסך האפשרויות - ניווט רגיל, ההזדהות נשמרת */}
           {onBackToOptions && (
             <button onClick={onBackToOptions} style={{ background: '#475569', color: 'white', padding: '10px 25px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
