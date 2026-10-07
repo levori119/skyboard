@@ -119,8 +119,8 @@
       "en": "Screenshot (📷)"
     },
     "screenshotBody": {
-      "he": "לחיצה אחת שומרת מיד תמונה של כל המסך בתיקיית ההורדות (Downloads), בשם העמדה עם תאריך ושעה. בלי חלון שמירה.",
-      "en": "One click saves a picture of the whole screen straight to the Downloads folder, named after the station with date and time. No save dialog."
+      "he": "לחיצה אחת שומרת מיד תמונה של כל המסך בתיקיית ההורדות (Downloads), בשם העמדה עם תאריך ושעה. בלי חלון שמירה. כדי לצלם תפריט או קליק ימני פתוח - Ctrl+P במקלדת (הלחיצה על הכפתור סוגרת אותם).",
+      "en": "One click saves a picture of the whole screen straight to the Downloads folder, named after the station with date and time. No save dialog. To capture an open menu or right-click menu - press Ctrl+P (clicking the button closes them)."
     },
     "screenshotWhere": {
       "he": "בסרגל העליון - כפתור המצלמה שלצד שם העמדה",

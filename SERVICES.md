@@ -1141,8 +1141,8 @@ DB מנוהל היה נופל יחד עם העמדה.
 **מייצא:** `captureStation`.
 
 ### `src/utils/screenshot.ts` + `src/components/shared/ScreenshotButton.tsx` + `electron/screenshot.cjs`
-**תפקיד:** כפתור צילום מסך 📷 בסרגל העליון של העמדה (כל סוגי העמדות) ובכותרת מסך הניהול. לחיצה אחת שומרת PNG ב-Downloads בשם `SKYKING_<עמדה>_YYYY-MM-DD_HH-MM-SS.png`. בעמדת Electron התהליך הראשי מצלם ב-`capturePage` (כולל מפות, קנבס ו-3D) וכותב ישר ל-`app.getPath('downloads')` בלי דיאלוג (ערוץ IPC `shot:capture`); העמוד מוסר **שם קובץ בלבד**, ו-`safePngName` חותך אותו לשם + `.png`, ושם תפוס לא נדרס ("a (2).png"). בדפדפן - `html-to-image` ברזולוציה מלאה והורדה רגילה. בניגוד ל-`captureStation` (חצי רזולוציה לתחקיר שנשמר ב-DB).
-**מייצא:** `screenshotFileName`, `takeScreenshot` · `ScreenshotButton` (default) · `safePngName`, `saveScreenshot`.
+**תפקיד:** כפתור צילום מסך 📷 בסרגל העליון של העמדה (כל סוגי העמדות) ובכותרת מסך הניהול. לחיצה אחת שומרת PNG ב-Downloads בשם `SKYKING_<עמדה>_YYYY-MM-DD_HH-MM-SS.png`. בעמדת Electron התהליך הראשי מצלם ב-`capturePage` (כולל מפות, קנבס ו-3D) וכותב ישר ל-`app.getPath('downloads')` בלי דיאלוג (ערוץ IPC `shot:capture`); העמוד מוסר **שם קובץ בלבד**, ו-`safePngName` חותך אותו לשם + `.png`, ושם תפוס לא נדרס ("a (2).png"). בדפדפן - `html-to-image` ברזולוציה מלאה והורדה רגילה. **Ctrl+P** (`isScreenshotHotkey`) מצלם בלי לסגור תפריטים פתוחים. בניגוד ל-`captureStation` (חצי רזולוציה לתחקיר שנשמר ב-DB).
+**מייצא:** `screenshotFileName`, `isScreenshotHotkey`, `takeScreenshot` · `ScreenshotButton` (default) · `safePngName`, `saveScreenshot`.
 
 ### `src/components/shared/EnvironmentBadge.tsx`
 **תפקיד:** באדג' הסביבה המחוברת בסרגל העליון — רכיב משותף ל-SectorDashboard (בקר/מגדל), ל-MissionDeskView ולכותרת מסך הניהול (ManagementPage). סביבת תרגול בולטת בכתום-אזהרה (בטיחות ATC: תרגול ≠ אמת); סביבה טסה נייטרלית נגזרת-תמה. קורא `getCurrentEnv()`.

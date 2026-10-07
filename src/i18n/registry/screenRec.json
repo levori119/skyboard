@@ -262,8 +262,8 @@
       "en": "Folder chosen - you can start recording"
     },
     "shotButton": {
-      "he": "צילום מסך - נשמר מיד בתיקיית ההורדות",
-      "en": "Screenshot - saved straight to Downloads"
+      "he": "צילום מסך (Ctrl+P) - נשמר מיד בתיקיית ההורדות",
+      "en": "Screenshot (Ctrl+P) - saved straight to Downloads"
     },
     "shotSaved": {
       "he": "נשמר בהורדות: {{file}}",

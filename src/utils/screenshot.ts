@@ -21,6 +21,15 @@ export function screenshotFileName(station: string | undefined | null, at: Date 
   return name ? `SKYKING_${name}_${stamp}.png` : `SKYKING_${stamp}.png`;
 }
 
+/**
+ * Ctrl+P (או Cmd+P) - צילום מסך מהמקלדת. בניגוד ללחיצה על 📷, המקלדת לא סוגרת
+ * תפריט / קליק ימני פתוח, ולכן זו הדרך לצלם אותם. לפי `code` (המקש הפיזי) כדי
+ * שיעבוד גם כשהמקלדת בעברית (key = 'פ'). החזקת מקש לא מצלמת שוב ושוב.
+ */
+export function isScreenshotHotkey(e: KeyboardEvent): boolean {
+  return (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && !e.repeat && e.code === 'KeyP';
+}
+
 type ShotResult = { ok: boolean; path?: string; reason?: string };
 type ShotBridge = { screenshot?: (fileName: string) => Promise<ShotResult> };
 

@@ -16,6 +16,7 @@
 - Electron: ערוץ `shot:capture` ב-[`electron-main.cjs`](electron-main.cjs) + [`electron/screenshot.cjs`](electron/screenshot.cjs) - `capturePage` וכתיבה ל-Downloads בלי דיאלוג. העמוד מוסר שם בלבד (כלל ה-preload: אין נתיב מהעמוד).
 - דפדפן: `html-to-image` ברזולוציה מלאה והורדה רגילה.
 - נושא עזרה `screenshot` בחלון העזרה.
+- **Ctrl+P** (לפי המקש הפיזי `KeyP`, עובד גם במקלדת עברית) מצלם בלי לסגור תפריט / קליק ימני פתוח - הלחיצה על 📷 עוברת דרך ה-backdrop של התפריט וסוגרת אותו. מאזין בשלב ה-capture עם `stopImmediatePropagation`, וחוסם את חלון ההדפסה של הדפדפן.
 
 **QA:** tsc נקי, vitest מלא ירוק (כולל `screenshot.test.ts` ו-`electron/screenshot.test.js` - כתיבה אמיתית לתיקייה זמנית, חיתוך נתיב, אי-דריסה), `vite build` ירוק. **לא נבדק:** לחיצה בעמדת Electron חיה ובדפדפן חי.
 

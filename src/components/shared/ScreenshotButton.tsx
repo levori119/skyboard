@@ -1,8 +1,9 @@
 // כפתור צילום מסך 📷 - לחיצה אחת שומרת PNG ב-Downloads בשם העמדה + תאריך ושעה.
 // רכיב משותף: אותו כפתור באותה התנהגות בכל מסך (עמדה, ניהול). הלוגיקה ב-utils/screenshot.ts.
+// Ctrl+P מצלם גם הוא - ובלי לסגור תפריט / קליק ימני פתוח (לחיצה על הכפתור סוגרת אותם).
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { tr } from '../../i18n/tr';
-import { takeScreenshot } from '../../utils/screenshot';
+import { takeScreenshot, isScreenshotHotkey } from '../../utils/screenshot';
 
 interface Props {
   /** שם העמדה - נכנס לשם הקובץ */
@@ -29,6 +30,20 @@ export default function ScreenshotButton({ station, style }: Props) {
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => setMsg(null), FEEDBACK_MS);
   };
+
+  // שלב ה-capture + עצירה - כדי שאף מאזין אחר (תפריט שנסגר במקש, הדפסת הדפדפן) לא יגיב
+  const shootRef = useRef(shoot);
+  shootRef.current = shoot;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!isScreenshotHotkey(e)) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      void shootRef.current();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
 
   return (
     <div style={{ position: 'relative', display: 'inline-flex' }}>
