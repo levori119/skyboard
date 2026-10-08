@@ -12,7 +12,7 @@ import {
   cacheCredential, verifyLocalLogin, createLoginLimiter, LOCAL_LOGIN,
 } from '../auth/localCredentials.js';
 import { MIRAGE_POSITIONS, mirageAppEntry as entryOf } from '../auth/mirageApps.js';
-import { verifyReplicaLogin, REPLICA_LOGIN } from '../auth/mirageReplica.js';
+import { verifyReplicaLogin, listMirageUsers, REPLICA_LOGIN } from '../auth/mirageReplica.js';
 
 const router = new Router();
 
@@ -43,9 +43,9 @@ const MIRAGE_SERVICE_TOKEN = process.env.MIRAGE_SERVICE_TOKEN || '';
  * הוצג למפעיל כ"אין לך הרשאה במיראז'" - הודעה ששולחת אותו לחפש את הבעיה
  * במקום הלא נכון לגמרי.
  */
-const fetchMirage = async (path, init) => {
+const fetchMirage = async (path, init, timeoutMs = MIRAGE_TIMEOUT_MS) => {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), MIRAGE_TIMEOUT_MS);
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const headers = { ...(init?.headers || {}) };
     if (MIRAGE_SERVICE_TOKEN) headers['X-Service-Token'] = MIRAGE_SERVICE_TOKEN;
@@ -114,6 +114,58 @@ const mirageAppEntry = (user) => entryOf(user.apps, MIRAGE_APP_NAME);
 const isEligibleForPreset = (entry, preset) =>
   entry.roles.length > 0 &&
   (entry.workstations.length === 0 || entry.workstations.some(w => wsMatchesPreset(w, preset)));
+
+// ── רשימת משתמשי המיראז' - מקור אחד לשלושת התפריטים ──────────────────────────
+//
+// **התקלה שזה פותר:** שלושת הנתיבים (`mirage-eligible`, `mirage-crew`,
+// `mirage-drivers`) קראו ישירות ל-`fetchMirage('/api/users')`. בעמדת Electron
+// בלי אינטרנט המיראז' אינו נגיש, שלושתם חזרו 502, וכל התפריטים היו ריקים -
+// "לא מוצא רשימת משתמשים". זאת בזמן שההעתק המקומי (`mirage_users`) יושב על
+// הדיסק ומכיל בדיוק את מה שדרוש: שם, מספר אישי ו-`apps`.
+//
+// הכניסה בנתק כבר עבדה מול ההעתק; **הרשימות** פשוט לא ידעו עליו.
+//
+// ⚠️ **המיראז' קודם, תמיד.** כשיש קשר הוא מקור האמת: משתמש שהוסר או שהרשאתו
+// שונתה לפני רגע חייב להשתקף מיד. ההעתק הוא נפילה לאחור, לא מטמון.
+const USERS_TIMEOUT_MS = 2500;
+
+/**
+ * @returns {Promise<{users: object[], source: 'mirage'|'replica'} | null>}
+ *   `null` = גם המיראז' וגם ההעתק אינם זמינים, ואז 502 - כי רשימה ריקה
+ *   הייתה נקראת למפעיל כ"אין מורשים לעמדה" במקום "אין קשר".
+ */
+async function mirageUsers() {
+  let channelError = null;
+  try {
+    // ⚠️ תקרת זמן קצרה ולא 10 שניות: ברשת מנותקת החיבור יכול להיתלות עד
+    // ה-timeout המלא, ו**שלושת** התפריטים נפתחים יחד במסך הכניסה. ההעתק
+    // יושב מקומית ממילא, ולכן אין סיבה לגרום לפקח להמתין.
+    const r = await fetchMirage('/api/users', undefined, USERS_TIMEOUT_MS);
+    if (!isChannelFailure(r) && Array.isArray(r.body)) return { users: r.body, source: 'mirage' };
+    channelError = r.body?.error || `HTTP ${r.status}`;
+  } catch (err) {
+    channelError = err.message;
+  }
+
+  // ההעתק קיים **רק** במאגר המקומי של העמדה (server/local.js יוצר את הטבלה).
+  // במרכז אין לאן ליפול, ושם 502 הוא התשובה הנכונה.
+  if (isLocalDbMode()) {
+    try {
+      const users = await listMirageUsers(pool);
+      if (users.length) {
+        console.warn(`[mirage] המיראז' אינו זמין (${channelError}) - ${users.length} משתמשים מההעתק המקומי`);
+        return { users, source: 'replica' };
+      }
+    } catch (err) {
+      console.error('[mirage] קריאת ההעתק המקומי נכשלה:', err.message);
+    }
+  }
+
+  console.error(
+    `[mirage] קריאת רשימת המשתמשים נכשלה (${channelError}). `
+    + 'בדוק ש-MIRAGE_SERVICE_TOKEN מוגדר עם אותו ערך בשני התהליכים.');
+  return null;
+}
 
 const presetById = async (presetId) => {
   const { rows } = await pool.query('SELECT id, name FROM workstation_presets WHERE id = $1', [presetId]);
@@ -491,24 +543,10 @@ router.get('/api/auth/mirage-eligible', async (req, res) => {
     return res.status(400).json({ error: 'missing_preset_id' });
   }
 
-  let users;
-  try {
-    const r = await fetchMirage('/api/users');
-    // כשל ערוץ (אסימון שירות חסר/שגוי) אינו "אין משתמשים" אלא תקלת תצורה.
-    // בלי ההבחנה הזו הרשימה הייתה חוזרת ריקה בשקט, והמפעיל היה מסיק שאין
-    // מורשים לעמדה במקום שהשירותים לא מדברים.
-    if (isChannelFailure(r)) {
-      console.error(
-        `[mirage] קריאת רשימת המשתמשים נכשלה (HTTP ${r.status}, ${r.body?.error || 'לא ידוע'}). ` +
-        'בדוק ש-MIRAGE_SERVICE_TOKEN מוגדר עם אותו ערך בשני התהליכים.',
-      );
-      return res.status(502).json({ error: 'mirage_unavailable', reason: r.body?.error || 'channel' });
-    }
-    users = r.body;
-  } catch (err) {
-    console.error('[mirage] service unavailable:', err.message);
-    return res.status(502).json({ error: 'mirage_unavailable' });
-  }
+  // מקור אחד: המיראז' כשיש קשר, וההעתק המקומי בנתק. ראה §רשימת משתמשי המיראז'
+  const src = await mirageUsers();
+  if (!src) return res.status(502).json({ error: 'mirage_unavailable' });
+  const users = src.users;
 
   let preset = null;
   try {
@@ -552,24 +590,10 @@ router.get('/api/auth/mirage-crew', async (req, res) => {
     return res.status(400).json({ error: 'missing_preset_id' });
   }
 
-  let users;
-  try {
-    const r = await fetchMirage('/api/users');
-    // כשל ערוץ (אסימון שירות חסר/שגוי) אינו "אין משתמשים" אלא תקלת תצורה.
-    // בלי ההבחנה הזו הרשימה הייתה חוזרת ריקה בשקט, והמפעיל היה מסיק שאין
-    // מורשים לעמדה במקום שהשירותים לא מדברים.
-    if (isChannelFailure(r)) {
-      console.error(
-        `[mirage] קריאת רשימת המשתמשים נכשלה (HTTP ${r.status}, ${r.body?.error || 'לא ידוע'}). ` +
-        'בדוק ש-MIRAGE_SERVICE_TOKEN מוגדר עם אותו ערך בשני התהליכים.',
-      );
-      return res.status(502).json({ error: 'mirage_unavailable', reason: r.body?.error || 'channel' });
-    }
-    users = r.body;
-  } catch (err) {
-    console.error('[mirage] service unavailable:', err.message);
-    return res.status(502).json({ error: 'mirage_unavailable' });
-  }
+  // מקור אחד: המיראז' כשיש קשר, וההעתק המקומי בנתק. ראה §רשימת משתמשי המיראז'
+  const src = await mirageUsers();
+  if (!src) return res.status(502).json({ error: 'mirage_unavailable' });
+  const users = src.users;
 
   let preset = null;
   try {
@@ -648,18 +672,10 @@ router.get('/api/auth/mirage-drivers', async (req, res) => {
   // שדה בלי בסיס אינו "אין נהגים": המפעיל צריך לדעת שהבעיה בהגדרת השדה
   if (airfield.base_id == null) return res.status(409).json({ error: 'airfield_without_base' });
 
-  let users;
-  try {
-    const r = await fetchMirage('/api/users');
-    if (isChannelFailure(r) || !r.ok) {
-      console.error(`[mirage] רשימת הנהגים נכשלה (HTTP ${r.status}, ${r.body?.error || 'לא ידוע'}).`);
-      return res.status(502).json({ error: 'mirage_unavailable', reason: r.body?.error || 'channel' });
-    }
-    users = r.body;
-  } catch (err) {
-    console.error('[mirage] service unavailable (drivers):', err.message);
-    return res.status(502).json({ error: 'mirage_unavailable' });
-  }
+  // מקור אחד: המיראז' כשיש קשר, וההעתק המקומי בנתק. ראה §רשימת משתמשי המיראז'
+  const src = await mirageUsers();
+  if (!src) return res.status(502).json({ error: 'mirage_unavailable' });
+  const users = src.users;
   res.json({ baseId: airfield.base_id, drivers: driversForBase(users, airfield.base_id) });
 });
 

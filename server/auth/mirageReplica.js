@@ -79,6 +79,34 @@ export async function countMirageUsers(pool) {
   return r.rows[0].n;
 }
 
+/**
+ * רשימת המשתמשים מההעתק, **בדיוק בצורה ש-`GET /api/users` של המיראז' מחזיר**.
+ *
+ * למה זהה לחלוטין: שלושת הנתיבים שצורכים אותה (`mirage-eligible`,
+ * `mirage-crew`, `mirage-drivers`) מסננים לפי `apps` דרך `mirageAppEntry`
+ * ובונים ממנה את התפריטים. צורה שונה הייתה מחייבת ענף שני בכל אחד מהם -
+ * כלומר שתי גרסאות של "מי מורשה לעמדה", שמתפצלות בשינוי הראשון.
+ *
+ * ⚠️ **בלי `passwordHash`.** הוא יושב בהעתק לצורך כניסה בנתק בלבד, ואין לו
+ * מה לצאת מכאן: אלה נתיבי **רשימה**, והם נקראים מהדפדפן.
+ */
+export async function listMirageUsers(pool) {
+  const r = await pool.query(
+    `SELECT personal_number, first_name, last_name, apps
+       FROM mirage_users ORDER BY personal_number`);
+  return r.rows.map(u => {
+    const firstName = u.first_name || '';
+    const lastName = u.last_name || '';
+    return {
+      personalNumber: u.personal_number,
+      firstName,
+      lastName,
+      fullName: `${firstName} ${lastName}`.trim(),
+      apps: u.apps || {},
+    };
+  });
+}
+
 /** למה הכניסה מול ההעתק נדחתה. */
 export const REPLICA_LOGIN = {
   OK: 'ok',

@@ -62,6 +62,19 @@ router.get('/api/__localdb/startup', localOnly, async (_req, res) => {
       `SELECT COUNT(*)::int AS n FROM ${ident(currentSchema())}."strips"`);
     rows = r.rows[0]?.n ?? null;
   } catch { /* הטבלה טרם נוצרה - המאגר באמצע עלייה */ }
+
+  // כמה משתמשי מיראז' בהעתק המקומי. **ספירה בלבד** - בלי שם ובלי מספר אישי,
+  // כי הנתיב אינו דורש הזדהות.
+  //
+  // למה זה כאן: בנתק גם הכניסה וגם תפריטי אנשי הצוות נשענים על ההעתק הזה.
+  // כשהוא ריק הפקח רואה תפריטים ריקים ואין לו שום דרך לדעת שהסיבה היא
+  // שההעתק מעולם לא הגיע. מספר אחד כאן חוסך אבחון שלם.
+  let mirageUsers = null;
+  try {
+    const { countMirageUsers } = await import('../auth/mirageReplica.js');
+    mirageUsers = await countMirageUsers(pool);
+  } catch { /* הטבלה קיימת רק במאגר המקומי, וייתכן שטרם נוצרה */ }
+
   res.set('Cache-Control', 'no-store');
   res.json({
     startup: m.startup,        // syncing | synced | offline | off
@@ -70,6 +83,8 @@ router.get('/api/__localdb/startup', localOnly, async (_req, res) => {
     progress: m.progress,
     error: m.lastError,
     strips: rows,
+    mirageUsers,
+    mirageError: m.mirageError ?? null,
   });
 });
 

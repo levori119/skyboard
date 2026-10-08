@@ -3,7 +3,7 @@
 // קוד אבטחה - הבדיקות עוינות: מי שאסור לו לקבל טביעות סיסמה (משתמש מחובר,
 // בלי אסימון), תשובה שבורה מהמיראז' שמתפרשת כ"אין משתמשים", ומשתמש שהעמדה
 // מכירה רק מאסמכתא ישנה כשהמיראז' כבר אומר אחרת.
-import { vi, describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { vi, describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import http from 'http';
 import express from 'express';
 import { hashPassword } from '../../mirage/password.js';
@@ -140,5 +140,86 @@ describe('GET /api/sync/mirror/mirage-users - טביעות סיסמה, לסוכ�
     expect((await asStation()).status).toBe(502);
     mirage.status = 200; mirage.body = { ok: true };
     expect((await asStation()).status).toBe(502);
+  });
+});
+
+// ── רשימות המשתמשים בנתק ──────────────────────────────────────────────────────
+// התקלה שדווחה: "בעמדת Electron ללא אינטרנט לא מוצא רשימת משתמשים של מיראז'".
+// הכניסה בנתק כבר עבדה מול ההעתק המקומי; שלושת התפריטים פשוט לא ידעו עליו
+// וקראו ישירות למיראז' החיצוני.
+describe('רשימות המשתמשים נופלות להעתק המקומי', () => {
+  const token = () => signToken({
+    crewMemberId: 1, personalId: '100', name: 'בודק',
+    isAdmin: true, isTeamLead: false, isManpower: false, approvedWorkstations: [],
+  });
+  const get = (path) => fetch(`${baseUrl}${path}`, {
+    headers: { Authorization: `Bearer ${token()}` },
+  });
+
+  /** המיראז' חי ומחזיר רשימה תקינה. */
+  const mirageUp = (users) => { mirage.status = 200; mirage.body = users; };
+  /** המיראז' אינו נגיש - בדיוק מה שקורה בעמדה בלי אינטרנט. */
+  const mirageDown = () => { mirage.status = 503; mirage.body = { error: 'unauthenticated' }; };
+
+  afterEach(() => { mirage.status = 200; mirage.body = { ok: true, users: [] }; });
+
+  it('המיראז חי - הרשימה משלו, והוא מקור האמת', async () => {
+    mirageUp([{ personalNumber: '900', firstName: 'חי', lastName: 'מהמיראז',
+      apps: { 'SKY-KING': { roles: ['user'], workstations: [] } } }]);
+
+    const r = await get('/api/auth/mirage-eligible?presetId=3');
+    expect(r.status).toBe(200);
+    const d = await r.json();
+    expect(d.eligible.map(u => u.personalNumber)).toEqual(['900']);
+  });
+
+  it('אין אינטרנט - הרשימה מגיעה מההעתק המקומי במקום 502', async () => {
+    mirageDown();
+    const r = await get('/api/auth/mirage-eligible?presetId=3');
+    expect(r.status).toBe(200);
+    const d = await r.json();
+    // 100 מורשה לעמדה 3; 300 שייך לאפליקציה אחרת ולכן אינו ברשימה
+    expect(d.eligible.map(u => u.personalNumber)).toEqual(['100']);
+    expect(d.eligible[0].fullName).toBe('דנה כהן');
+  });
+
+  it('תשובה שבורה מהמיראז אינה "אין משתמשים" - גם היא נופלת להעתק', async () => {
+    mirage.status = 200; mirage.body = { ok: true };   // לא מערך
+    const r = await get('/api/auth/mirage-eligible?presetId=3');
+    expect(r.status).toBe(200);
+    expect((await r.json()).eligible).toHaveLength(1);
+  });
+
+  it('טופס חברי העמדה נופל להעתק באותו אופן', async () => {
+    mirageDown();
+    const r = await get('/api/auth/mirage-crew?presetId=3');
+    expect(r.status).toBe(200);
+    const d = await r.json();
+    expect(JSON.stringify(d)).toContain('דנה');
+  });
+
+  it('גם המיראז וגם ההעתק ריקים - 502, ולא רשימה ריקה', async () => {
+    // רשימה ריקה הייתה נקראת למפעיל כ"אין מורשים לעמדה" במקום "אין קשר"
+    const { replaceMirageUsers } = await import('../auth/mirageReplica.js');
+    const keep = await (await import('../auth/mirageReplica.js')).listMirageUsers(pool);
+    try {
+      await replaceMirageUsers(pool, []);
+      mirageDown();
+      const r = await get('/api/auth/mirage-eligible?presetId=3');
+      expect(r.status).toBe(502);
+      expect((await r.json()).error).toBe('mirage_unavailable');
+    } finally {
+      await replaceMirageUsers(pool, keep.map(u => ({ ...u, passwordHash: null })));
+    }
+  });
+
+  it('ההעתק אינו מחזיר טביעות סיסמה החוצה', async () => {
+    const { listMirageUsers } = await import('../auth/mirageReplica.js');
+    const users = await listMirageUsers(pool);
+    expect(users.length).toBeGreaterThan(0);
+    for (const u of users) {
+      expect(u).not.toHaveProperty('passwordHash');
+      expect(u).not.toHaveProperty('password_hash');
+    }
   });
 });
