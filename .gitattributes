@@ -6,3 +6,4 @@ skyking_code.zip filter=lfs diff=lfs merge=lfs -text
 
 # PowerShell 5.1 קורא .ps1 בלי BOM כ-ANSI, והעברית נהרסת
 *.ps1 text eol=crlf
+*.cmd text eol=crlf
