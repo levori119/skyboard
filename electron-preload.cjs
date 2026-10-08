@@ -65,4 +65,8 @@ contextBridge.exposeInMainWorld('skyking', {
   // והשם נחתך שם לשם בלבד. מחזיר { ok, path } או { ok:false, reason }.
   screenshot: (fileName) =>
     ipcRenderer.invoke('shot:capture', typeof fileName === 'string' ? fileName : ''),
+
+  // ── יציאה מהאפליקציה (כפתור "יציאה" במסך הכניסה) ──────────────────
+  // ללא פרמטרים: העמוד מבקש לצאת, והתהליך הראשי מחליט וסוגר.
+  quitApp: () => ipcRenderer.invoke('app:quit'),
 });

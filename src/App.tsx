@@ -32,6 +32,7 @@ import StationPicker from './components/shared/StationPicker';
 // איך העמדה עלתה - מסונכרנת מהמרכז או עצמאית מול המאגר המקומי. במסך הכניסה
 // דווקא, כי המפעיל צריך לדעת זאת **לפני** שהוא מתחיל לעבוד.
 import StartupModeBanner from './components/shared/StartupModeBanner';
+import ExitAppButton from './components/shared/ExitAppButton';
 import { openStationSession } from './utils/stationSession';
 import ManpowerPage from './components/manpower/ManpowerPage';
 import { LeoLogo } from './components/shared/LeoLogo';
@@ -288,6 +289,8 @@ const WorkstationLogin = ({ onLogin, onManagement, initialCrewMember }: { onLogi
       direction: dir,
       position: 'relative'
     }}>
+      {/* יציאה מהאפליקציה - בפינה הנגדית לבורר השפה */}
+      <ExitAppButton />
       {/* בורר שפה — עברית / English */}
       <div style={{ position: 'absolute', top: '16px', insetInlineEnd: '20px', display: 'flex', gap: '6px', zIndex: 10 }}>
         {(['he', 'en'] as AppLang[]).map(lng => (

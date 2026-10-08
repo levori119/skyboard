@@ -428,6 +428,19 @@ function registerScreenshotHandlers() {
   });
 }
 
+/**
+ * יציאה מהאפליקציה - כפתור "יציאה" במסך הכניסה.
+ * app.quit ולא סגירת החלון: בסוכן אין `window-all-closed` שמכבה, והכוונה היא
+ * להוריד את העמדה כולה (כולל שרת העמדה, שנסגר ב-before-quit).
+ */
+function registerQuitHandler() {
+  ipcMain.handle('app:quit', (event) => {
+    if (!senderAllowed(event)) return { ok: false, reason: 'forbidden' };
+    setImmediate(() => app.quit());   // אחרי שהתשובה חזרה לעמוד
+    return { ok: true };
+  });
+}
+
 function registerSttHandlers() {
   ipcMain.handle('stt:available', (event) => {
     if (!senderAllowed(event)) return { ok: false, code: 'stt-forbidden' };
@@ -695,6 +708,7 @@ async function createWindow() {
 app.whenReady().then(() => {
   registerSttHandlers();   // פעם אחת לכל חיי האפליקציה, לא לכל חלון
   registerRecordingHandlers();
+  registerQuitHandler();
   return createWindow();
 });
 

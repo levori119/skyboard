@@ -21,6 +21,12 @@
     "minimize": "מזער"
   },
   "login": {
+    "exit": "יציאה",
+    "exitTitle": "יציאה מהאפליקציה",
+    "exitThanks": "תודה שהשתמשת ב-SKYBOARD",
+    "exitBlessing": "שמיים בהירים ונחיתות רכות ✈",
+    "exitCloseTab": "אפשר לסגור את הלשונית",
+    "exitBack": "חזרה למסך הכניסה",
     "tagline": "לוח שמיים",
     "subtitle": "מערכת ניהול אווירי טקטי",
     "mirageTitle": "הזדהות מול מיראז' - מספר אישי:",
