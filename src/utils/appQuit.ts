@@ -23,5 +23,10 @@ export async function quitApp(w: Window = window): Promise<QuitResult> {
     } catch { /* נופלים לסגירת החלון */ }
   }
   try { w.close(); } catch { /* נחסם בדפדפן */ }
+  // ניסיון שני: לשונית ש"נפתחה מסקריפט" מותרת בסגירה - פתיחה עצמית ל-_self
+  // מספיקה בחלק מהדפדפנים (ובכרום כשללשונית אין היסטוריית ניווט).
+  if (!w.closed) {
+    try { w.open('', '_self')?.close(); } catch { /* נחסם */ }
+  }
   return w.closed ? 'window' : 'unsupported';
 }

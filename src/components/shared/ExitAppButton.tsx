@@ -3,6 +3,8 @@
 // הלחיצה פותחת מסך פרידה קצר ("תודה שהשתמשת...") ורק אחריו היציאה בפועל.
 // מסך הפרידה הוא גם האישור: יש בו "ביטול" עד שהזמן נגמר, כך שלחיצה בטעות
 // לא מורידה את העמדה בלי הזדמנות לחזור - ובלי modal נוסף.
+// אחרי היציאה אין "חזרה": האפליקציה נסגרת, ובדפדפן הלשונית נסגרת. רק כשהדפדפן
+// חוסם את הסגירה נשארת הודעת פרידה עם הנחיה לסגור את הלשונית.
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { quitApp, FAREWELL_MS } from '../../utils/appQuit';
@@ -81,15 +83,8 @@ export default function ExitAppButton() {
               </button>
             </>
           ) : (
-            <>
-              <div style={{ fontSize: '14px', color: '#94a3b8' }}>{t('login.exitCloseTab')}</div>
-              <button
-                onClick={cancel}
-                style={{ padding: '8px 22px', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', border: '1px solid rgba(255,255,255,0.3)', background: 'transparent', color: '#cbd5e1' }}
-              >
-                {t('login.exitBack')}
-              </button>
-            </>
+            // הדפדפן חסם את סגירת הלשונית - אין לאן לחזור, רק להנחות לסגור ידנית
+            <div style={{ fontSize: '14px', color: '#94a3b8' }}>{t('login.exitCloseTab')}</div>
           )}
         </div>
       )}
