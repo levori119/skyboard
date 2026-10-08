@@ -554,6 +554,8 @@ git push origin feature/i18n-bilingual:main
 | `APP_VERSION` | **מסך הכניסה** (פוטר, מתחת ללוגו LEO) + **חלון העזרה** בעמדה ("גרסה נוכחית") |
 | `APP_VERSION_DATE` | אותם שני מקומות - פורמט `YYYY-MM-DD HH:MM` |
 
+> **אלקטרון:** גרסת העמדה הארוזה (שם המתקין, `app.getVersion()`, מאפייני ה-exe) נלקחת **גם היא** מ-`APP_VERSION`, דרך [`scripts/electron-builder.mjs`](scripts/electron-builder.mjs) שמזריק `extraMetadata.version` בזמן הבנייה. ה-`version` ב-`package.json` נשאר 1.0.0 בכוונה (שורה שמשתנה בכל קומיט = קונפליקט rebase בין סוכנים). כל `electron:build:*` חייב לעבור דרך המעטפת, לא `electron-builder` ישירות.
+
 ### אכיפה אוטומטית - שתי שכבות
 
 | שכבה | איפה | מתי | מה עושה |

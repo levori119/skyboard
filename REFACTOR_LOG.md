@@ -6,6 +6,18 @@
 
 ---
 
+## 2026-10-08 - גרסת אלקטרון תקועה על 1.0.0
+
+**הדיווח (אורי):** "הגרסה באלקטרון לא מעודכנת."
+
+**השורש:** `npm run version:bump` מעדכן רק את `src/version.ts`, ו-electron-builder לוקח את הגרסה מ-`package.json` - שעומד על `1.0.0` מאז ומעולם. לכן כל מתקין יצא `Setup-1.0.0.exe`, ומאפייני ה-exe ב-Windows ו-`app.getVersion()` הראו 1.0.0, בזמן שמסך הכניסה הראה 1.0.35x.
+
+**התיקון:** [`scripts/electron-builder.mjs`](scripts/electron-builder.mjs) - מעטפת שקוראת את `APP_VERSION` ומעבירה `-c.extraMetadata.version`. כל סקריפטי `electron:build:*` עוברים דרכה. בכוונה לא מסנכרנים את `package.json` ב-bump: שורת גרסה בו וב-lock בכל קומיט היא קונפליקט ב-rebase של כל שני סוכנים.
+
+**QA:** בניית `--dir` של `electron-builder.railway-lite.json` - ה-exe יצא עם `FileVersion 1.0.355`, וה-`package.json` שבתוך `app.asar` עם `"version": "1.0.355"`. מתקין NSIS מלא לא נבנה בבדיקה (אותו מקור גרסה, `${version}` ב-`artifactName`).
+
+---
+
 ## 2026-10-08 - בנתק גם רשימות המשתמשים מגיעות מההעתק המקומי, לא רק הכניסה
 
 **הדיווח (אורי):** "יש בעיה ללא אינטרנט באלקטרון - לא מוצא רשימת משתמשים של
