@@ -8848,7 +8848,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // מקור אמת יחיד לרשימה: סרגל הפ"ממים של עמדת הבקר **וגם** חלון הפ"ממים של
   // כל מפה בדסק משימה. הגוף הועבר לכאן כמות שהוא מתוך ה-JSX (ולכן ההזחה נשארה
   // של JSX) - העברה מכנית, בלי שינוי התנהגות.
-  const renderStripsPanel = () => {
+  // stickyPadTop: ריווח עליון של הכותרת הנעוצה - בסרגל העמדה הריווח העליון עבר
+  // מהסרגל לכותרת, כדי שבגלילה פ"מים לא יבצבצו מעליה.
+  const renderStripsPanel = (stickyPadTop = 0) => {
                 const sidebarStripList = myStrips.filter(s =>
                   (showPendingTransfer || s.status !== 'pending_transfer') &&
                   !s.onMap &&
@@ -8872,6 +8874,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   for(const s of _sorted)renderItems.push({kind:'strip',_rk:`s-${s.id}`,s,..._gst(s)});
                 }
                 return (<>
+              {/* הכותרת והבורר נעוצים למעלה - נשארים גלויים כשגוללים את הרשימה */}
+              <div style={{ position: 'sticky', top: 0, zIndex: 5, background: T.bg, paddingTop: stickyPadTop }}>
               <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: T.text }}>{isClassicMode ? 'כל הפממים' : 'פ"מ עמדה'} ({sidebarStripList.length})</h4>
               <div style={{ fontSize: '10px', color: T.muted, marginBottom: '8px' }}>{isClassicMode ? 'גרור פמם לפממים שלי' : 'גרור פמם למפה להוספה'}</div>
               {/* בורר תצוגה (רק כשהמפה עם אזורים): קיבוץ לפי אזורים / רשימת פ"מ רגילה */}
@@ -8897,6 +8901,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   })}
                 </div>
               )}
+              </div>
               {renderItems.map(item => {
                 if (item.kind === 'zone') return (
                   <div key={`fzh-z${item.zoneId}`} onClick={() => setFzPanelCollapsed(prev => { const n=new Set(prev); n.has(item.zoneId)?n.delete(item.zoneId):n.add(item.zoneId); return n; })}
@@ -17846,7 +17851,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         <div
           id="sidebar-area"
           data-help="stripsPanel"
-          style={{ display: (isGroundMode || isMissionDeskMode) ? 'none' : undefined, order: 5, width: sidebarPinned ? 240 : 36, background: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '#1a2e1a' : T.bg, padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '2px solid #4ade80' : fzPairSel ? '2px solid #22d3ee' : `1px solid ${T.border}`, overflowY: sidebarPinned ? 'auto' : 'hidden', direction: dir, transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}
+          style={{ display: (isGroundMode || isMissionDeskMode) ? 'none' : undefined, order: 5, width: sidebarPinned ? 240 : 36, background: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '#1a2e1a' : T.bg, padding: sidebarPinned ? '0 10px 10px' : '6px 4px', borderLeft: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '2px solid #4ade80' : fzPairSel ? '2px solid #22d3ee' : `1px solid ${T.border}`, overflowY: sidebarPinned ? 'auto' : 'hidden', direction: dir, transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}
           onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setSidebarHtmlDragOver(true); } : undefined}
           onDragLeave={tableMode ? () => setSidebarHtmlDragOver(false) : undefined}
           onDrop={tableMode ? e => {
@@ -17870,8 +17875,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             }
           } : undefined}
         >
-          {/* Pin toggle button + filter button + add strip */}
-          <div style={{ position: sidebarPinned ? 'absolute' : 'relative', top: sidebarPinned ? 6 : 0, left: sidebarPinned ? 4 : 0, zIndex: 10, display: 'flex', gap: '4px', alignItems: 'center' }}>
+          {/* Pin toggle button + filter button + add strip.
+              נעוץ (sticky, גובה 0) כדי שהכפתורים יישארו גלויים כשגוללים את הסרגל */}
+          <div style={sidebarPinned ? { position: 'sticky', top: 0, height: 0, zIndex: 10 } : undefined}>
+          <div style={{ position: sidebarPinned ? 'absolute' : 'relative', top: sidebarPinned ? 6 : 0, left: sidebarPinned ? -6 : 0, zIndex: 10, display: 'flex', gap: '4px', alignItems: 'center' }}>
             <button
               onClick={() => setSidebarPinned(v => !v)}
               title={sidebarPinned ? 'סגור חלונית' : 'פתח חלונית'}
@@ -17901,6 +17908,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               >{tr('ctrl.formation')}</button>
             )}
           </div>
+          </div>
           {!sidebarPinned && !isGroundMode && (() => {
             const closedCount = tableMode
               ? myTableStrips.filter(s => !tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer')).length
@@ -17909,6 +17917,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           })()}
           {sidebarPinned && !isGroundMode && (tableMode ? (
             <>
+              <div style={{ position: 'sticky', top: 0, zIndex: 5, background: T.bg, paddingTop: 10 }}>
               <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: T.text }}>{tr('ctrl.availableFormations')}{myTableStrips.filter(s => !tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer')).length}):</h4>
               <div style={{ fontSize: '10px', color: T.muted, marginBottom: '6px' }}>{tr('ctrl.dragAFormationTo')}</div>
               <input
@@ -17917,6 +17926,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 placeholder={tr('shared.search')}
                 style={{ width: '100%', padding: '4px 8px', marginBottom: '8px', background: T.surface, color: T.text, border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', fontSize: '12px', direction: dir, boxSizing: 'border-box' }}
               />
+              </div>
               {[...myTableStrips.filter(s => !tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer') && (!sidebarAvailableSearch.trim() || (s.callSign || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase()) || (s.sq || s.squadron || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase()) || (s.task || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase())))].sort(compareAirborneThenTakeoff).map(s => {
                 const now = new Date();
                 const tkDt = s.takeoff_time ? new Date(s.takeoff_time) : null;
@@ -18119,7 +18129,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </>
           ) : (
             <>
-              {renderStripsPanel()}
+              {renderStripsPanel(10)}
             </>
           ))}
 
