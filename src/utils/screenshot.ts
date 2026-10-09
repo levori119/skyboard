@@ -7,7 +7,7 @@
 //
 // בניגוד ל-captureStation (stationSnapshot.ts) שמצלם בחצי רזולוציה לתחקיר
 // שנשמר ב-DB, כאן הרזולוציה מלאה - זו תמונה שהפקח שומר לעצמו.
-import { toPng } from 'html-to-image';
+import { captureDom } from './domCapture';
 
 /** תווים שאסורים בשם קובץ ב-Windows */
 const ILLEGAL = /[<>:"/\\|?*\x00-\x1f]+/g;
@@ -44,7 +44,7 @@ const nextPaint = () =>
 
 /**
  * מצלם את המסך ושומר ל-Downloads. מחזיר את שם הקובץ, או null אם נכשל.
- * אלמנטים עם `data-nosnapshot` לא נכנסים לצילום ה-DOM (במסלול הדפדפן).
+ * במסלול הדפדפן - מה שלא נכנס לצילום ה-DOM ולמה: domCapture.ts.
  */
 export async function takeScreenshot(station: string | undefined | null): Promise<string | null> {
   const fileName = screenshotFileName(station);
@@ -59,13 +59,7 @@ export async function takeScreenshot(station: string | undefined | null): Promis
   }
 
   try {
-    const target = document.getElementById('root') || document.body;
-    const dataUrl = await toPng(target, {
-      cacheBust: true,
-      skipFonts: true,
-      pixelRatio: window.devicePixelRatio || 1,
-      filter: node => !(node instanceof HTMLElement && node.hasAttribute('data-nosnapshot')),
-    });
+    const dataUrl = await captureDom(window.devicePixelRatio || 1);
     const a = document.createElement('a');
     a.href = dataUrl;
     a.download = fileName;

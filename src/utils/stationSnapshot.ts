@@ -3,10 +3,10 @@
 // למה לא getDisplayMedia: הוא פותח דיאלוג בחירת מסך בכל צילום. בעמדה תפעולית,
 // באמצע אירוע, זה צעד מיותר. html-to-image מרנדר את ה-DOM עצמו ולכן שקוף למשתמש.
 //
-// מה **לא** נכנס לצילום: כל אלמנט עם `data-nosnapshot` — כך טופס התחקיר עצמו
+// מה **לא** נכנס לצילום (ראה domCapture.ts): כל אלמנט עם `data-nosnapshot` — כך טופס התחקיר עצמו
 // (וכל שכבה שנפתחה בגללו) לא מצלם את עצמו. הקריאה חייבת בכל מקרה לקרות לפני
 // שהטופס נפתח; ה-attribute הוא רשת הביטחון.
-import { toPng } from 'html-to-image';
+import { captureDom } from './domCapture';
 
 /** ממתין לשני frames — כדי שסגירת התפריט שקדמה לצילום תספיק להיעלם מהמסך */
 const nextPaint = () =>
@@ -19,18 +19,10 @@ const nextPaint = () =>
  * הכישלון אינו חריג: התחקיר נשמר גם בלי תמונה.
  */
 export async function captureStation(): Promise<string> {
-  const target = document.getElementById('root') || document.body;
   try {
     await nextPaint();
-    return await toPng(target, {
-      cacheBust: true,
-      // גופנים מוטמעים מנפחים את ה-dataURL בעשרות אחוזים ואינם נחוצים לתמונה
-      skipFonts: true,
-      // חצי רזולוציה — קריא לתחקיר, ורבע מנפח ה-base64 שנשמר ב-DB
-      pixelRatio: 0.5,
-      filter: node =>
-        !(node instanceof HTMLElement && node.hasAttribute('data-nosnapshot')),
-    });
+    // חצי רזולוציה - קריא לתחקיר, ורבע מנפח ה-base64 שנשמר ב-DB
+    return await captureDom(0.5);
   } catch {
     return '';
   }

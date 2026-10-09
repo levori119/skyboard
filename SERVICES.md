@@ -1137,6 +1137,10 @@ DB מנוהל היה נופל יחד עם העמדה.
 **סקייל:** `getBoundingClientRect` מחזיר פיקסלי מסך והרכיב יושב תחת `zoom: var(--s)` — לכן כל קואורדינטה **וגם `innerWidth/Height`** מחולקות ב---s, ולתווית `boxSizing: border-box` (בלעדיו ה-padding הוסיף רוחב והיא גלשה מקצה המסך). נמדד ב-e2e ב-15.6" וב-24" אמיתי (2560px + ‎--s=1.65‎).
 **מייצא:** `HelpSpotlight` (default), `HelpSpotlightProps`.
 
+### `src/utils/domCapture.ts`
+**תפקיד:** צילום DOM→PNG (`html-to-image`) - מקור יחיד ל-`captureStation` (תחקיר) ול-`takeScreenshot` (📷 / Ctrl+P בדפדפן). מסנן החוצה `data-nosnapshot`, iframe / video / object / embed ו-canvas מזוהם - כל אחד מהם הפיל את הצילום כולו (חלון הצצה לעמדה נתקע ~200 ש'). תקרה 60 ש' לניסיון, ניסיון חוזר ברזולוציה נמוכה, והשגיאה נרשמת לקונסול.
+**מייצא:** `captureDom`, `isUncapturable`, `captureRatios`.
+
 ### `src/utils/stationSnapshot.ts`
 **תפקיד:** צילום מסך העמדה לתחקיר — DOM→canvas (`html-to-image`), בלי דיאלוג הרשאת מסך. `getDisplayMedia` נפסל כי הוא פותח בחירת מסך בכל צילום, ובאמצע אירוע זה צעד מיותר. הצילום קורה **לפני** שהטופס נפתח (אחרת הטופס היה מכסה את העמדה בתמונה), וכל אלמנט עם `data-nosnapshot` מסונן החוצה כרשת ביטחון. `pixelRatio: 0.5` + `skipFonts` — קריא לתחקיר ורבע מנפח ה-base64. כישלון אינו חריג: מוחזר `''` והתחקיר נשמר בלי תמונה.
 **מייצא:** `captureStation`.
