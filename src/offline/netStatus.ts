@@ -84,6 +84,8 @@ let state: NetSnapshot = { ...CLEAN };
 /** מונה מלא (לא חסום) + רגע הכשל הראשון ברצף — הנתק מתוארך אליו, לא לסף. */
 let failureRun = 0;
 let firstFailureAt: number | null = null;
+/** מתי נספר הכשל האחרון ברצף - ראה `noteFailure` §הד של אותו אירוע */
+let lastCountedAt: number | null = null;
 
 const listeners = new Set<() => void>();
 
@@ -136,6 +138,7 @@ export function noteStationServing(
 export function markOnline(now: number = Date.now()) {
   failureRun = 0;
   firstFailureAt = null;
+  lastCountedAt = null;
   update({ online: true, lastSuccessAt: now, offlineSince: null, failures: 0, degradedSince: null });
 }
 
@@ -150,16 +153,25 @@ export function markOnline(now: number = Date.now()) {
 export function markReachable(now: number = Date.now()) {
   failureRun = 0;
   firstFailureAt = null;
+  lastCountedAt = null;
   update({ online: true, offlineSince: null, failures: 0, degradedSince: state.degradedSince ?? now });
 }
 
 /**
  * כשל קשר אמיתי — הבקשה לא קיבלה תשובה כלל (שגיאת רשת או תקרת זמן).
  * הנתק מוכרז רק אחרי FAILURE_THRESHOLD כשלים רצופים.
+ *
+ * ⚠️ **הד של אותו אירוע אינו כשל נוסף.** `sentAt` הוא הרגע שבו הבקשה יצאה.
+ * בקשה שיצאה **לפני** הכשל האחרון שנספר כבר הייתה באוויר כשהעיכוב התחיל, ולכן
+ * נפילתה אינה ראיה חדשה. בלי זה עיכוב בודד של 10 שניות (נמדד בסוכן העמדה,
+ * 2026-10-09) הפיל את כל ה-pollers שבאוויר יחד על תקרת הזמן, כל אחד נספר
+ * בנפרד, והסף נחצה מאירוע אחד: "עבודה מקומית - אין קשר" עלה וירד שוב ושוב.
+ * בנתק אמיתי גם בקשות שיוצאות **אחרי** הכשל נופלות, והסף נחצה כרגיל.
  */
-export function noteFailure(now: number = Date.now()) {
+export function noteFailure(now: number = Date.now(), sentAt: number = now) {
+  const echo = lastCountedAt != null && sentAt < lastCountedAt;
   if (firstFailureAt == null) firstFailureAt = now;
-  failureRun++;
+  if (!echo) { failureRun++; lastCountedAt = now; }
   const failures = Math.min(failureRun, FAILURE_THRESHOLD);
   const degradedSince = state.degradedSince ?? now;
   if (failureRun < FAILURE_THRESHOLD) { update({ failures, degradedSince }); return; }
@@ -186,5 +198,6 @@ export function __resetNetStatus() {
   state = { ...CLEAN };
   failureRun = 0;
   firstFailureAt = null;
+  lastCountedAt = null;
   listeners.clear();
 }

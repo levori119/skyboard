@@ -50,6 +50,29 @@ describe('מצב הקשר לשרת המרכזי', () => {
     expect(health.snapshot().offlineSince).toBeTypeOf('number');
   });
 
+  it('בקשות שיצאו יחד ונפלו יחד בעיכוב בודד - אירוע אחד, לא מעבר למקומי (2026-10-09)', () => {
+    // נמדד: הסוכן המתין 10.8 ש' פעם אחת, וכל הבקשות שהיו באוויר נפלו יחד על
+    // תקרת הזמן. כל אחת נספרה בנפרד, והעמדה עברה למאגר המקומי מאירוע אחד.
+    let t = 1_000_000;
+    health = createRemoteHealth({ apiTarget: REMOTE, now: () => t });
+    const sent = t;
+    t += 8000;
+    for (let i = 0; i < 5; i++) health.markDown(sent);
+    expect(health.snapshot().online).toBe(true);
+  });
+
+  it('נתק אמיתי: גם בקשות שיצאו אחרי הכשל נופלות - עוברים למקומי', () => {
+    let t = 1_000_000;
+    health = createRemoteHealth({ apiTarget: REMOTE, now: () => t });
+    for (let i = 0; i < FAILURE_THRESHOLD; i++) {
+      const sent = t;
+      t += 8000;
+      health.markDown(sent);
+      t += 1000;
+    }
+    expect(health.snapshot().online).toBe(false);
+  });
+
   it('הצלחה באמצע מאפסת את המונה - כשלים מפוזרים אינם נתק', () => {
     health = createRemoteHealth({ apiTarget: REMOTE });
     health.markDown();

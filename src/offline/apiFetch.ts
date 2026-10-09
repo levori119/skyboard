@@ -197,6 +197,9 @@ export function createOfflineFetch(opts: OfflineFetchOptions = {}) {
     // כשל בודד כבר אינו מכריז נתק, ולכן "היינו מנותקים" הפסיק להיות טריגר תקף.
     const drainIfPending = () => { if (getNetSnapshot().queued > 0) void track(drainOutbox()); };
 
+    // רגע היציאה - כדי שבקשות שהיו באוויר יחד ייספרו כאירוע אחד (ראה noteFailure)
+    const sentAt = now();
+
     // ── קריאה ────────────────────────────────────────────────────────────────
     if (isReadMethod(method)) {
       const key = cacheKey(url, method, scope());
@@ -207,7 +210,7 @@ export function createOfflineFetch(opts: OfflineFetchOptions = {}) {
         // הקורא ביטל — לא נתק, ובעיקר: השגיאה חוזרת אליו כמו שהיא. תשובה
         // מהטמון במקומה הייתה נקראת אצלו כדגימה חדשה.
         if (isCallerAbort(err, signalOf(input, init))) throw err;
-        noteFailure(now());
+        noteFailure(now(), sentAt);
         const cached = await readFromCache(key);
         if (cached) return cached;
         throw err; // אין מידע קודם להציג — הקורא חייב לדעת, לא לקבל מערך ריק
@@ -242,7 +245,7 @@ export function createOfflineFetch(opts: OfflineFetchOptions = {}) {
       return res;
     } catch (err) {
       if (isCallerAbort(err, signalOf(input, init))) throw err;
-      noteFailure(now());
+      noteFailure(now(), sentAt);
     }
 
     if (policy === 'drop') {

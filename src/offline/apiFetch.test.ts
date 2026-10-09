@@ -321,6 +321,54 @@ describe('סף הכרזת נתק', () => {
   });
 });
 
+describe('עיכוב בודד אינו נתק (2026-10-09)', () => {
+  // הדיווח: "ב-WEB המערכת כל הזמן בנתק" - "עבודה מקומית - אין קשר" עלה וירד.
+  // נמדד: הסוכן המקומי נתקע ל-10.8 ש' פעם אחת. כל ה-pollers שהיו באוויר נפלו
+  // יחד על תקרת 8 השניות, וכל אחד נספר ככשל נפרד - הסף (3) נחצה מאירוע אחד.
+
+  /** בקשות שנתקעות עד שמשחררים אותן ביד */
+  function stalled() {
+    const pending: Array<() => void> = [];
+    const h = makeHarness(() => new Promise<Response>((_res, rej) => {
+      pending.push(() => rej(new TypeError('Failed to fetch')));
+    }));
+    const failAll = () => { pending.splice(0).forEach(fn => fn()); };
+    /** ממתין עד ש-n בקשות באמת יצאו לרשת */
+    const inFlight = async (n: number) => {
+      while (pending.length < n) await new Promise(r => setTimeout(r, 0));
+    };
+    return { ...h, failAll, inFlight };
+  }
+
+  it('בקשות שיצאו יחד ונפלו יחד - אירוע אחד, לא נתק', async () => {
+    const h = stalled();
+    const reqs = [1, 2, 3, 4, 5].map(() => h.f('/api/strips').catch(() => null));
+    await h.inFlight(5);
+    h.advance(8000);
+    h.failAll();
+    await Promise.all(reqs);
+    expect(getNetSnapshot().online).toBe(true);
+  });
+
+  it('נתק אמיתי: גם בקשות שיצאו **אחרי** הכשל נופלות - הסף נחצה', async () => {
+    const h = stalled();
+    const first = [1, 2, 3].map(() => h.f('/api/strips').catch(() => null));
+    await h.inFlight(3);
+    h.advance(8000);
+    h.failAll();
+    await Promise.all(first);
+    for (let i = 0; i < 2; i++) {
+      h.advance(1000);
+      const r = h.f('/api/strips').catch(() => null);
+      await h.inFlight(1);
+      h.advance(8000);
+      h.failAll();
+      await r;
+    }
+    expect(getNetSnapshot().online).toBe(false);
+  });
+});
+
 describe('נתיב התמונ"א עוקף את שכבת הנתק', () => {
   it('502 מהמאגר החיצוני אינו נתק לשרת SKY-KING', async () => {
     const h = makeHarness(async () => new Response('{"error":"repository unreachable"}', { status: 502 }));

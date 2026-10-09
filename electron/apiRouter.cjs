@@ -39,6 +39,8 @@ function createRemoteHealth({ apiTarget, probeIntervalMs = PROBE_INTERVAL_MS, ti
   let online = true;
   let offlineSince = null;
   let timer = null;
+  /** מתי נספר הכשל האחרון ברצף - ראה markDown §הד של אותו אירוע */
+  let lastCountedAt = null;
   const listeners = new Set();
 
   const emit = () => { for (const l of listeners) l(snapshot()); };
@@ -47,11 +49,21 @@ function createRemoteHealth({ apiTarget, probeIntervalMs = PROBE_INTERVAL_MS, ti
 
   function markUp() {
     failures = 0;
+    lastCountedAt = null;
     if (!online) { online = true; offlineSince = null; stopProbing(); emit(); }
   }
 
-  function markDown() {
+  /**
+   * ⚠️ **הד של אותו אירוע אינו כשל נוסף.** `sentAt` = מתי הבקשה יצאה. בקשה
+   * שיצאה לפני הכשל האחרון שנספר כבר הייתה באוויר כשהעיכוב התחיל, ונפילתה
+   * אינה ראיה חדשה. בלי זה עיכוב בודד (נמדד 10.8 ש', 2026-10-09) הפיל את כל
+   * הבקשות שבאוויר יחד, והעמדה עברה למקומי מאירוע אחד. אותו כלל בדיוק כמו
+   * `noteFailure` ב-src/offline/netStatus.ts.
+   */
+  function markDown(sentAt = now()) {
     if (!online) return;
+    if (lastCountedAt != null && sentAt < lastCountedAt) return;
+    lastCountedAt = now();
     if (++failures < FAILURE_THRESHOLD) return;
     online = false;
     offlineSince = now();
@@ -224,12 +236,12 @@ function createApiRouter({ apiTarget, localTarget = () => null, mode = 'auto', p
     },
 
     /** מדווח על תוצאת בקשה שעברה בפועל - זה מה שמזין את מצב הקשר. */
-    report(which, ok) {
+    report(which, ok, sentAt) {
       if (which !== 'remote') return;
       // בנתק מדומה אין ללמוד דבר מכשל: הוא מלאכותי. דיווח היה מגלגל את מצב
       // הקשר האמיתי למטה, והעמדה הייתה נשארת "מנותקת" גם אחרי כיבוי הדימוי.
       if (simulated) return;
-      if (ok) health.markUp(); else health.markDown();
+      if (ok) health.markUp(); else health.markDown(sentAt);
     },
 
     /** מצב לחיווי בממשק. */

@@ -380,10 +380,11 @@ function createStationServer({
         const swapped = authBridge.swapAuthHeader(req.headers.authorization);
         if (swapped) extraHeaders.authorization = swapped;
       }
+      const sentAt = Date.now();
       return proxyRequest(req, res, target, timeoutForPath(urlPath), {
         rewritePath: (req.url || '').replace(prefix, '/api'),
         extraHeaders,
-        onResult: ok => router.report(which, ok),
+        onResult: ok => router.report(which, ok, sentAt),
       });
     }
     // ── תמונ"א: חיבור **ישיר** מהעמדה למאגר ──────────────────────────────────
@@ -411,8 +412,10 @@ function createStationServer({
       // העמדה מנפיקה לו מקביל מקומי. בלי זה פקח שרענן את הדף (ולכן לא עבר
       // כניסה חדשה) היה מקבל 401 על כל בקשה ברגע המעבר למאגר המקומי - וזה
       // נראה בדיוק כמו "בנתק שום דבר לא נשמר".
+      // רגע היציאה - בקשות שהיו באוויר יחד נספרות כאירוע אחד (apiRouter markDown)
+      const sentAt = Date.now();
       const onResult = (ok, status) => {
-        router.report(which, ok);
+        router.report(which, ok, sentAt);
         if (which === 'remote' && ok && status && status < 400) {
           authBridge.noteAccepted(req.headers.authorization);
         }
