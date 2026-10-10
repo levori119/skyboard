@@ -126,7 +126,10 @@
 
     "editMode": { "he": "עריכת כפתורים", "en": "Edit buttons" },
     "sortByStatus": { "he": "סדר לפי סטטוס", "en": "Sort by status" },
-    "sortByStatusHint": { "he": "מקבץ כפתורים בעלי סטטוס זהה - שורה לכל סטטוס", "en": "Groups buttons with the same status - one row per status" },
+    "sortByStatusHint": { "he": "מקבץ כפתורים בעלי סטטוס זהה - שורה לכל סטטוס, ומסדר מחדש בכל שינוי", "en": "Groups buttons with the same status - one row per status, re-sorted on every change" },
+    "sortByStatusDesc": { "he": "סדר הפוך", "en": "Reverse order" },
+    "sortByStatusAscHint": { "he": "מסודר לפי סטטוס. לחיצה - סדר סטטוסים הפוך", "en": "Sorted by status. Click to reverse the status order" },
+    "sortByStatusDescHint": { "he": "מסודר לפי סטטוס בסדר הפוך. לחיצה - ביטול הסידור. גרירת כפתור גם מבטלת", "en": "Sorted by status, reversed. Click to stop sorting. Dragging a button also stops it" },
     "snapOn": { "he": "מיושר", "en": "Aligned" },
     "snapOff": { "he": "חופשי", "en": "Free" },
     "snapOnHint": { "he": "גרירה נצמדת לשורה או לעמודה הקרובה. לחיצה - מעבר לגרירה חופשית", "en": "Dragging snaps to the nearest row or column. Click for free dragging" },

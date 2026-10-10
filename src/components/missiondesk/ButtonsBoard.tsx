@@ -4,12 +4,12 @@
 // לכל כפתור מצבים עם צבע, טקסט חופשי, פונט/גודל/מידות, וטריגר התראה מתפרצת.
 // adminMode (הגדרת עמדה): כפתורים שנוצרים מסומנים "קבוע" (📌) — בעמדה אי אפשר
 // למחוק/לערוך אותם (רק להפעיל, לגרור ולמלא טקסט חופשי).
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { tr } from '../../i18n/tr';
 import { API_URL } from '../../config';
 import { customConfirm } from '../shared/ConfirmModal';
 import type { MDButton, MDButtonsState, MDButtonStateDef } from '../../types/missionDesk';
-import { cycleButtonState, mdGenId, mdSnapRect, mdFreeSpot, mdLayoutByStatus } from '../../utils/missionDesk';
+import { cycleButtonState, mdGenId, mdSnapRect, mdFreeSpot, mdLayoutByStatus, mdNextStatusSort, mdClampRect, mdStatusKey } from '../../utils/missionDesk';
 import type { MDRect } from '../../utils/missionDesk';
 import type { MDTheme } from './theme';
 
@@ -42,7 +42,12 @@ export default function ButtonsBoard({ serviceName, state, onChange, presetId, p
 
   const buttons = state?.buttons || [];
   const snap = !!state?.snap;
-  const save = (next: MDButton[]) => onChange({ ...state, buttons: next });
+  const statusSort = state?.statusSort;
+  // המצב העדכני - לקריאות מתוך rAF/טיימר/ResizeObserver, שאחרת רואות סגירה ישנה
+  // ודורסות שינוי שקרה בינתיים (למשל סטטוס שהוחלף רגע לפני הסידור)
+  const latestRef = useRef(state);
+  latestRef.current = state;
+  const save = (next: MDButton[], extra?: Partial<MDButtonsState>) => onChange({ ...latestRef.current, buttons: next, ...extra });
 
   // מלבני הכפתורים כפי שהם על המסך - פיקסלים אמיתיים יחסית ללוח (כמו clientX)
   const measure = () => {
@@ -128,19 +133,69 @@ export default function ButtonsBoard({ serviceName, state, onChange, presetId, p
     dragRef.current = null;
     onInteracting(false);
     if (d && !d.moved) clickButton(btn);
-    else if (d?.moved) settle([d.id], d.axis); // הונח על כפתור אחר? נדחף למקום פנוי קרוב (ביישור - לאורך אותו קו)
+    else if (d?.moved) {
+      // גרירה ידנית = סידור ידני: מבטלת את "סדר לפי סטטוס", אחרת הכפתור היה
+      // חוזר למקומו בשינוי הסטטוס הבא
+      if (latestRef.current?.statusSort) save(latestRef.current.buttons, { statusSort: undefined });
+      settle([d.id], d.axis); // הונח על כפתור אחר? נדחף למקום פנוי קרוב (ביישור - לאורך אותו קו)
+    }
   };
 
-  // סדר לפי סטטוס: כפתורים בעלי סטטוס זהה מקובצים, קבוצה לכל שורה
-  const sortByStatus = () => {
-    const m = measure(); if (!m || m.bw < 50) return;
+  // סדר לפי סטטוס: כפתורים בעלי סטטוס זהה מקובצים, קבוצה לכל שורה.
+  // מצב קבוע (statusSort) - נשמר עם הלוח ומסדר מחדש בכל שינוי סטטוס/גודל.
+  // מחזיר את הכפתורים במיקומם החדש, או null אם אין שינוי של ממש.
+  const statusLayout = (dir: 'asc' | 'desc'): MDButton[] | null => {
+    const m = measure(); if (!m || m.bw < 50) return null;
+    const cur = latestRef.current?.buttons || [];
     const sizes = Object.fromEntries([...m.rects].map(([id, r]) => [id, { w: r.w, h: r.h }]));
-    const pos = mdLayoutByStatus(buttons, sizes, m.bw, isRtl());
-    save(buttons.map(b => pos[b.id]
-      ? { ...b, x: Math.min(95, (pos[b.id].x / m.bw) * 100), y: Math.min(95, (pos[b.id].y / m.bh) * 100) }
-      : b));
-    postLog('mission_desk_buttons_sorted_by_status', { count: buttons.length });
+    const pos = mdLayoutByStatus(cur, sizes, m.bw, isRtl(), { reverse: dir === 'desc' });
+    let changed = false;
+    const next = cur.map(b => {
+      if (!pos[b.id]) return b;
+      const x = Math.min(95, (pos[b.id].x / m.bw) * 100), y = Math.min(95, (pos[b.id].y / m.bh) * 100);
+      if (Math.abs(x - b.x) > 0.05 || Math.abs(y - b.y) > 0.05) changed = true;
+      return { ...b, x, y };
+    });
+    return changed ? next : null;
   };
+  // לחיצה: כבוי → לפי סטטוס → הפוך → כבוי (המיקומים נשארים כפי שסודרו)
+  const cycleStatusSort = () => {
+    const nextMode = mdNextStatusSort(statusSort);
+    const laid = nextMode ? statusLayout(nextMode) : null;
+    save(laid || buttons, { statusSort: nextMode });
+    postLog('mission_desk_buttons_status_sort', { mode: nextMode || 'off', count: buttons.length });
+  };
+  // סידור מחדש כשסטטוס משתנה / כפתור נוסף, נמחק או שינה גודל
+  const statusSig = buttons.map(b => `${b.id}:${mdStatusKey(b)}:${b.w || ''}x${b.h || ''}:${b.text}`).join('|');
+  useEffect(() => {
+    if (!statusSort) return;
+    const raf = requestAnimationFrame(() => {   // אחרי שה-DOM מציג את התווית החדשה ורוחבה
+      const laid = statusLayout(statusSort);
+      if (laid) save(laid);
+    });
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusSort, statusSig]);
+
+  // שינוי גודל הלוח (ספליטר, חלון, עגינה): בסידור לפי סטטוס - מסדר מחדש לרוחב
+  // החדש; בלי סידור - מחזיר פנימה כפתורים שחרגו ומפריד חפיפות
+  useEffect(() => {
+    const board = boardRef.current; if (!board || typeof ResizeObserver === 'undefined') return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let first = true;
+    const ro = new ResizeObserver(() => {
+      if (first) { first = false; return; }   // הקריאה הראשונה היא המדידה ההתחלתית, לא שינוי
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {               // ספליטר נגרר יורה עשרות פעמים - מסדרים כשנרגע
+        const mode = latestRef.current?.statusSort;
+        if (mode) { const laid = statusLayout(mode); if (laid) save(laid); }
+        else settle();
+      }, 150);
+    });
+    ro.observe(board);
+    return () => { ro.disconnect(); if (timer) clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // גרירת גודל — ידית ◢ בפינת הכפתור במצב עריכה (מגע/עט/עכבר)
   const onResizeDown = (e: React.PointerEvent, btn: MDButton) => {
@@ -176,6 +231,7 @@ export default function ButtonsBoard({ serviceName, state, onChange, presetId, p
       const m = measure(); if (!m) return;
       const { bw, bh, rects } = m;
       if (bw < 50 || bh < 50) return;
+      const buttons = latestRef.current?.buttons || [];
 
       const targets = new Set(targetIds ?? buttons.map(b => b.id));
       const obstacles: MDRect[] = [];
@@ -184,10 +240,10 @@ export default function ButtonsBoard({ serviceName, state, onChange, presetId, p
       const moved: Record<string, { x: number; y: number }> = {};
       for (const b of buttons) {
         if (!targets.has(b.id)) continue;
-        const r = rects.get(b.id); if (!r) continue;
-        let pos = { x: r.x, y: r.y };
-        const spot = mdFreeSpot(r, obstacles, bw, bh, { lock });
-        if (spot && (spot.x !== r.x || spot.y !== r.y)) { pos = spot; moved[b.id] = pos; }
+        const orig = rects.get(b.id); if (!orig) continue;
+        const r = mdClampRect(orig, bw, bh);  // לוח שהוקטן - קודם בחזרה לתוך הלוח
+        const pos = mdFreeSpot(r, obstacles, bw, bh, { lock }) || { x: r.x, y: r.y };
+        if (Math.abs(pos.x - orig.x) > 0.5 || Math.abs(pos.y - orig.y) > 0.5) moved[b.id] = pos;
         obstacles.push({ x: pos.x, y: pos.y, w: r.w, h: r.h });
       }
       if (Object.keys(moved).length) {
@@ -200,7 +256,7 @@ export default function ButtonsBoard({ serviceName, state, onChange, presetId, p
 
   // טעינה ראשונה — יישוב חפיפות קיימות (פעם אחת, אחרי שהכפתורים על המסך)
   const settledOnceRef = useRef(false);
-  if (!settledOnceRef.current && buttons.length > 1) {
+  if (!settledOnceRef.current && buttons.length > 1 && !statusSort) {
     settledOnceRef.current = true;
     setTimeout(() => settle(), 300);
   }
@@ -239,11 +295,14 @@ export default function ButtonsBoard({ serviceName, state, onChange, presetId, p
           ✏️ {tr('missiondesk.editMode')}
         </button>
         <button
-          onClick={sortByStatus}
-          disabled={buttons.length < 2}
-          title={tr('missiondesk.sortByStatusHint')}
-          style={{ ...actionStyle, ...(buttons.length < 2 ? { opacity: 0.45, cursor: 'default' } : {}) }}>
-          ⇅ {tr('missiondesk.sortByStatus')}
+          onClick={cycleStatusSort}
+          disabled={buttons.length < 2 && !statusSort}
+          aria-pressed={!!statusSort}
+          title={tr(statusSort === 'asc' ? 'missiondesk.sortByStatusAscHint' : statusSort === 'desc' ? 'missiondesk.sortByStatusDescHint' : 'missiondesk.sortByStatusHint')}
+          style={{ ...actionStyle,
+            ...(buttons.length < 2 && !statusSort ? { opacity: 0.45, cursor: 'default' } : {}),
+            ...(statusSort ? { background: '#0c4a6e', color: '#7dd3fc', borderColor: '#0284c7' } : {}) }}>
+          {statusSort === 'asc' ? '⇣' : statusSort === 'desc' ? '⇡' : '⇅'} {tr(statusSort === 'desc' ? 'missiondesk.sortByStatusDesc' : 'missiondesk.sortByStatus')}
         </button>
         <button
           onClick={() => onChange({ ...state, buttons, snap: !snap })}

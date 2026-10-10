@@ -115,6 +115,7 @@ export interface MDButton {
 export interface MDButtonsState {
   buttons: MDButton[];
   snap?: boolean;                  // יישור: גרירה נצמדת לשורה/עמודה הקרובה (ברירת מחדל - חופשי)
+  statusSort?: 'asc' | 'desc';  // סדר לפי סטטוס פעיל: הלוח מסודר מחדש בכל שינוי סטטוס/גודל. לא מוגדר = כבוי
 }
 
 export interface MDInkStroke { points: { x: number; y: number }[]; color: string; size: number }

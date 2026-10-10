@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mdSnapRect, mdFreeSpot, mdStatusKey, mdLayoutByStatus } from './missionDesk';
+import { mdSnapRect, mdFreeSpot, mdStatusKey, mdLayoutByStatus, mdNextStatusSort, mdClampRect } from './missionDesk';
 import type { MDButton } from '../types/missionDesk';
 
 const btn = (id: string, stateIdx: number, x = 0, y = 0): MDButton => ({
@@ -75,5 +75,31 @@ describe('mdLayoutByStatus - סדר לפי סטטוס', () => {
     const bs = [btn('a', 0), btn('b', 1)];
     const p = mdLayoutByStatus(bs, { a: { w: 80, h: 50 }, b: { w: 80, h: 40 } }, 800, false, { gap: 6 });
     expect(p.b.y).toBeGreaterThanOrEqual(p.a.y + 50 + 6);
+  });
+});
+
+describe('סדר לפי סטטוס - מחזור ומצב הפוך', () => {
+  it('reverse - פעיל לפני כבוי', () => {
+    const bs = [btn('off', 0), btn('on', 1)];
+    const sizes = { off: { w: 80, h: 40 }, on: { w: 80, h: 40 } };
+    const p = mdLayoutByStatus(bs, sizes, 800, false, { reverse: true });
+    expect(p.on.y).toBeLessThan(p.off.y);
+  });
+  it('מחזור הכפתור: כבוי → רגיל → הפוך → כבוי', () => {
+    expect(mdNextStatusSort(undefined)).toBe('asc');
+    expect(mdNextStatusSort('asc')).toBe('desc');
+    expect(mdNextStatusSort('desc')).toBeUndefined();
+  });
+});
+
+describe('mdClampRect - כפתור שנשאר מחוץ ללוח אחרי הקטנה', () => {
+  it('חורג מימין ומלמטה - מוחזר פנימה', () => {
+    expect(mdClampRect({ x: 750, y: 580, w: 80, h: 40 }, 800, 600)).toEqual({ x: 720, y: 560, w: 80, h: 40 });
+  });
+  it('בתוך הלוח - לא זז', () => {
+    expect(mdClampRect({ x: 10, y: 10, w: 80, h: 40 }, 800, 600)).toEqual({ x: 10, y: 10, w: 80, h: 40 });
+  });
+  it('רחב מהלוח - נצמד ל-0', () => {
+    expect(mdClampRect({ x: 50, y: 0, w: 900, h: 40 }, 800, 600).x).toBe(0);
   });
 });

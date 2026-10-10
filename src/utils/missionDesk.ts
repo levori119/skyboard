@@ -276,10 +276,10 @@ export function mdStatusKey(btn: MDButton): string {
 
 /** סדר לפי סטטוס: כפתורים בעלי סטטוס זהה יושבים יחד, כל קבוצה פותחת שורה
  *  חדשה (ונשברת לשורות נוספות כשאין רוחב). סדר הקבוצות: אינדקס המצב (כבוי
- *  לפני פעיל), ואז שם המצב. בתוך קבוצה נשמר סדר הקריאה הנוכחי. */
+ *  לפני פעיל), ואז שם המצב - או הפוך (reverse). בתוך קבוצה נשמר סדר הקריאה הנוכחי. */
 export function mdLayoutByStatus(
   buttons: MDButton[], sizes: Record<string, { w: number; h: number }>, bw: number, rtl: boolean,
-  opts: { gap?: number; pad?: number } = {},
+  opts: { gap?: number; pad?: number; reverse?: boolean } = {},
 ): Record<string, { x: number; y: number }> {
   const gap = opts.gap ?? 6, pad = opts.pad ?? 8;
   const groups = new Map<string, MDButton[]>();
@@ -292,6 +292,7 @@ export function mdLayoutByStatus(
   const ordered = [...groups.values()].sort((a, b) =>
     Math.min(...a.map(x => x.activeStateIdx)) - Math.min(...b.map(x => x.activeStateIdx))
     || mdStatusKey(a[0]).localeCompare(mdStatusKey(b[0]), 'he'));
+  if (opts.reverse) ordered.reverse();
 
   const out: Record<string, { x: number; y: number }> = {};
   let y = pad;
@@ -307,6 +308,20 @@ export function mdLayoutByStatus(
     y += rowH + gap;
   }
   return out;
+}
+
+/** מחזור כפתור "סדר לפי סטטוס": כבוי → רגיל → הפוך → כבוי. */
+export function mdNextStatusSort(cur: 'asc' | 'desc' | undefined): 'asc' | 'desc' | undefined {
+  return cur === undefined ? 'asc' : cur === 'asc' ? 'desc' : undefined;
+}
+
+/** מחזיר לתוך הלוח כפתור שחרג ממנו (למשל אחרי הקטנת הלוח בספליטר). */
+export function mdClampRect(r: MDRect, bw: number, bh: number): MDRect {
+  return {
+    ...r,
+    x: Math.max(0, Math.min(r.x, bw - r.w)),
+    y: Math.max(0, Math.min(r.y, bh - r.h)),
+  };
 }
 
 // ── שיתוף (fan-out) — משמש גם את השרת (מיובא לוגית, ממומש זהה ב-route) ──────
