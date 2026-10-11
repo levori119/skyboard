@@ -541,3 +541,28 @@ describe('isUploadRequest - העלאת קובץ אינה עדות לנתק', () 
     expect(UPLOAD_TIMEOUT_MS).toBeGreaterThanOrEqual(10 * 60 * 1000);
   });
 });
+
+// ── דגל "התחשבות בנתק" בעלייה (2026-10-11) ───────────────────────────────────
+describe('שרת העמדה - דגל התחשבות בנתק', () => {
+  it('המרכז אומר "כבוי" - העמדה לא נופלת למאגר המקומי גם בנתק מוכרז', async () => {
+    const dist = fs.mkdtempSync(path.join(os.tmpdir(), 'skyking-dist-'));
+    const central = http.createServer((req, res) => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(req.url === '/api/station/failover' ? { enabled: false } : { who: 'central' }));
+    });
+    await new Promise(r => central.listen(0, '127.0.0.1', r));
+    const centralUrl = `http://127.0.0.1:${central.address().port}`;
+    const station = await createStationServer({
+      distDir: dist, apiTarget: centralUrl, localApiTarget: () => 'http://127.0.0.1:1', timeoutMs: 500,
+    });
+    try {
+      expect(await station.failoverReady).toEqual({ enabled: false, source: 'central' });
+      for (let i = 0; i < 5; i++) station.router.report('remote', false, Date.now() + i);
+      expect(station.router.status()).toMatchObject({ failover: false, serving: 'remote' });
+    } finally {
+      await station.close();
+      await new Promise(r => central.close(r));
+      fs.rmSync(dist, { recursive: true, force: true });
+    }
+  });
+});

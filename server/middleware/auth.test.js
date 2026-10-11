@@ -46,6 +46,9 @@ describe('deny by default', () => {
   it('נתיב API שלא סווג דורש זהות', () => {
     expect(requirementFor('GET', '/api/some-brand-new-router')).toBe(NEED.USER);
     expect(requirementFor('POST', '/api/some-brand-new-router')).toBe(NEED.USER);
+    // דגל "התחשבות בנתק": הסוכן קורא בעלייה בלי משתמש; רק מנהל משנה
+    expect(requirementFor('GET', '/api/station/failover')).toBe(NEED.PUBLIC);
+    expect(requirementFor('PUT', '/api/station/failover')).toBe(NEED.ADMIN);
   });
 
   it('בלי אסימון - 401 על נתיבים תפעוליים', async () => {

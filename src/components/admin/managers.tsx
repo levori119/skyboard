@@ -3768,6 +3768,67 @@ export const UNIT_KIND_OPTIONS = [
   { code: 'other', labelKey: 'crew.involvedOther' },
 ] as const;
 
+// ── הגדרות כלליות: התחשבות בנתק ─────────────────────────────────────────────
+// דגל כלל-מערכתי: האם עמדה נופלת למאגר המקומי כשהמרכז לא עונה. כבוי = כמו
+// לפני הגיבוי המקומי. כל עמדה קוראת אותו **בעלייה** (electron/failoverFlag.cjs,
+// server/sync/failoverFlag.js), ולכן המסך אומר במפורש מתי השינוי נכנס לתוקף.
+export const GeneralSettingsManager = () => {
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    fetch(`${API_URL}/station/failover`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (typeof d?.enabled === 'boolean') setEnabled(d.enabled); })
+      .catch(() => {});
+  }, []);
+
+  const save = async (next: boolean) => {
+    if (saving || next === enabled) return;
+    if (!next && !await customConfirm(tr('offline.failoverConfirmOff'))) return;
+    setSaving(true);
+    setError(false);
+    try {
+      const res = await fetch(`${API_URL}/station/failover`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: next }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      setEnabled(next);
+    } catch {
+      setError(true);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const option = (value: boolean, label: string, color: string) => {
+    const on = enabled === value;
+    return (
+      <button onClick={() => save(value)} disabled={saving || enabled == null}
+        style={{ padding: '8px 22px', borderRadius: '8px', border: `2px solid ${on ? color : '#334155'}`, background: on ? '#0f172a' : 'none', color: on ? color : '#94a3b8', fontSize: '14px', fontWeight: on ? 'bold' : 'normal', cursor: saving ? 'wait' : 'pointer', minWidth: '90px' }}>
+        {label}
+      </button>
+    );
+  };
+
+  return (
+    <div>
+      <h2 style={{ color: '#7dd3fc', marginBottom: '16px' }}>{tr('offline.failoverAdminTab')}</h2>
+      <div style={{ background: '#1e293b', borderRadius: '10px', padding: '16px 18px', maxWidth: '720px' }}>
+        <div style={{ color: '#e2e8f0', fontSize: '16px', fontWeight: 'bold', marginBottom: '6px' }}>{tr('offline.failoverTitle')}</div>
+        <p style={{ color: '#94a3b8', fontSize: '13px', lineHeight: 1.6, margin: '0 0 14px' }}>{tr('offline.failoverHint')}</p>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {option(true, tr('offline.failoverOn'), '#22c55e')}
+          {option(false, tr('offline.failoverOff'), '#f59e0b')}
+        </div>
+        <p style={{ color: '#64748b', fontSize: '12px', margin: '12px 0 0' }}>{tr('offline.failoverBoot')}</p>
+        {error && <p style={{ color: '#f87171', fontSize: '12px', margin: '8px 0 0' }}>{tr('offline.failoverSaveFailed')}</p>}
+      </div>
+    </div>
+  );
+};
+
 // ── הערות והצעות ───────────────────────────────────────────────────────────
 // רשימת ההצעות שנשלחו מהעמדות (חלון "אודות" → +), למנהל המערכת הטכני.
 // התאריך והשעה נרשמים בשרת ב-created_at, ולכן אינם ניתנים לעריכה כאן.

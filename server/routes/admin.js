@@ -2,6 +2,7 @@ import { Router } from 'express';
 import pool from '../db/pool.js';
 import { captureChange } from '../gapi/hooks.js';
 import { sanitizeRichText } from '../../shared/sanitizeHtml.js';
+import { readFailover, writeFailover } from '../sync/failoverFlag.js';
 const router = new Router();
 
 // --- Serials API ---
@@ -607,6 +608,33 @@ router.post('/api/defaults', async (req, res) => {
     }
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to save default' }); }
+});
+
+// ── דגל "התחשבות בנתק" ────────────────────────────────────────────────────────
+// האם העמדה נופלת למאגר המקומי כשהמרכז לא עונה. כבוי = כמו לפני הגיבוי
+// המקומי. **נקרא בעליית כל עמדה** (הסוכן ושירות המראה), ולכן ה-GET ציבורי:
+// הסוכן קורא אותו לפני שיש משתמש מחובר. ראה server/sync/failoverFlag.js.
+router.get('/api/station/failover', async (_req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    res.json({ enabled: await readFailover((sql, params) => pool.query(sql, params)) });
+  } catch { res.status(500).json({ error: 'Failed to read failover flag' }); }
+});
+
+router.put('/api/station/failover', async (req, res) => {
+  if (typeof req.body?.enabled !== 'boolean') return res.status(400).json({ error: 'enabled חייב להיות boolean' });
+  const enabled = req.body.enabled;
+  try {
+    await writeFailover((sql, params) => pool.query(sql, params), enabled);
+    // שינוי כלל-מערכתי - נרשם ביומן הפעילות עם מי ששינה
+    await pool.query(
+      `INSERT INTO activity_log (event_type, severity, crew_member_id, crew_member_name, details)
+       VALUES ('system_setting', 'high', $1, $2, $3)`,
+      [req.user?.crewMemberId ?? null, req.user?.name ?? null,
+        JSON.stringify({ key: 'offlineFailover', enabled })],
+    ).catch(() => {});
+    res.json({ enabled });
+  } catch { res.status(500).json({ error: 'Failed to save failover flag' }); }
 });
 
 // ── יחידות ─────────────────────────────────────────────────────────────────

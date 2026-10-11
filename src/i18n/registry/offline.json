@@ -65,6 +65,38 @@
     "dismiss": {
       "he": "סגור",
       "en": "Close"
+    },
+    "failoverAdminTab": {
+      "he": "הגדרות כלליות",
+      "en": "General settings"
+    },
+    "failoverTitle": {
+      "he": "התחשבות בנתק",
+      "en": "Outage failover"
+    },
+    "failoverHint": {
+      "he": "דלוק - עמדה שמאבדת קשר למרכז ממשיכה לעבוד מול המאגר המקומי שעליה, ושירות המראה מעתיק אליו את המרכז ברקע. כבוי - כמו לפני הגיבוי המקומי: כל העבודה מול המרכז בלבד, ובנתק הבקשות נכשלות.",
+      "en": "On - a station that loses the centre keeps working on its local database, and the mirror service copies the centre into it in the background. Off - as before the local backup: all work goes to the centre only, and requests fail during an outage."
+    },
+    "failoverOn": {
+      "he": "דלוק",
+      "en": "On"
+    },
+    "failoverOff": {
+      "he": "כבוי",
+      "en": "Off"
+    },
+    "failoverBoot": {
+      "he": "השינוי נכנס לתוקף בעלייה הבאה של כל עמדה.",
+      "en": "Takes effect the next time each station starts."
+    },
+    "failoverConfirmOff": {
+      "he": "לכבות את ההתחשבות בנתק? מהעלייה הבאה, עמדה שתאבד קשר למרכז לא תעבור למאגר המקומי.",
+      "en": "Turn outage failover off? From the next start, a station that loses the centre will not switch to its local database."
+    },
+    "failoverSaveFailed": {
+      "he": "השמירה נכשלה - נסה שוב",
+      "en": "Save failed - try again"
     }
   }
 }

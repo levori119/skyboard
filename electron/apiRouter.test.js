@@ -331,3 +331,47 @@ describe('אישור הנתק מול /api/health', () => {
     router.health.stop();
   });
 });
+
+// ── דגל "התחשבות בנתק" (2026-10-11) ───────────────────────────────────────────
+// כבוי = כמו לפני הגיבוי המקומי: אין לאן לנתב, כל בקשה הולכת למרכז.
+describe('דגל התחשבות בנתק', () => {
+  it('ברירת המחדל דלוק - ההתנהגות הקיימת', () => {
+    const router = createApiRouter({ ...NO_CONFIRM, apiTarget: REMOTE, localTarget: () => LOCAL });
+    expect(router.status().failover).toBe(true);
+    router.health.stop();
+  });
+
+  it('כבוי: גם אחרי נתק מוכרז הבקשות הולכות למרכז', () => {
+    const router = createApiRouter({ ...NO_CONFIRM, apiTarget: REMOTE, localTarget: () => LOCAL });
+    router.setFailover(false);
+    for (let i = 0; i < FAILURE_THRESHOLD; i++) router.report('remote', false);
+    expect(router.resolve()).toEqual({ which: 'remote', target: REMOTE });
+    expect(router.status()).toMatchObject({ failover: false, serving: 'remote', localReady: false });
+    router.health.stop();
+  });
+
+  it('כבוי: הנתיב המפורש למקומי אינו זמין', () => {
+    const router = createApiRouter({ ...NO_CONFIRM, apiTarget: REMOTE, localTarget: () => LOCAL });
+    router.setFailover(false);
+    expect(router.resolveForced('local').target).toBeNull();
+    expect(router.resolveForced('remote').target).toBe(REMOTE);
+    router.health.stop();
+  });
+
+  it('כבוי: נתק מדומה נכשל כמו בעמדה בלי מאגר, ולא מנתב להעתק ישן', () => {
+    const router = createApiRouter({ ...NO_CONFIRM, apiTarget: REMOTE, localTarget: () => LOCAL });
+    router.setFailover(false);
+    router.setSimulatedOutage(true);
+    expect(router.resolve().which).toBe('none');
+    router.health.stop();
+  });
+
+  it('הדלקה מחדש מחזירה את המאגר המקומי', () => {
+    const router = createApiRouter({ ...NO_CONFIRM, apiTarget: REMOTE, localTarget: () => LOCAL });
+    router.setFailover(false);
+    router.setFailover(true);
+    for (let i = 0; i < FAILURE_THRESHOLD; i++) router.report('remote', false);
+    expect(router.resolve().which).toBe('local');
+    router.health.stop();
+  });
+});

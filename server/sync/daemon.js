@@ -288,6 +288,9 @@ export function startMirrorDaemon({
   // לברירת המחדל.
   fastMs = Number(process.env.SKYKING_MIRROR_FAST_MS ?? DEFAULT_FAST_MS),
   log = console.log,
+  // דגל "התחשבות בנתק" (server/sync/failoverFlag.js) - נבדק פעם אחת בעלייה.
+  // כבוי = כמו לפני הגיבוי המקומי: אין מראה, ואין עומס שלה על המרכז.
+  isEnabled = async () => true,
 } = {}) {
   if (!central || !token) {
     log('[mirror] שירות המראה כבוי - חסרים SKYKING_CENTRAL_URL או SKYKING_STATION_TOKEN');
@@ -366,14 +369,27 @@ export function startMirrorDaemon({
     }
   };
 
-  log(`[mirror] שירות המראה פעיל - ${base} · עמדה ${stationKey}`
-    + ` · מלא כל ${Math.round(intervalMs / 1000)}ש'`
-    + (fastMs ? ` · דלתא כל ${Math.round(fastMs / 1000)}ש'` : ' · דלתא כבויה'));
-  void tick();
-  if (fastMs) {
-    fastTimer = setInterval(() => { void fastTick(); }, fastMs);
-    fastTimer.unref?.();
-  }
+  const begin = async () => {
+    let enabled = true;
+    try { enabled = await isEnabled(); } catch { /* לא ידוע - ההתנהגות הקיימת */ }
+    if (stopped) return;
+    if (!enabled) {
+      state.enabled = false;
+      state.startup = 'off';
+      state.startupAt = Date.now();
+      log('[mirror] שירות המראה כבוי - "התחשבות בנתק" כבויה בניהול. העמדה עובדת מול המרכז בלבד');
+      return;
+    }
+    log(`[mirror] שירות המראה פעיל - ${base} · עמדה ${stationKey}`
+      + ` · מלא כל ${Math.round(intervalMs / 1000)}ש'`
+      + (fastMs ? ` · דלתא כל ${Math.round(fastMs / 1000)}ש'` : ' · דלתא כבויה'));
+    void tick();
+    if (fastMs) {
+      fastTimer = setInterval(() => { void fastTick(); }, fastMs);
+      fastTimer.unref?.();
+    }
+  };
+  void begin();
 
   return () => {
     stopped = true;

@@ -201,6 +201,15 @@ function createApiRouter({
     : typeof confirmDown === 'function' ? confirmDown : null;
   const health = createRemoteHealth({ apiTarget, probeIntervalMs, timeoutMs, confirmDown: confirm, log });
   let currentMode = mode;
+
+  // ── דגל "התחשבות בנתק" (2026-10-11) ─────────────────────────────────────
+  // כבוי = כמו לפני הגיבוי המקומי: המאגר המקומי **אינו קיים** מבחינת הנתב.
+  // לא רק "לא נופלים אליו" - גם נתק מדומה והנתיב המפורש אינם מגיעים אליו,
+  // כי בלי מראה ההעתק שבו ישן, ועבודה מולו הייתה גרועה מבקשה שנכשלת.
+  // נקבע בעליית העמדה (failoverFlag.cjs) ואינו משתנה באמצע משמרת.
+  let failover = true;
+  const userLocalTarget = localTarget;
+  localTarget = () => (failover ? userLocalTarget() : null);
   let simulated = false;
   let simulatedSince = null;
 
@@ -265,6 +274,9 @@ function createApiRouter({
     },
     isSimulated: () => simulated,
 
+    setFailover(on) { failover = !!on; },
+    getFailover: () => failover,
+
     /** לאן הבקשה הזו הולכת, ומהי כתובת היעד. */
     resolve() {
       const local = localTarget();
@@ -305,6 +317,7 @@ function createApiRouter({
         serving: which,
         remote: health.snapshot(),
         localReady: !!local,
+        failover,
         simulated,
         simulatedSince,
       };

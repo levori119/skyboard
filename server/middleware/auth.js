@@ -120,6 +120,8 @@ const RULES = [
   // ── ציבורי ────────────────────────────────────────────────────────────────
   { m: ['GET'], p: '/api/health', need: NEED.PUBLIC, why: 'liveness - הפלטפורמה מנטרת אותו לפני שיש בכלל משתמש' },
   { m: ['GET'], p: '/api/ready', need: NEED.PUBLIC, why: 'readiness - load balancer, ללא זהות' },
+  { m: ['GET'], p: '/api/station/failover', need: NEED.PUBLIC, why: 'דגל "התחשבות בנתק" - סוכן העמדה קורא אותו בעלייה, לפני שיש משתמש. boolean בלבד' },
+  { m: ['PUT'], p: '/api/station/failover', need: NEED.ADMIN, why: 'הגדרה כלל-מערכתית: האם עמדות נופלות למאגר המקומי' },
   { m: ['POST'], p: '/api/auth/mirage-login', need: NEED.PUBLIC, why: 'זו נקודת ההזדהות עצמה' },
   { m: ['POST'], p: '/api/auth/driver', need: NEED.PUBLIC, why: 'הזדהות אפליקציית הנהג (ת"ז + סיסמה במיראז\')' },
   // נקרא ע"י שרת העמדה עצמו מיד אחרי כניסה מוצלחת, כדי לאפשר כניסה בנתק.

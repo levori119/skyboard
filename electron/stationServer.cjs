@@ -21,6 +21,7 @@ const path = require('path');
 const { URL } = require('url');
 const { createApiRouter } = require('./apiRouter.cjs');
 const { createAuthBridge } = require('./authBridge.cjs');
+const { resolveStationFailover } = require('./failoverFlag.cjs');
 
 /** מצב העמדה - מאיזה מאגר היא משרתת כרגע. נענה מקומית, גם בנתק מלא. */
 const STATION_STATUS_PATH = '/api/__station/status';
@@ -313,6 +314,9 @@ function createStationServer({
   // ברירת המחדל ריקה בכוונה: הרשימה הזו היא כל מה שעומד בין מידע השדה שבעמדה
   // לבין אתר אקראי שהמפעיל פתח בטאב אחר.
   allowedOrigins = [],
+  // דגל "התחשבות בנתק" נקרא מהמרכז בעלייה (ראה failoverFlag.cjs). false בבדיקות
+  // שאינן עוסקות בו - אחרת כל שרת מדומה מקבל בקשה נוספת שאינה חלק מהתרחיש.
+  checkFailover = true,
 }) {
   // הנתב מחזיק את מצב הקשר לשרת המרכזי ומכריע לאן כל בקשת /api הולכת.
   const router = createApiRouter({
@@ -321,6 +325,11 @@ function createStationServer({
   });
   // גשר הזהות: לוכד כניסה מוצלחת כדי שאפשר יהיה להיכנס ולעבוד גם בנתק.
   const authBridge = createAuthBridge({ localTarget: localApiTarget, timeoutMs: baseTimeoutMs });
+  // בעלייה בלבד, ברקע: הבקשות הראשונות מנותבות לפי ברירת המחדל (דלוק), וזה
+  // בטוח - בעלייה המרכז חי והן הולכות אליו ממילא.
+  const failoverReady = checkFailover
+    ? resolveStationFailover({ apiTarget, localTarget: localApiTarget, router, log: (m) => console.log(m) }).catch(() => null)
+    : Promise.resolve(null);
 
   const allowOrigin = createOriginGate(apiTarget, allowedOrigins);
   const timeoutForPath = timeoutFor(baseTimeoutMs);
@@ -513,6 +522,7 @@ function createStationServer({
         port: actual,
         router,
         authBridge,
+        failoverReady,
         close: () => new Promise(r => { router.health.stop(); server.close(() => r()); }),
       });
     });

@@ -157,8 +157,15 @@ export async function startLocalServer({ port = PORT, host = HOST } = {}) {
       const { default: pool } = await import('./db/pool.js');
       const { startMirrorDaemon } = await import('./sync/daemon.js');
       const { protectedKeys } = await import('./routes/sync.js');
+      const { resolveFailoverAtBoot, fetchCentralFailover, readFailover } = await import('./sync/failoverFlag.js');
+      const central = (process.env.SKYKING_CENTRAL_URL || '').trim();
       stopMirror = startMirrorDaemon({
-        central: (process.env.SKYKING_CENTRAL_URL || '').trim(),
+        // דגל "התחשבות בנתק" מהמרכז; בנתק - הערך האחרון שהגיע במראה
+        isEnabled: async () => (await resolveFailoverAtBoot({
+          fetchCentral: () => fetchCentralFailover(central),
+          readLocal: () => readFailover((sql, params) => pool.query(sql, params)),
+        })).enabled,
+        central,
         token: (process.env.SKYKING_STATION_TOKEN || '').trim(),
         stationKey: process.env.SKYKING_STATION_KEY || hostname(),
         env: process.env.SKYKING_STATION_ENV || '1',

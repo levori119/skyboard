@@ -3473,8 +3473,13 @@ REFACTOR_LOG #045.
 
 ### `system_defaults` — אינדקס ייחודי על `key`
 
-ההגדרות הכלל-מערכתיות (`readerOpenMode`, `readerOfficeMode`, וגם
+ההגדרות הכלל-מערכתיות (`readerOpenMode`, `readerOfficeMode`, `offlineFailover`, וגם
 `workstationName` / `defaultSector` / `defaultMap` הוותיקות) נשמרות ב-
 `ON CONFLICT (key)`. בהתקנות ותיקות הטבלה כבר קיימת עם `id` כמפתח ראשי —
 `CREATE TABLE IF NOT EXISTS` דילג עליה בשקט — ושם השמירה **נפלה ב-500**.
 `idx_system_defaults_key` מתקן את שתי ההתקנות בלי לגעת במפתח הראשי.
+
+**`offlineFailover`** (`'1'` / `'0'`, חסר = דלוק) - דגל "התחשבות בנתק": האם עמדה נופלת
+למאגר המקומי כשהמרכז לא עונה. כבוי = כמו לפני הגיבוי המקומי (הנתב לא מכיר מאגר
+מקומי, שירות המראה לא רץ). כל עמדה קוראת אותו **בעלייה** דרך `GET /api/station/failover`
+(ציבורי), ובנתק - מההעתק שהגיע במראה. ראה [`server/sync/failoverFlag.js`](server/sync/failoverFlag.js).

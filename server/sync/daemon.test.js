@@ -151,6 +151,26 @@ describe('שירות המראה', () => {
     expect(mirrorDaemonState().enabled).toBe(false);
     stop();
   });
+
+  // דגל "התחשבות בנתק" כבוי בניהול = כמו לפני הגיבוי: אין מראה (2026-10-11)
+  it('הדגל כבוי - השירות אינו מושך דבר מהמרכז', async () => {
+    const { startMirrorDaemon, mirrorDaemonState } = await import('./daemon.js');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const lines = [];
+    const stop = startMirrorDaemon({
+      central: 'http://127.0.0.1:1', token: 'T', pool, log: (m) => lines.push(m),
+      isEnabled: async () => false,
+    });
+    try {
+      await new Promise(r => setTimeout(r, 30));
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(mirrorDaemonState()).toMatchObject({ enabled: false, startup: 'off' });
+      expect(lines.join(' ')).toContain('התחשבות בנתק');
+    } finally {
+      stop();
+      fetchSpy.mockRestore();
+    }
+  });
 });
 
 // ── ילד שמגיע לפני ההורה ─────────────────────────────────────────────────────

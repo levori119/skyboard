@@ -1604,6 +1604,8 @@ POST /api/bdh
 POST /api/bdh-alerts
 POST /api/bdh/:id/items
 POST /api/defaults
+GET /api/station/failover
+PUT /api/station/failover
 POST /api/serials/import
 POST /api/strip-serial-dismissals
 POST /api/strip-serial-selections
