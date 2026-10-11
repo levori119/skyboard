@@ -163,8 +163,12 @@ async function runOnce({ central, headers, pool, schema, protectedKeys, log, dat
       const again = await ingestSnapshot({ query: q }, schema, snap, keys);
       upserted += again.upserted;
       stillFailing = (again.failedTables || []).map(f => f.table);
+      // הסיבה ולא רק השם: `station_sessions` נפלה כאן מאות סיבובים ברצף,
+      // והלוג אמר רק "עדיין נופלות" - בלי שום רמז לאינדקס הייחודי שחסם.
+      const why = (again.failedTables || [])
+        .map(f => `${f.table} (${String(f.error || '').slice(0, 160)})`).join(', ');
       log(`[mirror] סיבוב שני: ${uniq.length} טבלאות נפלו · ${again.upserted} שורות נכנסו`
-        + (stillFailing.length ? ` · עדיין נופלות: ${stillFailing.join(', ')}` : ' · הכל נסגר'));
+        + (stillFailing.length ? ` · עדיין נופלות: ${why}` : ' · הכל נסגר'));
     }
     state.failedTables = stillFailing;
 

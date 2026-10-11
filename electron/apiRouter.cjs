@@ -34,13 +34,23 @@ const PROBE_INTERVAL_MS = 5000;
 /** נתיב הבריאות של השרת המרכזי - אינו נוגע ב-DB, ולכן בודק את הקשר בלבד. */
 const HEALTH_PATH = '/api/health';
 
-function createRemoteHealth({ apiTarget, probeIntervalMs = PROBE_INTERVAL_MS, timeoutMs = 4000, now = Date.now }) {
+/**
+ * @param {object} opts
+ * @param {() => Promise<boolean>} [opts.confirmDown] נשאל כשהסף נחצה: האם המרכז
+ *   **חי** בכל זאת. true = איטיות ולא נתק, נשארים. ראה markDown §אישור.
+ */
+function createRemoteHealth({
+  apiTarget, probeIntervalMs = PROBE_INTERVAL_MS, timeoutMs = 4000, now = Date.now,
+  confirmDown = null, log = () => {},
+}) {
   let failures = 0;
   let online = true;
   let offlineSince = null;
   let timer = null;
   /** מתי נספר הכשל האחרון ברצף - ראה markDown §הד של אותו אירוע */
   let lastCountedAt = null;
+  /** בדיקת אישור רצה עכשיו - ראה markDown §אישור */
+  let confirming = false;
   const listeners = new Set();
 
   const emit = () => { for (const l of listeners) l(snapshot()); };
@@ -50,7 +60,12 @@ function createRemoteHealth({ apiTarget, probeIntervalMs = PROBE_INTERVAL_MS, ti
   function markUp() {
     failures = 0;
     lastCountedAt = null;
-    if (!online) { online = true; offlineSince = null; stopProbing(); emit(); }
+    confirming = false;
+    if (!online) {
+      online = true; offlineSince = null; stopProbing();
+      log('[router] המרכז חזר לענות');
+      emit();
+    }
   }
 
   /**
@@ -61,12 +76,41 @@ function createRemoteHealth({ apiTarget, probeIntervalMs = PROBE_INTERVAL_MS, ti
    * `noteFailure` ב-src/offline/netStatus.ts.
    */
   function markDown(sentAt = now()) {
-    if (!online) return;
+    if (!online || confirming) return;
     if (lastCountedAt != null && sentAt < lastCountedAt) return;
     lastCountedAt = now();
     if (++failures < FAILURE_THRESHOLD) return;
+    if (!confirmDown) { goOffline(); return; }
+
+    // ⚠️ **§אישור: איטיות אינה נתק (2026-10-11).** כשל כאן הוא בקשה שלא
+    // קיבלה תשובה בתוך 8 שניות - וזה קורה גם כשהמרכז חי אבל עמוס. הלוג של
+    // הסוכן הראה בדיוק את זה: uptime של 34 שעות, ובכל זאת "אין קשר" כמה
+    // פעמים ביום. מעבר למקומי מול מרכז חי גרוע מהאיטיות עצמה: המסך מציג
+    // העתק, והכתיבות צריכות לחזור בסנכרון. לכן שואלים את /api/health, שאינו
+    // נוגע ב-DB: הוא עונה = הדרך פתוחה, נשארים מול המרכז.
+    confirming = true;
+    let pending;
+    try { pending = Promise.resolve(confirmDown()); } catch { pending = Promise.resolve(false); }
+    pending
+      .catch(() => false)
+      .then(alive => {
+        // markUp באמצע (בקשה אמיתית הצליחה) כבר הכריע - הוא מאפס את הדגל
+        if (!confirming) return;
+        confirming = false;
+        if (alive) {
+          failures = 0;
+          lastCountedAt = null;
+          log('[router] בקשות חרגו מתקרת הזמן אבל /api/health עונה - המרכז איטי, לא מנותק. נשארים מולו');
+          return;
+        }
+        goOffline();
+      });
+  }
+
+  function goOffline() {
     online = false;
     offlineSince = now();
+    log('[router] אין תשובה מהמרכז וגם לא מ-/api/health - עוברים למאגר המקומי');
     startProbing();
     emit();
   }
@@ -146,8 +190,16 @@ function chooseTarget({ mode, remoteOnline, hasLocal, simulated, drainPending = 
  * @param {() => string|null} opts.localTarget  כתובת השרת המקומי (null עד שהוא עולה)
  * @param {'auto'|'local'|'remote'} [opts.mode]
  */
-function createApiRouter({ apiTarget, localTarget = () => null, mode = 'auto', probeIntervalMs, timeoutMs = 4000 }) {
-  const health = createRemoteHealth({ apiTarget, probeIntervalMs, timeoutMs });
+function createApiRouter({
+  apiTarget, localTarget = () => null, mode = 'auto', probeIntervalMs, timeoutMs = 4000,
+  // true = לאשר מול /api/health לפני מעבר למקומי (ברירת המחדל), false = לעבור
+  // מיד בסף, או פונקציה משלך. ראה createRemoteHealth §אישור.
+  confirmDown = true, log,
+}) {
+  // נקרא דרך האובייקט ולא דרך הפניה שמורה, כדי שבדיקה תוכל להחליף אותו
+  const confirm = confirmDown === true ? () => health.probeOnce()
+    : typeof confirmDown === 'function' ? confirmDown : null;
+  const health = createRemoteHealth({ apiTarget, probeIntervalMs, timeoutMs, confirmDown: confirm, log });
   let currentMode = mode;
   let simulated = false;
   let simulatedSince = null;

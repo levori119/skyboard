@@ -237,6 +237,93 @@ export async function ingestSnapshot(client, schema, snapshot, pendingKeys = new
   const ordered = [...snapshot.tables].sort((a, b) => order.indexOf(a.table) - order.indexOf(b.table));
 
   let spIndex = 0;
+  const isDelta = snapshot?.delta === true;
+  /** הטבלה שבטיפול - לניסיון החוזר ב-catch */
+  let tableCtx = null;
+
+  /** upsert של שורות הצילום. מחזיר את המפתחות שנראו. */
+  async function upsertRows({ table, rows, pkCols, cols, tbl }) {
+    const seen = new Set();
+    let upserted = 0;
+    for (const row of rows) {
+      const pk = Object.fromEntries(pkCols.map(c => [c, row[c]]));
+      const key = keyOf(table, pk);
+      seen.add(key);
+      if (pendingKeys.has(key)) { stats.skipped++; continue; }
+
+      // `jsonb_populate_record` ממיר את ה-JSON לטיפוסי העמודות של הטבלה
+      // עצמה - בלי שנצטרך לדעת אילו הם. עמודה שקיימת רק באחד הצדדים
+      // (גרסאות שונות) פשוט אינה נכתבת.
+      const writable = cols.filter(c => Object.prototype.hasOwnProperty.call(row, c));
+      const list = writable.map(ident).join(', ');
+      const setList = writable
+        .filter(c => !pkCols.includes(c))
+        .map(c => `${ident(c)} = EXCLUDED.${ident(c)}`)
+        .join(', ');
+      const conflict = setList
+        ? `ON CONFLICT (${pkCols.map(ident).join(', ')}) DO UPDATE SET ${setList}`
+        : `ON CONFLICT DO NOTHING`;
+      // ⚠️ **בלי SAVEPOINT לכל שורה.** זה היה הניסיון הראשון, והוא הפיל את
+      // המאגר ב-`stack depth limit exceeded`: אלפי תת-טרנזקציות בטרנזקציה
+      // אחת מרוקנות את מחסנית ה-WASM של PGlite. הגבול הנכון הוא **טבלה**,
+      // ולא שורה - כ-128 סייפפוינטים לסיבוב במקום עשרות אלפים.
+      await client.query(
+        `INSERT INTO ${tbl} (${list})
+         SELECT ${writable.map(c => `r.${ident(c)}`).join(', ')}
+           FROM jsonb_populate_record(NULL::${tbl}, $1::jsonb) AS r
+         ${conflict}`,
+        [JSON.stringify(row)],
+      );
+      upserted++;
+    }
+    // נספר רק אחרי שהטבלה כולה עברה - ניסיון שהתגלגל אחורה אינו "נכנס"
+    stats.upserted += upserted;
+    return { seen };
+  }
+
+  /**
+   * ⚠️ **התנגשות על אינדקס ייחודי שאינו המפתח הראשי (2026-10-11).**
+   *
+   * `station_sessions` נפלה בכל סיבוב מראה, מאות סיבובים ברצף: סשן **פתוח**
+   * אחד לכל עמדה (`preset_id WHERE exited_at IS NULL`). שורה פתוחה ישנה כאן -
+   * שהמרכז כבר סגר או מחק - תפסה את המשבצת, הסשן החדש מהמרכז נדחה, והטבלה
+   * התגלגלה אחורה. כך גם השורה הישנה לא תוקנה לעולם, והתקלה הנציחה את עצמה.
+   *
+   * בצילום **מלא** של הטבלה (לא דלתא, לא קטוע) הצילום הוא כל האמת של המרכז.
+   * לכן מפנים את השורות המקומיות שהמראה אחראית להן ומנסים שוב. **לא** נוגעים
+   * במה שממתין ביומן, במה שנולד בעמדה ובמה שחדש מהצילום - בדיוק אותם כללים
+   * של פסקת המחיקה. אם ההתנגשות היא מול שורה כזו, הכשל נשאר: ההכרעה שייכת
+   * לדחיפה, לא למראה.
+   */
+  async function retryAfterClearingSlots(ctx, err) {
+    if (!ctx || isDelta || ctx.truncated) return false;
+    const code = err?.code;
+    const msg = String(err?.message || '');
+    if (code !== '23505' && !/duplicate key|unique constraint/i.test(msg)) return false;
+    const { table, pkCols, tbl } = ctx;
+    const sp = `tbl_${spIndex++}`;
+    await client.query(`SAVEPOINT ${sp}`);
+    try {
+      const local = await client.query(`SELECT to_jsonb(t) AS row FROM ${tbl} t`);
+      for (const { row } of local.rows) {
+        const pk = Object.fromEntries(pkCols.map(c => [c, row[c]]));
+        const key = keyOf(table, pk);
+        if (pendingKeys.has(key)) continue;
+        if (pkCols.length === 1 && isLocalId(pk[pkCols[0]])) continue;
+        if (isNewerThanSnapshot(row, snapshotAt)) continue;
+        await client.query(
+          `DELETE FROM ${tbl} t WHERE to_jsonb(t) @> $1::jsonb`, [JSON.stringify(pk)]);
+      }
+      await upsertRows(ctx);
+      await client.query(`RELEASE SAVEPOINT ${sp}`);
+      return true;
+    } catch {
+      await client.query(`ROLLBACK TO SAVEPOINT ${sp}`);
+      await client.query(`RELEASE SAVEPOINT ${sp}`);
+      return false;
+    }
+  }
+
   await withoutJournal(client, async () => {
     // ── קליטת רפליקציה, לא כתיבה תפעולית ─────────────────────────────────
     //
@@ -260,8 +347,9 @@ export async function ingestSnapshot(client, schema, snapshot, pendingKeys = new
     // אחרי הקליטה אינה רצה בלי אכיפת מפתחות זרים.
     await client.query(`SET LOCAL session_replication_role = 'replica'`);
 
-    for (const { table, rows, keys: fullKeys } of ordered) {
+    for (const { table, rows, keys: fullKeys, truncated } of ordered) {
       if (!present.has(table)) continue;
+      tableCtx = null;
       // טבלה שלמה בסייפפוינט: תקלה בטבלה אחת (עמודה שהתפצלה בין הצדדים,
       // טריגר שנכשל) לא תפיל את כל הסיבוב ואיתו את כל המאגר.
       const sp = `tbl_${spIndex++}`;
@@ -271,40 +359,10 @@ export async function ingestSnapshot(client, schema, snapshot, pendingKeys = new
       if (!pkCols.length) continue; // בלי מפתח ראשי אין upsert
       const cols = await currentColumns(client, schema, table);
       const tbl = qualified(schema, table);
-      const seen = new Set();
       stats.tables++;
+      tableCtx = { table, rows, pkCols, cols, tbl, truncated };
 
-      for (const row of rows) {
-        const pk = Object.fromEntries(pkCols.map(c => [c, row[c]]));
-        const key = keyOf(table, pk);
-        seen.add(key);
-        if (pendingKeys.has(key)) { stats.skipped++; continue; }
-
-        // `jsonb_populate_record` ממיר את ה-JSON לטיפוסי העמודות של הטבלה
-        // עצמה - בלי שנצטרך לדעת אילו הם. עמודה שקיימת רק באחד הצדדים
-        // (גרסאות שונות) פשוט אינה נכתבת.
-        const writable = cols.filter(c => Object.prototype.hasOwnProperty.call(row, c));
-        const list = writable.map(ident).join(', ');
-        const setList = writable
-          .filter(c => !pkCols.includes(c))
-          .map(c => `${ident(c)} = EXCLUDED.${ident(c)}`)
-          .join(', ');
-        const conflict = setList
-          ? `ON CONFLICT (${pkCols.map(ident).join(', ')}) DO UPDATE SET ${setList}`
-          : `ON CONFLICT DO NOTHING`;
-        // ⚠️ **בלי SAVEPOINT לכל שורה.** זה היה הניסיון הראשון, והוא הפיל את
-        // המאגר ב-`stack depth limit exceeded`: אלפי תת-טרנזקציות בטרנזקציה
-        // אחת מרוקנות את מחסנית ה-WASM של PGlite. הגבול הנכון הוא **טבלה**,
-        // ולא שורה - כ-128 סייפפוינטים לסיבוב במקום עשרות אלפים.
-        await client.query(
-          `INSERT INTO ${tbl} (${list})
-           SELECT ${writable.map(c => `r.${ident(c)}`).join(', ')}
-             FROM jsonb_populate_record(NULL::${tbl}, $1::jsonb) AS r
-           ${conflict}`,
-          [JSON.stringify(row)],
-        );
-        stats.upserted++;
-      }
+      const { seen } = await upsertRows(tableCtx);
 
       if (!REPLACE_TABLES.has(table)) continue;
 
@@ -318,7 +376,6 @@ export async function ingestSnapshot(client, schema, snapshot, pendingKeys = new
       // ⚠️ דלתא **בלי** `keys` (גרסת מרכז מוקדמת יותר) מדלגת על המחיקה
       // לגמרי. עדיף שורה שנמחקה במרכז ושורדת כאן דקה נוספת, מאשר מאגר
       // מקומי שמתרוקן בגלל אי-התאמת גרסאות.
-      const isDelta = snapshot?.delta === true;
       const authority = Array.isArray(fullKeys)
         ? new Set(fullKeys.map(k => keyOf(table, Object.fromEntries(pkCols.map(c => [c, k[c]])))))
         : seen;
@@ -355,6 +412,10 @@ export async function ingestSnapshot(client, schema, snapshot, pendingKeys = new
         await client.query(`RELEASE SAVEPOINT ${sp}`);
       } catch (err) {
         await client.query(`ROLLBACK TO SAVEPOINT ${sp}`);
+        if (await retryAfterClearingSlots(tableCtx, err)) {
+          await client.query(`RELEASE SAVEPOINT ${sp}`);
+          continue;
+        }
         await client.query(`RELEASE SAVEPOINT ${sp}`);
         stats.failedTables.push({ table, error: String(err?.message || err) });
       }

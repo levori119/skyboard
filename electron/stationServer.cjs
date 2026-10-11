@@ -299,7 +299,10 @@ function createStationServer({
   allowedOrigins = [],
 }) {
   // הנתב מחזיק את מצב הקשר לשרת המרכזי ומכריע לאן כל בקשת /api הולכת.
-  const router = createApiRouter({ apiTarget, localTarget: localApiTarget, mode: localMode, timeoutMs: baseTimeoutMs });
+  const router = createApiRouter({
+    apiTarget, localTarget: localApiTarget, mode: localMode, timeoutMs: baseTimeoutMs,
+    log: (m) => console.log(m),
+  });
   // גשר הזהות: לוכד כניסה מוצלחת כדי שאפשר יהיה להיכנס ולעבוד גם בנתק.
   const authBridge = createAuthBridge({ localTarget: localApiTarget, timeoutMs: baseTimeoutMs });
 

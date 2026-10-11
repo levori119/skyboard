@@ -9,6 +9,8 @@ import { createApiRouter, createRemoteHealth, chooseTarget, FAILURE_THRESHOLD } 
 
 const LOCAL = 'http://127.0.0.1:3199';
 const REMOTE = 'https://sky-king.example';
+/** הבדיקות הקיימות בודקות את הסף עצמו - בלי בדיקת האישור מול /api/health. */
+const NO_CONFIRM = { confirmDown: false };
 
 describe('chooseTarget', () => {
   it('auto: מרכזי כשהוא חי', () => {
@@ -99,12 +101,12 @@ describe('נתב ה-API', () => {
   afterEach(() => router?.health.stop());
 
   it('מנתב למרכזי כל עוד הוא עונה', () => {
-    router = createApiRouter({ apiTarget: REMOTE, localTarget: () => LOCAL });
+    router = createApiRouter({ ...NO_CONFIRM, apiTarget: REMOTE, localTarget: () => LOCAL });
     expect(router.resolve()).toEqual({ which: 'remote', target: REMOTE });
   });
 
   it('עובר למאגר המקומי אחרי סף הכשלים, ומדווח על כך במצב', () => {
-    router = createApiRouter({ apiTarget: REMOTE, localTarget: () => LOCAL });
+    router = createApiRouter({ ...NO_CONFIRM, apiTarget: REMOTE, localTarget: () => LOCAL });
     for (let i = 0; i < FAILURE_THRESHOLD; i++) router.report('remote', false);
     expect(router.resolve()).toEqual({ which: 'local', target: LOCAL });
     expect(router.status().serving).toBe('local');
@@ -114,7 +116,7 @@ describe('נתב ה-API', () => {
   it('תשובה מהמאגר המקומי אינה משנה את מצב השרת המרכזי', () => {
     // אחרת נתק היה "נרפא" מעצמו: בקשות שמצליחות מקומית היו נספרות כהצלחה
     // מול המרכזי, העמדה הייתה חוזרת אליו, נכשלת שוב, וחוזר חלילה.
-    router = createApiRouter({ apiTarget: REMOTE, localTarget: () => LOCAL });
+    router = createApiRouter({ ...NO_CONFIRM, apiTarget: REMOTE, localTarget: () => LOCAL });
     for (let i = 0; i < FAILURE_THRESHOLD; i++) router.report('remote', false);
     router.report('local', true);
     router.report('local', true);
@@ -122,7 +124,7 @@ describe('נתב ה-API', () => {
   });
 
   it('חזרת השרת המרכזי מחזירה את הניתוב אליו', () => {
-    router = createApiRouter({ apiTarget: REMOTE, localTarget: () => LOCAL });
+    router = createApiRouter({ ...NO_CONFIRM, apiTarget: REMOTE, localTarget: () => LOCAL });
     for (let i = 0; i < FAILURE_THRESHOLD; i++) router.report('remote', false);
     expect(router.resolve().which).toBe('local');
     router.health.markUp();
@@ -131,7 +133,7 @@ describe('נתב ה-API', () => {
 
   it('המאגר המקומי טרם עלה - נשארים על המרכזי במקום לנתב לשום מקום', () => {
     let local = null;
-    router = createApiRouter({ apiTarget: REMOTE, localTarget: () => local });
+    router = createApiRouter({ ...NO_CONFIRM, apiTarget: REMOTE, localTarget: () => local });
     for (let i = 0; i < FAILURE_THRESHOLD; i++) router.report('remote', false);
     expect(router.resolve()).toEqual({ which: 'remote', target: REMOTE });
     local = LOCAL; // המאגר סיים לעלות
@@ -139,19 +141,19 @@ describe('נתב ה-API', () => {
   });
 
   it('מצב local מנתב מקומית מיד, בלי לחכות לכשל', () => {
-    router = createApiRouter({ apiTarget: REMOTE, localTarget: () => LOCAL, mode: 'local' });
+    router = createApiRouter({ ...NO_CONFIRM, apiTarget: REMOTE, localTarget: () => LOCAL, mode: 'local' });
     expect(router.resolve().which).toBe('local');
     expect(router.status().remote.online).toBe(true); // לא הוכרז נתק - פשוט לא פונים לשרת
   });
 
   it('מצב remote משבית את המאגר המקומי לחלוטין', () => {
-    router = createApiRouter({ apiTarget: REMOTE, localTarget: () => LOCAL, mode: 'remote' });
+    router = createApiRouter({ ...NO_CONFIRM, apiTarget: REMOTE, localTarget: () => LOCAL, mode: 'remote' });
     for (let i = 0; i < FAILURE_THRESHOLD; i++) router.report('remote', false);
     expect(router.resolve().which).toBe('remote');
   });
 
   it('החלפת מצב בזמן ריצה משנה את הניתוב - זה מתג "עבודה מקומית" בממשק', () => {
-    router = createApiRouter({ apiTarget: REMOTE, localTarget: () => LOCAL });
+    router = createApiRouter({ ...NO_CONFIRM, apiTarget: REMOTE, localTarget: () => LOCAL });
     expect(router.resolve().which).toBe('remote');
     router.setMode('local');
     expect(router.resolve().which).toBe('local');
@@ -191,7 +193,7 @@ describe('נתק מדומה', () => {
   });
 
   it('הדלקה מעבירה למקומי, כיבוי מחזיר למרכזי', () => {
-    const router = createApiRouter({ apiTarget: REMOTE, localTarget: () => LOCAL });
+    const router = createApiRouter({ ...NO_CONFIRM, apiTarget: REMOTE, localTarget: () => LOCAL });
     expect(router.resolve().which).toBe('remote');
 
     const on = router.setSimulatedOutage(true);
@@ -206,7 +208,7 @@ describe('נתק מדומה', () => {
   });
 
   it('כשלים בזמן דימוי אינם מגלגלים את מצב הקשר האמיתי', () => {
-    const router = createApiRouter({ apiTarget: REMOTE, localTarget: () => LOCAL });
+    const router = createApiRouter({ ...NO_CONFIRM, apiTarget: REMOTE, localTarget: () => LOCAL });
     router.setSimulatedOutage(true);
     for (let i = 0; i < FAILURE_THRESHOLD + 2; i++) router.report('remote', false);
     router.setSimulatedOutage(false);
@@ -217,7 +219,7 @@ describe('נתק מדומה', () => {
   });
 
   it('ניתוב מפורש מגיע ליעד שנדרש, בלי קשר למצב', () => {
-    const router = createApiRouter({ apiTarget: REMOTE, localTarget: () => LOCAL });
+    const router = createApiRouter({ ...NO_CONFIRM, apiTarget: REMOTE, localTarget: () => LOCAL });
     expect(router.resolveForced('local').target).toBe(LOCAL);
     expect(router.resolveForced('remote').target).toBe(REMOTE);
     router.health.stop();
@@ -252,5 +254,80 @@ describe('chooseTarget - ניקוז היומן לפני חזרה למרכז', ()
 
   it('נתק מדומה גובר על הכל', () => {
     expect(chooseTarget({ ...base, simulated: true, remoteOnline: true, drainPending: false })).toBe('local');
+  });
+});
+
+// ── אישור מול /api/health לפני מעבר למקומי (2026-10-11) ───────────────────────
+// הדיווח: "כל הזמן ניתוקים - עבודה מקומית, אין קשר לשרת". הלוג של הסוכן הראה
+// שהמרכז לא נפל (uptime 34 שעות) אלא **האט**: בקשות שחיכו יותר מ-8 שניות נספרו
+// ככשל קשר, ושלוש כאלה העבירו את כל העמדה למאגר המקומי. איטיות אינה נתק -
+// ומעבר למקומי מול מרכז חי מייצר כתיבות שצריך לסנכרן חזרה. לכן לפני המעבר
+// שואלים את /api/health, שאינו נוגע ב-DB: עונה = המרכז חי, נשארים.
+describe('אישור הנתק מול /api/health', () => {
+  const flush = () => new Promise(r => setTimeout(r, 0));
+  let health;
+  afterEach(() => health?.stop());
+
+  it('המרכז עונה ל-health - איטיות ולא נתק: נשארים מחוברים והמונה מתאפס', async () => {
+    const confirmDown = vi.fn(async () => true);
+    health = createRemoteHealth({ apiTarget: REMOTE, confirmDown });
+    for (let i = 0; i < FAILURE_THRESHOLD; i++) health.markDown();
+    await flush();
+    expect(confirmDown).toHaveBeenCalledTimes(1);
+    expect(health.snapshot().online).toBe(true);
+    expect(health.snapshot().failures).toBe(0);
+  });
+
+  it('גם health אינו עונה - נתק אמיתי: עוברים למקומי', async () => {
+    health = createRemoteHealth({ apiTarget: REMOTE, confirmDown: async () => false });
+    for (let i = 0; i < FAILURE_THRESHOLD; i++) health.markDown();
+    await flush();
+    expect(health.snapshot().online).toBe(false);
+    expect(health.snapshot().offlineSince).toBeTypeOf('number');
+  });
+
+  it('בדיקת האישור שנזרקה נחשבת כשל - לא נתקעים "מחוברים" לשרת מת', async () => {
+    health = createRemoteHealth({ apiTarget: REMOTE, confirmDown: async () => { throw new Error('x'); } });
+    for (let i = 0; i < FAILURE_THRESHOLD; i++) health.markDown();
+    await flush();
+    expect(health.snapshot().online).toBe(false);
+  });
+
+  it('כשלים שמגיעים בזמן הבדיקה אינם פותחים בדיקה נוספת', async () => {
+    let release;
+    const confirmDown = vi.fn(() => new Promise(r => { release = r; }));
+    health = createRemoteHealth({ apiTarget: REMOTE, confirmDown });
+    for (let i = 0; i < FAILURE_THRESHOLD + 4; i++) health.markDown();
+    expect(confirmDown).toHaveBeenCalledTimes(1);
+    expect(health.snapshot().online).toBe(true); // עד שהבדיקה מכריעה - לא מחליפים מאגר
+    release(false);
+    await flush();
+    expect(health.snapshot().online).toBe(false);
+  });
+
+  it('הצלחה אמיתית בזמן הבדיקה גוברת - לא עוברים למקומי', async () => {
+    let release;
+    health = createRemoteHealth({ apiTarget: REMOTE, confirmDown: () => new Promise(r => { release = r; }) });
+    for (let i = 0; i < FAILURE_THRESHOLD; i++) health.markDown();
+    health.markUp();
+    release(false);
+    await flush();
+    expect(health.snapshot().online).toBe(true);
+  });
+
+  it('הנתב מאשר כברירת מחדל - בלי אישור מפורש אין מעבר על סמך איטיות', async () => {
+    const router = createApiRouter({ apiTarget: REMOTE, localTarget: () => LOCAL, confirmDown: async () => true });
+    for (let i = 0; i < FAILURE_THRESHOLD; i++) router.report('remote', false);
+    await flush();
+    expect(router.resolve().which).toBe('remote');
+    router.health.stop();
+  });
+
+  it('הנתב בלי confirmDown מפורש משתמש ב-probeOnce של health', () => {
+    const router = createApiRouter({ apiTarget: REMOTE, localTarget: () => LOCAL });
+    const spy = vi.spyOn(router.health, 'probeOnce').mockResolvedValue(true);
+    for (let i = 0; i < FAILURE_THRESHOLD; i++) router.report('remote', false);
+    expect(spy).toHaveBeenCalledTimes(1);
+    router.health.stop();
   });
 });
