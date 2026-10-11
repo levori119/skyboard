@@ -58,6 +58,12 @@ const center = (b: { x: number; y: number; width: number; height: number }) =>
   ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
 
 test.describe('קונטיינר החלונות', () => {
+  // סוכן עמדה שרץ על המחשב (5100) חוטף את כל ה-API של הדפדפן, כולל ההזדהות,
+  // והבדיקות נופלות על מסך הכניסה. מכוונים אותו לפורט סגור - הדף עובד מול שרת הבדיקה
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('skyking.stationAgent', 'http://127.0.0.1:9'));
+  });
+
   test('עמדה שהיכולת מופעלת בה מציגה אותו בין הפ"מים לעזרים, והמתג בתצוגה סוגר', async ({ page }) => {
     await fakeContainerEnabled(page);
     await loginToWorkstation(page);
@@ -122,6 +128,44 @@ test.describe('קונטיינר החלונות', () => {
     // החלון חזר לצוף - הוא עדיין על המסך, רק לא בתוך הקונטיינר
     await expect(page.getByTestId('notepad-title-bar')).toBeVisible();
     await expect(container(page).getByTestId('notepad-title-bar')).toHaveCount(0);
+  });
+
+  test('כתב יד בדסק החופשי שורד עגינה לקונטיינר ושחרור ממנו', async ({ page }) => {
+    // העגינה מחליפה את יעד ה-portal, ו-React מפרק ומרכיב את החלון מחדש. הטקסט
+    // יושב ב-state ושורד, אבל ה-canvas נולד ריק - כתב היד נמחק (באג שדווח)
+    await fakeContainerEnabled(page);
+    await loginToWorkstation(page);
+    await expect(container(page)).toBeVisible({ timeout: 20000 });
+
+    await page.locator('[data-help="notepad"]').click();
+    const titleBar = page.getByTestId('notepad-title-bar');
+    await expect(titleBar).toBeVisible();
+    await dragTo(page, center((await titleBar.boundingBox())!), { x: 420, y: 300 });
+
+    /** כמה פיקסלים צבועים יש על ה-canvas של הדסק */
+    const inkPixels = () => page.getByTestId('notepad-canvas').evaluate((c: HTMLCanvasElement) => {
+      const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
+      let n = 0;
+      for (let i = 3; i < d.length; i += 4) if (d[i] > 0) n++;
+      return n;
+    });
+
+    // משיכת עט באמצע ה-canvas
+    const cb = (await page.getByTestId('notepad-canvas').boundingBox())!;
+    await dragTo(page, { x: cb.x + cb.width * 0.25, y: cb.y + cb.height * 0.4 }, { x: cb.x + cb.width * 0.75, y: cb.y + cb.height * 0.6 });
+    const drawn = await inkPixels();
+    expect(drawn, 'המשיכה צוירה').toBeGreaterThan(0);
+
+    // עגינה
+    await dragTo(page, center((await titleBar.boundingBox())!), center((await container(page).boundingBox())!));
+    await expect(container(page).getByTestId('notepad-title-bar')).toHaveCount(1, { timeout: 10000 });
+    await expect.poll(inkPixels, { message: 'כתב היד נשאר אחרי העגינה' }).toBeGreaterThan(drawn * 0.9);
+
+    // שחרור חזרה לצוף
+    const slotHeader = slots(page).first().locator('> div').first();
+    await dragTo(page, center((await slotHeader.boundingBox())!), { x: 420, y: 380 });
+    await expect(container(page).getByTestId('notepad-title-bar')).toHaveCount(0, { timeout: 10000 });
+    await expect.poll(inkPixels, { message: 'כתב היד נשאר אחרי השחרור' }).toBeGreaterThan(drawn * 0.9);
   });
 
   test('סגירת הקונטיינר מחזירה את החלון לצוף, והסידור חוזר בפתיחה הבאה', async ({ page }) => {

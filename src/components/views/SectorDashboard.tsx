@@ -1998,7 +1998,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [notepadText, setNotepadText] = useState('');
   const [showNotepadOSK, setShowNotepadOSK] = useState(false);
   const notepadSavedImageRef = useRef<string | null>(null);
-  const notepadCanvasRef = useRef<HTMLCanvasElement>(null);
+  const notepadCanvasRef = useRef<HTMLCanvasElement | null>(null);
   // Free-desk drawing tools
   const [notepadTool, setNotepadTool] = useState<'pen' | 'eraser' | 'rect' | 'circle'>('pen');
   const [notepadColor, setNotepadColor] = useState('#000000');
@@ -2030,6 +2030,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     img.onload = () => { const ctx = canvas.getContext('2d'); if (ctx) ctx.drawImage(img, 0, 0); };
     img.src = saved;
   };
+  // עגינה לקונטיינר ושחרור ממנו מחליפים את יעד ה-portal, ו-React מרכיב את החלון
+  // מחדש: ה-canvas נולד ריק. לכן כל משיכה נשמרת בסופה, וכל canvas חדש משוחזר
+  // מהשמירה ברגע שהוא עולה (ref callback) - אחרת כתב היד נמחק במעבר
+  const saveNotepadCanvas = () => {
+    const canvas = notepadCanvasRef.current;
+    if (canvas) notepadSavedImageRef.current = canvas.toDataURL();
+  };
+  const notepadCanvasCallbackRef = useCallback((el: HTMLCanvasElement | null) => {
+    notepadCanvasRef.current = el;
+    if (el) restoreNotepadCanvas();
+  }, []);
   useEffect(() => { restoreNotepadCanvas(); }, [notepadSize, notepadMode]);
   useEffect(() => {
     if (showNotepad) { const t = setTimeout(restoreNotepadCanvas, 0); return () => clearTimeout(t); }
@@ -20751,7 +20762,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 </div>
               )}
               <canvas
-                ref={notepadCanvasRef}
+                data-testid="notepad-canvas"
+                ref={notepadCanvasCallbackRef}
                 width={notepadSize.w - 4}
                 height={notepadMode === 'both' ? Math.floor((notepadSize.h - 80) * 0.55) : notepadSize.h - 60}
                 style={{
@@ -20815,8 +20827,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   ctx.globalCompositeOperation = 'source-over';
                   notepadLastRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
                 }}
-                onPointerUp={(e) => { e.stopPropagation(); notepadDrawingRef.current = false; notepadLastRef.current = null; notepadShapeStartRef.current = null; notepadSnapshotRef.current = null; }}
-                onPointerLeave={(e) => { e.stopPropagation(); notepadDrawingRef.current = false; notepadLastRef.current = null; notepadShapeStartRef.current = null; notepadSnapshotRef.current = null; }}
+                onPointerUp={(e) => { e.stopPropagation(); if (notepadDrawingRef.current) saveNotepadCanvas(); notepadDrawingRef.current = false; notepadLastRef.current = null; notepadShapeStartRef.current = null; notepadSnapshotRef.current = null; }}
+                onPointerLeave={(e) => { e.stopPropagation(); if (notepadDrawingRef.current) saveNotepadCanvas(); notepadDrawingRef.current = false; notepadLastRef.current = null; notepadShapeStartRef.current = null; notepadSnapshotRef.current = null; }}
               />
             </div>
 
