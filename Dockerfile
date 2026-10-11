@@ -50,11 +50,11 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
 
 # LibreOffice להמרת מצגות ומסמכי אופיס ל-PDF בחלון הקריאה (`readerOfficeMode`
 # = server, ברירת המחדל). רק impress + writer ולא החבילה המלאה - חוסך מאות מגה.
-# גופנים: culmus + noto לעברית - בלעדיהם שקף בעברית יוצא בריבועים.
+# גופנים: noto + dejavu לעברית - בלעדיהם שקף בעברית יוצא בריבועים.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
      libreoffice-impress libreoffice-writer \
-     fonts-culmus fonts-noto-core fonts-dejavu-core \
+     fonts-noto-core fonts-dejavu-core \
   && rm -rf /var/lib/apt/lists/*
 
 # הרצה כמשתמש לא-root (קיים באימג' הרשמי). האפליקציה קוראת-בלבד מהדיסק.
