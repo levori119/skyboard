@@ -69,4 +69,13 @@ contextBridge.exposeInMainWorld('skyking', {
   // ── יציאה מהאפליקציה (כפתור "יציאה" במסך הכניסה) ──────────────────
   // ללא פרמטרים: העמוד מבקש לצאת, והתהליך הראשי מחליט וסוגר.
   quitApp: () => ipcRenderer.invoke('app:quit'),
+
+  // ── פתיחת מסמך באפליקציה החיצונית (חלון הקריאה) ────────────────────
+  // הבתים נמשכים בעמוד (עם האסימון) ונמסרים כאן עם **שם קובץ בלבד**.
+  // התיקייה נקבעת בתהליך הראשי, ורק סיומות מסמכים נפתחות (openDoc.cjs).
+  openDocExternal: (name, bytes) =>
+    ipcRenderer.invoke('doc:openExternal', {
+      name: typeof name === 'string' ? name : '',
+      bytes: bytes instanceof Uint8Array ? bytes : null,
+    }),
 });

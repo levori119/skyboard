@@ -5,6 +5,7 @@ const { resolveSttPaths, sttStatus, transcribeWav } = require('./electron/whispe
 const { createStationServer } = require('./electron/stationServer.cjs');
 const { createScreenRecorder } = require('./electron/screenRecorder.cjs');
 const { saveScreenshot } = require('./electron/screenshot.cjs');
+const { openDocExternally } = require('./electron/openDoc.cjs');
 
 const isDev = !app.isPackaged;
 
@@ -429,6 +430,21 @@ function registerScreenshotHandlers() {
 }
 
 /**
+ * "פתח באפליקציה חיצונית" בחלון הקריאה - הקובץ נפתח ב-PowerPoint / Word של
+ * המחשב. השם נחתך לשם בלבד ורק סיומות מסמכים מותרות (electron/openDoc.cjs).
+ */
+function registerOpenDocHandler() {
+  ipcMain.handle('doc:openExternal', async (event, payload) => {
+    if (!senderAllowed(event)) return { ok: false, reason: 'forbidden' };
+    try {
+      return await openDocExternally({ shell, name: payload && payload.name, bytes: payload && payload.bytes });
+    } catch (e) {
+      return { ok: false, reason: 'write', error: String(e && e.message || e) };
+    }
+  });
+}
+
+/**
  * יציאה מהאפליקציה - כפתור "יציאה" במסך הכניסה.
  * app.quit ולא סגירת החלון: בסוכן אין `window-all-closed` שמכבה, והכוונה היא
  * להוריד את העמדה כולה (כולל שרת העמדה, שנסגר ב-before-quit).
@@ -709,6 +725,7 @@ app.whenReady().then(() => {
   registerSttHandlers();   // פעם אחת לכל חיי האפליקציה, לא לכל חלון
   registerRecordingHandlers();
   registerQuitHandler();
+  registerOpenDocHandler();
   return createWindow();
 });
 

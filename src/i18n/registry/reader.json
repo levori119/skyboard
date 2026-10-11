@@ -301,6 +301,14 @@
     "bookmarkJump": {
       "he": "קפוץ לעמוד {{page}}",
       "en": "Jump to page {{page}}"
+    },
+    "openingExternal": {
+      "he": "פותח באפליקציה החיצונית...",
+      "en": "Opening in the external application..."
+    },
+    "openExternalFailed": {
+      "he": "הפתיחה באפליקציה החיצונית נכשלה - אין קשר לשרת, או שאין במחשב תוכנה לסוג הקובץ",
+      "en": "Could not open in the external application - no server connection, or no program for this file type"
     }
   }
 }

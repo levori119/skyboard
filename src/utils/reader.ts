@@ -266,6 +266,16 @@ export function mergeRefreshedDocs(
   return out;
 }
 
+/**
+ * כמה פיקסלים של canvas לכל פיקסל CSS. העמוד צויר 1:1, והמסך הגדיל אותו פי
+ * `--s` של העמדה (עד 1.65 ב-24") ופי devicePixelRatio - הטקסט יצא מטושטש
+ * (2026-10-11). תקרה 4: canvas ענק של עמוד A3 בזום גבוה ממצה זיכרון.
+ */
+export function canvasPixelScale(dpr: number, rootScale: number): number {
+  const k = (Number.isFinite(dpr) && dpr > 0 ? dpr : 1) * (Number.isFinite(rootScale) && rootScale > 0 ? rootScale : 1);
+  return Math.min(4, Math.max(1, k));
+}
+
 /** מנוע התצוגה לעזר נתון - עטיפה על ההכרעה המשותפת עם השרת. */
 export function engineFor(doc: ReaderDoc, officeMode: ReaderConfig['officeMode']): ReaderEngineResult {
   return readerEngine({ kind: doc.kind, hasFile: doc.hasFile, hasPdf: doc.hasPdf, url: doc.url, convertError: doc.convertError }, officeMode);

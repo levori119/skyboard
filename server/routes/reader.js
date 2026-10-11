@@ -293,8 +293,13 @@ router.get('/api/reader/docs/:id/file', async (req, res) => {
     const row = rows[0];
     if (!row || !row.bytes) return res.status(404).json({ error: 'No content' });
     res.setHeader('Content-Type', wantPdf ? 'application/pdf' : (row.mime || 'application/octet-stream'));
-    // inline ולא attachment: החלון פורס את הקובץ, לא מוריד אותו לעמדה
-    res.setHeader('Content-Disposition', 'inline');
+    // inline ולא attachment: החלון פורס את הקובץ, לא מוריד אותו לעמדה. השם
+    // (RFC 5987) - כדי שהורדה תישמר בשמה ובסיומתה ולא כ"file".
+    const name = row.file_name
+      ? encodeURIComponent(wantPdf ? row.file_name.replace(/\.[^.]+$/, '.pdf') : row.file_name)
+        .replace(/['()*]/g, c => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)
+      : '';
+    res.setHeader('Content-Disposition', name ? `inline; filename*=UTF-8''${name}` : 'inline');
     res.send(row.bytes);
   } catch (err) {
     res.status(500).json({ error: 'Failed to read file' });

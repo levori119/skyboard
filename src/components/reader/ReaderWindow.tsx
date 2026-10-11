@@ -23,7 +23,7 @@ import { startPointerDrag, DRAG_HANDLE_STYLE, readRootScale } from '../../utils/
 import {
   clampReaderRect, defaultReaderRect, docBytesUrl, docIcon, engineFor,
   loadReaderState, saveReaderState, READER_MIN_W, READER_MIN_H,
-  READER_SIZE_PRESETS, presetReaderRect, activeSizePreset, fitRectToContent,
+  READER_SIZE_PRESETS, presetReaderRect, activeSizePreset, fitRectToContent, canvasPixelScale,
   type ReaderBookmark, type ReaderConfig, type ReaderDoc, type ReaderRect, type ReaderSizeKey,
 } from '../../utils/reader';
 import { useDockableWindow } from '../../hooks/useDockableWindow';
@@ -99,6 +99,10 @@ export default function ReaderWindow({
   // כשל בשמירת סימנייה **מוצג**. קודם הוא נבלע, והלחיצה על 🔖+ פשוט לא עשתה
   // כלום - בדיוק "פקד שנדלק בלי שקורה משהו" (CLAUDE.md §Do NOT).
   const [bmError, setBmError] = useState('');
+  /** מצב "פתח באפליקציה חיצונית": '' · 'opening' · הודעת שגיאה */
+  const [extState, setExtState] = useState('');
+  /** הציור הנוכחי של pdf.js - מבוטל לפני ציור חדש על אותו canvas */
+  const renderTaskRef = useRef<any>(null);
   /** יחס העמוד המוצג (גובה/רוחב). ממנו נגזר גובה החלון - ראה fitRectToContent */
   const [aspect, setAspect] = useState<number | null>(null);
 
@@ -229,12 +233,22 @@ export default function ReaderWindow({
         // "התאם לרוחב" הוא ברירת המחדל (זום 1): מצגת נקראת לרוחב הדף
         const fit = Math.max(0.2, (box.clientWidth - 16) / base.width);
         const viewport = p.getViewport({ scale: fit * ZOOMS[zoomIdx] });
-        canvas.width = Math.floor(viewport.width);
-        canvas.height = Math.floor(viewport.height);
+        // **טקסט חד:** ה-canvas מצויר ברזולוציה של המסך בפועל (צפיפות × הגדלת
+        // העמדה), ומוצג בגודל ה-CSS. קודם צויר 1:1 והמסך מתח אותו - מטושטש.
+        const k = canvasPixelScale(window.devicePixelRatio || 1, readRootScale());
+        canvas.width = Math.floor(viewport.width * k);
+        canvas.height = Math.floor(viewport.height * k);
+        canvas.style.width = `${Math.floor(viewport.width)}px`;
+        canvas.style.height = `${Math.floor(viewport.height)}px`;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
-        await p.render({ canvasContext: ctx, viewport }).promise;
-      } catch { /* עמוד שהוחלף באמצע ציור */ }
+        // שני ציורים על אותו canvas בבת אחת (שינוי גודל/דפדוף מהיר) משבשים את
+        // הטקסט - הקודם מבוטל לפני שמתחיל הבא
+        try { renderTaskRef.current?.cancel(); } catch { /* כבר הסתיים */ }
+        const task = p.render({ canvasContext: ctx, viewport, transform: k !== 1 ? [k, 0, 0, k, 0, 0] : undefined });
+        renderTaskRef.current = task;
+        await task.promise;
+      } catch { /* עמוד שהוחלף באמצע ציור / ציור שבוטל */ }
     })();
     return () => { cancelled = true; };
   }, [engine, page, zoomIdx, rect.w, rect.h, status]);
@@ -326,10 +340,41 @@ export default function ReaderWindow({
   const activeSize = (() => { const { vw, vh } = bounds(); return activeSizePreset(rect, vw, vh); })();
 
   // ── פעולות ──────────────────────────────────────────────────────────────
-  const openExternal = () => {
-    // קובץ שהועלה נפתח דרך הנתיב שלו; קישור - בכתובת המקורית, בדיוק כמו היום
-    const href = doc.source_kind === 'file' ? `${API_URL}/reader/docs/${doc.id}/file` : doc.url;
-    if (href) window.open(href, '_blank', 'noopener');
+  /**
+   * "פתח באפליקציה חיצונית". קובץ שהועלה **אינו** נפתח בלשונית: הנתיב שלו מוגן
+   * באסימון, ולשונית חדשה אינה נושאת אותו - היא קיבלה דף HTML (2026-10-11).
+   * לכן הבתים נמשכים כאן עם האסימון, ואז:
+   *   • בעמדה (Electron) - נפתחים ב-PowerPoint / Word של המחשב (openDocExternal)
+   *   • בדפדפן - יורדים כקובץ בשמו, והדפדפן מציע לפתוח אותו באפליקציה
+   * קישור לכתובת נפתח בכתובת המקורית, כמו קודם.
+   */
+  const openExternal = async () => {
+    if (!doc.hasFile) {
+      if (doc.url) window.open(doc.url, '_blank', 'noopener');
+      return;
+    }
+    if (extState === 'opening') return;
+    setExtState('opening');
+    try {
+      const r = await fetch(`${API_URL}/reader/docs/${doc.id}/file`);
+      if (!r.ok) throw new Error(String(r.status));
+      const buf = new Uint8Array(await r.arrayBuffer());
+      const name = externalFileName(doc);
+      const bridge = (window as any).skyking;
+      if (bridge?.openDocExternal) {
+        const out = await bridge.openDocExternal(name, buf);
+        setExtState(out?.ok ? '' : tr('reader.openExternalFailed'));
+        return;
+      }
+      const url = URL.createObjectURL(new Blob([buf], { type: doc.mime || 'application/octet-stream' }));
+      const a = document.createElement('a');
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      setExtState('');
+    } catch {
+      setExtState(tr('reader.openExternalFailed'));
+    }
   };
 
   const convertNow = async () => {
@@ -412,6 +457,16 @@ export default function ReaderWindow({
         {btn('↗', tr('reader.openExternal'), openExternal)}
         {btn('✕', tr('reader.close'), onClose)}
       </div>
+
+      {extState && (
+        <div role={extState === 'opening' ? 'status' : 'alert'} style={{
+          padding: '3px 8px', fontSize: 11, flexShrink: 0, borderBottom: `1px solid ${C.border}`,
+          color: extState === 'opening' ? C.muted : '#fca5a5', display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+          <span style={{ flex: 1 }}>{extState === 'opening' ? tr('reader.openingExternal') : `⚠ ${extState}`}</span>
+          {extState !== 'opening' && btn('✕', tr('reader.close'), () => setExtState(''))}
+        </div>
+      )}
 
       {/* שורת הניווט - מוסתרת כשאין תוכן לנווט בו */}
       {engine !== 'notes' && (
@@ -574,6 +629,13 @@ export default function ReaderWindow({
     </div>
   );
   return dock.render(win);
+}
+
+/** שם הקובץ לפתיחה חיצונית - עם סיומת, אחרת מערכת ההפעלה לא יודעת במה לפתוח. */
+function externalFileName(doc: ReaderDoc): string {
+  if (doc.file_name && /\.[A-Za-z0-9]+$/.test(doc.file_name)) return doc.file_name;
+  const base = (doc.name || `doc-${doc.id}`).replace(/[\\/:*?"<>|]/g, '_');
+  return doc.ext ? `${base}.${doc.ext}` : base;
 }
 
 function Centered({ children, color }: { children: React.ReactNode; color: string }) {

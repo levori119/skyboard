@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   defaultReaderRect, clampReaderRect, bottomBarSlots, shapeReaderDoc, engineFor, docIcon,
   READER_DEFAULT_FRACTION, READER_MIN_W, READER_MIN_H,
-  READER_SIZE_PRESETS, presetReaderRect, activeSizePreset, linkOpensInWindow, fitRectToContent, CONTENT_PAD, mergeRefreshedDocs,
+  READER_SIZE_PRESETS, presetReaderRect, activeSizePreset, linkOpensInWindow, fitRectToContent, CONTENT_PAD, mergeRefreshedDocs, canvasPixelScale,
 } from './reader';
 
 describe('defaultReaderRect - ב"מ 40% מגודל המסך', () => {
@@ -224,5 +224,23 @@ describe('mergeRefreshedDocs - רענון עמדה מרענן את החלונו�
     const next = mergeRefreshedDocs([d(1, { has_pdf: true })], new Map());
     expect(next).toHaveLength(1);
     expect(next[0].hasPdf).toBe(true);
+  });
+});
+
+describe('canvasPixelScale - טקסט חד בעמוד המצויר', () => {
+  // ה-canvas צויר ברזולוציה של פיקסל CSS אחד, והמסך הגדיל אותו פי --s (עד 1.65
+  // ב-24") ופי devicePixelRatio - ולכן הטקסט נראה מטושטש.
+  it('מכפיל צפיפות מסך בהגדלת העמדה', () => {
+    expect(canvasPixelScale(1, 1)).toBe(1);
+    expect(canvasPixelScale(1, 1.65)).toBeCloseTo(1.65);
+    expect(canvasPixelScale(2, 1.5)).toBe(3);
+  });
+  it('תחום: לא מתחת ל-1, ולא מעל 4 (זיכרון ה-canvas)', () => {
+    expect(canvasPixelScale(0.5, 1)).toBe(1);
+    expect(canvasPixelScale(3, 2)).toBe(4);
+  });
+  it('ערכים לא תקינים - 1', () => {
+    expect(canvasPixelScale(NaN, 1)).toBe(1);
+    expect(canvasPixelScale(0, 0)).toBe(1);
   });
 });
