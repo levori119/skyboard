@@ -51,10 +51,14 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
 # LibreOffice להמרת מצגות ומסמכי אופיס ל-PDF בחלון הקריאה (`readerOfficeMode`
 # = server, ברירת המחדל). רק impress + writer ולא החבילה המלאה - חוסך מאות מגה.
 # גופנים: culmus + noto לעברית - בלעדיהם שקף בעברית יוצא בריבועים.
+# ⚠ שם החבילה ב-Debian הוא `culmus` ולא `fonts-culmus` - השם השגוי שבר את
+# הבנייה ב-Railway (2026-10-11). לאמת שם לפני הוספה (packages.debian.org מחזיר
+# 200 גם לחבילה שאינה קיימת, ולכן אינו אימות):
+#   https://qa.debian.org/madison.php?package=<name>&s=bookworm&text=on
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
      libreoffice-impress libreoffice-writer \
-     fonts-culmus fonts-noto-core fonts-dejavu-core \
+     culmus fonts-noto-core fonts-dejavu-core \
   && rm -rf /var/lib/apt/lists/*
 
 # הרצה כמשתמש לא-root (קיים באימג' הרשמי). האפליקציה קוראת-בלבד מהדיסק.
