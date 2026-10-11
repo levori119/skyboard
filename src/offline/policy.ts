@@ -81,6 +81,9 @@ export function bypassesOfflineLayer(url: string): boolean {
   // וטמינה של תשובת סנכרון או הכנסתה ל-outbox הייתה משדרת שוב דחיפה שהמרכז
   // כבר קלט - כלומר מכפילה עבודה במקום לסנכרן אותה.
   if (p.startsWith('/api/__')) return true;
+  // בתי הקובץ של חלון הקריאה: אין להם מגבלת גודל, והשכבה שומרת כל GET כטקסט
+  // ב-IndexedDB - קובץ של מאות מגה היה ממלא את דיסק העמדה, ונשמר משובש.
+  if (/^\/api\/reader\/docs\/\d+\/(file|proxy)$/.test(p)) return true;
   return p.startsWith('/api/air-picture/');
 }
 

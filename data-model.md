@@ -3424,7 +3424,7 @@ REFACTOR_LOG #045.
 | `source_kind` | VARCHAR(10) | `link` (כתובת) · `file` (הועלה) |
 | `url` / `url_key` | TEXT | הכתובת, והכתובת המנורמלת שהיא **מפתח האיחוד** |
 | `file_name` / `ext` / `mime` / `byte_size` | | מטא של הקובץ |
-| `data` | BYTEA | הקובץ המקורי |
+| `data` | BYTEA | הקובץ המקורי. **אין מגבלת גודל של המערכת** - התקרה היא של PostgreSQL (1GB לשדה). עולה כבתים גולמיים (`application/octet-stream`), לא base64 |
 | `pdf_data` | BYTEA | תוצר המרה של קובץ אופיס (ראה `readerOfficeMode`) |
 | `converted_at` / `convert_error` | | תוצאת ההמרה האחרונה — כשל נרשם כדי שהעמדה תציג סיבה ולא "טוען" לנצח |
 
@@ -3443,14 +3443,20 @@ REFACTOR_LOG #045.
 | עמודה | סוג | תיאור |
 |---|---|---|
 | `doc_id` | FK → `reader_docs` | |
-| `crew_member_id` | FK → `crew_members` | הבעלות. נלקחת מהאסימון, לעולם לא מגוף הבקשה |
+| `owner_pid` | VARCHAR(50) | **הבעלות** - המספר האישי מהאסימון (`personalId`), לעולם לא מגוף הבקשה |
+| `crew_member_id` | FK → `crew_members`, **nullable** | נמלא כשאיש הצוות רשום ב-SKY-KING. אינו הבעלות |
 | `page_no` | INTEGER | העמוד / השקף / הגיליון. `0` מותר במצב "הערות בלבד", שבו המספר מוקלד ביד |
 | `label` / `note` / `color` / `sort_order` | | |
 
 ### `reader_quick_items` — מדף "קריאה מהירה"
 
-`UNIQUE(crew_member_id, doc_id)`. אישי כמו הסימניות, ולכן נוסע עם איש הצוות בין
-העמדות.
+`owner_pid` + `UNIQUE INDEX (owner_pid, doc_id)` - פריט אחד לכל בעלים ומסמך.
+אישי כמו הסימניות, ולכן נוסע עם איש הצוות בין העמדות.
+
+> **למה המספר האישי ולא `crew_member_id` (2026-10-11):** משתמש מיראז' שאין לו
+> שורה ב-`crew_members` נכנס עם `crewMemberId: null`, וכל סימנייה שלו נדחתה ב-403
+> בשקט ("לא מצליח לשמור בוקמארק"). המספר האישי קיים **תמיד** באסימון משתמש.
+> `crew_member_id` הפך ל-nullable; שורות ישנות קיבלו `owner_pid` מ-`crew_members.personal_id`.
 
 ### עמודות שנוספו לטבלאות קיימות
 

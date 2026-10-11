@@ -120,3 +120,19 @@ describe('classifyWrite — עמידות ל-URL מלא', () => {
     expect(classifyWrite('http://10.0.0.5:3001/api/strokes', 'POST')).toBe('private');
   });
 });
+
+describe('bypassesOfflineLayer - בתי קובץ של חלון הקריאה', () => {
+  // אין מגבלת גודל לקובץ (2026-10-11). שכבת הנתק שומרת כל תשובת GET ל-IndexedDB
+  // כטקסט - קובץ של מאות מגה היה ממלא את הדיסק של העמדה, ונשמר משובש (בינארי כטקסט).
+  it('הקובץ, גרסת ה-PDF וה-proxy עוקפים את השכבה', async () => {
+    const { bypassesOfflineLayer } = await import('./policy');
+    expect(bypassesOfflineLayer('/api/reader/docs/7/file')).toBe(true);
+    expect(bypassesOfflineLayer('http://x:3001/api/reader/docs/7/file?pdf=1')).toBe(true);
+    expect(bypassesOfflineLayer('/api/reader/docs/7/proxy')).toBe(true);
+  });
+  it('שאר נתיבי הקריאה נשארים בשכבה (רשימות קטנות, טובות לנתק)', async () => {
+    const { bypassesOfflineLayer } = await import('./policy');
+    expect(bypassesOfflineLayer('/api/reader/docs')).toBe(false);
+    expect(bypassesOfflineLayer('/api/reader/bookmarks/7')).toBe(false);
+  });
+});

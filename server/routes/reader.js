@@ -4,14 +4,16 @@
 //   1. **תצורה** (`/config`)     - מנהל בלבד. איך נפתחים עזרים בכל המערכת.
 //   2. **חומר הקריאה** (`/docs`) - ראש צוות ומעלה. העלאה, גרסת PDF, מחיקה.
 //   3. **סימניות ומדף** (`/bookmarks`, `/quick`) - כל מזוהה, ו**רק על עצמו**:
-//      הזהות נלקחת מהאסימון (`req.user.crewMemberId`) ולעולם לא מגוף הבקשה.
+//      הבעלים הוא **המספר האישי** מהאסימון (`req.user.personalId`), ולעולם לא
+//      גוף הבקשה. לא crewMemberId: למשתמש מיראז' בלי שורה ב-crew_members הוא
+//      null, וכל סימנייה שלו נדחתה (2026-10-11).
 //
 // למה יש proxy (`/docs/:id/proxy`): pdfjs חייב את **בתי** הקובץ, וקישור למערכת
 // מסמכים חיצונית נחסם ב-CORS. הסיכון המוכר בשרת שמושך כתובת מטעם הלקוח הוא
 // SSRF, ולכן הנתיב **אינו מקבל כתובת מהלקוח בכלל**: הוא מושך רק את הכתובת
 // שכבר רשומה בשורת `reader_docs`, כלומר כתובת שראש צוות הגדיר במסך הניהול.
 
-import { Router } from 'express';
+import express, { Router } from 'express';
 import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import os from 'os';
@@ -24,10 +26,32 @@ import {
 
 const router = new Router();
 
-/** תקרת גודל לעזר בודד. גוף ה-JSON חסום ב-50MB, וזה משאיר מקום ל-base64. */
-const MAX_DOC_BYTES = 32 * 1024 * 1024;
-/** תקרה למשיכת כתובת חיצונית - שלא נבלע קובץ ענק לזיכרון */
+/**
+ * אין מגבלת גודל של המערכת (אפיון, 2026-10-11). התקרה היחידה היא של PostgreSQL:
+ * שדה BYTEA בודד מוגבל ל-1GB. הקובץ עולה כ**בתים גולמיים** (`express.raw`) ולא
+ * כ-base64 בתוך JSON - ה-JSON חסום ב-50MB גלובלית ומנפח כל קובץ פי 1.33.
+ */
+const MAX_DOC_BYTES = 1024 * 1024 * 1024 - 1;
 const MAX_FETCH_BYTES = MAX_DOC_BYTES;
+const rawBody = express.raw({ type: 'application/octet-stream', limit: MAX_DOC_BYTES });
+
+/** כותרת שקודדה ב-encodeURIComponent (שם קובץ בעברית אינו עובר ככותרת גולמית). */
+const headerText = (req, name) => {
+  const v = req.get(name);
+  if (!v) return '';
+  try { return decodeURIComponent(v); } catch { return v; }
+};
+
+/**
+ * הבתים של קובץ שעלה, בשתי הצורות: גולמי (`application/octet-stream`, הדרך
+ * הרגילה) או base64 בתוך JSON (תאימות לאחור). null = לא נשלח כלום.
+ */
+function uploadedBytes(req) {
+  if (Buffer.isBuffer(req.body)) return req.body;
+  const base64 = String(req.body?.dataBase64 || '');
+  if (!base64) return null;
+  return Buffer.from(base64.replace(/^data:[^,]*,/, ''), 'base64');
+}
 const FETCH_TIMEOUT_MS = 20000;
 const CONVERT_TIMEOUT_MS = 120000;
 
@@ -49,10 +73,16 @@ const META_COLS = metaCols();
 const clip = (v, max) => String(v ?? '').trim().slice(0, max);
 const intOf = (v, dflt = 0) => (Number.isFinite(Number(v)) ? Math.trunc(Number(v)) : dflt);
 
-/** מזהה איש הצוות - **מהאסימון בלבד**. בלעדיו אין נתונים אישיים. */
+/** מזהה איש הצוות - **מהאסימון בלבד**. null למשתמש מיראז' בלי שורה ב-crew_members. */
 function crewIdOf(req) {
   const id = Number(req.user?.crewMemberId);
   return Number.isFinite(id) && id > 0 ? id : null;
+}
+
+/** בעלי הנתונים האישיים - המספר האישי מהאסימון. בלעדיו (עמדה/שירות) אין נתונים אישיים. */
+function ownerOf(req) {
+  const pid = String(req.user?.personalId ?? '').trim().slice(0, 50);
+  return pid || null;
 }
 
 /** מוסיף לשורת המסמך את השדות הנגזרים שהלקוח צריך כדי לבחור מנוע. */
@@ -187,14 +217,14 @@ router.post('/api/reader/open', async (req, res) => {
 });
 
 /** העלאת קובץ (base64). ראש צוות ומעלה - זו הגדרת חומר קריאה. */
-router.post('/api/reader/docs', async (req, res) => {
+router.post('/api/reader/docs', rawBody, async (req, res) => {
   try {
-    const name = clip(req.body?.name, 200);
-    const fileName = clip(req.body?.fileName, 300);
-    const base64 = String(req.body?.dataBase64 || '');
-    if (!base64) return res.status(400).json({ error: 'dataBase64 required' });
-
-    const buf = Buffer.from(base64.replace(/^data:[^,]*,/, ''), 'base64');
+    const raw = Buffer.isBuffer(req.body);
+    const name = clip(raw ? headerText(req, 'X-Doc-Name') : req.body?.name, 200);
+    const fileName = clip(raw ? headerText(req, 'X-File-Name') : req.body?.fileName, 300);
+    const mime = clip(raw ? headerText(req, 'X-File-Mime') : req.body?.mime, 150);
+    const buf = uploadedBytes(req);
+    if (!buf) return res.status(400).json({ error: 'file required' });
     if (!buf.length) return res.status(400).json({ error: 'Empty file' });
     if (buf.length > MAX_DOC_BYTES) {
       return res.status(413).json({ error: 'File too large', maxBytes: MAX_DOC_BYTES });
@@ -204,7 +234,7 @@ router.post('/api/reader/docs', async (req, res) => {
     const { rows } = await pool.query(
       `INSERT INTO reader_docs (name, source_kind, file_name, ext, mime, byte_size, data, created_by)
        VALUES ($1, 'file', $2, $3, $4, $5, $6, $7) RETURNING ${META_COLS}`,
-      [name || fileName, fileName, ext, clip(req.body?.mime, 150), buf.length, buf, crewIdOf(req)],
+      [name || fileName, fileName, ext, mime, buf.length, buf, crewIdOf(req)],
     );
     const doc = shapeDoc(rows[0]);
 
@@ -219,12 +249,11 @@ router.post('/api/reader/docs', async (req, res) => {
 });
 
 /** מצרף לעזר קיים גרסת PDF שהומרה ידנית (מצב 'pdf'). */
-router.post('/api/reader/docs/:id/pdf', async (req, res) => {
+router.post('/api/reader/docs/:id/pdf', rawBody, async (req, res) => {
   try {
     const id = intOf(req.params.id);
-    const base64 = String(req.body?.dataBase64 || '');
-    if (!base64) return res.status(400).json({ error: 'dataBase64 required' });
-    const buf = Buffer.from(base64.replace(/^data:[^,]*,/, ''), 'base64');
+    const buf = uploadedBytes(req);
+    if (!buf) return res.status(400).json({ error: 'file required' });
     if (!buf.length) return res.status(400).json({ error: 'Empty file' });
     if (buf.length > MAX_DOC_BYTES) return res.status(413).json({ error: 'File too large' });
 
@@ -303,12 +332,12 @@ router.post('/api/reader/docs/:id/convert', async (req, res) => {
 
 router.get('/api/reader/bookmarks/:docId', async (req, res) => {
   try {
-    const crewId = crewIdOf(req);
-    if (!crewId) return res.json([]);
+    const owner = ownerOf(req);
+    if (!owner) return res.json([]);
     const { rows } = await pool.query(
-      `SELECT * FROM reader_bookmarks WHERE doc_id=$1 AND crew_member_id=$2
+      `SELECT * FROM reader_bookmarks WHERE doc_id=$1 AND owner_pid=$2
        ORDER BY page_no, sort_order, id`,
-      [intOf(req.params.docId), crewId],
+      [intOf(req.params.docId), owner],
     );
     res.json(rows);
   } catch (err) {
@@ -318,12 +347,12 @@ router.get('/api/reader/bookmarks/:docId', async (req, res) => {
 
 router.post('/api/reader/bookmarks', async (req, res) => {
   try {
-    const crewId = crewIdOf(req);
-    if (!crewId) return res.status(403).json({ error: 'No crew identity' });
+    const owner = ownerOf(req);
+    if (!owner) return res.status(403).json({ error: 'No personal identity' });
     const { rows } = await pool.query(
-      `INSERT INTO reader_bookmarks (doc_id, crew_member_id, page_no, label, note, color, sort_order)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [intOf(req.body?.docId), crewId, Math.max(0, intOf(req.body?.pageNo, 1)),
+      `INSERT INTO reader_bookmarks (doc_id, owner_pid, crew_member_id, page_no, label, note, color, sort_order)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [intOf(req.body?.docId), owner, crewIdOf(req), Math.max(0, intOf(req.body?.pageNo, 1)),
         clip(req.body?.label, 200), String(req.body?.note ?? ''), clip(req.body?.color, 20),
         intOf(req.body?.sortOrder)],
     );
@@ -333,17 +362,17 @@ router.post('/api/reader/bookmarks', async (req, res) => {
   }
 });
 
-// העדכון והמחיקה מסננים גם על crew_member_id: מזהה של סימנייה של מישהו אחר
+// העדכון והמחיקה מסננים גם על הבעלים (owner_pid): מזהה של סימנייה של מישהו אחר
 // לא ייגע בה, גם אם נשלח במפורש.
 router.put('/api/reader/bookmarks/:id', async (req, res) => {
   try {
-    const crewId = crewIdOf(req);
-    if (!crewId) return res.status(403).json({ error: 'No crew identity' });
+    const owner = ownerOf(req);
+    if (!owner) return res.status(403).json({ error: 'No personal identity' });
     const { rows } = await pool.query(
       `UPDATE reader_bookmarks SET page_no=$1, label=$2, note=$3, color=$4, sort_order=$5, updated_at=NOW()
-       WHERE id=$6 AND crew_member_id=$7 RETURNING *`,
+       WHERE id=$6 AND owner_pid=$7 RETURNING *`,
       [Math.max(0, intOf(req.body?.pageNo, 1)), clip(req.body?.label, 200), String(req.body?.note ?? ''),
-        clip(req.body?.color, 20), intOf(req.body?.sortOrder), intOf(req.params.id), crewId],
+        clip(req.body?.color, 20), intOf(req.body?.sortOrder), intOf(req.params.id), owner],
     );
     if (!rows[0]) return res.status(404).json({ error: 'Not found' });
     res.json(rows[0]);
@@ -354,9 +383,9 @@ router.put('/api/reader/bookmarks/:id', async (req, res) => {
 
 router.delete('/api/reader/bookmarks/:id', async (req, res) => {
   try {
-    const crewId = crewIdOf(req);
-    if (!crewId) return res.status(403).json({ error: 'No crew identity' });
-    await pool.query(`DELETE FROM reader_bookmarks WHERE id=$1 AND crew_member_id=$2`, [intOf(req.params.id), crewId]);
+    const owner = ownerOf(req);
+    if (!owner) return res.status(403).json({ error: 'No personal identity' });
+    await pool.query(`DELETE FROM reader_bookmarks WHERE id=$1 AND owner_pid=$2`, [intOf(req.params.id), owner]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete bookmark' });
@@ -367,14 +396,14 @@ router.delete('/api/reader/bookmarks/:id', async (req, res) => {
 
 router.get('/api/reader/quick', async (req, res) => {
   try {
-    const crewId = crewIdOf(req);
-    if (!crewId) return res.json([]);
+    const owner = ownerOf(req);
+    if (!owner) return res.json([]);
     // `id` הוא של המסמך (לא של שורת המדף) - הלקוח מזהה עזר לפי מזהה המסמך
     const { rows } = await pool.query(
       `SELECT ${metaCols('d')}, q.sort_order AS quick_sort
        FROM reader_quick_items q JOIN reader_docs d ON d.id = q.doc_id
-       WHERE q.crew_member_id=$1 ORDER BY q.sort_order, q.id`,
-      [crewId],
+       WHERE q.owner_pid=$1 ORDER BY q.sort_order, q.id`,
+      [owner],
     );
     res.json(rows.map(shapeDoc));
   } catch (err) {
@@ -384,13 +413,13 @@ router.get('/api/reader/quick', async (req, res) => {
 
 router.post('/api/reader/quick', async (req, res) => {
   try {
-    const crewId = crewIdOf(req);
-    if (!crewId) return res.status(403).json({ error: 'No crew identity' });
+    const owner = ownerOf(req);
+    if (!owner) return res.status(403).json({ error: 'No personal identity' });
     const { rows } = await pool.query(
-      `INSERT INTO reader_quick_items (crew_member_id, doc_id, sort_order)
-       VALUES ($1,$2,$3) ON CONFLICT (crew_member_id, doc_id) DO UPDATE SET sort_order = EXCLUDED.sort_order
+      `INSERT INTO reader_quick_items (owner_pid, crew_member_id, doc_id, sort_order)
+       VALUES ($1,$2,$3,$4) ON CONFLICT (owner_pid, doc_id) DO UPDATE SET sort_order = EXCLUDED.sort_order
        RETURNING *`,
-      [crewId, intOf(req.body?.docId), intOf(req.body?.sortOrder)],
+      [owner, crewIdOf(req), intOf(req.body?.docId), intOf(req.body?.sortOrder)],
     );
     res.json(rows[0]);
   } catch (err) {
@@ -400,10 +429,10 @@ router.post('/api/reader/quick', async (req, res) => {
 
 router.delete('/api/reader/quick/:docId', async (req, res) => {
   try {
-    const crewId = crewIdOf(req);
-    if (!crewId) return res.status(403).json({ error: 'No crew identity' });
-    await pool.query(`DELETE FROM reader_quick_items WHERE crew_member_id=$1 AND doc_id=$2`,
-      [crewId, intOf(req.params.docId)]);
+    const owner = ownerOf(req);
+    if (!owner) return res.status(403).json({ error: 'No personal identity' });
+    await pool.query(`DELETE FROM reader_quick_items WHERE owner_pid=$1 AND doc_id=$2`,
+      [owner, intOf(req.params.docId)]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to remove quick item' });

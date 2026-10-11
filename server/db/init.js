@@ -423,6 +423,24 @@ async function applySchemaOnce() {
     UNIQUE(crew_member_id, doc_id)
   )`);
 
+  // ── בעלות על הסימניות והמדף: המספר האישי ולא crew_member_id ─────────────
+  // משתמש מיראז' שאין לו שורה ב-crew_members נכנס עם `crewMemberId: null`, וכל
+  // סימנייה שלו נדחתה בשקט ("לא מצליח לשמור בוקמארק", 2026-10-11). הזהות שקיימת
+  // **תמיד** למשתמש היא המספר האישי מהאסימון, ולכן היא הבעלים. crew_member_id
+  // נשאר (FK, מחיקה מדורגת) ונמלא כשהוא ידוע.
+  await sq(`ALTER TABLE reader_bookmarks ADD COLUMN IF NOT EXISTS owner_pid VARCHAR(50) NOT NULL DEFAULT ''`);
+  await sq(`ALTER TABLE reader_bookmarks ALTER COLUMN crew_member_id DROP NOT NULL`);
+  await sq(`ALTER TABLE reader_quick_items ADD COLUMN IF NOT EXISTS owner_pid VARCHAR(50) NOT NULL DEFAULT ''`);
+  await sq(`ALTER TABLE reader_quick_items ALTER COLUMN crew_member_id DROP NOT NULL`);
+  // שורות שנכתבו לפני השינוי - הבעלים נגזר מאיש הצוות שכתב אותן
+  await sq(`UPDATE reader_bookmarks b SET owner_pid = cm.personal_id
+            FROM crew_members cm WHERE b.owner_pid = '' AND cm.id = b.crew_member_id AND cm.personal_id IS NOT NULL`);
+  await sq(`UPDATE reader_quick_items q SET owner_pid = cm.personal_id
+            FROM crew_members cm WHERE q.owner_pid = '' AND cm.id = q.crew_member_id AND cm.personal_id IS NOT NULL`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_reader_bookmarks_doc_owner ON reader_bookmarks(doc_id, owner_pid)`);
+  // ה-ON CONFLICT של המדף נשען על הייחודיות הזו - פריט אחד לכל בעלים ומסמך
+  await sq(`CREATE UNIQUE INDEX IF NOT EXISTS idx_reader_quick_owner_doc ON reader_quick_items(owner_pid, doc_id)`);
+
   // קישור עמדה → עזר הקריאה שלו. NULL = הקישור עדיין לא נפתח לקריאה (העזר
   // נוצר בפתיחה הראשונה), או שהוא נפתח תמיד באפליקציה החיצונית.
   await sq(`ALTER TABLE preset_links ADD COLUMN IF NOT EXISTS doc_id INTEGER REFERENCES reader_docs(id) ON DELETE SET NULL`);

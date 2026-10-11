@@ -12,14 +12,24 @@ import { API_URL } from '../../config';
 import { tr } from '../../i18n/tr';
 import { docIcon, shapeReaderDoc, type ReaderConfig, type ReaderDoc } from '../../utils/reader';
 
-const MAX_MB = 32;
-
-const readFileAsBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
-  const fr = new FileReader();
-  fr.onload = () => resolve(String(fr.result || '').replace(/^data:[^,]*,/, ''));
-  fr.onerror = () => reject(new Error('read'));
-  fr.readAsDataURL(file);
+/**
+ * הקובץ נשלח כ**בתים גולמיים** ולא כ-base64 בתוך JSON: אין מגבלת גודל של
+ * המערכת (אפיון 2026-10-11), וה-JSON חסום ב-50MB ומנפח כל קובץ פי 1.33.
+ * השם והסוג עוברים בכותרות, מקודדים - שם קובץ בעברית אינו עובר ככותרת גולמית.
+ */
+const postFile = (url: string, file: File, meta: { name?: string } = {}) => fetch(url, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/octet-stream',
+    'X-File-Name': encodeURIComponent(file.name),
+    'X-File-Mime': encodeURIComponent(file.type || ''),
+    'X-Doc-Name': encodeURIComponent(meta.name || file.name),
+  },
+  body: file,
 });
+
+/** הודעה לפי תשובת השרת. 413 = מעל תקרת PostgreSQL (1GB לשדה), לא מגבלה שלנו. */
+const uploadError = (status: number) => (status === 413 ? tr('reader.fileTooLarge') : tr('reader.uploadFailed'));
 
 // ── ההגדרה הכלל-מערכתית + מאגר חומר הקריאה ─────────────────────────────────
 
@@ -61,15 +71,10 @@ export function ReaderSystemSettings({ isAdmin }: { isAdmin: boolean }) {
 
   const upload = async (file: File) => {
     setError('');
-    if (file.size > MAX_MB * 1024 * 1024) { setError(tr('reader.fileTooLarge', { mb: MAX_MB })); return; }
     setBusy(file.name);
     try {
-      const dataBase64 = await readFileAsBase64(file);
-      const r = await fetch(`${API_URL}/reader/docs`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: file.name, fileName: file.name, mime: file.type, dataBase64 }),
-      });
-      if (!r.ok) setError(tr('reader.uploadFailed'));
+      const r = await postFile(`${API_URL}/reader/docs`, file);
+      if (!r.ok) setError(uploadError(r.status));
       await loadDocs();
     } catch { setError(tr('reader.uploadFailed')); }
     setBusy('');
@@ -78,10 +83,8 @@ export function ReaderSystemSettings({ isAdmin }: { isAdmin: boolean }) {
   const attachPdf = async (doc: ReaderDoc, file: File) => {
     setBusy(doc.name);
     try {
-      const dataBase64 = await readFileAsBase64(file);
-      await fetch(`${API_URL}/reader/docs/${doc.id}/pdf`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dataBase64 }),
-      });
+      const r = await postFile(`${API_URL}/reader/docs/${doc.id}/pdf`, file);
+      if (!r.ok) setError(uploadError(r.status));
       await loadDocs();
     } catch { setError(tr('reader.uploadFailed')); }
     setBusy('');
@@ -237,14 +240,9 @@ export function ReaderPresetOpenMode({ presetId, value }: { presetId: number; va
  * חדש" - אותה העלאה בדיוק, לא שתיים.
  */
 export async function uploadFileToLink(linkId: number, name: string, file: File): Promise<string> {
-  if (file.size > MAX_MB * 1024 * 1024) return tr('reader.fileTooLarge', { mb: MAX_MB });
   try {
-    const dataBase64 = await readFileAsBase64(file);
-    const r = await fetch(`${API_URL}/reader/docs`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name || file.name, fileName: file.name, mime: file.type, dataBase64 }),
-    });
-    if (!r.ok) return tr('reader.uploadFailed');
+    const r = await postFile(`${API_URL}/reader/docs`, file, { name: name || file.name });
+    if (!r.ok) return uploadError(r.status);
     const doc = await r.json();
     const a = await fetch(`${API_URL}/preset-links/${linkId}/doc`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ docId: doc.id }),

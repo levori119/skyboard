@@ -95,6 +95,9 @@ export default function ReaderWindow({
   const [imageUrl, setImageUrl] = useState('');
   const [converting, setConverting] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
+  // כשל בשמירת סימנייה **מוצג**. קודם הוא נבלע, והלחיצה על 🔖+ פשוט לא עשתה
+  // כלום - בדיוק "פקד שנדלק בלי שקורה משהו" (CLAUDE.md §Do NOT).
+  const [bmError, setBmError] = useState('');
 
   const { engine, reason, canConvert } = engineFor(doc, officeMode);
   const pageWord = doc.kind === 'office' || doc.hasPdf ? tr('reader.slide') : engine === 'sheet' ? tr('reader.sheet') : tr('reader.page');
@@ -122,19 +125,21 @@ export default function ReaderWindow({
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ docId: doc.id, pageNo: page, label: `${pageWord} ${page}`, note: '' }),
       });
-      if (r.ok) { const b = await r.json(); setBookmarks(prev => [...prev, b]); setEditing(b.id); setPanelOpen(true); }
-    } catch { /* מנותק */ }
+      if (r.ok) { const b = await r.json(); setBookmarks(prev => [...prev, b]); setEditing(b.id); setPanelOpen(true); setBmError(''); }
+      else { setBmError(tr('reader.bookmarkSaveFailed')); setPanelOpen(true); }
+    } catch { setBmError(tr('reader.bookmarkSaveFailed')); setPanelOpen(true); }
   };
 
   const patchBookmark = async (b: ReaderBookmark, patch: Partial<ReaderBookmark>) => {
     const next = { ...b, ...patch };
     setBookmarks(prev => prev.map(x => x.id === b.id ? next : x));
     try {
-      await fetch(`${API_URL}/reader/bookmarks/${b.id}`, {
+      const r = await fetch(`${API_URL}/reader/bookmarks/${b.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pageNo: next.page_no, label: next.label, note: next.note, color: next.color, sortOrder: next.sort_order }),
       });
-    } catch { /* מנותק - הערך המקומי נשאר, ייכתב בעריכה הבאה */ }
+      setBmError(r.ok ? '' : tr('reader.bookmarkSaveFailed'));
+    } catch { setBmError(tr('reader.bookmarkSaveFailed')); /* הערך המקומי נשאר, ייכתב בעריכה הבאה */ }
   };
 
   const removeBookmark = async (id: number) => {
@@ -442,6 +447,9 @@ export default function ReaderWindow({
               <span>🔖 {tr('reader.bookmarks')}</span>
               {btn('+', tr('reader.addBookmarkHere'), addBookmark)}
             </div>
+            {bmError && (
+              <div role="alert" style={{ padding: '4px 8px', fontSize: 10, color: '#fca5a5', borderBottom: `1px solid ${C.border}` }}>⚠ {bmError}</div>
+            )}
 
             <div style={{ flex: 1, overflowY: 'auto', padding: 6, display: 'flex', flexDirection: 'column', gap: 5 }}>
               {bookmarks.length === 0 && (

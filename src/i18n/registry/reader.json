@@ -231,8 +231,8 @@
       "en": "Uploading..."
     },
     "fileTooLarge": {
-      "he": "הקובץ גדול מדי (מקסימום {{mb}} מגה)",
-      "en": "File is too large (maximum {{mb}} MB)"
+      "he": "הקובץ גדול מהתקרה של מסד הנתונים (1GB לקובץ)",
+      "en": "The file exceeds the database limit (1GB per file)"
     },
     "uploadFailed": {
       "he": "ההעלאה נכשלה",
@@ -285,6 +285,10 @@
     "sizeTitle": {
       "he": "גודל החלון: {{size}} מרוחב המסך",
       "en": "Window size: {{size}} of the screen width"
+    },
+    "bookmarkSaveFailed": {
+      "he": "הסימנייה לא נשמרה - אין קשר לשרת או שאין זהות אישית בכניסה",
+      "en": "Bookmark not saved - no server connection or no personal identity at login"
     }
   }
 }
