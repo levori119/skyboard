@@ -225,6 +225,22 @@ const SYNC_TIMEOUT_MS = 120_000;
 const isSyncPath = (p) => p.startsWith('/api/sync/') || p.includes('/sync/mirror');
 const timeoutFor = (base) => (urlPath) => (isSyncPath(urlPath || '') ? SYNC_TIMEOUT_MS : base);
 
+/**
+ * העלאת קובץ - **אינה עדות לבריאות הקשר** (2026-10-11).
+ *
+ * קובץ גדול עולה יותר מ-8 שניות מטבעו. בלי ההחרגה הוא נחתך בתקרה, נספר ככשל
+ * קשר, והעמדה הכריזה נתק ועברה למאגר המקומי - באמצע העלאה שהמרכז קיבל בהצלחה.
+ * לכן: תקרה ארוכה, וכשל שלה אינו מדווח לנתב (רק הצלחה). אם ההעלאה נכשלת,
+ * המסך שהעלה מציג שגיאת העלאה - ההכרעה על נתק נשארת ל-/api/health ולשאר הבקשות.
+ */
+const UPLOAD_TIMEOUT_MS = 30 * 60 * 1000;
+const UPLOAD_JSON_BYTES = 1024 * 1024;
+function isUploadRequest(headers = {}) {
+  const type = String(headers['content-type'] || '').toLowerCase();
+  if (type.startsWith('application/octet-stream') || type.startsWith('multipart/form-data')) return true;
+  return Number(headers['content-length'] || 0) > UPLOAD_JSON_BYTES;
+}
+
 // ── מי מורשה לדבר עם הסוכן ────────────────────────────────────────────────────
 // הסוכן מאזין על 127.0.0.1 בלבד, ולכן אינו חשוף לרשת - אבל **כל** אתר שהמפעיל
 // פותח בטאב אחר יכול לשלוח אליו בקשות מהדפדפן שלו. בלי שער מקורות, דף זדוני
@@ -438,6 +454,12 @@ function createStationServer({
         const swapped = authBridge.swapAuthHeader(req.headers.authorization);
         if (swapped) extraHeaders.authorization = swapped;
       }
+      // העלאת קובץ: תקרה ארוכה, וכשל אינו מדווח כנתק (ראה isUploadRequest)
+      if (isUploadRequest(req.headers)) {
+        return proxyRequest(req, res, target, UPLOAD_TIMEOUT_MS, {
+          onResult: (ok, status) => { if (ok) onResult(ok, status); }, extraHeaders,
+        });
+      }
       return proxyRequest(req, res, target, timeoutForPath(urlPath), { onResult, extraHeaders });
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); res.end(); return; }
@@ -509,6 +531,8 @@ module.exports = {
   hasBundledDist,
   timeoutFor,
   SYNC_TIMEOUT_MS,
+  isUploadRequest,
+  UPLOAD_TIMEOUT_MS,
   resolveStaticPath,
   isAssetLike,
 };

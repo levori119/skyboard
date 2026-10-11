@@ -87,6 +87,26 @@ export function bypassesOfflineLayer(url: string): boolean {
   return p.startsWith('/api/air-picture/');
 }
 
+/** מעל זה גוף מחרוזת הוא קובץ מקודד (base64 בתוך JSON), לא כתיבה תפעולית. */
+export const UPLOAD_STRING_BYTES = 1024 * 1024;
+
+/**
+ * האם הבקשה היא **העלאת קובץ** - ואז היא עוקפת את שכבת הנתק כולה (2026-10-11).
+ *
+ * השכבה עוטפת כל בקשה ב-timeout, וכשל נספר כעדות לנתק. העלאה של קובץ גדול
+ * נמשכת יותר מה-timeout מטבעה: היא בוטלה באמצע, נספרה ככשל קשר, והעמדה הכריזה
+ * נתק ויצאה - בזמן שהשרת דווקא קיבל בתים כל הזמן. העלאה גם אינה מועמדת לאף
+ * מנגנון של השכבה: אין טעם לשמור אותה ב-outbox (מגה-בייטים ב-IndexedDB) או
+ * לחסום אותה בהודעת נתק. אם היא נכשלת - המסך שהעלה מציג שגיאת העלאה.
+ */
+export function isFileUpload(body: unknown): boolean {
+  if (body == null) return false;
+  if (typeof Blob !== 'undefined' && body instanceof Blob) return true;
+  if (typeof FormData !== 'undefined' && body instanceof FormData) return true;
+  if (body instanceof ArrayBuffer || ArrayBuffer.isView(body)) return true;
+  return typeof body === 'string' && body.length > UPLOAD_STRING_BYTES;
+}
+
 export function isReadMethod(method: string): boolean {
   const m = (method || 'GET').toUpperCase();
   return m === 'GET' || m === 'HEAD';

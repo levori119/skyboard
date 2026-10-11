@@ -23,9 +23,10 @@ import { startPointerDrag, DRAG_HANDLE_STYLE, readRootScale } from '../../utils/
 import {
   clampReaderRect, defaultReaderRect, docBytesUrl, docIcon, engineFor,
   loadReaderState, saveReaderState, READER_MIN_W, READER_MIN_H,
-  READER_SIZE_PRESETS, presetReaderRect, activeSizePreset,
+  READER_SIZE_PRESETS, presetReaderRect, activeSizePreset, fitRectToContent,
   type ReaderBookmark, type ReaderConfig, type ReaderDoc, type ReaderRect, type ReaderSizeKey,
 } from '../../utils/reader';
+import { useDockableWindow } from '../../hooks/useDockableWindow';
 
 type ThemeMode = 'light' | 'dark' | 'ocean';
 
@@ -98,6 +99,17 @@ export default function ReaderWindow({
   // כשל בשמירת סימנייה **מוצג**. קודם הוא נבלע, והלחיצה על 🔖+ פשוט לא עשתה
   // כלום - בדיוק "פקד שנדלק בלי שקורה משהו" (CLAUDE.md §Do NOT).
   const [bmError, setBmError] = useState('');
+  /** יחס העמוד המוצג (גובה/רוחב). ממנו נגזר גובה החלון - ראה fitRectToContent */
+  const [aspect, setAspect] = useState<number | null>(null);
+
+  // ── עגינה בקונטיינר החלונות ─────────────────────────────────────────────
+  // ref ולא rect ישירות: floatingPos נקרא בסוף גרירה, וסגירה על rect הייתה
+  // מחזירה את המיקום שהיה ברגע הרינדור ולא את הנוכחי.
+  const rectRef = useRef<ReaderRect | null>(null);
+  const dock = useDockableWindow(`reader-${doc.id}`, doc.name || doc.file_name || tr('reader.title'), {
+    setFloatingPos: (x, y) => setRect(r => ({ ...r, x, y })),
+    floatingPos: () => ({ x: rectRef.current?.x ?? 0, y: rectRef.current?.y ?? 0 }),
+  });
 
   const { engine, reason, canConvert } = engineFor(doc, officeMode);
   const pageWord = doc.kind === 'office' || doc.hasPdf ? tr('reader.slide') : engine === 'sheet' ? tr('reader.sheet') : tr('reader.page');
@@ -125,7 +137,8 @@ export default function ReaderWindow({
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ docId: doc.id, pageNo: page, label: `${pageWord} ${page}`, note: '' }),
       });
-      if (r.ok) { const b = await r.json(); setBookmarks(prev => [...prev, b]); setEditing(b.id); setPanelOpen(true); setBmError(''); }
+      // נשמרת **לקריאה בלבד** (אפיון 2026-10-11): שם ועריכה רק דרך ✎
+      if (r.ok) { const b = await r.json(); setBookmarks(prev => [...prev, b]); setPanelOpen(true); setBmError(''); }
       else { setBmError(tr('reader.bookmarkSaveFailed')); setPanelOpen(true); }
     } catch { setBmError(tr('reader.bookmarkSaveFailed')); setPanelOpen(true); }
   };
@@ -212,6 +225,7 @@ export default function ReaderWindow({
         const box = viewportRef.current;
         if (!canvas || !box) return;
         const base = p.getViewport({ scale: 1 });
+        setAspect(base.height / base.width);
         // "התאם לרוחב" הוא ברירת המחדל (זום 1): מצגת נקראת לרוחב הדף
         const fit = Math.max(0.2, (box.clientWidth - 16) / base.width);
         const viewport = p.getViewport({ scale: fit * ZOOMS[zoomIdx] });
@@ -284,6 +298,22 @@ export default function ReaderWindow({
     });
   };
 
+  // ── החלון בגודל העמוד המוצג, לא יותר ─────────────────────────────────────
+  // הרוחב קובע (גודל קבוע / ידית), והגובה נגזר מהעמוד. "המסגרת" - כל מה שאינו
+  // אזור התצוגה (כותרת, ניווט, פאנל הסימניות) - נמדדת ב-DOM כי היא משתנה עם הפאנל.
+  // רק בזום "התאם לרוחב": בזום אחר העמוד גדול מהחלון בכוונה, ונגלל.
+  rectRef.current = rect;
+  useEffect(() => {
+    if (!aspect || zoomIdx !== 2 || status !== 'idle') return;
+    const vp = viewportRef.current;
+    if (!vp) return;
+    const cur = rectRef.current!;
+    const chrome = { chromeW: cur.w - vp.clientWidth, chromeH: cur.h - vp.clientHeight };
+    const { vw, vh } = bounds();
+    const next = fitRectToContent(cur, aspect, chrome, vw, vh);
+    if (Math.abs(next.w - cur.w) > 1 || Math.abs(next.h - cur.h) > 1 || next.x !== cur.x || next.y !== cur.y) setRect(next);
+  }, [aspect, rect.w, panelOpen, zoomIdx, status]);   // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── גדלים קבועים: מלא · 2/3 · חצי · 1/3 ──────────────────────────────────
   const applySize = (fraction: number) => {
     const { vw, vh } = bounds();
@@ -329,7 +359,7 @@ export default function ReaderWindow({
   const PANEL_W = 210;
   const showPanel = panelOpen || engine === 'notes';
 
-  return (
+  const win = (
     <div
       ref={winRef}
       // מקבל פוקוס בנגיעה, כדי ש-PageUp/PageDown ידפדפו **בחלון הזה** בלבד.
@@ -345,11 +375,12 @@ export default function ReaderWindow({
         zIndex: Z_BASE + index, background: C.panel, ...windowFrame('view', themeMode, 8),
         boxShadow: '0 12px 40px rgba(0,0,0,0.55)', display: 'flex', flexDirection: 'column',
         overflow: 'hidden', direction: i18n.dir(),
+        ...dock.rootStyle,
       }}>
 
       {/* כותרת = ידית הגרירה */}
       <div
-        onPointerDown={onHeaderDown}
+        onPointerDown={e => { dock.onHeaderPointerDown(e); if (!dock.docked) onHeaderDown(e); }}
         style={{
           ...DRAG_HANDLE_STYLE, cursor: 'move', display: 'flex', alignItems: 'center', gap: 6,
           padding: '4px 8px', background: C.chip, color: C.text, borderBottom: `1px solid ${C.border}`,
@@ -404,7 +435,9 @@ export default function ReaderWindow({
             <canvas ref={canvasRef} style={{ display: 'block', margin: '8px auto' }} />
           )}
           {status === 'idle' && engine === 'image' && imageUrl && (
-            <img src={imageUrl} alt={doc.name} style={{ display: 'block', maxWidth: '100%', margin: '8px auto' }} />
+            <img src={imageUrl} alt={doc.name}
+              onLoad={e => { const im = e.currentTarget; if (im.naturalWidth) setAspect(im.naturalHeight / im.naturalWidth); }}
+              style={{ display: 'block', maxWidth: '100%', margin: '8px auto' }} />
           )}
           {status === 'idle' && engine === 'sheet' && (
             <div
@@ -455,33 +488,56 @@ export default function ReaderWindow({
               {bookmarks.length === 0 && (
                 <div style={{ color: C.muted, fontSize: 10, lineHeight: 1.6, padding: 4 }}>{tr('reader.noBookmarks')}</div>
               )}
-              {bookmarks.map(b => (
-                <div key={b.id} style={{ border: `1px solid ${C.border}`, borderRadius: 4, background: C.chip, padding: 5 }}>
+              {bookmarks.map(b => editing === b.id ? (
+                // ── מצב עריכה - רק אחרי לחיצה על ✎ ──
+                <div key={b.id} style={{ border: `1px solid ${frameColor('edit', themeMode)}`, borderRadius: 4, background: C.chip, padding: 5 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <button
-                      type="button" onClick={() => goto(b.page_no)} title={`${pageWord} ${b.page_no}`}
-                      style={{ background: 'transparent', border: 'none', color: accent, fontSize: 10, fontWeight: 'bold', cursor: 'pointer', padding: 0, flexShrink: 0 }}>
-                      {b.page_no}
-                    </button>
+                    <span style={{ color: accent, fontSize: 10, fontWeight: 'bold', flexShrink: 0 }}>{b.page_no}</span>
                     <input
+                      autoFocus
                       value={b.label}
                       onChange={e => patchBookmark(b, { label: e.target.value })}
-                      onFocus={() => setEditing(b.id)}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setEditing(null); }}
                       placeholder={tr('reader.bookmarkLabel')}
                       style={{ flex: 1, minWidth: 0, background: C.input, color: C.text, border: `1px solid ${C.border}`, borderRadius: 3, fontSize: 10, padding: '2px 4px', direction: i18n.dir() }}
                     />
                     <button
                       type="button" onClick={() => removeBookmark(b.id)} title={tr('reader.deleteBookmark')} aria-label={tr('reader.deleteBookmark')}
-                      style={{ background: 'transparent', border: 'none', color: C.muted, fontSize: 11, cursor: 'pointer', padding: 0, flexShrink: 0 }}>✕</button>
+                      style={{ background: 'transparent', border: 'none', color: C.muted, fontSize: 11, cursor: 'pointer', padding: 0, flexShrink: 0 }}>🗑</button>
                   </div>
                   <textarea
                     value={b.note}
                     onChange={e => patchBookmark(b, { note: e.target.value })}
-                    onFocus={() => setEditing(b.id)}
                     placeholder={tr('reader.bookmarkNote')}
-                    rows={editing === b.id ? 3 : 1}
+                    rows={3}
                     style={{ width: '100%', marginTop: 3, background: C.input, color: C.text, border: `1px solid ${C.border}`, borderRadius: 3, fontSize: 10, padding: '2px 4px', resize: 'vertical', direction: i18n.dir(), boxSizing: 'border-box' }}
                   />
+                  <button type="button" onClick={() => setEditing(null)}
+                    style={{ width: '100%', marginTop: 3, background: accent, color: '#04202b', border: 'none', borderRadius: 3, fontSize: 10, fontWeight: 'bold', padding: '3px 0', cursor: 'pointer' }}>
+                    ✓ {tr('reader.bookmarkDone')}
+                  </button>
+                </div>
+              ) : (
+                // ── קריאה בלבד: כל השורה = קפיצה לעמוד. עריכה רק ב-✎ ──
+                <div key={b.id}
+                  role="button" tabIndex={0}
+                  onClick={() => goto(b.page_no)}
+                  onKeyDown={e => { if (e.key === 'Enter') goto(b.page_no); }}
+                  title={tr('reader.bookmarkJump', { page: b.page_no })}
+                  style={{
+                    border: `1px solid ${b.page_no === page ? accent : C.border}`, borderRadius: 4,
+                    background: C.chip, padding: '5px 6px', cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 5,
+                  }}>
+                  <span style={{ color: accent, fontSize: 10, fontWeight: 'bold', flexShrink: 0, minWidth: 14 }}>{b.page_no}</span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'block', color: C.text, fontSize: 11, fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.label || `${pageWord} ${b.page_no}`}</span>
+                    {b.note && <span style={{ display: 'block', color: C.muted, fontSize: 10, lineHeight: 1.4, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{b.note}</span>}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={e => { e.stopPropagation(); setEditing(b.id); }}
+                    title={tr('reader.bookmarkEdit')} aria-label={tr('reader.bookmarkEdit')}
+                    style={{ background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 3, color: C.muted, fontSize: 10, cursor: 'pointer', padding: '1px 5px', flexShrink: 0 }}>✎</button>
                 </div>
               ))}
             </div>
@@ -493,8 +549,9 @@ export default function ReaderWindow({
         )}
       </div>
 
-      {/* ידית שינוי גודל - בפינה ה-inline-end, זו שזזה בשתי השפות */}
-      <div
+      {/* ידית שינוי גודל - בפינה ה-inline-end, זו שזזה בשתי השפות.
+          מעוגן - הקונטיינר קובע את הגודל, וידית הייתה פקד שלא עושה כלום */}
+      {!dock.docked && <div
         onPointerDown={onResizeDown}
         title={tr('reader.resize')}
         style={{
@@ -502,9 +559,10 @@ export default function ReaderWindow({
           width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
           cursor: i18n.dir() === 'rtl' ? 'nesw-resize' : 'nwse-resize',
           color: accent, background: C.panel, fontSize: 12, lineHeight: 1, borderStartStartRadius: 6,
-        }}>⇲</div>
+        }}>⇲</div>}
     </div>
   );
+  return dock.render(win);
 }
 
 function Centered({ children, color }: { children: React.ReactNode; color: string }) {

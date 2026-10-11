@@ -289,6 +289,18 @@
     "bookmarkSaveFailed": {
       "he": "הסימנייה לא נשמרה - אין קשר לשרת או שאין זהות אישית בכניסה",
       "en": "Bookmark not saved - no server connection or no personal identity at login"
+    },
+    "bookmarkEdit": {
+      "he": "ערוך סימנייה",
+      "en": "Edit bookmark"
+    },
+    "bookmarkDone": {
+      "he": "סיום עריכה",
+      "en": "Done"
+    },
+    "bookmarkJump": {
+      "he": "קפוץ לעמוד {{page}}",
+      "en": "Jump to page {{page}}"
     }
   }
 }

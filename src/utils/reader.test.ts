@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   defaultReaderRect, clampReaderRect, bottomBarSlots, shapeReaderDoc, engineFor, docIcon,
   READER_DEFAULT_FRACTION, READER_MIN_W, READER_MIN_H,
-  READER_SIZE_PRESETS, presetReaderRect, activeSizePreset, linkOpensInWindow,
+  READER_SIZE_PRESETS, presetReaderRect, activeSizePreset, linkOpensInWindow, fitRectToContent, CONTENT_PAD,
 } from './reader';
 
 describe('defaultReaderRect - ב"מ 40% מגודל המסך', () => {
@@ -142,11 +142,11 @@ describe('גדלים קבועים לחלון - מלא, 2/3, חצי, 1/3', () => 
     expect(presetReaderRect(1 / 3, { x: 0, y: 0, w: 500, h: 400 }, 600, 500).w).toBe(READER_MIN_W);
   });
 
-  it('activeSizePreset מזהה גודל שנבחר, ו-null אחרי שינוי ידני', () => {
+  it('activeSizePreset מזהה גודל לפי הרוחב בלבד - הגובה נגזר מהעמוד', () => {
     const r = presetReaderRect(1 / 2, { x: 0, y: 0, w: 500, h: 400 }, VW, VH);
     expect(activeSizePreset(r, VW, VH)).toBe('half');
+    expect(activeSizePreset({ ...r, h: 300 }, VW, VH)).toBe('half');
     expect(activeSizePreset({ ...r, w: r.w - 40 }, VW, VH)).toBeNull();
-    expect(activeSizePreset({ ...r, h: 300 }, VW, VH)).toBeNull();
   });
 });
 
@@ -166,5 +166,43 @@ describe('linkOpensInWindow - איפה נפתח קישור עמדה', () => {
 
   it('קישור ריק לגמרי - אין מה לפתוח בחלון', () => {
     expect(linkOpensInWindow('external', { url: '', doc_id: null })).toBe(false);
+  });
+});
+
+describe('fitRectToContent - החלון בגודל העמוד המוצג, לא יותר', () => {
+  // מסגרת החלון: 40 רוחב (גבולות + פאנל סגור), 60 גובה (כותרת + שורת ניווט)
+  const CH = { chromeW: 40, chromeH: 60 };
+  const VW = 1800, VH = 1000;
+
+  it('מצגת לרוחב (16:9) - הגובה מתכווץ לגובה השקף, בלי שטח ריק', () => {
+    const r = fitRectToContent({ x: 0, y: 0, w: 840, h: 1000 }, 9 / 16, CH, VW, VH);
+    const contentW = 840 - 40 - CONTENT_PAD;
+    expect(r.w).toBe(840);
+    expect(r.h).toBe(Math.round(60 + contentW * 9 / 16 + CONTENT_PAD));
+  });
+
+  it('עמוד לאורך שלא נכנס בגובה - הרוחב מתכווץ, לא נשאר שטח ריק בצדדים', () => {
+    const r = fitRectToContent({ x: 0, y: 0, w: 1800, h: 1000 }, 1.414, CH, VW, VH);
+    expect(r.h).toBe(VH);
+    const contentH = VH - 60 - CONTENT_PAD;
+    expect(r.w).toBe(Math.round(contentH / 1.414 + 40 + CONTENT_PAD));
+  });
+
+  it('חלון שהיה בצד ימין נשאר צמוד לימין אחרי הכיווץ', () => {
+    const r = fitRectToContent({ x: 0, y: 0, w: VW, h: VH }, 1.414, CH, VW, VH);
+    expect(r.x).toBe(0);
+    const right = fitRectToContent({ x: 900, y: 0, w: 900, h: VH }, 1.414, CH, VW, VH);
+    expect(right.x + right.w).toBe(VW);
+  });
+
+  it('החלון לא יוצא מתחתית המסך אחרי שהגובה גדל', () => {
+    const r = fitRectToContent({ x: 0, y: 700, w: 900, h: 200 }, 9 / 16, CH, VW, VH);
+    expect(r.y + r.h).toBeLessThanOrEqual(VH);
+  });
+
+  it('יחס לא תקין (0 / NaN) - החלון לא משתנה', () => {
+    const rect = { x: 10, y: 10, w: 600, h: 400 };
+    expect(fitRectToContent(rect, 0, CH, VW, VH)).toEqual(rect);
+    expect(fitRectToContent(rect, NaN, CH, VW, VH)).toEqual(rect);
   });
 });

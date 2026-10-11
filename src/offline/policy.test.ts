@@ -136,3 +136,25 @@ describe('bypassesOfflineLayer - בתי קובץ של חלון הקריאה', ()
     expect(bypassesOfflineLayer('/api/reader/bookmarks/7')).toBe(false);
   });
 });
+
+describe('isFileUpload - העלאת קבצים אינה עדות לנתק', () => {
+  // העלאה גדולה נמשכת יותר מ-timeout של שכבת הנתק, בוטלה ונספרה ככשל קשר -
+  // והעמדה הכריזה נתק ויצאה (2026-10-11). העלאה עוקפת את השכבה כולה.
+  it('גוף בינארי (קובץ / Blob / ArrayBuffer / FormData) - העלאה', async () => {
+    const { isFileUpload } = await import('./policy');
+    expect(isFileUpload(new Blob(['x']))).toBe(true);
+    expect(isFileUpload(new ArrayBuffer(4))).toBe(true);
+    expect(isFileUpload(new Uint8Array(4))).toBe(true);
+    expect(isFileUpload(new FormData())).toBe(true);
+  });
+  it('JSON ענק (קובץ מקודד base64, למשל העלאת מפה) - העלאה', async () => {
+    const { isFileUpload, UPLOAD_STRING_BYTES } = await import('./policy');
+    expect(isFileUpload('x'.repeat(UPLOAD_STRING_BYTES + 1))).toBe(true);
+  });
+  it('כתיבה רגילה - לא העלאה, נשארת בשכבה', async () => {
+    const { isFileUpload } = await import('./policy');
+    expect(isFileUpload(JSON.stringify({ a: 1 }))).toBe(false);
+    expect(isFileUpload(undefined)).toBe(false);
+    expect(isFileUpload(null)).toBe(false);
+  });
+});

@@ -112,14 +112,52 @@ export function presetReaderRect(fraction: number, current: ReaderRect, vw: numb
   return { x: onRight ? Math.max(0, Math.round(vw) - w) : 0, y: 0, w, h };
 }
 
-/** איזה גודל קבוע פעיל כרגע (להדגשת הכפתור), או null אחרי שינוי ידני. */
+/**
+ * איזה גודל קבוע פעיל כרגע (להדגשת הכפתור), או null אחרי שינוי ידני.
+ * לפי **הרוחב בלבד**: הגובה נגזר מהעמוד המוצג (fitRectToContent), ולכן אינו
+ * מעיד על הבחירה.
+ */
 export function activeSizePreset(r: ReaderRect, vw: number, vh: number): ReaderSizeKey | null {
   const TOL = 2;
   for (const p of READER_SIZE_PRESETS) {
-    const want = presetReaderRect(p.fraction, r, vw, vh);
-    if (Math.abs(want.w - r.w) <= TOL && Math.abs(want.h - r.h) <= TOL && Math.abs(want.y - r.y) <= TOL) return p.key;
+    if (Math.abs(presetReaderRect(p.fraction, r, vw, vh).w - r.w) <= TOL) return p.key;
   }
   return null;
+}
+
+// ── החלון בגודל התוכן ───────────────────────────────────────────────────────
+
+/** הריווח סביב העמוד בתוך אזור התצוגה (margin 8px מכל צד של ה-canvas). */
+export const CONTENT_PAD = 16;
+
+/**
+ * החלון בגודל העמוד / השקף המוצג - **לא יותר** (אפיון 2026-10-11). מצגת 16:9
+ * בחלון בגובה מלא השאירה שטח ריק ענק מתחת לשקף, ושטח ריק הוא מפה מוסתרת לחינם.
+ *
+ * הרוחב קובע והגובה נגזר מיחס העמוד (`aspect` = גובה/רוחב). עמוד שלא נכנס בגובה
+ * המסך - הגובה נחתך למסך והרוחב מתכווץ בהתאם, כדי שלא יישאר שטח ריק בצדדים.
+ * `chrome` = מה שבחלון אינו אזור התצוגה (כותרת, ניווט, פאנל סימניות, גבולות) -
+ * נמדד מה-DOM ולא מנוחש, כי הוא משתנה עם הפאנל.
+ * חלון שהיה צמוד לימין נשאר צמוד לימין (כמו presetReaderRect).
+ */
+export function fitRectToContent(
+  r: ReaderRect, aspect: number, chrome: { chromeW: number; chromeH: number }, vw: number, vh: number,
+): ReaderRect {
+  if (!Number.isFinite(aspect) || aspect <= 0) return r;
+  const { chromeW, chromeH } = chrome;
+  let w = r.w;
+  let h = chromeH + (w - chromeW - CONTENT_PAD) * aspect + CONTENT_PAD;
+  if (h > vh) {
+    h = vh;
+    w = (vh - chromeH - CONTENT_PAD) / aspect + chromeW + CONTENT_PAD;
+  }
+  w = Math.round(Math.max(READER_MIN_W, w));
+  h = Math.round(Math.max(READER_MIN_H, Math.min(h, vh)));
+  const rightEdge = r.x + r.w;
+  const wasRight = r.x + r.w / 2 > vw / 2;
+  const x = wasRight ? Math.max(0, Math.round(Math.min(rightEdge, vw) - w)) : r.x;
+  const y = Math.max(0, Math.min(r.y, Math.round(vh - h)));
+  return { x, y, w, h };
 }
 
 // ── איפה נפתח קישור ─────────────────────────────────────────────────────────

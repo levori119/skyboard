@@ -5,7 +5,7 @@ import path from 'path';
 import http from 'http';
 import {
   createStationServer, contentTypeFor, shouldProxy, resolveStaticPath, isAssetLike,
-  timeoutFor, SYNC_TIMEOUT_MS,
+  timeoutFor, SYNC_TIMEOUT_MS, isUploadRequest, UPLOAD_TIMEOUT_MS,
 } from './stationServer.cjs';
 
 describe('shouldProxy', () => {
@@ -520,5 +520,24 @@ describe('שרת העמדה - מאיפה מגיעה האפליקציה', () => {
     expect(r.headers.location).toBe(`${CENTRAL}/some/deep/route`);
     await s.close();
     fs.rmSync(empty, { recursive: true, force: true });
+  });
+});
+
+describe('isUploadRequest - העלאת קובץ אינה עדות לנתק', () => {
+  // העלאה גדולה חרגה מתקרת 8 השניות, נספרה ככשל קשר, והעמדה הכריזה נתק
+  // ועברה למאגר המקומי באמצע ההעלאה (2026-10-11).
+  it('גוף בינארי - העלאה', () => {
+    expect(isUploadRequest({ 'content-type': 'application/octet-stream', 'content-length': '10' })).toBe(true);
+    expect(isUploadRequest({ 'content-type': 'multipart/form-data; boundary=x' })).toBe(true);
+  });
+  it('JSON גדול (base64 של קובץ, למשל מפה) - העלאה', () => {
+    expect(isUploadRequest({ 'content-type': 'application/json', 'content-length': String(2 * 1024 * 1024) })).toBe(true);
+  });
+  it('כתיבה רגילה - לא העלאה', () => {
+    expect(isUploadRequest({ 'content-type': 'application/json', 'content-length': '120' })).toBe(false);
+    expect(isUploadRequest({})).toBe(false);
+  });
+  it('תקרת הזמן להעלאה ארוכה בהרבה מהתפעולית', () => {
+    expect(UPLOAD_TIMEOUT_MS).toBeGreaterThanOrEqual(10 * 60 * 1000);
   });
 });

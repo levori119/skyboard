@@ -9,7 +9,7 @@
 //   GET  → רשת. הצליח: נשמר ב-cache והוחזר. נכשל: מוחזר מה-cache עם ציון גיל.
 //   כתיבה → רשת. בנתק: פרטית → outbox מקומי · משותפת → נחסמת בקול.
 
-import { bypassesOfflineLayer, classifyWrite, isApiRequest, isReadMethod, normalizePath } from './policy';
+import { bypassesOfflineLayer, classifyWrite, isApiRequest, isFileUpload, isReadMethod, normalizePath } from './policy';
 import { createStore, CACHE_STORE, OUTBOX_STORE, type OfflineStore } from './store';
 import { Outbox, type OutboxItem } from './outbox';
 import { markReachable, markOnline, noteFailure, noteBlocked, getNetSnapshot } from './netStatus';
@@ -177,6 +177,8 @@ export function createOfflineFetch(opts: OfflineFetchOptions = {}) {
     // כל מה שאינו API (נכסים, מיראז', שירותים חיצוניים) עובר כמו שהוא, וכך גם
     // נתיבים שאינם מעידים על בריאות הקשר (ריליי התמונ"א — ראה policy.ts)
     if (!isApiRequest(url) || bypassesOfflineLayer(url)) return base(input, init);
+    // העלאת קובץ: ארוכה מה-timeout מטבעה, וכשל בה אינו עדות לנתק (ראה isFileUpload)
+    if (isFileUpload(init?.body)) return base(input, init);
 
     await ready();
 
