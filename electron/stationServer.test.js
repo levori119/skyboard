@@ -533,6 +533,10 @@ describe('isUploadRequest - העלאת קובץ אינה עדות לנתק', () 
   it('JSON גדול (base64 של קובץ, למשל מפה) - העלאה', () => {
     expect(isUploadRequest({ 'content-type': 'application/json', 'content-length': String(2 * 1024 * 1024) })).toBe(true);
   });
+  it('המרת מצגת ל-PDF (דקות) - נחשבת בקשה ארוכה כמו העלאה', () => {
+    expect(isUploadRequest({ 'content-type': 'application/json', 'content-length': '2' }, '/api/reader/docs/12/convert')).toBe(true);
+    expect(isUploadRequest({}, '/api/reader/docs/12/file')).toBe(false);
+  });
   it('כתיבה רגילה - לא העלאה', () => {
     expect(isUploadRequest({ 'content-type': 'application/json', 'content-length': '120' })).toBe(false);
     expect(isUploadRequest({})).toBe(false);

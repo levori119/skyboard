@@ -236,7 +236,9 @@ const timeoutFor = (base) => (urlPath) => (isSyncPath(urlPath || '') ? SYNC_TIME
  */
 const UPLOAD_TIMEOUT_MS = 30 * 60 * 1000;
 const UPLOAD_JSON_BYTES = 1024 * 1024;
-function isUploadRequest(headers = {}) {
+function isUploadRequest(headers = {}, urlPath = '') {
+  // המרת מצגת ל-PDF בשרת המרכזי: הבקשה קטנה, אבל התשובה מגיעה אחרי דקות
+  if (/^\/api\/reader\/docs\/\d+\/convert$/.test(String(urlPath).split('?')[0])) return true;
   const type = String(headers['content-type'] || '').toLowerCase();
   if (type.startsWith('application/octet-stream') || type.startsWith('multipart/form-data')) return true;
   return Number(headers['content-length'] || 0) > UPLOAD_JSON_BYTES;
@@ -464,7 +466,7 @@ function createStationServer({
         if (swapped) extraHeaders.authorization = swapped;
       }
       // העלאת קובץ: תקרה ארוכה, וכשל אינו מדווח כנתק (ראה isUploadRequest)
-      if (isUploadRequest(req.headers)) {
+      if (isUploadRequest(req.headers, urlPath)) {
         return proxyRequest(req, res, target, UPLOAD_TIMEOUT_MS, {
           onResult: (ok, status) => { if (ok) onResult(ok, status); }, extraHeaders,
         });

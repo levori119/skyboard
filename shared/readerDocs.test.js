@@ -81,7 +81,8 @@ describe('resolveOpenMode - עקיפה פר-עמדה גוברת על הגלוב�
   });
   it('ערך לא מוכר אינו משנה התנהגות בשקט - נופלים לברירת המחדל הקיימת', () => {
     expect(resolveOpenMode('bogus', 'nonsense')).toBe('external');
-    expect(resolveOfficeMode('bogus')).toBe('pdf');
+    // ברירת המחדל לאופיס: המרה בשרת (2026-10-11) - מצגת שהועלתה נפתחת בלי צעד ידני
+    expect(resolveOfficeMode('bogus')).toBe('server');
   });
 });
 

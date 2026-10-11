@@ -83,7 +83,8 @@ export function bypassesOfflineLayer(url: string): boolean {
   if (p.startsWith('/api/__')) return true;
   // בתי הקובץ של חלון הקריאה: אין להם מגבלת גודל, והשכבה שומרת כל GET כטקסט
   // ב-IndexedDB - קובץ של מאות מגה היה ממלא את דיסק העמדה, ונשמר משובש.
-  if (/^\/api\/reader\/docs\/\d+\/(file|proxy)$/.test(p)) return true;
+  // וגם המרת מצגת ל-PDF - דקות לקובץ של עשרות מגה, ואסור שתיספר כנתק.
+  if (/^\/api\/reader\/docs\/\d+\/(file|proxy|convert)$/.test(p)) return true;
   return p.startsWith('/api/air-picture/');
 }
 

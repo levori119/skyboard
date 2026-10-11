@@ -24,7 +24,9 @@ export const DEFAULT_OPEN_MODE = 'external';   // ברירת מחדל = ההתנ
  * (xlsx) כבר בפרויקט, ולכן אין סיבה לדרוש עבורו המרה.
  */
 export const READER_OFFICE_MODES = ['pdf', 'server', 'external'];
-export const DEFAULT_OFFICE_MODE = 'pdf';
+// ברירת מחדל: המרה בשרת (2026-10-11). קודם 'pdf' - ומצגת שהועלתה לא נפתחה עד
+// שמישהו העלה לה גרסת PDF ידנית, בלי שאיש ידע שזה הצעד החסר.
+export const DEFAULT_OFFICE_MODE = 'server';
 
 const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'];
 const SHEET_EXT = ['xlsx', 'xls', 'xlsm', 'csv'];

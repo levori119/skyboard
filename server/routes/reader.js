@@ -18,6 +18,7 @@ import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import os from 'os';
 import path from 'path';
+import { pathToFileURL } from 'url';
 import pool from '../db/pool.js';
 import {
   READER_OPEN_MODES, READER_OFFICE_MODES, DEFAULT_OPEN_MODE, DEFAULT_OFFICE_MODE,
@@ -53,7 +54,8 @@ function uploadedBytes(req) {
   return Buffer.from(base64.replace(/^data:[^,]*,/, ''), 'base64');
 }
 const FETCH_TIMEOUT_MS = 20000;
-const CONVERT_TIMEOUT_MS = 120000;
+// מצגת של עשרות מגה עם תמונות נמשכת דקות ב-LibreOffice
+const CONVERT_TIMEOUT_MS = 10 * 60 * 1000;
 
 const OPEN_MODE_KEY = 'readerOpenMode';
 const OFFICE_MODE_KEY = 'readerOfficeMode';
@@ -240,8 +242,11 @@ router.post('/api/reader/docs', rawBody, async (req, res) => {
 
     // המרה בהעלאה ולא בפתיחה: המסלול התפעולי חייב להיות דטרמיניסטי, ומנהל
     // שהעלה מצגת אמור לדעת **מיד** אם ההמרה לא עבדה בשרת הזה.
+    // ההמרה רצה **ברקע** ולא מעכבת את ההעלאה: מצגת גדולה נמשכת דקות, והמנהל
+    // לא צריך להמתין לה. העמדה שפותחת את העזר לפני שהסתיימה מצטרפת לאותה
+    // המרה (convertDoc מאחד בקשות על אותו מסמך) ומציגה "ממיר...".
     const { officeMode } = await readDefaults();
-    if (needsServerConvert(doc, officeMode)) await convertDoc(doc.id).catch(() => {});
+    if (needsServerConvert(doc, officeMode)) void convertDoc(doc.id).catch(() => {});
     res.json(doc);
   } catch (err) {
     res.status(500).json({ error: 'Failed to upload reader doc' });
@@ -493,7 +498,17 @@ async function fetchUrl(url) {
  * הכישלון נרשם על השורה (`convert_error`) כדי שהעמדה תציג סיבה ולא "טוען..."
  * לנצח, וכדי שהמנהל יראה אותה במסך הניהול.
  */
-async function convertDoc(id) {
+/** המרות שרצות עכשיו, לפי מזהה מסמך - שתי עמדות שפותחות יחד מצטרפות לאחת. */
+const convertsInFlight = new Map();
+
+function convertDoc(id) {
+  if (convertsInFlight.has(id)) return convertsInFlight.get(id);
+  const p = convertDocOnce(id).finally(() => convertsInFlight.delete(id));
+  convertsInFlight.set(id, p);
+  return p;
+}
+
+async function convertDocOnce(id) {
   const { rows } = await pool.query(`SELECT id, url, data, file_name, ext FROM reader_docs WHERE id=$1`, [id]);
   const row = rows[0];
   if (!row) return { ok: false, error: 'not-found' };
@@ -516,7 +531,10 @@ async function convertDoc(id) {
     const ext = row.ext || docExtOf(row.file_name || row.url) || 'bin';
     const src = path.join(dir, `doc.${ext}`);
     await fs.writeFile(src, bytes);
-    const r = await runProcess(sofficeCache, ['--headless', '--convert-to', 'pdf', '--outdir', dir, src], CONVERT_TIMEOUT_MS);
+    // פרופיל משתמש נפרד לכל המרה: שני תהליכי soffice עם אותו פרופיל נועלים זה
+    // את זה, והשני נכשל בשקט. גם HOME של המשתמש בקונטיינר אינו מובטח כתיב.
+    const profile = pathToFileURL(path.join(dir, 'profile')).href;
+    const r = await runProcess(sofficeCache, [`-env:UserInstallation=${profile}`, '--headless', '--convert-to', 'pdf', '--outdir', dir, src], CONVERT_TIMEOUT_MS);
     const outPath = path.join(dir, 'doc.pdf');
     const pdf = await fs.readFile(outPath).catch(() => null);
     if (!pdf) {

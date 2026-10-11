@@ -143,12 +143,12 @@
       "en": "Displaying this document in the window requires a PDF version. It can be attached in system management."
     },
     "reasonConvertPending": {
-      "he": "העזר ממתין להמרה ל-PDF בשרת.",
-      "en": "The document is waiting for server-side conversion to PDF."
+      "he": "ממיר את המצגת ל-PDF בשרת... מצגת גדולה עשויה להימשך כמה דקות.",
+      "en": "Converting the presentation to PDF on the server... a large file may take a few minutes."
     },
     "reasonConvertFailed": {
-      "he": "ההמרה בשרת נכשלה.",
-      "en": "Server-side conversion failed."
+      "he": "ההמרה ל-PDF בשרת נכשלה. אפשר לנסות שוב, או לצרף גרסת PDF בניהול המערכת.",
+      "en": "Server conversion to PDF failed. Try again, or attach a PDF version in system management."
     },
     "reasonUnsupported": {
       "he": "סוג הקובץ אינו נתמך לפריסה בחלון.",

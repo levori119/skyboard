@@ -333,6 +333,7 @@ export default function ReaderWindow({
   };
 
   const convertNow = async () => {
+    if (converting) return;
     setConverting(true);
     try {
       const r = await fetch(`${API_URL}/reader/docs/${doc.id}/convert`, { method: 'POST' });
@@ -342,6 +343,16 @@ export default function ReaderWindow({
     } catch { setErrorText(tr('reader.reasonConvertFailed')); }
     setConverting(false);
   };
+
+  // מצגת שטרם הומרה מומרת **מעצמה** בפתיחה - בלי לחיצה על "המר עכשיו". כפתור
+  // שהמפעיל חייב ללחוץ כדי לראות את מה שפתח הוא צעד מיותר. פעם אחת למסמך: כשל
+  // נשאר מוצג עם הסיבה, וניסיון חוזר הוא בכפתור.
+  const autoConvertedRef = useRef(false);
+  useEffect(() => {
+    if (autoConvertedRef.current || !canConvert || reason !== 'convert-pending') return;
+    autoConvertedRef.current = true;
+    void convertNow();
+  }, [canConvert, reason]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── עיצוב ───────────────────────────────────────────────────────────────
   const btn = (label: string, title: string, onClick: () => void, opts: { active?: boolean; disabled?: boolean } = {}) => (

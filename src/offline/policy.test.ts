@@ -129,6 +129,8 @@ describe('bypassesOfflineLayer - בתי קובץ של חלון הקריאה', ()
     expect(bypassesOfflineLayer('/api/reader/docs/7/file')).toBe(true);
     expect(bypassesOfflineLayer('http://x:3001/api/reader/docs/7/file?pdf=1')).toBe(true);
     expect(bypassesOfflineLayer('/api/reader/docs/7/proxy')).toBe(true);
+    // המרת מצגת של עשרות מגה נמשכת דקות - אסור שתיספר כנתק
+    expect(bypassesOfflineLayer('/api/reader/docs/7/convert')).toBe(true);
   });
   it('שאר נתיבי הקריאה נשארים בשכבה (רשימות קטנות, טובות לנתק)', async () => {
     const { bypassesOfflineLayer } = await import('./policy');
