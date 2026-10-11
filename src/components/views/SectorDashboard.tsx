@@ -1808,6 +1808,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // Aids panel data
   const [workGroupNotes, setWorkGroupNotes] = useState<any[]>([]);
   const [presetLinks, setPresetLinks] = useState<any[]>([]);
+  // הקישורים נטענים מחדש **בכל פתיחה** של טבלת הקישורים ובכל רענון עמדה: קישור
+  // או קובץ שנוסף בניהול מופיע בלי יציאה מהעמדה. כשל משאיר את הרשימה הקודמת -
+  // נתק אינו סיבה לרוקן לפקח את הטבלה.
+  const loadPresetLinks = useCallback(async () => {
+    if (!session.presetId) return;
+    const r = await fetch(`${API_URL}/preset-links/${session.presetId}`);
+    if (!r.ok) throw new Error('preset-links');
+    const data = await r.json();
+    if (Array.isArray(data)) setPresetLinks(data);
+  }, [session.presetId]);
   const [baseStatuses, setBaseStatuses] = useState<any[]>([]);
   const [basePanelOpen, setBasePanelOpen] = useState(false);
   const [bsInfoModal, setBsInfoModal] = useState<{ bs: any; mode: 'notam' | 'atis' } | null>(null);
@@ -1873,10 +1883,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       .then(r => r.ok ? r.json() : [])
       .then(data => setAllWorkGroups(data))
       .catch(() => {});
-    fetch(`${API_URL}/preset-links/${session.presetId}`)
-      .then(r => r.ok ? r.json() : [])
-      .then(data => setPresetLinks(data))
-      .catch(() => {});
+    loadPresetLinks().catch(() => {});
     // Load base statuses relevant to this preset — fetch fresh config to avoid stale prop
     fetch(`${API_URL}/workstation-presets`)
       .then(r => r.ok ? r.json() : [])
@@ -5590,6 +5597,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           await Promise.all([loadMapZones(mapId), loadStripZoneAssignments(mapId)]);
         })(),
         loadData(),
+        loadPresetLinks(),
+        // קבצי חלון הקריאה: חלונות פתוחים (קובץ שהוחלף, PDF שהומר), המדף והתצורה
+        readerRef.current?.refresh(),
       ]);
       // כשל בכל אחד מהם = "לא רועננו ההגדרות". התצוגה נשארת על המידע הקודם
       // (עדיף מידע ישן על פני מסך ריק), אבל המפעיל חייב לדעת שזה מה שהוא רואה.
@@ -18569,7 +18579,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     return (
                       <div style={{ borderTop: hasPrev ? `1px solid ${T.border}` : 'none', paddingTop: hasPrev ? '6px' : 0, marginTop: hasPrev ? '4px' : 0 }}>
                         <div
-                          onClick={() => setLinksPanelOpen(v => !v)}
+                          onClick={() => { if (!linksPanelOpen) loadPresetLinks().catch(() => {}); setLinksPanelOpen(v => !v); }}
                           style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: linksPanelOpen ? '4px' : 0 }}
                         >
                           <span style={{ fontSize: '13px', flexShrink: 0 }}>🔗</span>

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   defaultReaderRect, clampReaderRect, bottomBarSlots, shapeReaderDoc, engineFor, docIcon,
   READER_DEFAULT_FRACTION, READER_MIN_W, READER_MIN_H,
-  READER_SIZE_PRESETS, presetReaderRect, activeSizePreset, linkOpensInWindow, fitRectToContent, CONTENT_PAD,
+  READER_SIZE_PRESETS, presetReaderRect, activeSizePreset, linkOpensInWindow, fitRectToContent, CONTENT_PAD, mergeRefreshedDocs,
 } from './reader';
 
 describe('defaultReaderRect - ב"מ 40% מגודל המסך', () => {
@@ -204,5 +204,25 @@ describe('fitRectToContent - החלון בגודל העמוד המוצג, לא �
     const rect = { x: 10, y: 10, w: 600, h: 400 };
     expect(fitRectToContent(rect, 0, CH, VW, VH)).toEqual(rect);
     expect(fitRectToContent(rect, NaN, CH, VW, VH)).toEqual(rect);
+  });
+});
+
+describe('mergeRefreshedDocs - רענון עמדה מרענן את החלונות הפתוחים', () => {
+  const d = (id: number, extra: Record<string, unknown> = {}) => shapeReaderDoc({ id, name: `d${id}`, ...extra });
+
+  it('מסמך שהשתנה בשרת (למשל הומר ל-PDF) מתעדכן בחלון', () => {
+    const next = mergeRefreshedDocs([d(1), d(2)], new Map([[1, { id: 1, name: 'd1', has_pdf: true }], [2, { id: 2, name: 'חדש' }]]));
+    expect(next.map(x => x.hasPdf)).toEqual([true, false]);
+    expect(next[1].name).toBe('חדש');
+  });
+
+  it('מסמך שנמחק בשרת (null) - החלון שלו נסגר', () => {
+    expect(mergeRefreshedDocs([d(1), d(2)], new Map([[1, null], [2, { id: 2 }]])).map(x => x.id)).toEqual([2]);
+  });
+
+  it('כשל משיכה (undefined = לא ידוע) - החלון נשאר כמו שהוא, לא נסגר', () => {
+    const next = mergeRefreshedDocs([d(1, { has_pdf: true })], new Map());
+    expect(next).toHaveLength(1);
+    expect(next[0].hasPdf).toBe(true);
   });
 });

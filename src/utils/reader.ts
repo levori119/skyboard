@@ -250,6 +250,22 @@ export function shapeReaderDoc(row: Record<string, unknown>): ReaderDoc {
   };
 }
 
+/**
+ * רענון עמדה: מה שהשרת החזיר לכל חלון פתוח. `null` = המסמך נמחק (החלון נסגר),
+ * חסר במפה = המשיכה נכשלה (החלון נשאר כמו שהוא - נתק אינו סיבה לסגור לפקח חלון).
+ */
+export function mergeRefreshedDocs(
+  open: ReaderDoc[], fresh: Map<number, Record<string, unknown> | null>,
+): ReaderDoc[] {
+  const out: ReaderDoc[] = [];
+  for (const doc of open) {
+    if (!fresh.has(doc.id)) { out.push(doc); continue; }
+    const row = fresh.get(doc.id);
+    if (row) out.push(shapeReaderDoc(row));
+  }
+  return out;
+}
+
 /** מנוע התצוגה לעזר נתון - עטיפה על ההכרעה המשותפת עם השרת. */
 export function engineFor(doc: ReaderDoc, officeMode: ReaderConfig['officeMode']): ReaderEngineResult {
   return readerEngine({ kind: doc.kind, hasFile: doc.hasFile, hasPdf: doc.hasPdf, url: doc.url, convertError: doc.convertError }, officeMode);

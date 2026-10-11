@@ -7,7 +7,7 @@
 // לפתוח עזר, בלי לשכפל שורה (עקרון הרכיב המשותף).
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from 'react';
 import { API_URL } from '../../config';
-import { bottomBarSlots, shapeReaderDoc, resolveOpenMode, linkOpensInWindow, type ReaderConfig, type ReaderDoc } from '../../utils/reader';
+import { bottomBarSlots, shapeReaderDoc, resolveOpenMode, linkOpensInWindow, mergeRefreshedDocs, type ReaderConfig, type ReaderDoc } from '../../utils/reader';
 import ReaderWindow from './ReaderWindow';
 import QuickReadBar from './QuickReadBar';
 
@@ -21,6 +21,11 @@ export interface ReaderLayerHandle {
   openLink: (link: PresetLinkLike) => Promise<boolean>;
   /** האם הקישור הזה נפתח בחלון - לפי ההגדרה הפעילה, וקובץ בלבד תמיד בחלון. */
   opensInWindow: (link?: PresetLinkLike) => boolean;
+  /**
+   * "רענון עמדה": תצורה, מדף הקריאה המהירה וכל חלון פתוח - מחדש מהשרת. חלון
+   * נטען מחדש (קובץ שהוחלף, PDF שהומר, סימניות), ומסמך שנמחק - נסגר.
+   */
+  refresh: () => Promise<void>;
 }
 
 interface Props {
@@ -41,6 +46,9 @@ const ReaderLayer = forwardRef<ReaderLayerHandle, Props>(function ReaderLayer(
 ) {
   const [config, setConfig] = useState<ReaderConfig>(DEFAULT_CONFIG);
   const [open, setOpen] = useState<ReaderDoc[]>([]);
+  // מתחלף ברענון עמדה - חלק מה-key של החלון, ולכן החלון נטען מחדש מאפס (תוכן
+  // וסימניות). העמוד והגודל נשמרים, כי הם ב-localStorage (saveReaderState).
+  const [reloadTick, setReloadTick] = useState(0);
   const [quick, setQuick] = useState<ReaderDoc[]>([]);
   const [quickCollapsed, setQuickCollapsed] = useState<boolean>(
     () => localStorage.getItem(`bt-reader-quick-collapsed-${presetId}`) === '1',
@@ -50,14 +58,13 @@ const ReaderLayer = forwardRef<ReaderLayerHandle, Props>(function ReaderLayer(
     localStorage.setItem(`bt-reader-quick-collapsed-${presetId}`, quickCollapsed ? '1' : '0');
   }, [quickCollapsed, presetId]);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const r = await fetch(`${API_URL}/reader/config`);
-        if (r.ok) setConfig({ ...DEFAULT_CONFIG, ...(await r.json()) });
-      } catch { /* מנותק - נשארים על ברירת המחדל, כלומר ההתנהגות הקיימת */ }
-    })();
+  const loadConfig = useCallback(async () => {
+    try {
+      const r = await fetch(`${API_URL}/reader/config`);
+      if (r.ok) setConfig({ ...DEFAULT_CONFIG, ...(await r.json()) });
+    } catch { /* מנותק - נשארים על ברירת המחדל, כלומר ההתנהגות הקיימת */ }
   }, []);
+  useEffect(() => { loadConfig(); }, [loadConfig]);
 
   const loadQuick = useCallback(async () => {
     try {
@@ -92,10 +99,26 @@ const ReaderLayer = forwardRef<ReaderLayerHandle, Props>(function ReaderLayer(
     }
   }, [effectiveOpenMode, openDoc]);
 
+  const refresh = useCallback(async () => {
+    await Promise.all([loadConfig(), loadQuick()]);
+    const ids = open.map(d => d.id);
+    const fresh = new Map<number, Record<string, unknown> | null>();
+    await Promise.all(ids.map(async id => {
+      try {
+        const r = await fetch(`${API_URL}/reader/docs/${id}`);
+        if (r.status === 404) fresh.set(id, null);
+        else if (r.ok) fresh.set(id, await r.json());
+      } catch { /* מנותק - החלון נשאר כמו שהוא */ }
+    }));
+    setOpen(prev => mergeRefreshedDocs(prev, fresh));
+    setReloadTick(t => t + 1);
+  }, [open, loadConfig, loadQuick]);
+
   useImperativeHandle(ref, () => ({
+    refresh,
     openLink,
     opensInWindow: (link?: PresetLinkLike) => (link ? linkOpensInWindow(effectiveOpenMode, link) : effectiveOpenMode === 'window'),
-  }), [openLink, effectiveOpenMode]);
+  }), [openLink, effectiveOpenMode, refresh]);
 
   const toggleQuick = async (doc: ReaderDoc) => {
     const inList = quick.some(d => d.id === doc.id);
@@ -115,7 +138,7 @@ const ReaderLayer = forwardRef<ReaderLayerHandle, Props>(function ReaderLayer(
     <>
       {open.map((doc, i) => (
         <ReaderWindow
-          key={doc.id}
+          key={`${doc.id}-${reloadTick}`}
           doc={doc}
           presetId={presetId}
           themeMode={themeMode}
