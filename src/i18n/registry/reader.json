@@ -1,0 +1,290 @@
+{
+  "_group": "חלון קריאה",
+  "_note": "פריסת עזרים, מצגות ו-PDF בתוך המערכת, עם סימניות והערות אישיות, וסרגל 'קריאה מהירה' התחתון. ראה src/components/reader/ ו-shared/readerDocs.js.",
+  "keys": {
+    "title": {
+      "he": "חלון קריאה",
+      "en": "Reader"
+    },
+    "close": {
+      "he": "סגור",
+      "en": "Close"
+    },
+    "loading": {
+      "he": "טוען את העזר...",
+      "en": "Loading document..."
+    },
+    "loadFailed": {
+      "he": "טעינת העזר נכשלה",
+      "en": "Failed to load the document"
+    },
+    "openExternal": {
+      "he": "פתח באפליקציה החיצונית",
+      "en": "Open in the external app"
+    },
+    "page": {
+      "he": "עמוד",
+      "en": "Page"
+    },
+    "slide": {
+      "he": "שקף",
+      "en": "Slide"
+    },
+    "sheet": {
+      "he": "גיליון",
+      "en": "Sheet"
+    },
+    "pageOf": {
+      "he": "{{page}} מתוך {{total}}",
+      "en": "{{page}} of {{total}}"
+    },
+    "prevPage": {
+      "he": "העמוד הקודם",
+      "en": "Previous page"
+    },
+    "nextPage": {
+      "he": "העמוד הבא",
+      "en": "Next page"
+    },
+    "zoomIn": {
+      "he": "הגדל",
+      "en": "Zoom in"
+    },
+    "zoomOut": {
+      "he": "הקטן",
+      "en": "Zoom out"
+    },
+    "fitWidth": {
+      "he": "התאם לרוחב",
+      "en": "Fit width"
+    },
+    "resize": {
+      "he": "שינוי גודל החלון",
+      "en": "Resize window"
+    },
+    "bookmarks": {
+      "he": "סימניות",
+      "en": "Bookmarks"
+    },
+    "bookmarksToggle": {
+      "he": "הצג/הסתר את פאנל הסימניות",
+      "en": "Show/hide the bookmarks panel"
+    },
+    "addBookmark": {
+      "he": "סמן את העמוד הנוכחי",
+      "en": "Bookmark the current page"
+    },
+    "addBookmarkHere": {
+      "he": "הוסף סימנייה",
+      "en": "Add bookmark"
+    },
+    "bookmarkLabel": {
+      "he": "כותרת הסימנייה",
+      "en": "Bookmark title"
+    },
+    "bookmarkNote": {
+      "he": "הערה",
+      "en": "Note"
+    },
+    "deleteBookmark": {
+      "he": "מחק את הסימנייה",
+      "en": "Delete bookmark"
+    },
+    "noBookmarks": {
+      "he": "אין עדיין סימניות. סמן עמוד כדי לחזור אליו מהר.",
+      "en": "No bookmarks yet. Mark a page to jump back to it quickly."
+    },
+    "personalNote": {
+      "he": "הסימניות אישיות שלך ונשמרות בין הכניסות",
+      "en": "Bookmarks are yours and persist between sessions"
+    },
+    "notesOnly": {
+      "he": "סימניות והערות בלבד",
+      "en": "Bookmarks and notes only"
+    },
+    "quickSave": {
+      "he": "שמור לקריאה מהירה",
+      "en": "Save for quick reading"
+    },
+    "quickRemove": {
+      "he": "הסר מהקריאה המהירה",
+      "en": "Remove from quick reading"
+    },
+    "quickBarTitle": {
+      "he": "קריאה מהירה",
+      "en": "Quick reading"
+    },
+    "quickToggle": {
+      "he": "קריאה מהירה",
+      "en": "Quick reading"
+    },
+    "quickShow": {
+      "he": "הצג את סרגל הקריאה המהירה",
+      "en": "Show the quick reading bar"
+    },
+    "quickHide": {
+      "he": "הסתר את סרגל הקריאה המהירה",
+      "en": "Hide the quick reading bar"
+    },
+    "quickEmpty": {
+      "he": "המדף ריק. פתח עזר ולחץ \"שמור לקריאה מהירה\".",
+      "en": "The shelf is empty. Open a document and press \"Save for quick reading\"."
+    },
+    "reasonUnreachable": {
+      "he": "הכתובת אינה נגישה מהעמדה (כונן רשת או קובץ מקומי). אפשר לפתוח באפליקציה החיצונית, והסימניות יישמרו כאן.",
+      "en": "The address cannot be reached from the workstation (network drive or local file). You can open it in the external app; bookmarks are kept here."
+    },
+    "reasonOfficeExternal": {
+      "he": "קבצי אופיס מוגדרים להיפתח באפליקציה החיצונית. הסימניות וההערות נשמרות כאן.",
+      "en": "Office files are set to open in the external app. Bookmarks and notes are kept here."
+    },
+    "reasonOfficeNeedsPdf": {
+      "he": "כדי לפרוס את העזר בחלון נדרשת גרסת PDF. אפשר לצרף אותה בניהול המערכת.",
+      "en": "Displaying this document in the window requires a PDF version. It can be attached in system management."
+    },
+    "reasonConvertPending": {
+      "he": "העזר ממתין להמרה ל-PDF בשרת.",
+      "en": "The document is waiting for server-side conversion to PDF."
+    },
+    "reasonConvertFailed": {
+      "he": "ההמרה בשרת נכשלה.",
+      "en": "Server-side conversion failed."
+    },
+    "reasonUnsupported": {
+      "he": "סוג הקובץ אינו נתמך לפריסה בחלון.",
+      "en": "This file type cannot be displayed in the window."
+    },
+    "convertNow": {
+      "he": "המר עכשיו",
+      "en": "Convert now"
+    },
+    "converting": {
+      "he": "ממיר...",
+      "en": "Converting..."
+    },
+    "adminSection": {
+      "he": "חלון קריאה",
+      "en": "Reader"
+    },
+    "openModeLabel": {
+      "he": "פתיחת עזרים וקישורים",
+      "en": "Opening aids and links"
+    },
+    "openModeWindow": {
+      "he": "בחלון קריאה בתוך המערכת",
+      "en": "In the reader window inside the system"
+    },
+    "openModeExternal": {
+      "he": "באפליקציה החיצונית (PowerPoint / Excel)",
+      "en": "In the external app (PowerPoint / Excel)"
+    },
+    "officeModeLabel": {
+      "he": "קבצי אופיס (PowerPoint / Word)",
+      "en": "Office files (PowerPoint / Word)"
+    },
+    "officeModePdf": {
+      "he": "דורשים גרסת PDF שתועלה בניהול",
+      "en": "Require a PDF version uploaded in management"
+    },
+    "officeModeServer": {
+      "he": "מומרים אוטומטית ב-PDF בשרת (LibreOffice)",
+      "en": "Converted to PDF automatically on the server (LibreOffice)"
+    },
+    "officeModeExternal": {
+      "he": "נפתחים באפליקציה החיצונית",
+      "en": "Open in the external app"
+    },
+    "officeModeNote": {
+      "he": "גיליון (Excel / CSV) נפרס בחלון בכל מצב, פרט לפתיחה חיצונית.",
+      "en": "Spreadsheets (Excel / CSV) are displayed in the window in every mode except external opening."
+    },
+    "convertUnavailable": {
+      "he": "LibreOffice אינו מותקן על השרת - המרה אוטומטית לא תעבוד",
+      "en": "LibreOffice is not installed on the server - automatic conversion will not work"
+    },
+    "convertAvailable": {
+      "he": "LibreOffice זוהה על השרת",
+      "en": "LibreOffice detected on the server"
+    },
+    "presetOverride": {
+      "he": "פתיחת עזרים בעמדה זו",
+      "en": "Opening aids at this workstation"
+    },
+    "inherit": {
+      "he": "כמו הגדרת המערכת",
+      "en": "Same as system setting"
+    },
+    "material": {
+      "he": "חומר קריאה",
+      "en": "Reading material"
+    },
+    "uploadFile": {
+      "he": "העלה קובץ",
+      "en": "Upload file"
+    },
+    "attachPdf": {
+      "he": "צרף גרסת PDF",
+      "en": "Attach PDF version"
+    },
+    "uploading": {
+      "he": "מעלה...",
+      "en": "Uploading..."
+    },
+    "fileTooLarge": {
+      "he": "הקובץ גדול מדי (מקסימום {{mb}} מגה)",
+      "en": "File is too large (maximum {{mb}} MB)"
+    },
+    "uploadFailed": {
+      "he": "ההעלאה נכשלה",
+      "en": "Upload failed"
+    },
+    "attachedFile": {
+      "he": "קובץ מצורף",
+      "en": "Attached file"
+    },
+    "removeFile": {
+      "he": "הסר את הקובץ המצורף",
+      "en": "Remove the attached file"
+    },
+    "pdfAttached": {
+      "he": "גרסת PDF מצורפת",
+      "en": "PDF version attached"
+    },
+    "pickFile": {
+      "he": "📎 בחר קובץ",
+      "en": "📎 Choose file"
+    },
+    "pickFileTitle": {
+      "he": "במקום כתובת - בחירת קובץ מהמחשב. הקובץ נשמר במערכת ונפתח בחלון הקריאה",
+      "en": "Instead of a URL - choose a file from this computer. It is stored in the system and opens in the reader window"
+    },
+    "urlOrFile": {
+      "he": "כתובת URL או קובץ",
+      "en": "URL or file"
+    },
+    "removeChosenFile": {
+      "he": "הסר את הקובץ שנבחר",
+      "en": "Remove the chosen file"
+    },
+    "sizeFull": {
+      "he": "מלא",
+      "en": "Full"
+    },
+    "sizeTwoThirds": {
+      "he": "2/3",
+      "en": "2/3"
+    },
+    "sizeHalf": {
+      "he": "חצי",
+      "en": "½"
+    },
+    "sizeThird": {
+      "he": "1/3",
+      "en": "1/3"
+    },
+    "sizeTitle": {
+      "he": "גודל החלון: {{size}} מרוחב המסך",
+      "en": "Window size: {{size}} of the screen width"
+    }
+  }
+}

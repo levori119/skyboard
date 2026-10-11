@@ -159,6 +159,8 @@ import { MapDrawToolbar, MapShapeSvg, PolyDraftSvg, EraserCursorSvg, polySnapTol
 import { isFrac, fracToPx, pxToFrac, drawStrokeFrac, applyStrokeStyle, syncCanvasBitmap, isPolyTool, polyShapeFromPoints, eraseShapesAt, eraserRadius, mergeRemoteShapes, type PenStroke, type MapShape, type DrawTool, type LineStyle } from '../../utils/mapDrawing';
 import { isLoadRelevant } from '../../utils/loadRelevance';
 import StationPeekBar from '../shared/StationPeekBar';
+import ReaderLayer, { type ReaderLayerHandle } from '../reader/ReaderLayer';
+import { bottomBarSlots } from '../../utils/reader';
 import { useViewStations } from '../../hooks/useViewStations';
 import { peekAvailability } from '../../utils/stationPeek';
 import { handleCellEditKeyDown, editableCellUnderline, defaultEditableCols, tableCellScroll, TABLE_CELL_MAX_LINES } from '../../utils/tableCellEdit';
@@ -1234,6 +1236,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // תצוגת עמדות אחרות — סרגל הריבועים התחתון. נבחר מתפריט "תצוגה" ונזכר לעמדה.
   const [showPeekBar, setShowPeekBar] = useState<boolean>(() => localStorage.getItem(`bt-peek-show-${session.presetId}`) === '1');
   useEffect(() => { localStorage.setItem(`bt-peek-show-${session.presetId}`, showPeekBar ? '1' : '0'); }, [showPeekBar, session.presetId]);
+  // קריאה מהירה - המדף האישי בתחתית המסך. נבחר מאותו תפריט "תצוגה", ולכן
+  // נזכר לעמדה באותה תבנית בדיוק כמו סרגל העמדות.
+  const [showQuickRead, setShowQuickRead] = useState<boolean>(() => localStorage.getItem(`bt-reader-quick-show-${session.presetId}`) === '1');
+  useEffect(() => { localStorage.setItem(`bt-reader-quick-show-${session.presetId}`, showQuickRead ? '1' : '0'); }, [showQuickRead, session.presetId]);
+  const readerRef = useRef<ReaderLayerHandle | null>(null);
   // הפריט בתפריט לחיץ רק כשיש מה להציג. הבחירה השמורה נשמרת גם כשהוא כבוי,
   // כך שהסרגל חוזר מעצמו כשמגדירים לעמדה עמדות בניהול.
   const viewStations = useViewStations(session.presetId ? Number(session.presetId) : null);
@@ -12205,6 +12212,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </span>
                     {!peekReady && <span style={{ fontSize: '10px', color: menuMuted, fontWeight: 'normal' }}>{peekReason}</span>}
                   </div>
+                  {/* קריאה מהירה - המדף האישי של העזרים. אותה רצועה תחתונה של
+                      סרגל העמדות: כששניהם דולקים היא מתחלקת, קריאה מהירה בשמאל. */}
+                  <div
+                    onClick={() => { setShowQuickRead(v => !v); setShowViewMenu(false); }}
+                    style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: showQuickRead ? menuAcc('#93c5fd', '#2563eb') : menuText, borderBottom: `1px solid ${menuBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: showQuickRead ? 'bold' : 'normal' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
+                    onMouseLeave={e => (e.currentTarget.style.background = '')}
+                  >
+                    <span>📖 {tr('reader.quickToggle')}</span>
+                    {showQuickRead && <span style={{ fontSize: '10px', color: menuAcc('#60a5fa', '#2563eb') }}>{tr('ctrl.active')}</span>}
+                  </div>
                   {/* קונטיינר החלונות - זמין ב**כל** עמדה. ההגדרה בניהול קובעת
                       רק אם הוא פתוח בעליית העמדה, לא אם הוא קיים. */}
                   {!deskHostsTable('container') && (
@@ -18556,8 +18574,22 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             <div style={{ padding: '6px', background: lightMode ? '#faf5ff' : '#130d2a' }}>
                             {presetLinks.filter((l: any) => (l.category || 'כללי') === cat).map((link: any) => (
                               <div key={link.id} style={{ marginBottom: '4px' }}>
-                                <a href={link.url} target="_blank" rel="noreferrer"
+                                {/* פתיחת עזר: כשההגדרה היא "חלון קריאה" הקישור נפתח בתוך
+                                    המערכת (סימניות והערות אישיות), ואחרת - התנהגות ה-<a>
+                                    הרגילה, כלומר האפליקציה החיצונית כמו לפני הפיצ'ר.
+                                    כשל בפתיחת החלון (נתק מהשרת) נופל חזרה החוצה ולא בולע
+                                    את הלחיצה. */}
+                                <a href={link.url || (link.doc_id ? `${API_URL}/reader/docs/${link.doc_id}/file` : '')} target="_blank" rel="noreferrer"
                                   title={link.note || link.name}
+                                  onClick={async e => {
+                                    if (!readerRef.current?.opensInWindow(link)) return;
+                                    // ה-href נלכד לפני ה-await: React מאפס currentTarget
+                                    // ברגע שה-handler חוזר, ואז הנפילה החוצה הייתה קורסת
+                                    const href = e.currentTarget.href;
+                                    e.preventDefault();
+                                    const opened = await readerRef.current.openLink(link);
+                                    if (!opened && href) window.open(href, '_blank', 'noopener');
+                                  }}
                                   style={{ display: 'block', padding: '5px 8px', background: lightMode ? '#ffffff' : '#1e1b4b', border: `1px solid ${lightMode ? '#c4b5fd' : '#4c1d95'}`, borderRadius: '3px', color: lightMode ? '#6d28d9' : '#a78bfa', fontSize: '11px', textDecoration: 'none', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: dir }}>
                                   🔗 {link.name}
                                 </a>
@@ -23000,6 +23032,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           approvedWorkstations={session.crewMember?.approved_workstations}
           themeMode={themeMode}
           visible={peekShown}
+          slot={bottomBarSlots(showQuickRead, peekShown).stations}
+        />
+      )}
+
+      {/* חלונות הקריאה וסרגל הקריאה המהירה. השכבה יודעת בעצמה אם עזר נפתח
+          בחלון או באפליקציה החיצונית - הקישור רק מבקש ממנה לפתוח. */}
+      {session.presetId && (
+        <ReaderLayer
+          ref={readerRef}
+          presetId={Number(session.presetId)}
+          themeMode={themeMode}
+          presetOpenMode={myPresetConfig?.reader_open_mode ?? ''}
+          quickBarVisible={showQuickRead}
+          stationsBarVisible={peekShown}
         />
       )}
 

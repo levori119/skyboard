@@ -15,6 +15,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import StationScreenFrame from './StationScreenFrame';
 import { tr } from '../../i18n/tr';
+import { bottomBarSlots, type BottomSlot } from '../../utils/reader';
 import {
   TILE_WIDTHS, DEFAULT_TILE_IDX, IS_PEEK_FRAME,
   visibleViewStations, stationLabel, stepTileIdx, tileHeight,
@@ -34,6 +35,12 @@ interface Props {
   themeMode?: ThemeMode;
   /** מוצג/מוסתר מתפריט "תצוגה" של העמדה */
   visible: boolean;
+  /**
+   * חלקו של הסרגל ברצועה התחתונה. כשגם "קריאה מהירה" מוצגת הרצועה מתחלקת
+   * ביניהן - קריאה מהירה בשמאל, עמדות בימין (ראה bottomBarSlots).
+   * ברירת המחדל היא כל הרוחב, כלומר בדיוק ההתנהגות שלפני חלון הקריאה.
+   */
+  slot?: BottomSlot;
 }
 
 // פלטה לפי התמה — אין צבעים קשיחים ברכיב (ראה /ui-adapt). `frame` הוא רקע
@@ -52,7 +59,8 @@ const peekTheme = (mode: ThemeMode) => mode === 'ocean' ? {
 const Z_BAR = 8850;
 const Z_BAR_EXPANDED = 9600;
 
-export default function StationPeekBar({ presetId, stations, approvedWorkstations, themeMode = 'dark', visible }: Props) {
+export default function StationPeekBar({ presetId, stations, approvedWorkstations, themeMode = 'dark', visible, slot }: Props) {
+  const bounds = slot ?? bottomBarSlots(false, true).stations;
   const T = peekTheme(themeMode);
   const [collapsed, setCollapsed] = useState<boolean>(() => localStorage.getItem(`bt-peek-collapsed-${presetId}`) === '1');
   const [sizeIdx, setSizeIdx] = useState<number>(() => {
@@ -99,7 +107,7 @@ export default function StationPeekBar({ presetId, stations, approvedWorkstation
       <div
         ref={barRef}
         style={{
-          position: 'fixed', insetInlineStart: 0, insetInlineEnd: 0, bottom: 0,
+          position: 'fixed', left: bounds.left, right: bounds.right, bottom: 0,
           zIndex: expandedId != null ? Z_BAR_EXPANDED : Z_BAR,
           display: 'flex', flexDirection: 'column', alignItems: 'center', pointerEvents: 'none',
         }}>

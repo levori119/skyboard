@@ -3407,3 +3407,68 @@ REFACTOR_LOG #045.
 | `waypoints` | JSONB | נקודות הנתיב **בסדר הציור** (`x`,`y` באחוזי מפה + `lat`,`lon` אחרי עיגון) |
 | `route_type` | VARCHAR(20) | `vehicle` / `taxiway` / `runway` - לפי הרשאת הנהג |
 | `direction` | VARCHAR(10), ברירת מחדל `'both'` | **כיוון נסיעה** (2026-09-19): `both` דו-כיווני, `forward` חד-כיווני בסדר הציור, `backward` הפוך. תכנון הנתיב (`server/utils/roadGraph.js`) לא נוסע נגד הכיוון. ערך זר נשמר כ-`both` |
+
+## חלון קריאה — `reader_docs` · `reader_bookmarks` · `reader_quick_items`
+
+עזרים, מצגות ו-PDF שנפרסים **בתוך** המערכת, עם סימניות אישיות. ראה
+[`server/routes/reader.js`](server/routes/reader.js) ו-[`shared/readerDocs.js`](shared/readerDocs.js).
+
+### `reader_docs` — עזר קריאה
+
+הישות שנפתחת בחלון: או קישור שהוגדר לעמדה, או קובץ שהועלה בניהול.
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `id` | SERIAL PK | |
+| `name` | VARCHAR(200) | שם התצוגה |
+| `source_kind` | VARCHAR(10) | `link` (כתובת) · `file` (הועלה) |
+| `url` / `url_key` | TEXT | הכתובת, והכתובת המנורמלת שהיא **מפתח האיחוד** |
+| `file_name` / `ext` / `mime` / `byte_size` | | מטא של הקובץ |
+| `data` | BYTEA | הקובץ המקורי |
+| `pdf_data` | BYTEA | תוצר המרה של קובץ אופיס (ראה `readerOfficeMode`) |
+| `converted_at` / `convert_error` | | תוצאת ההמרה האחרונה — כשל נרשם כדי שהעמדה תציג סיבה ולא "טוען" לנצח |
+
+> **למה ישות נפרדת ולא עמודות על `preset_links`:** הסימניות תלויות ב**מסמך**
+> ולא בשורת הקישור. אותה מצגת המקושרת משתי עמדות נושאת את אותן סימניות של
+> אותו איש צוות — האיחוד נעשה על `url_key` דרך אינדקס ייחודי חלקי
+> (`WHERE url_key <> ''`; לעזר שהועלה כקובץ אין כתובת, וכולם היו מתנגשים על
+> המחרוזת הריקה).
+
+> **הקובץ אינו עובר ב-JSON של הרשימה.** שאילתות הרשימה מחזירות
+> `(data IS NOT NULL) AS has_file` בלבד, והבתים נשלפים בנתיב ייעודי
+> (`GET /api/reader/docs/:id/file`).
+
+### `reader_bookmarks` — סימניות והערות, **אישיות לאיש הצוות**
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `doc_id` | FK → `reader_docs` | |
+| `crew_member_id` | FK → `crew_members` | הבעלות. נלקחת מהאסימון, לעולם לא מגוף הבקשה |
+| `page_no` | INTEGER | העמוד / השקף / הגיליון. `0` מותר במצב "הערות בלבד", שבו המספר מוקלד ביד |
+| `label` / `note` / `color` / `sort_order` | | |
+
+### `reader_quick_items` — מדף "קריאה מהירה"
+
+`UNIQUE(crew_member_id, doc_id)`. אישי כמו הסימניות, ולכן נוסע עם איש הצוות בין
+העמדות.
+
+### עמודות שנוספו לטבלאות קיימות
+
+| טבלה | עמודה | תיאור |
+|---|---|---|
+| `preset_links` | `doc_id` | עזר הקריאה של הקישור. `NULL` = טרם נפתח לקריאה |
+| `workstation_presets` | `reader_open_mode` | עקיפה פר-עמדה: `''` ירושה · `window` · `external` |
+| `system_defaults` | (אינדקס) | `idx_system_defaults_key` — ראה למטה |
+
+> **שלוש הטבלאות הן קונפיג** (`server/db/env-tables.js`): חומר הקריאה הוא הגדרת
+> ניהול, והסימניות והמדף שייכים לאיש הצוות ולא לסביבת התרגול. שלושתן גם
+> ב-`UNDO_DENYLIST` — `reader_docs` נושאת את הקובץ עצמו, ושורת יומן שלה הייתה
+> מכפילה כל מצגת; והשתיים האחרות הן תצוגה אישית.
+
+### `system_defaults` — אינדקס ייחודי על `key`
+
+ההגדרות הכלל-מערכתיות (`readerOpenMode`, `readerOfficeMode`, וגם
+`workstationName` / `defaultSector` / `defaultMap` הוותיקות) נשמרות ב-
+`ON CONFLICT (key)`. בהתקנות ותיקות הטבלה כבר קיימת עם `id` כמפתח ראשי —
+`CREATE TABLE IF NOT EXISTS` דילג עליה בשקט — ושם השמירה **נפלה ב-500**.
+`idx_system_defaults_key` מתקן את שתי ההתקנות בלי לגעת במפתח הראשי.

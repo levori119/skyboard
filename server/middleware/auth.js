@@ -169,6 +169,14 @@ const RULES = [
   // מסוננות לפי הזהות שבאסימון ולפי העמדה. ראה UNDO_SPEC.md §2.
   { m: ALL, p: /^\/api\/undo(\/|$)/, need: NEED.USER, why: 'ביטול הפעולה האחרונה של המפעיל עצמו' },
   { m: ALL, p: /^\/api\/bdh-alerts/, need: NEED.USER, why: 'התראת בד"ח שפקח מסמן בזמן אמת' },
+  // חלון קריאה. הקריאה עצמה והסימניות האישיות הן פעולה תפעולית של הבקר/הפקח,
+  // ולכן USER; ההגדרה מי נפתח איפה, והעלאת חומר הקריאה, הן ניהול. הסדר קובע:
+  // החריגים התפעוליים חייבים לקדום לכללי /api/reader/docs ו-/config שמתחתיהם.
+  { m: ['POST'], p: '/api/reader/open', need: NEED.USER, why: 'פתיחת עזר שכבר הוגדר לעמדה - הכתובת נשלפת מ-preset_links ולא מהבקשה' },
+  { m: ALL, p: /^\/api\/reader\/(bookmarks|quick)(\/|$)/, need: NEED.USER, why: 'סימניות והערות אישיות - מסוננות בשרת לפי הזהות שבאסימון' },
+  { m: ['POST'], p: /^\/api\/reader\/docs\/\d+\/convert$/, need: NEED.USER, why: 'המרת עזר שהוגדר בניהול - נדרשת בפתיחה הראשונה ונשמרת' },
+  { m: WRITE, p: /^\/api\/reader\/config$/, need: NEED.ADMIN, why: 'הגדרה כלל-מערכתית - איך נפתחים עזרים בכל העמדות' },
+  { m: WRITE, p: /^\/api\/reader\/docs(\/|$)/, need: NEED.STAFF, why: 'העלאת חומר קריאה ומחיקתו - הגדרת ניהול' },
   { m: ALL, p: /^\/api\/bdh-preset-assignments/, need: NEED.USER, why: 'קריאת שיוך בלבד' },
   { m: ['PUT'], p: /^\/api\/sectors\/\d+\/notes$/, need: NEED.USER, why: 'הערת סקטור - כתיבה תפעולית של הבקר' },
   { m: ALL, p: /^\/api\/airfield-elements(\/|$)/, need: NEED.USER, why: 'שינוי סטטוס אלמנט בשטח - פעולה תפעולית של הפקח' },

@@ -38,6 +38,7 @@ import stripFlowRouter   from './routes/stripFlow.js';
 import screenRecordingRouter from './routes/screenRecording.js';
 import syncRouter         from './routes/sync.js';
 import localDbRouter      from './routes/localDb.js';
+import readerRouter      from './routes/reader.js';
 import { createEnvironmentMiddleware } from './middleware/environment.js';
 import { authMiddleware } from './middleware/auth.js';
 import { actionContextMiddleware } from './middleware/actionContext.js';
@@ -140,6 +141,7 @@ app.use(createEnvironmentMiddleware({ ensure: ensureEnvSchema }));
 // בלי שאף אחד יצטרך לזכור. ראה UNDO_SPEC.md §3.
 app.use(actionContextMiddleware);
 app.use(undoRouter);
+app.use(readerRouter);
 
 // ── API Routes ────────────────────────────────────────────────────────────────
 // כל ה-routes מגדירים את הנתיב המלא (כולל /api), לכן נטענים ב-root.

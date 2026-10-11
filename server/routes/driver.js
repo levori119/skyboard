@@ -101,6 +101,26 @@ router.put('/api/preset-links/:id', async (req, res) => {
   }
 });
 
+// שיוך עזר קריאה (קובץ שהועלה) לשורת קישור, או ניתוקו.
+//
+// נתיב נפרד ולא שדה ב-PUT: טופס עריכת הקישור שולח את ארבעת שדותיו בלבד,
+// ו-PUT שהיה כותב גם doc_id היה **מנתק את הקובץ** בכל שמירת שם או הערה.
+router.patch('/api/preset-links/:id/doc', async (req, res) => {
+  try {
+    const raw = req.body?.docId;
+    const docId = raw == null || raw === '' ? null : Number(raw);
+    if (docId != null && !Number.isFinite(docId)) return res.status(400).json({ error: 'Bad docId' });
+    const { rows } = await pool.query(
+      'UPDATE preset_links SET doc_id = $1 WHERE id = $2 RETURNING id, doc_id',
+      [docId, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to attach doc' });
+  }
+});
+
 router.delete('/api/preset-links/:id', async (req, res) => {
   try {
     await pool.query(`DELETE FROM preset_links WHERE id=$1`, [req.params.id]);

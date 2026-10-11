@@ -32,6 +32,7 @@ import pattern3d from './registry/pattern3d.json';
 import permits from './registry/permits.json';
 import query from './registry/query.json';
 import seizure from './registry/seizure.json';
+import reader from './registry/reader.json';
 import screenRec from './registry/screenRec.json';
 import strips from './registry/strips.json';
 import suggest from './registry/suggest.json';
@@ -48,7 +49,7 @@ export type RegistryGroup = { _group: string; _note?: string; keys: Record<strin
 
 export const REGISTRY: Record<string, RegistryGroup> = {
   admin, airDefense, airPicture, blocks, classic, crew, ctrl, dashboard, dataWindows, dock, env, flow,
-  ground, help, joining, links, map, misc, missiondesk, offline, pattern, pattern3d, permits, query, screenRec, seizure, shared, strips, suggest, sync, transfers, trips, undo, vertical, weather, zoneWatch,
+  ground, help, joining, links, map, misc, missiondesk, offline, pattern, pattern3d, permits, query, reader, screenRec, seizure, shared, strips, suggest, sync, transfers, trips, undo, vertical, weather, zoneWatch,
 } as unknown as Record<string, RegistryGroup>;
 
 /** בונה resources ל-i18next: { he: {group: {key: text}}, en: {...} } */

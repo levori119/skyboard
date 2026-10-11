@@ -352,3 +352,40 @@ describe('אסימון עמדה - שירות המראה', () => {
     process.env.STATION_TOKEN = TOKEN;
   });
 });
+
+// ─── חלון קריאה ─────────────────────────────────────────────────────────────
+// הכלל הראשון שמתאים מנצח, ולכן הסדר הוא חלק מהנכונות: החריגים התפעוליים
+// (פתיחה, סימניות, המרה) חייבים לקדום לתחיליות הניהול (/docs, /config).
+// בדיקה זו נועדה ליפול אם מישהו יזיז אותם.
+describe('חלון קריאה - הפרדת תפעול מניהול', () => {
+  it('פתיחת עזר, סימניות ומדף אישי - כל מזוהה', () => {
+    expect(requirementFor('POST', '/api/reader/open')).toBe(NEED.USER);
+    expect(requirementFor('GET', '/api/reader/bookmarks/3')).toBe(NEED.USER);
+    expect(requirementFor('POST', '/api/reader/bookmarks')).toBe(NEED.USER);
+    expect(requirementFor('PUT', '/api/reader/bookmarks/9')).toBe(NEED.USER);
+    expect(requirementFor('DELETE', '/api/reader/quick/4')).toBe(NEED.USER);
+    expect(requirementFor('GET', '/api/reader/docs/2/file')).toBe(NEED.USER);
+  });
+
+  it('המרה בפתיחה ראשונה - תפעולית, ולא נבלעת בכלל הניהול של /docs', () => {
+    expect(requirementFor('POST', '/api/reader/docs/7/convert')).toBe(NEED.USER);
+  });
+
+  it('העלאת חומר קריאה ומחיקתו - ראש צוות ומעלה', () => {
+    expect(requirementFor('POST', '/api/reader/docs')).toBe(NEED.STAFF);
+    expect(requirementFor('DELETE', '/api/reader/docs/2')).toBe(NEED.STAFF);
+    expect(requirementFor('POST', '/api/reader/docs/2/pdf')).toBe(NEED.STAFF);
+  });
+
+  it('שינוי ההגדרה הכלל-מערכתית - מנהל בלבד, והקריאה שלה פתוחה לעמדה', () => {
+    expect(requirementFor('PUT', '/api/reader/config')).toBe(NEED.ADMIN);
+    expect(requirementFor('GET', '/api/reader/config')).toBe(NEED.USER);
+  });
+
+  it('בלי אסימון אין קריאה בכלל - גם לא לסימניות', async () => {
+    expect((await call('GET', '/api/reader/bookmarks/1', '')).status).toBe(401);
+    expect((await call('POST', '/api/reader/docs', user())).status).toBe(403);
+    expect((await call('PUT', '/api/reader/config', teamLead())).status).toBe(403);
+    expect((await call('PUT', '/api/reader/config', admin())).status).toBe(200);
+  });
+});

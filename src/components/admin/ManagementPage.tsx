@@ -47,6 +47,7 @@ import AirDefenseSection from './AirDefenseSection';
 import RouteLinksSection from './RouteLinksSection';
 import PermitParamsSection from './PermitParamsSection';
 import ScreenRecordingSection from './ScreenRecordingSection';
+import { ReaderSystemSettings, ReaderPresetOpenMode, ReaderLinkFile, uploadFileToLink } from './ReaderAdmin';
 import type { LinkGroup } from '../../utils/routeLinks';
 import TrafficPatternLayer from '../map/TrafficPatternLayer';
 import RunwayLayer from '../map/RunwayLayer';
@@ -93,8 +94,8 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
   const isTeamLead = !isAdmin && (crewMember?.is_team_lead ?? false);
   const effectiveMode = mode ?? (isAdmin ? 'admin' : 'team_lead');
   // ניהול משתמשים נעשה במיראז' בלבד — אין טאב 'crew' במסך הניהול
-  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'checklists' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'strip_windows' | 'mission_desks' | 'closures' | 'translations' | 'units' | 'suggestions' | 'air_defense';
-  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'checklists', 'classic_strips', 'strip_windows', 'mission_desks', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts', 'default_names', 'closures', 'units', 'air_defense'];
+  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'checklists' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'strip_windows' | 'mission_desks' | 'closures' | 'translations' | 'units' | 'suggestions' | 'air_defense' | 'reader';
+  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'reader', 'blocks', 'bdh', 'checklists', 'classic_strips', 'strip_windows', 'mission_desks', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts', 'default_names', 'closures', 'units', 'air_defense'];
   // 'suggestions' — הערות והצעות מהעמדות; מיועד למנהל המערכת הטכני בלבד
   const adminOnlyTabs: TabKey[] = ['strips', 'serials', 'translations', 'suggestions'];
   const availableTabs = effectiveMode === 'admin' ? [...adminOnlyTabs, ...teamLeadTabs] as TabKey[] : teamLeadTabs as TabKey[];
@@ -343,6 +344,12 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
   const [newMazaaRow, setNewMazaaRow] = useState<{mazaa_status: string; partial_load: number; full_load: number}>({ mazaa_status: '', partial_load: 3, full_load: 5 });
   const [newLinkForm, setNewLinkForm] = useState({ url: '', name: '', category: '', note: '' });
   const [showAddLinkForm, setShowAddLinkForm] = useState(false);
+  // קישור חדש יכול להיות **קובץ** במקום כתובת: נבחר בבוחר הקבצים, ומועלה
+  // כעזר קריאה מיד אחרי שהשורה נוצרת (צריך את מזהה הקישור כדי לשייך אליו).
+  const [newLinkFile, setNewLinkFile] = useState<File | null>(null);
+  const [newLinkBusy, setNewLinkBusy] = useState(false);
+  const [newLinkError, setNewLinkError] = useState('');
+  const newLinkFileRef = useRef<HTMLInputElement | null>(null);
   const [editingLinkId, setEditingLinkId] = useState<number | null>(null);
   const [editLinkForm, setEditLinkForm] = useState({ url: '', name: '', category: '', note: '' });
 
@@ -1240,6 +1247,7 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
           {/* Section: תפעול */}
           <div style={sideNavSectionStyle}>{tr('admin.tpavl')}</div>
           {availableTabs.includes('aids') && <button onClick={() => setActiveTab('aids')} style={sideNavItemStyle(activeTab === 'aids')}>{tr('admin.azrymLamdh')}</button>}
+          {availableTabs.includes('reader') && <button onClick={() => setActiveTab('reader')} style={sideNavItemStyle(activeTab === 'reader')}>{tr('reader.material')}</button>}
           {availableTabs.includes('blocks') && <button onClick={() => setActiveTab('blocks')} style={sideNavItemStyle(activeTab === 'blocks')}>{tr('admin.blvkym')}</button>}
           {availableTabs.includes('air_defense') && <button onClick={() => setActiveTab('air_defense')} style={sideNavItemStyle(activeTab === 'air_defense')}>{tr('airDefense.tab')}</button>}
           {availableTabs.includes('bdh') && <button onClick={() => { setActiveTab('bdh'); setEditingBdh(null); }} style={sideNavItemStyle(activeTab === 'bdh')}>{tr('admin.bdCh')}</button>}
@@ -2706,11 +2714,13 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                   <div style={{ marginTop: '20px', borderTop: '1px solid #334155', paddingTop: '16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                       <label style={{ color: '#a78bfa', fontSize: '14px', fontWeight: 'bold' }}>{tr('admin.kyshvrym')}</label>
-                      <button type="button" onClick={() => { setShowAddLinkForm(v => !v); setNewLinkForm({ url: '', name: '', category: '', note: '' }); }}
+                      <button type="button" onClick={() => { setShowAddLinkForm(v => !v); setNewLinkForm({ url: '', name: '', category: '', note: '' }); setNewLinkFile(null); setNewLinkError(''); }}
                         style={{ background: '#5b21b6', color: 'white', border: 'none', borderRadius: '5px', padding: '4px 14px', fontSize: '12px', cursor: 'pointer' }}>
                         {showAddLinkForm ? 'ביטול' : '+ קישור חדש'}
                       </button>
                     </div>
+                    {/* איפה נפתחים הקישורים של העמדה הזו - עוקף את הגדרת המערכת */}
+                    <ReaderPresetOpenMode presetId={editingPreset.id} value={(editingPreset as any).reader_open_mode} />
                     {showAddLinkForm && (
                       <div style={{ background: '#1e1b4b', border: '1px solid #4c1d95', borderRadius: '7px', padding: '12px', marginBottom: '10px' }}>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
@@ -2726,10 +2736,34 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                           </div>
                         </div>
                         <div style={{ marginBottom: '8px' }}>
-                          <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '3px' }}>{tr('admin.ktvbtUrl2')}</label>
+                          <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '3px' }}>{tr('reader.urlOrFile')}</label>
                           <div style={{ display: 'flex', gap: '6px' }}>
-                            <input value={newLinkForm.url} onChange={e => setNewLinkForm(v => ({...v, url: e.target.value}))}
-                              placeholder="https://..." style={{ flex: 1, padding: '6px 8px', background: '#0f172a', color: 'white', border: '1px solid #334155', borderRadius: '4px', fontSize: '13px', direction: 'ltr', boxSizing: 'border-box' }} />
+                            {/* קובץ שנבחר מחליף את הכתובת - שניהם יחד היו מבלבלים: איזה מהם נפתח? */}
+                            {newLinkFile ? (
+                              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 8px', background: '#0f172a', color: '#86efac', border: '1px solid #14532d', borderRadius: '4px', fontSize: '13px', minWidth: 0 }}>
+                                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📎 {newLinkFile.name}</span>
+                                <button type="button" onClick={() => setNewLinkFile(null)} title={tr('reader.removeChosenFile')} aria-label={tr('reader.removeChosenFile')}
+                                  style={{ background: 'transparent', color: '#fca5a5', border: 'none', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>✕</button>
+                              </div>
+                            ) : (
+                              <input value={newLinkForm.url} onChange={e => setNewLinkForm(v => ({...v, url: e.target.value}))}
+                                placeholder="https://..." style={{ flex: 1, padding: '6px 8px', background: '#0f172a', color: 'white', border: '1px solid #334155', borderRadius: '4px', fontSize: '13px', direction: 'ltr', boxSizing: 'border-box' }} />
+                            )}
+                            <button type="button" onClick={() => newLinkFileRef.current?.click()} title={tr('reader.pickFileTitle')}
+                              style={{ background: '#5b21b6', color: 'white', border: 'none', borderRadius: '4px', padding: '6px 12px', fontSize: '12px', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                              {tr('reader.pickFile')}
+                            </button>
+                            <input ref={newLinkFileRef} type="file" style={{ display: 'none' }}
+                              onChange={e => {
+                                const f = e.target.files?.[0];
+                                if (f) {
+                                  setNewLinkFile(f);
+                                  // שם הקישור נגזר משם הקובץ כשעוד לא הוקלד שם - פחות הקלדה
+                                  setNewLinkForm(v => ({ ...v, url: '', name: v.name.trim() ? v.name : f.name.replace(/\.[^.]+$/, '') }));
+                                  setNewLinkError('');
+                                }
+                                e.target.value = '';
+                              }} />
                           </div>
                         </div>
                         <div style={{ marginBottom: '10px' }}>
@@ -2737,12 +2771,33 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                           <input value={newLinkForm.note} onChange={e => setNewLinkForm(v => ({...v, note: e.target.value}))}
                             placeholder={tr('shared.note2')} style={{ width: '100%', padding: '6px 8px', background: '#0f172a', color: 'white', border: '1px solid #334155', borderRadius: '4px', fontSize: '13px', direction: 'rtl', boxSizing: 'border-box' }} />
                         </div>
-                        <button type="button" disabled={!newLinkForm.name.trim() || !newLinkForm.url.trim()} onClick={async () => {
-                          await fetch(`${API_URL}/preset-links/${editingPreset.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...newLinkForm, sort_order: editingPresetLinks.length }) });
-                          setNewLinkForm({ url: '', name: '', category: '', note: '' });
-                          setShowAddLinkForm(false);
-                          loadPresetLinks(editingPreset.id);
-                        }} style={{ background: newLinkForm.name.trim() && newLinkForm.url.trim() ? '#5b21b6' : '#334155', color: 'white', border: 'none', borderRadius: '5px', padding: '6px 18px', fontSize: '13px', cursor: 'pointer' }}>{tr('admin.hvsfKyshvr')}</button>
+                        {newLinkError && <div style={{ fontSize: '11px', color: '#fca5a5', marginBottom: '6px' }}>{newLinkError}</div>}
+                        {(() => {
+                          const canAdd = !!newLinkForm.name.trim() && (!!newLinkForm.url.trim() || !!newLinkFile) && !newLinkBusy;
+                          return (
+                            <button type="button" disabled={!canAdd} onClick={async () => {
+                              setNewLinkBusy(true); setNewLinkError('');
+                              try {
+                                const r = await fetch(`${API_URL}/preset-links/${editingPreset.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...newLinkForm, url: newLinkFile ? '' : newLinkForm.url, sort_order: editingPresetLinks.length }) });
+                                const created = r.ok ? await r.json() : null;
+                                if (!created?.id) { setNewLinkError(tr('reader.uploadFailed')); return; }
+                                if (newLinkFile) {
+                                  // הקישור כבר נוצר: כשל בהעלאה משאיר אותו בלי קובץ, וההודעה
+                                  // מפנה לכפתור "העלה קובץ" שבשורה שלו - לא נעלם בשקט
+                                  const err = await uploadFileToLink(created.id, newLinkForm.name.trim(), newLinkFile);
+                                  if (err) { setNewLinkError(err); loadPresetLinks(editingPreset.id); return; }
+                                }
+                                setNewLinkForm({ url: '', name: '', category: '', note: '' });
+                                setNewLinkFile(null);
+                                setShowAddLinkForm(false);
+                                loadPresetLinks(editingPreset.id);
+                              } catch { setNewLinkError(tr('reader.uploadFailed')); }
+                              finally { setNewLinkBusy(false); }
+                            }} style={{ background: canAdd ? '#5b21b6' : '#334155', color: 'white', border: 'none', borderRadius: '5px', padding: '6px 18px', fontSize: '13px', cursor: canAdd ? 'pointer' : 'default' }}>
+                              {newLinkBusy ? tr('reader.uploading') : tr('admin.hvsfKyshvr')}
+                            </button>
+                          );
+                        })()}
                       </div>
                     )}
                     {editingPresetLinks.length === 0 && !showAddLinkForm && (
@@ -2786,6 +2841,9 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                               <div style={{ fontSize: '10px', color: '#6366f1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'ltr', textAlign: 'right' }}>{link.url}</div>
                               {link.note && <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>{link.note}</div>}
                             </div>
+                            {/* קובץ מצורף: כשהעזר יושב אצלנו הוא נפרס בחלון גם אם
+                                הכתובת עצמה אינה נגישה מהעמדה (כונן רשת) */}
+                            <ReaderLinkFile link={link} onChanged={() => loadPresetLinks(editingPreset.id)} />
                             <button type="button" onClick={() => { setEditingLinkId(link.id); setEditLinkForm({ url: link.url, name: link.name, category: link.category || '', note: link.note || '' }); }}
                               style={{ background: 'transparent', color: '#a78bfa', border: '1px solid #4c1d95', borderRadius: '4px', padding: '3px 10px', fontSize: '11px', cursor: 'pointer', flexShrink: 0 }}>✎</button>
                           </div>
@@ -3993,6 +4051,7 @@ CHARLIE,1,301,`}
           {activeTab === 'table_modes' && <TableModesManager />}
           {activeTab === 'work_groups' && <WorkGroupsManager presets={presets} />}
           {activeTab === 'aids' && <AidsManager presets={presets} bases={adminAviationBases} allowedBases={allowedBases} />}
+          {activeTab === 'reader' && <ReaderSystemSettings isAdmin={isAdmin} />}
           {activeTab === 'serials' && <SerialsAdminTab initialUndoDurationMs={crewMember?.undo_duration_ms ?? null} />}
 
           {/* Blocks Tab */}

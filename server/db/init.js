@@ -358,6 +358,79 @@ async function applySchemaOnce() {
     PRIMARY KEY (preset_id)
   )`);
 
+  // ── חלון קריאה (עזרים / מצגות / PDF) ──────────────────────────────────────
+  //
+  // **עזר קריאה** (`reader_docs`) הוא הישות שנפתחת בחלון הקריאה: או קישור
+  // שהוגדר לעמדה (`source_kind='link'`), או קובץ שהועלה למערכת (`'file'`).
+  //
+  // למה ישות נפרדת ולא עמודות על `preset_links`: הסימניות תלויות ב**מסמך**
+  // ולא בשורת הקישור, כדי שאותה מצגת המקושרת משתי עמדות תישא את אותן סימניות
+  // של אותו איש צוות. `url_key` (הכתובת המנורמלת) הוא מפתח האיחוד בין שורות
+  // קישור שונות שמצביעות לאותו קובץ.
+  //
+  // `data` הוא הקובץ המקורי, ו-`pdf_data` תוצר המרה של קובץ אופיס (ראה
+  // `readerOfficeMode` ב-system_defaults). שניהם BYTEA ולא base64: הקובץ נשלף
+  // בנתיב ייעודי (`/api/reader/docs/:id/file`) ולא בתוך JSON של רשימה.
+  await sq(`CREATE TABLE IF NOT EXISTS reader_docs (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(200) NOT NULL DEFAULT '',
+    source_kind VARCHAR(10) NOT NULL DEFAULT 'link',
+    url TEXT NOT NULL DEFAULT '',
+    url_key TEXT NOT NULL DEFAULT '',
+    file_name VARCHAR(300) NOT NULL DEFAULT '',
+    ext VARCHAR(20) NOT NULL DEFAULT '',
+    mime VARCHAR(150) NOT NULL DEFAULT '',
+    byte_size INTEGER NOT NULL DEFAULT 0,
+    data BYTEA,
+    pdf_data BYTEA,
+    converted_at TIMESTAMPTZ,
+    convert_error TEXT NOT NULL DEFAULT '',
+    created_by INTEGER REFERENCES crew_members(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+  // שני קישורים לאותה כתובת = אותו עזר קריאה, ולכן אותן סימניות. אינדקס חלקי:
+  // עזר שהועלה כקובץ אין לו כתובת, וכולם היו מתנגשים על המחרוזת הריקה.
+  await sq(`CREATE UNIQUE INDEX IF NOT EXISTS idx_reader_docs_url_key
+            ON reader_docs(url_key) WHERE url_key <> ''`);
+
+  // סימניות והערות — **אישיות לאיש הצוות** (החלטת אפיון). `page_no` הוא העמוד
+  // / השקף / הגיליון שאליו הסימנייה מעוגנת; במצב "הערות בלבד" (קובץ אופיס
+  // שנפתח באפליקציה החיצונית) המספר מוקלד ביד ולכן מותר גם 0.
+  await sq(`CREATE TABLE IF NOT EXISTS reader_bookmarks (
+    id SERIAL PRIMARY KEY,
+    doc_id INTEGER NOT NULL REFERENCES reader_docs(id) ON DELETE CASCADE,
+    crew_member_id INTEGER NOT NULL REFERENCES crew_members(id) ON DELETE CASCADE,
+    page_no INTEGER NOT NULL DEFAULT 1,
+    label VARCHAR(200) NOT NULL DEFAULT '',
+    note TEXT NOT NULL DEFAULT '',
+    color VARCHAR(20) NOT NULL DEFAULT '',
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_reader_bookmarks_doc_crew
+            ON reader_bookmarks(doc_id, crew_member_id)`);
+
+  // "קריאה מהירה" — המדף האישי שמוצג בסרגל התחתון. אישי כמו הסימניות, ולכן
+  // הוא נוסע עם איש הצוות בין העמדות.
+  await sq(`CREATE TABLE IF NOT EXISTS reader_quick_items (
+    id SERIAL PRIMARY KEY,
+    crew_member_id INTEGER NOT NULL REFERENCES crew_members(id) ON DELETE CASCADE,
+    doc_id INTEGER NOT NULL REFERENCES reader_docs(id) ON DELETE CASCADE,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(crew_member_id, doc_id)
+  )`);
+
+  // קישור עמדה → עזר הקריאה שלו. NULL = הקישור עדיין לא נפתח לקריאה (העזר
+  // נוצר בפתיחה הראשונה), או שהוא נפתח תמיד באפליקציה החיצונית.
+  await sq(`ALTER TABLE preset_links ADD COLUMN IF NOT EXISTS doc_id INTEGER REFERENCES reader_docs(id) ON DELETE SET NULL`);
+
+  // עקיפה פר-עמדה של ההגדרה הגלובלית `readerOpenMode`.
+  // '' = ירושה מהמערכת · 'window' = חלון הקריאה · 'external' = האפליקציה החיצונית
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS reader_open_mode VARCHAR(20) NOT NULL DEFAULT ''`);
+
   // ── Serials ───────────────────────────────────────────────────────────────
 
   await sq(`CREATE TABLE IF NOT EXISTS serials (
@@ -2049,6 +2122,13 @@ async function applySchemaOnce() {
     value TEXT DEFAULT '',
     updated_at TIMESTAMP DEFAULT NOW()
   )`);
+
+  // המפתח הוא זהות השורה, ועליו נשען ה-ON CONFLICT של שמירת ההגדרות.
+  // בהתקנות ותיקות הטבלה כבר קיימת עם `id` כמפתח ראשי (CREATE TABLE IF NOT
+  // EXISTS מדלג עליה בשקט), ושם ON CONFLICT (key) נפל ב-500 - כלומר שמירת
+  // הגדרת מערכת פשוט לא עבדה, גם ב-POST /api/defaults הוותיק. אינדקס ייחודי
+  // נפרד מתקן את שתי ההתקנות בלי לגעת במפתח הראשי הקיים.
+  await sq(`CREATE UNIQUE INDEX IF NOT EXISTS idx_system_defaults_key ON system_defaults(key)`);
 
   // סמלים ברמת מערכת (כרגע `micha` — סמל מערך הבקרה שמוצג בכל עמדה). טבלה
   // נפרדת מ-system_defaults כי `GET /api/defaults` נטען בכל עמדה, ותמונה

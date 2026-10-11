@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
+import { READER_OPEN_MODES } from '../../shared/readerDocs.js';
 const router = new Router();
 
 // Helper: mirror directional partner relationships across other classic presets.
@@ -208,6 +209,26 @@ router.patch('/api/workstation-presets/:id/thresholds', async (req, res) => {
   } catch (err) {
     console.error('Error updating thresholds:', err);
     res.status(500).json({ error: 'Failed to update thresholds' });
+  }
+});
+
+// עקיפת העמדה להגדרת חלון הקריאה ('' = ירושה מהגדרת המערכת).
+//
+// למה נתיב נפרד ולא שדה נוסף ב-PUT של העמדה: ה-PUT הוא שאילתה בת עשרות
+// פרמטרים ממוספרים, ותוספת אליה היא סיכון מיותר עבור שדה בודד. זו אותה תבנית
+// של /thresholds ו-/transfer-point שמעליה.
+router.patch('/api/workstation-presets/:id/reader-open-mode', async (req, res) => {
+  try {
+    const mode = READER_OPEN_MODES.includes(req.body?.reader_open_mode) ? req.body.reader_open_mode : '';
+    const { rows } = await pool.query(
+      'UPDATE workstation_presets SET reader_open_mode = $1, updated_at = NOW() WHERE id = $2 RETURNING id, reader_open_mode',
+      [mode, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('Error updating reader open mode:', err);
+    res.status(500).json({ error: 'Failed to update reader open mode' });
   }
 });
 

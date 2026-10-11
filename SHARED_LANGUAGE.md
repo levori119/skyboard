@@ -40,6 +40,7 @@
 | 24 | ניהול נהגים ואישורי כניסה | פקח (ניהול שדה) | `ground/VehiclePermitsWindow.tsx` | `routes/permits.js` |
 | 25 | ניהול נסיעות | פקח (ניהול שדה) + נהג | `ground/TripsManagementWindow.tsx` | `routes/permits.js` |
 | 26 | FLOW של פ"מ | בקר + פקח | `strips/StripFlowWindow.tsx` | `routes/stripFlow.js` + `db/stripFlowEvents.js` |
+| 27 | חלון קריאה (עזרים / מצגות / PDF) + קריאה מהירה | בקר + פקח | `reader/ReaderLayer.tsx` | `routes/reader.js` |
 
 ---
 
