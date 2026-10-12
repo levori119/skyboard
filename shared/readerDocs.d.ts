@@ -39,7 +39,7 @@ export declare function docExtOf(nameOrUrl: unknown): string;
 export declare function docKindOf(ext: unknown, mime?: unknown): ReaderDocKind;
 export declare function isFetchableUrl(url: unknown): boolean;
 export declare function normalizeDocUrl(url: unknown): string;
-export declare function resolveOpenMode(globalMode: unknown, presetMode?: unknown): ReaderOpenMode;
+export declare function resolveOpenMode(globalMode: unknown, presetMode?: unknown, linkMode?: unknown): ReaderOpenMode;
 export declare function resolveOfficeMode(mode: unknown): ReaderOfficeMode;
 export declare function readerEngine(doc: ReaderDocLike, officeMode: unknown): ReaderEngineResult;
 export declare function needsServerConvert(doc: ReaderDocLike, officeMode: unknown): boolean;

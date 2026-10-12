@@ -149,3 +149,17 @@ describe('needsServerConvert', () => {
     expect(needsServerConvert({ kind: 'office', url: '\\\\srv\\a.pptx' }, 'server')).toBe(false);
   });
 });
+
+describe('resolveOpenMode - שלוש רמות: עזר > עמדה > מערכת', () => {
+  it('הגדרת העזר גוברת על העמדה ועל המערכת', () => {
+    expect(resolveOpenMode('external', 'external', 'window')).toBe('window');
+    expect(resolveOpenMode('window', 'window', 'external')).toBe('external');
+  });
+  it('עזר בירושה (ריק) - העמדה, ואחריה המערכת', () => {
+    expect(resolveOpenMode('external', 'window', '')).toBe('window');
+    expect(resolveOpenMode('window', '', '')).toBe('window');
+  });
+  it('ערך לא מוכר בעזר - ירושה ולא כיבוי', () => {
+    expect(resolveOpenMode('window', '', 'bogus')).toBe('window');
+  });
+});

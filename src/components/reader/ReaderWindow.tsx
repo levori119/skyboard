@@ -13,7 +13,7 @@
 // גרירה ושינוי גודל: Pointer Events + touchAction + setPointerCapture + חלוקה
 // ב---s. העמדה היא מסך מגע ועט (CLAUDE.md §גרירה).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getDocument } from 'pdfjs-dist';
+import { getDocument } from '../../utils/pdfjs';
 import * as XLSX from 'xlsx';
 import { API_URL } from '../../config';
 import { tr } from '../../i18n/tr';
@@ -27,6 +27,7 @@ import {
   type ReaderBookmark, type ReaderConfig, type ReaderDoc, type ReaderRect, type ReaderSizeKey,
 } from '../../utils/reader';
 import { useDockableWindow } from '../../hooks/useDockableWindow';
+import { openReaderDocExternally } from './openExternal';
 
 type ThemeMode = 'light' | 'dark' | 'ocean';
 
@@ -340,41 +341,12 @@ export default function ReaderWindow({
   const activeSize = (() => { const { vw, vh } = bounds(); return activeSizePreset(rect, vw, vh); })();
 
   // ── פעולות ──────────────────────────────────────────────────────────────
-  /**
-   * "פתח באפליקציה חיצונית". קובץ שהועלה **אינו** נפתח בלשונית: הנתיב שלו מוגן
-   * באסימון, ולשונית חדשה אינה נושאת אותו - היא קיבלה דף HTML (2026-10-11).
-   * לכן הבתים נמשכים כאן עם האסימון, ואז:
-   *   • בעמדה (Electron) - נפתחים ב-PowerPoint / Word של המחשב (openDocExternal)
-   *   • בדפדפן - יורדים כקובץ בשמו, והדפדפן מציע לפתוח אותו באפליקציה
-   * קישור לכתובת נפתח בכתובת המקורית, כמו קודם.
-   */
+  /** "פתח באפליקציה חיצונית" - ראה openExternal.ts (משותף עם קישורי העמדה) */
   const openExternal = async () => {
-    if (!doc.hasFile) {
-      if (doc.url) window.open(doc.url, '_blank', 'noopener');
-      return;
-    }
     if (extState === 'opening') return;
-    setExtState('opening');
-    try {
-      const r = await fetch(`${API_URL}/reader/docs/${doc.id}/file`);
-      if (!r.ok) throw new Error(String(r.status));
-      const buf = new Uint8Array(await r.arrayBuffer());
-      const name = externalFileName(doc);
-      const bridge = (window as any).skyking;
-      if (bridge?.openDocExternal) {
-        const out = await bridge.openDocExternal(name, buf);
-        setExtState(out?.ok ? '' : tr('reader.openExternalFailed'));
-        return;
-      }
-      const url = URL.createObjectURL(new Blob([buf], { type: doc.mime || 'application/octet-stream' }));
-      const a = document.createElement('a');
-      a.href = url; a.download = name;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
-      setExtState('');
-    } catch {
-      setExtState(tr('reader.openExternalFailed'));
-    }
+    if (doc.hasFile) setExtState('opening');
+    const ok = await openReaderDocExternally(doc);
+    setExtState(ok ? '' : tr('reader.openExternalFailed'));
   };
 
   const convertNow = async () => {
@@ -629,13 +601,6 @@ export default function ReaderWindow({
     </div>
   );
   return dock.render(win);
-}
-
-/** שם הקובץ לפתיחה חיצונית - עם סיומת, אחרת מערכת ההפעלה לא יודעת במה לפתוח. */
-function externalFileName(doc: ReaderDoc): string {
-  if (doc.file_name && /\.[A-Za-z0-9]+$/.test(doc.file_name)) return doc.file_name;
-  const base = (doc.name || `doc-${doc.id}`).replace(/[\\/:*?"<>|]/g, '_');
-  return doc.ext ? `${base}.${doc.ext}` : base;
 }
 
 function Centered({ children, color }: { children: React.ReactNode; color: string }) {

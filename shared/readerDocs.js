@@ -88,7 +88,9 @@ export function normalizeDocUrl(url) {
  * ההגדרה הפעילה: עקיפת העמדה גוברת על ברירת המחדל של המערכת.
  * ערך ריק או לא מוכר = ירושה, ולא "כבוי" - הגדרה שגויה לא משנה התנהגות בשקט.
  */
-export function resolveOpenMode(globalMode, presetMode) {
+export function resolveOpenMode(globalMode, presetMode, linkMode) {
+  // שלוש רמות (2026-10-12): העזר עצמו > העמדה > המערכת
+  if (READER_OPEN_MODES.includes(linkMode)) return linkMode;
   if (READER_OPEN_MODES.includes(presetMode)) return presetMode;
   if (READER_OPEN_MODES.includes(globalMode)) return globalMode;
   return DEFAULT_OPEN_MODE;

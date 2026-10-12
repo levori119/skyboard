@@ -150,22 +150,35 @@ describe('גדלים קבועים לחלון - מלא, 2/3, חצי, 1/3', () => 
   });
 });
 
-describe('linkOpensInWindow - איפה נפתח קישור עמדה', () => {
-  it('הגדרת "חלון קריאה" - כל קישור נפתח בחלון', () => {
-    expect(linkOpensInWindow('window', { url: 'https://x/a.pdf', doc_id: null })).toBe(true);
+describe('linkOpensInWindow - איפה נפתח קישור עמדה (עזר > עמדה > מערכת)', () => {
+  const URL_LINK = { url: 'https://x/a.pdf', doc_id: null };
+  const FILE_LINK = { url: '', doc_id: 4 };
+
+  it('הגדרת מערכת "חלון קריאה" - קישור כתובת נפתח בחלון', () => {
+    expect(linkOpensInWindow('window', '', URL_LINK)).toBe(true);
   });
 
-  it("הגדרה חיצונית - קישור כתובת נפתח בחוץ, כמו לפני הפיצ'ר", () => {
-    expect(linkOpensInWindow('external', { url: 'https://x/a.pdf', doc_id: null })).toBe(false);
-    expect(linkOpensInWindow('external', { url: 'https://x/a.pdf', doc_id: 4 })).toBe(false);
+  it("הגדרת מערכת חיצונית - קישור כתובת נפתח בחוץ, כמו לפני הפיצ'ר", () => {
+    expect(linkOpensInWindow('external', '', URL_LINK)).toBe(false);
+    expect(linkOpensInWindow('external', '', { url: 'https://x/a.pdf', doc_id: 4 })).toBe(false);
   });
 
-  it('קישור שהוא קובץ בלבד (בלי כתובת) נפתח תמיד בחלון', () => {
-    expect(linkOpensInWindow('external', { url: '', doc_id: 4 })).toBe(true);
+  it('קובץ בלבד בלי הגדרה בעזר ובעמדה - בחלון (גם כשהמערכת חיצונית)', () => {
+    expect(linkOpensInWindow('external', '', FILE_LINK)).toBe(true);
+  });
+
+  it('קובץ בלבד - הגדרת העמדה או העזר "חיצונית" מכובדת', () => {
+    expect(linkOpensInWindow('window', 'external', FILE_LINK)).toBe(false);
+    expect(linkOpensInWindow('window', '', { ...FILE_LINK, open_mode: 'external' })).toBe(false);
+  });
+
+  it('הגדרת העזר גוברת על העמדה', () => {
+    expect(linkOpensInWindow('external', 'external', { ...URL_LINK, open_mode: 'window' })).toBe(true);
+    expect(linkOpensInWindow('window', 'window', { ...URL_LINK, open_mode: 'external' })).toBe(false);
   });
 
   it('קישור ריק לגמרי - אין מה לפתוח בחלון', () => {
-    expect(linkOpensInWindow('external', { url: '', doc_id: null })).toBe(false);
+    expect(linkOpensInWindow('window', '', { url: '', doc_id: null })).toBe(false);
   });
 });
 

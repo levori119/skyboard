@@ -40,8 +40,7 @@ import MapsManager from './components/map/MapsManager';
 import ManagementPage from './components/admin/ManagementPage';
 import SectorDashboard from './components/views/SectorDashboard';
 import { DebriefingTab } from './components/admin/managers';
-import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
-GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).href;
+import { getDocument } from './utils/pdfjs';
 
 // ─── Aircraft Icon System ─────────────────────────────────────────────────────
 // AircraftIconType + icon helpers imported from ./utils/aircraft

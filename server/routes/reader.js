@@ -137,16 +137,22 @@ router.get('/api/reader/config', async (req, res) => {
 
 router.put('/api/reader/config', async (req, res) => {
   try {
-    const openMode = READER_OPEN_MODES.includes(req.body?.openMode) ? req.body.openMode : DEFAULT_OPEN_MODE;
-    const officeMode = resolveOfficeMode(req.body?.officeMode);
-    for (const [key, value] of [[OPEN_MODE_KEY, openMode], [OFFICE_MODE_KEY, officeMode]]) {
+    // **עדכון חלקי:** נכתב רק מה שנשלח. ההגדרה מוצגת גם ב"הגדרות כלליות"
+    // (איפה נפתח עזר בלבד) וגם ב"חומר קריאה" (שתיהן) - שמירה ממסך אחד אסור
+    // שתדרוס לברירת מחדל את ההגדרה שהוא לא מציג.
+    const writes = [];
+    if (req.body?.openMode !== undefined) {
+      writes.push([OPEN_MODE_KEY, READER_OPEN_MODES.includes(req.body.openMode) ? req.body.openMode : DEFAULT_OPEN_MODE]);
+    }
+    if (req.body?.officeMode !== undefined) writes.push([OFFICE_MODE_KEY, resolveOfficeMode(req.body.officeMode)]);
+    for (const [key, value] of writes) {
       await pool.query(
         `INSERT INTO system_defaults (key, value, updated_at) VALUES ($1, $2, NOW())
          ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
         [key, value],
       );
     }
-    res.json({ openMode, officeMode });
+    res.json(await readDefaults());
   } catch (err) {
     res.status(500).json({ error: 'Failed to save reader config' });
   }

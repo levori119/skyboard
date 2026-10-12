@@ -7,20 +7,28 @@
 // לפתוח עזר, בלי לשכפל שורה (עקרון הרכיב המשותף).
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from 'react';
 import { API_URL } from '../../config';
-import { bottomBarSlots, shapeReaderDoc, resolveOpenMode, linkOpensInWindow, mergeRefreshedDocs, type ReaderConfig, type ReaderDoc } from '../../utils/reader';
+import { bottomBarSlots, shapeReaderDoc, linkOpensInWindow, isFileOnlyLink, mergeRefreshedDocs, type ReaderConfig, type ReaderDoc } from '../../utils/reader';
+import { openReaderDocExternally } from './openExternal';
 import ReaderWindow from './ReaderWindow';
 import QuickReadBar from './QuickReadBar';
 
 type ThemeMode = 'light' | 'dark' | 'ocean';
 
 /** שורת קישור של עמדה, כפי שהיא מגיעה מ-/api/preset-links. */
-export interface PresetLinkLike { id: number; url: string; name?: string; doc_id?: number | null }
+export interface PresetLinkLike { id: number; url: string; name?: string; doc_id?: number | null; open_mode?: string | null }
 
 export interface ReaderLayerHandle {
-  /** פותח קישור עמדה. מחזיר false אם הקישור נפתח באפליקציה החיצונית. */
+  /**
+   * פותח קישור עמדה - בחלון או באפליקציה החיצונית, לפי עזר > עמדה > מערכת.
+   * false = לא נפתח כאן, והקורא נופל להתנהגות ה-<a> הרגילה (קישור כתובת).
+   */
   openLink: (link: PresetLinkLike) => Promise<boolean>;
-  /** האם הקישור הזה נפתח בחלון - לפי ההגדרה הפעילה, וקובץ בלבד תמיד בחלון. */
-  opensInWindow: (link?: PresetLinkLike) => boolean;
+  /**
+   * האם השכבה **מטפלת** בקישור הזה (ואז ה-<a> לא נפתח בעצמו): כשהוא נפתח
+   * בחלון, או כשהוא קובץ שהועלה - לקובץ כזה ה-<a> פותח דף HTML ולא את הקובץ,
+   * כי לשונית חדשה אינה נושאת את האסימון.
+   */
+  handlesLink: (link: PresetLinkLike) => boolean;
   /**
    * "רענון עמדה": תצורה, מדף הקריאה המהירה וכל חלון פתוח - מחדש מהשרת. חלון
    * נטען מחדש (קובץ שהוחלף, PDF שהומר, סימניות), ומסמך שנמחק - נסגר.
@@ -77,27 +85,33 @@ const ReaderLayer = forwardRef<ReaderLayerHandle, Props>(function ReaderLayer(
   }, []);
   useEffect(() => { loadQuick(); }, [loadQuick]);
 
-  const effectiveOpenMode = resolveOpenMode(config.openMode, presetOpenMode ?? '');
+  const inWindow = useCallback(
+    (link: PresetLinkLike) => linkOpensInWindow(config.openMode, presetOpenMode ?? '', link),
+    [config.openMode, presetOpenMode],
+  );
 
   const openDoc = useCallback((doc: ReaderDoc) => {
     setOpen(prev => (prev.some(d => d.id === doc.id) ? prev : [...prev, doc]));
   }, []);
 
   const openLink = useCallback(async (link: PresetLinkLike): Promise<boolean> => {
-    if (!linkOpensInWindow(effectiveOpenMode, link)) return false;
+    const window_ = inWindow(link);
+    if (!window_ && !isFileOnlyLink(link)) return false;   // קישור כתובת לחוץ - ה-<a> עצמו
     try {
       const r = await fetch(`${API_URL}/reader/open`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ presetLinkId: link.id }),
       });
       if (!r.ok) return false;
-      openDoc(shapeReaderDoc(await r.json()));
-      return true;
+      const doc = shapeReaderDoc(await r.json());
+      if (window_) { openDoc(doc); return true; }
+      // קובץ שהועלה, מוגדר "באפליקציה חיצונית" - PowerPoint/Word ולא לשונית
+      return await openReaderDocExternally(doc);
     } catch {
       // מנותק מהשרת - הקישור ייפתח באפליקציה החיצונית, כמו לפני הפיצ'ר
       return false;
     }
-  }, [effectiveOpenMode, openDoc]);
+  }, [inWindow, openDoc]);
 
   const refresh = useCallback(async () => {
     await Promise.all([loadConfig(), loadQuick()]);
@@ -117,8 +131,8 @@ const ReaderLayer = forwardRef<ReaderLayerHandle, Props>(function ReaderLayer(
   useImperativeHandle(ref, () => ({
     refresh,
     openLink,
-    opensInWindow: (link?: PresetLinkLike) => (link ? linkOpensInWindow(effectiveOpenMode, link) : effectiveOpenMode === 'window'),
-  }), [openLink, effectiveOpenMode, refresh]);
+    handlesLink: (link: PresetLinkLike) => inWindow(link) || isFileOnlyLink(link),
+  }), [openLink, inWindow, refresh]);
 
   const toggleQuick = async (doc: ReaderDoc) => {
     const inList = quick.some(d => d.id === doc.id);

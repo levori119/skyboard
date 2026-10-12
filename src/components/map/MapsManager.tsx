@@ -1,7 +1,7 @@
 import { tr } from '../../i18n/tr';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { getDocument } from 'pdfjs-dist';
+import { getDocument } from '../../utils/pdfjs';
 import { API_URL } from '../../config';
 import { customConfirm } from '../shared/ConfirmModal';
 import MapZoneEditor from './MapZoneEditor';

@@ -47,7 +47,7 @@ import AirDefenseSection from './AirDefenseSection';
 import RouteLinksSection from './RouteLinksSection';
 import PermitParamsSection from './PermitParamsSection';
 import ScreenRecordingSection from './ScreenRecordingSection';
-import { ReaderSystemSettings, ReaderPresetOpenMode, ReaderLinkFile, uploadFileToLink } from './ReaderAdmin';
+import { ReaderSystemSettings, ReaderPresetOpenMode, ReaderLinkFile, ReaderLinkOpenMode, uploadFileToLink } from './ReaderAdmin';
 import type { LinkGroup } from '../../utils/routeLinks';
 import TrafficPatternLayer from '../map/TrafficPatternLayer';
 import RunwayLayer from '../map/RunwayLayer';
@@ -2854,6 +2854,8 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                             {/* קובץ מצורף: כשהעזר יושב אצלנו הוא נפרס בחלון גם אם
                                 הכתובת עצמה אינה נגישה מהעמדה (כונן רשת) */}
                             <ReaderLinkFile link={link} onChanged={() => loadPresetLinks(editingPreset.id)} />
+                            {/* איפה נפתח העזר הזה - גובר על העמדה ועל המערכת */}
+                            <ReaderLinkOpenMode link={link} onChanged={() => loadPresetLinks(editingPreset.id)} />
                             <button type="button" onClick={() => { setEditingLinkId(link.id); setEditLinkForm({ url: link.url, name: link.name, category: link.category || '', note: link.note || '' }); }}
                               style={{ background: 'transparent', color: '#a78bfa', border: '1px solid #4c1d95', borderRadius: '4px', padding: '3px 10px', fontSize: '11px', cursor: 'pointer', flexShrink: 0 }}>✎</button>
                           </div>

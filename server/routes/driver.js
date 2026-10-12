@@ -105,6 +105,21 @@ router.put('/api/preset-links/:id', async (req, res) => {
 //
 // נתיב נפרד ולא שדה ב-PUT: טופס עריכת הקישור שולח את ארבעת שדותיו בלבד,
 // ו-PUT שהיה כותב גם doc_id היה **מנתק את הקובץ** בכל שמירת שם או הערה.
+// איפה נפתח העזר הזה - עוקף את העמדה ואת המערכת. '' = ירושה.
+router.patch('/api/preset-links/:id/open-mode', async (req, res) => {
+  try {
+    const raw = String(req.body?.openMode ?? '');
+    const mode = ['window', 'external'].includes(raw) ? raw : '';
+    const { rows } = await pool.query(
+      'UPDATE preset_links SET open_mode = $1 WHERE id = $2 RETURNING id, open_mode', [mode, req.params.id],
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to set open mode' });
+  }
+});
+
 router.patch('/api/preset-links/:id/doc', async (req, res) => {
   try {
     const raw = req.body?.docId;

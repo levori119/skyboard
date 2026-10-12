@@ -1,4 +1,5 @@
 import { tr } from '../../i18n/tr';
+import { ReaderSystemOpenMode } from './ReaderAdmin';
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { API_URL } from '../../config';
 import { sc } from '../../utils/scale';
@@ -3824,6 +3825,11 @@ export const GeneralSettingsManager = () => {
         </div>
         <p style={{ color: '#64748b', fontSize: '12px', margin: '12px 0 0' }}>{tr('offline.failoverBoot')}</p>
         {error && <p style={{ color: '#f87171', fontSize: '12px', margin: '8px 0 0' }}>{tr('offline.failoverSaveFailed')}</p>}
+      </div>
+      {/* איפה נפתח עזר - ברירת המחדל של המערכת. העמדה והעזר הבודד עוקפים אותה */}
+      <div style={{ background: '#1e293b', borderRadius: '10px', padding: '16px 18px', maxWidth: '720px', marginTop: '14px' }}>
+        <div style={{ color: '#e2e8f0', fontSize: '16px', fontWeight: 'bold', marginBottom: '10px' }}>📖 {tr('reader.openModeLabel')}</div>
+        <ReaderSystemOpenMode isAdmin />
       </div>
     </div>
   );

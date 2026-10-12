@@ -162,17 +162,31 @@ export function fitRectToContent(
 
 // ── איפה נפתח קישור ─────────────────────────────────────────────────────────
 
+/** קישור שהוא קובץ בלבד - נבחר בבוחר הקבצים בניהול, בלי כתובת. */
+export function isFileOnlyLink(link: { url?: string | null; doc_id?: number | null }): boolean {
+  return !String(link.url || '').trim() && !!link.doc_id;
+}
+
 /**
- * קישור עמדה נפתח בחלון הקריאה כשזו ההגדרה הפעילה - **או** כשהוא קובץ בלבד
- * (נבחר בבוחר הקבצים בניהול, בלי כתובת). לקובץ כזה אין "אפליקציה חיצונית"
- * שהמפעיל מכיר, ופתיחה בלשונית דפדפן היא בדיוק מה שהחלון בא להחליף.
+ * האם קישור עמדה נפתח בחלון הקריאה. שלוש רמות, הספציפית גוברת (2026-10-12):
+ * **העזר** (`preset_links.open_mode`) > **העמדה** (`reader_open_mode`) > **המערכת**.
+ *
+ * חריג לקובץ בלבד: כשהעזר והעמדה בירושה, הוא נפתח בחלון גם אם המערכת
+ * "חיצונית" - ברירת המחדל של המערכת נועדה לקישורי כתובת (ההתנהגות שהמפעיל
+ * הכיר), ולקובץ שהועלה אין "אפליקציה חיצונית" כזו. הגדרה מפורשת בעזר או
+ * בעמדה מכובדת תמיד.
  */
 export function linkOpensInWindow(
-  effectiveMode: string,
-  link: { url?: string | null; doc_id?: number | null },
+  globalMode: string,
+  presetMode: string | null | undefined,
+  link: { url?: string | null; doc_id?: number | null; open_mode?: string | null },
 ): boolean {
-  if (effectiveMode === 'window') return true;
-  return !String(link.url || '').trim() && !!link.doc_id;
+  if (!String(link.url || '').trim() && !link.doc_id) return false;
+  const explicit = resolveOpenMode('', presetMode ?? '', link.open_mode ?? '');
+  const hasExplicit = ['window', 'external'].includes(String(link.open_mode || '')) || ['window', 'external'].includes(String(presetMode || ''));
+  if (hasExplicit) return explicit === 'window';
+  if (isFileOnlyLink(link)) return true;
+  return resolveOpenMode(globalMode, '', '') === 'window';
 }
 
 /**

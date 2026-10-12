@@ -18603,7 +18603,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 <a href={link.url || (link.doc_id ? `${API_URL}/reader/docs/${link.doc_id}/file` : '')} target="_blank" rel="noreferrer"
                                   title={link.note || link.name}
                                   onClick={async e => {
-                                    if (!readerRef.current?.opensInWindow(link)) return;
+                                    if (!readerRef.current?.handlesLink(link)) return;
                                     // ה-href נלכד לפני ה-await: React מאפס currentTarget
                                     // ברגע שה-handler חוזר, ואז הנפילה החוצה הייתה קורסת
                                     const href = e.currentTarget.href;

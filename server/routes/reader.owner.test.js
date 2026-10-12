@@ -146,3 +146,22 @@ describe('העלאת קובץ - בלי מגבלת גודל של המערכת', (
     expect(r.status).toBe(400);
   });
 });
+
+describe('PUT /api/reader/config - עדכון חלקי', () => {
+  // ההגדרה מוצגת בשני מסכים: "הגדרות כלליות" (איפה נפתח עזר בלבד) ו"חומר
+  // קריאה" (שתיהן). שמירה ממסך אחד אסור שתדרוס את ההגדרה שהוא לא מציג.
+  it('רק openMode נשלח - officeMode לא נכתב', async () => {
+    currentUser = CREW;
+    const r = await json('PUT', '/api/reader/config', { openMode: 'window' });
+    expect(r.status).toBe(200);
+    const writes = calls.filter(c => /INSERT INTO system_defaults/.test(c.sql));
+    expect(writes.map(w => w.params[0])).toEqual(['readerOpenMode']);
+    expect(writes[0].params[1]).toBe('window');
+  });
+  it('שתיהן נשלחות - שתיהן נכתבות', async () => {
+    currentUser = CREW;
+    await json('PUT', '/api/reader/config', { openMode: 'external', officeMode: 'server' });
+    expect(calls.filter(c => /INSERT INTO system_defaults/.test(c.sql)).map(w => w.params[0]).sort())
+      .toEqual(['readerOfficeMode', 'readerOpenMode']);
+  });
+});

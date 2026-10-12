@@ -309,6 +309,22 @@
     "openExternalFailed": {
       "he": "הפתיחה באפליקציה החיצונית נכשלה - אין קשר לשרת, או שאין במחשב תוכנה לסוג הקובץ",
       "en": "Could not open in the external application - no server connection, or no program for this file type"
+    },
+    "openModeLevels": {
+      "he": "זו ברירת המחדל של המערכת. עמדה (בעורך העמדה) ועזר בודד (בשורת הקישור) יכולים לעקוף אותה - הספציפי גובר: עזר, עמדה, מערכת.",
+      "en": "This is the system default. A workstation (in the workstation editor) and a single item (in its link row) can override it - the most specific wins: item, workstation, system."
+    },
+    "linkInherit": {
+      "he": "כמו העמדה",
+      "en": "As workstation"
+    },
+    "linkOpenModeTitle": {
+      "he": "איפה נפתח העזר הזה - גובר על העמדה ועל המערכת",
+      "en": "Where this item opens - overrides the workstation and the system"
+    },
+    "saveFailed": {
+      "he": "השמירה נכשלה",
+      "en": "Save failed"
     }
   }
 }

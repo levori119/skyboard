@@ -445,6 +445,10 @@ async function applySchemaOnce() {
   // נוצר בפתיחה הראשונה), או שהוא נפתח תמיד באפליקציה החיצונית.
   await sq(`ALTER TABLE preset_links ADD COLUMN IF NOT EXISTS doc_id INTEGER REFERENCES reader_docs(id) ON DELETE SET NULL`);
 
+  // איפה נפתח העזר הזה - הרמה הספציפית ביותר (עזר > עמדה > מערכת, 2026-10-12).
+  // '' = ירושה מהעמדה · 'window' = חלון הקריאה · 'external' = האפליקציה החיצונית
+  await sq(`ALTER TABLE preset_links ADD COLUMN IF NOT EXISTS open_mode VARCHAR(20) NOT NULL DEFAULT ''`);
+
   // עקיפה פר-עמדה של ההגדרה הגלובלית `readerOpenMode`.
   // '' = ירושה מהמערכת · 'window' = חלון הקריאה · 'external' = האפליקציה החיצונית
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS reader_open_mode VARCHAR(20) NOT NULL DEFAULT ''`);
