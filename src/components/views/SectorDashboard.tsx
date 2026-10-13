@@ -40,6 +40,7 @@ import { geoToImagePct, imagePctToGeo, fmtDms, buildGeoAnchor as getAnchorFromMa
 import { listAtsimMaps, loadAtsimMapImage, atsimAnchor, revokeAtsimMapImage, type AtsimMap } from '../../airPicture/atsimMaps';
 import { computeTransferEta, stripSavedGeo, stripPinGeo, transferPointGeo, closestGeoOnPolygon, haversineNm, type GeoPoint, type AutoEta } from '../../utils/eta';
 import { zoneAtPoint, zoneAtPointOrEdge, zoneAtEdgeOnly, pointInPolygon } from '../../utils/zoneHit';
+import { DEFAULT_ZONE_NAME_BRIGHTNESS, estimateTextWidth, interiorLabelPoint, isZoneNameBrightness, lightenHex, nextZoneNameBrightness, zoneNameFill, type ZoneNameBrightness } from '../../utils/zoneLabel';
 import { assignmentRestriction, bandRestricted, bandRestrictionKind, bandLabel, closedForAllBands, openBands, restrictedBandIds, zoneRestrictionOf, isRestricted, restrictionCoversAllAltitudes, restrictionRangeLabel, type ZoneRestriction } from '../../utils/zoneRestriction';
 // `numericStripId` מיובא בשם אחר: בקובץ יש כמה `const numericStripId` מקומיים
 // (הקצאת אזור), והצללה שלהם הייתה הופכת קריאה לפונקציה לקריאה למספר.
@@ -890,6 +891,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [fzZoneNotes, setFzZoneNotes] = useState<Record<number, string>>({});
   // Split multi-altitude zones into horizontal bands (north=high → south=low). Global toggle.
   const [fzSplitByAlt, setFzSplitByAlt] = useState(false);
+  // בהירות שם האזור על המפה (חלש/רגיל/בהיר). ברירת המחדל חלשה - בגוון הגבול
+  // האפור - כדי שהשמות לא יצעקו מעל המפה. נשמר בדפדפן: העדפת תצוגה של המפעיל.
+  const [fzZoneNameBrightness, setFzZoneNameBrightness] = useState<ZoneNameBrightness>(() => {
+    try { const v = localStorage.getItem('skyking.zoneNameBrightness'); return isZoneNameBrightness(v) ? v : DEFAULT_ZONE_NAME_BRIGHTNESS; }
+    catch { return DEFAULT_ZONE_NAME_BRIGHTNESS; }
+  });
+  useEffect(() => { try { localStorage.setItem('skyking.zoneNameBrightness', fzZoneNameBrightness); } catch { /* אין אחסון - נשאר לסשן */ } }, [fzZoneNameBrightness]);
   // תפריט האזור: בלוקי גובה פעילים, הערה, ומצב האזור (סגור/מוגבל) + טווח הגבהים
   // שלו. נפתח ב**לחיצה על קו האזור** (הפקד שעובד בעט ובאצבע), וגם בקליק ימני.
   const [fzZoneMenu, setFzZoneMenu] = useState<{
@@ -3289,7 +3297,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // מציירת אזור, ושבו מצוירים תת-האזורים של "פצל לגבהים". ההדגשה (סינון,
   // הבהוב, אזור נבחר) נשענת על ה**מסגרת** בלבד - ולכן היא חייבת רקע ניטרלי.
   const ZONE_NEUTRAL_STROKE = (light: boolean) => light ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.55)';
-  const ZONE_NEUTRAL_TEXT = (light: boolean) => light ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.7)';
+  // שם אזור לא מודגש - לפי בורר הבהירות בסרגל (ברירת מחדל: חלש, בגוון הגבול)
+  const ZONE_NEUTRAL_TEXT = (light: boolean) => zoneNameFill(light, fzZoneNameBrightness);
+  // תווית אזור סגור/מוגבל: **בהירה** יותר מצבע הסטטוס על רקע כהה, כדי שתיקרא
+  // מעל המפה. הגוון נשמר (אדום/כתום), ובתמה בהירה הצבע המקורי כבר כהה מספיק.
+  const ZONE_RESTRICTION_TEXT = (r: 'closed' | 'restricted') => lightMode ? ZONE_RESTRICTION_COLOR[r] : lightenHex(ZONE_RESTRICTION_COLOR[r], 0.45);
+  // הילה סביב טקסט סטטוס: מפרידה אותו מהמפה שמתחתיו בלי להעבות את הגופן
+  const ZONE_LABEL_HALO = lightMode ? 'rgba(255,255,255,0.85)' : 'rgba(2,6,23,0.85)';
   const ZONE_NEUTRAL_WIDTH = (light: boolean) => light ? 0.5 : 0.35;
   const ZONE_NEUTRAL_FILL = (light: boolean) => light ? 'rgba(0,0,0,0.06)' : 'none';
   // שם אזור לא מודגש נקרא **דק ועדין**, באותה טיפוגרפיה של המפה העיוורת: הגודל
@@ -3472,9 +3486,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         {restrAll && <polygon points={pts.map(q => `${q.x},${q.y}`).join(' ')} fill="none" stroke={restrColor} strokeWidth="0.9" strokeDasharray="2.5,1.5" />}
         {/* המגבלה יושבת בראש האזור ולא במרכזו: במרכז נמצאת תווית תת-האזור האמצעי,
             והשתיים היו נופלות אחת על השנייה */}
-        {(limit || restr !== '') && <text x={cx} y={Math.min(...pts.map(p => p.y)) + 1.8} textAnchor="middle" dominantBaseline="middle" fill={restr !== '' ? restrColor : '#fca5a5'} fontSize="1.6" fontWeight={ZONE_STATUS_WEIGHT} letterSpacing="0.05" style={{ userSelect: 'none' }}>
-          {[restr !== '' ? `${restr === 'closed' ? '⛔' : '⚠'} ${bidiAuto(restrLabel)}` : '', limit ? `⚠ ${bidiAuto(limit)}` : ''].filter(Boolean).join(' · ')}
-        </text>}
+        {(limit || restr !== '') && (() => {
+          const txt = [restr !== '' ? `${restr === 'closed' ? '⛔' : '⚠'} ${bidiAuto(restrLabel)}` : '', limit ? `⚠ ${bidiAuto(limit)}` : ''].filter(Boolean).join(' · ');
+          // נקודה **בתוך** האזור, קרובה לראשו: בראש משולש או אזור קעור ממוצע
+          // הקודקודים בגובה הזה נופל מחוץ לקו והתווית נקראה כשייכת לשכן.
+          const lp = interiorLabelPoint(pts, Math.min(...pts.map(p => p.y)) + 1.8, estimateTextWidth(txt, 1.6));
+          return (
+            <text x={lp.x} y={lp.y} textAnchor="middle" dominantBaseline="middle" fill={restr !== '' ? ZONE_RESTRICTION_TEXT(restr) : '#fca5a5'} fontSize="1.6" fontWeight={ZONE_STATUS_WEIGHT} letterSpacing="0.05"
+              stroke={ZONE_LABEL_HALO} strokeWidth={0.35} paintOrder="stroke" strokeLinejoin="round" style={{ userSelect: 'none' }}>
+              {txt}
+            </text>
+          );
+        })()}
       </>);
     }
     // ── הגוש כולו ממורכז ────────────────────────────────────────────────────
@@ -3482,6 +3505,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     // כלפי מעלה/מטה סביב המרכז, במקום שהשם יישאר במרכז וההגבלה תיתלה מעליו
     // ותיחתך על גבול האזור. בלי הגבלה דבר לא זז.
     const nameDy = restr !== '' ? 1.1 : 0;
+    // עוגן התוויות **בתוך** האזור. באזור רגיל זה ממוצע הקודקודים ודבר לא זז;
+    // באזור קעור (L, פרסה) הממוצע בחוץ, והתוויות עוברות לשורה הקרובה שיש בה מקום.
+    {
+      const lw = Math.max(estimateTextWidth(zone.name, dimmed ? ZONE_NEUTRAL_NAME_SIZE : 2.5), restr !== '' ? estimateTextWidth(`⚠ ${restrLabel}`, 1.7) : 0);
+      const lp = interiorLabelPoint(pts, cy, lw);
+      cx = lp.x; cy = lp.y;
+    }
     return (<>
       <text x={cx} y={cy + nameDy} textAnchor="middle" dominantBaseline="middle" fill={nameFill} fontSize={dimmed ? ZONE_NEUTRAL_NAME_SIZE : 2.5} fontWeight={dimmed ? 'normal' : 'bold'} style={{ userSelect: 'none' }}>{bidiAuto(zone.name)}{note ? ' ✎' : ''}</text>
       {note && <text x={cx} y={cy + nameDy + 3} textAnchor="middle" dominantBaseline="middle" fill={noteFill} fontSize="1.8" style={{ userSelect: 'none' }}>{bidiAuto(note)}</text>}
@@ -3490,7 +3520,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           בו סגירה, והטווח עצמו כתוב בתווית שמתחת לשם. */}
       {restr !== '' && <polygon points={pts.map(q => `${q.x},${q.y}`).join(' ')} fill={`${restrColor}1f`} stroke={restrColor} strokeWidth="0.9" strokeDasharray="2.5,1.5" />}
       {restr !== '' && (
-        <text x={cx} y={cy - 1.6} textAnchor="middle" dominantBaseline="middle" fill={restrColor} fontSize="1.7" fontWeight={ZONE_STATUS_WEIGHT} letterSpacing="0.06" style={{ userSelect: 'none' }}>
+        <text x={cx} y={cy - 1.6} textAnchor="middle" dominantBaseline="middle" fill={ZONE_RESTRICTION_TEXT(restr)} fontSize="1.7" fontWeight={ZONE_STATUS_WEIGHT} letterSpacing="0.06"
+          stroke={ZONE_LABEL_HALO} strokeWidth={0.35} paintOrder="stroke" strokeLinejoin="round" style={{ userSelect: 'none' }}>
           {restr === 'closed' ? '⛔' : '⚠'} {bidiAuto(restrLabel)}
         </text>
       )}
@@ -9157,6 +9188,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 style={{ padding: '2px 10px', borderRadius: '5px', border: `1px solid ${fzSplitByAlt ? '#a855f7' : '#334155'}`, background: fzSplitByAlt ? '#3b0764' : '#1e293b', color: fzSplitByAlt ? '#e9d5ff' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
                 ⇅ {tr('ctrl.splitByAltitude')}
               </button>
+              {/* בהירות שמות האזורים: מחזור חלש -> רגיל -> בהיר. ברירת המחדל
+                  חלשה, בגוון הגבול האפור; משפיע על השמות הניטרליים בלבד - שם
+                  מודגש או מהבהב שומר על צבעו. */}
+              <button onClick={() => setFzZoneNameBrightness(nextZoneNameBrightness)}
+                data-zone-name-brightness={fzZoneNameBrightness}
+                title={tr('ctrl.zoneNameBrightnessHint')}
+                style={{ padding: '2px 10px', borderRadius: '5px', border: `1px solid ${fzZoneNameBrightness !== 'dim' ? '#e2e8f0' : '#334155'}`, background: fzZoneNameBrightness === 'bright' ? '#334155' : '#1e293b', color: fzZoneNameBrightness === 'dim' ? '#94a3b8' : '#f8fafc', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                ☀ {tr('ctrl.zoneNameBrightness')}: {tr(fzZoneNameBrightness === 'dim' ? 'ctrl.zoneNameBrightnessDim' : fzZoneNameBrightness === 'normal' ? 'ctrl.zoneNameBrightnessNormal' : 'ctrl.zoneNameBrightnessBright')}
+              </button>
               {/* תפוס/פנוי הם **הדגשה** ולא סינון, והם הדדיים: 'all' פירושו "בלי
                   הדגשה", ולכן לחיצה על הפעיל מחזירה אליו ולחיצה על השני מחליפה. */}
               {(['occupied','free'] as const).map(f => (
@@ -10004,14 +10044,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <svg data-zone-layer="" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 2 }}>
                 {mapZones.filter(z => z.enabled !== false && !drawnAbove.has(z.id)).map(zone => ({ zone, zpts: zoneImagePts(zone, mapGeoAnchor) })).filter(d => d.zpts.length >= 3).map(({ zone, zpts }) => {
                   const pts = zpts.map(p => `${p.x},${p.y}`).join(' ');
-                  const cx = zpts.reduce((s, p) => s + p.x, 0) / zpts.length;
                   const cy = zpts.reduce((s, p) => s + p.y, 0) / zpts.length;
                   const strokeColor = ZONE_NEUTRAL_STROKE(lightMode);
                   const textColor = ZONE_NEUTRAL_TEXT(lightMode);
                   return (
                     <g key={zone.id}>
                       <polygon points={pts} fill={ZONE_NEUTRAL_FILL(lightMode)} fillOpacity={1} stroke={strokeColor} strokeWidth={ZONE_NEUTRAL_WIDTH(lightMode)} strokeOpacity={1} strokeDasharray="none" />
-                      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={textColor} fontSize={ZONE_NEUTRAL_NAME_SIZE} fontWeight="normal" style={{ userSelect: 'none' }}>{bidiAuto(zone.name)}</text>
+                      {(() => { const lp = interiorLabelPoint(zpts, cy, estimateTextWidth(zone.name, ZONE_NEUTRAL_NAME_SIZE)); return (
+                      <text x={lp.x} y={lp.y} textAnchor="middle" dominantBaseline="middle" fill={textColor} fontSize={ZONE_NEUTRAL_NAME_SIZE} fontWeight="normal" style={{ userSelect: 'none' }}>{bidiAuto(zone.name)}</text>
+                      ); })()}
                     </g>
                   );
                 })}
@@ -10203,7 +10244,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 נוחת נכון גם על המפה השנייה בתצוגה כפולה - אותו מרחב, שתי
                 תמונות שונות. */}
             {mapImgBounds && mapGeoAnchor && seizure.active.length > 0 && (
-              <SeizureLayer bounds={mapImgBounds} seizures={seizure.active} anchor={mapGeoAnchor}
+              <SeizureLayer bounds={mapImgBounds} seizures={seizure.active} anchor={mapGeoAnchor} light={lightMode}
                 onOpen={sz => openSeizureDetails(sz)} />
             )}
             {/* פקד הציור - רק על המפה **הראשית**, זו שהטופס גוזר ממנה את הנ"צ */}

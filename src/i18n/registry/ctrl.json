@@ -2557,6 +2557,26 @@
     "conflictsMuteHint": {
       "he": "משתיק את ההבהוב בלבד - הסימון ק (אדום/כתום/ירוק) נשאר",
       "en": "Silences the flashing only - the marker stays"
+    },
+    "zoneNameBrightness": {
+      "he": "שמות אזורים",
+      "en": "Zone names"
+    },
+    "zoneNameBrightnessHint": {
+      "he": "בהירות שמות האזורים על המפה - לחיצה מחליפה: חלש, רגיל, בהיר",
+      "en": "Brightness of zone names on the map - click to cycle: dim, normal, bright"
+    },
+    "zoneNameBrightnessDim": {
+      "he": "חלש",
+      "en": "Dim"
+    },
+    "zoneNameBrightnessNormal": {
+      "he": "רגיל",
+      "en": "Normal"
+    },
+    "zoneNameBrightnessBright": {
+      "he": "בהיר",
+      "en": "Bright"
     }
   }
 }

@@ -25,6 +25,7 @@ import React from 'react';
 import { tr } from '../../i18n/tr';
 import { bidiAuto } from '../../utils/bidi';
 import { seizureRangeLabel } from '../../utils/tempZoneSeizure';
+import { estimateTextWidth, interiorLabelPoint, lightenHex } from '../../utils/zoneLabel';
 import { projectSeizure } from './useTempZoneSeizures';
 import type { MapGeoAnchor } from '../../utils/geo';
 import type { TempZoneSeizure } from '../../types';
@@ -37,6 +38,8 @@ interface Props {
   /** לחיצה על קו המרחב או על תוויתו - פותחת את פרטי ההלאמה. */
   onOpen?: (s: TempZoneSeizure) => void;
   zIndex?: number;
+  /** תמה בהירה: התווית נשארת בצבע ההלאמה. בתמה כהה היא מובהרת. */
+  light?: boolean;
 }
 
 /**
@@ -57,14 +60,17 @@ export const SEIZURE_STROKE_W = 0.5;
 /**
  * משקל התווית. **דק בכוונה**: התווית יושבת מעל המפה ומעל שם האזור שמתחתיה,
  * ומשקל כבד הופך אותה מסימון למסך שמכסה את מה שהיא אמורה לתאר. הצבע והמיקום
- * נושאים את המשמעות - לא העובי.
+ * נושאים את המשמעות - לא העובי. הבהירות מגיעה מ**גוון מובהר והילה**, לא מעובי.
  */
 export const SEIZURE_LABEL_WEIGHT = 300;
+/** כמה מבהירים את צבע ההלאמה בתווית על רקע כהה (0..1). */
+export const SEIZURE_LABEL_LIGHTEN = 0.45;
 
 /** רוחב קו התפיסה הבלתי-נראה. אצבע על Cintiq אינה מדייקת לרוחב 0.9. */
 const HIT_WIDTH = 3.2;
 
-export default function SeizureLayer({ bounds, seizures, anchor, onOpen, zIndex = 4 }: Props) {
+export default function SeizureLayer({ bounds, seizures, anchor, onOpen, zIndex = 4, light = false }: Props) {
+  const halo = light ? 'rgba(255,255,255,0.85)' : 'rgba(2,6,23,0.85)';
   const drawable = seizures
     .map(s => ({ s, pts: projectSeizure(s, anchor) }))
     .filter(d => d.pts.length >= 3);
@@ -78,11 +84,15 @@ export default function SeizureLayer({ bounds, seizures, anchor, onOpen, zIndex 
       }}>
       {drawable.map(({ s, pts }) => {
         const poly = pts.map(p => `${p.x},${p.y}`).join(' ');
-        const cx = pts.reduce((a, p) => a + p.x, 0) / pts.length;
-        // התווית יושבת ב**מרכז** המרחב ולא בראשו: בראש היא נחתכת על גבול
-        // הפוליגון וגולשת אל מחוץ לו, ובמרכז היא נקראת כשייכת למרחב שהיא מתארת.
-        const cy = pts.reduce((a, p) => a + p.y, 0) / pts.length;
         const range = seizureRangeLabel(s);
+        // התווית יושבת **בתוך** המרחב: במרכזו כשהוא בפנים, ואחרת בשורה הקרובה
+        // שיש בה מקום לשתי השורות. מרחב מצויר ביד הוא לעיתים קעור, וממוצע
+        // הקודקודים שלו נפל מחוץ לקו - והתווית נקראה כשייכת לאזור השכן.
+        const line1 = `⛶ ${s.name}`;
+        const line2 = `${range || tr('seizure.allAlts')} · ${s.creator_preset_name ?? ''}`;
+        const { x: cx, y: cy } = interiorLabelPoint(pts, undefined,
+          Math.max(estimateTextWidth(line1, 2), estimateTextWidth(line2, 1.45)));
+        const labelFill = light ? s.color : lightenHex(s.color, SEIZURE_LABEL_LIGHTEN);
         // ⚠️ `pointerdown` ולא `click`: בעט ובאצבע ה-click המסונתז נבלע כשהמצביע
         // זז מעט בין הירידה לעלייה, והלחיצה פשוט "לא נתפסת".
         const open = onOpen
@@ -104,13 +114,15 @@ export default function SeizureLayer({ bounds, seizures, anchor, onOpen, zIndex 
             {/* שתי השורות מאוזנות סביב המרכז, ולכן הגוש כולו ממורכז - ולא השורה
                 הראשונה בלבד עם השנייה תלויה מתחתיה. */}
             <text x={cx} y={cy - 1.15} textAnchor="middle" dominantBaseline="middle"
-              fill={s.color} fontSize="2" fontWeight={SEIZURE_LABEL_WEIGHT} letterSpacing="0.06"
+              fill={labelFill} fontSize="2" fontWeight={SEIZURE_LABEL_WEIGHT} letterSpacing="0.06"
+              stroke={halo} strokeWidth={0.4} paintOrder="stroke" strokeLinejoin="round"
               onPointerDown={open}
               style={{ userSelect: 'none', pointerEvents: open ? 'all' : 'none', cursor: open ? 'pointer' : 'default' }}>
               ⛶ {bidiAuto(s.name)}
             </text>
             <text x={cx} y={cy + 1.35} textAnchor="middle" dominantBaseline="middle"
-              fill={s.color} fontSize="1.45" fontWeight={SEIZURE_LABEL_WEIGHT} letterSpacing="0.04"
+              fill={labelFill} fontSize="1.45" fontWeight={SEIZURE_LABEL_WEIGHT} letterSpacing="0.04"
+              stroke={halo} strokeWidth={0.3} paintOrder="stroke" strokeLinejoin="round"
               style={{ userSelect: 'none' }}>
               {bidiAuto(range || tr('seizure.allAlts'))} · {bidiAuto(s.creator_preset_name)}
             </text>
