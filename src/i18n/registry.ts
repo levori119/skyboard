@@ -43,12 +43,13 @@ import undo from './registry/undo.json';
 import vertical from './registry/vertical.json';
 import weather from './registry/weather.json';
 import zoneWatch from './registry/zoneWatch.json';
+import actions from './registry/actions.json';
 
 export type RegistryEntry = { he: string; en: string };
 export type RegistryGroup = { _group: string; _note?: string; keys: Record<string, RegistryEntry> };
 
 export const REGISTRY: Record<string, RegistryGroup> = {
-  admin, airDefense, airPicture, blocks, classic, crew, ctrl, dashboard, dataWindows, dock, env, flow,
+  actions, admin, airDefense, airPicture, blocks, classic, crew, ctrl, dashboard, dataWindows, dock, env, flow,
   ground, help, joining, links, map, misc, missiondesk, offline, pattern, pattern3d, permits, query, reader, screenRec, seizure, shared, strips, suggest, sync, transfers, trips, undo, vertical, weather, zoneWatch,
 } as unknown as Record<string, RegistryGroup>;
 

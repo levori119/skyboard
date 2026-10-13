@@ -3,6 +3,7 @@ import pool from '../db/pool.js';
 import { captureChange } from '../gapi/hooks.js';
 import { sanitizeRichText } from '../../shared/sanitizeHtml.js';
 import { readFailover, writeFailover } from '../sync/failoverFlag.js';
+import { HIDDEN_ACTIONS_KEY, parseHiddenActions } from '../../shared/hiddenActions.js';
 const router = new Router();
 
 // --- Serials API ---
@@ -635,6 +636,38 @@ router.put('/api/station/failover', async (req, res) => {
     ).catch(() => {});
     res.json({ enabled });
   } catch { res.status(500).json({ error: 'Failed to save failover flag' }); }
+});
+
+// ── הסתרת כפתורים ופעולות ────────────────────────────────────────────────────
+// דגל כלל-מערכתי לכל כפתור בקטלוג (shared/hiddenActions.js). כל עמדה קוראת אותו
+// בעלייה ובסקר תקופתי (useHiddenActions). נשמר ב-system_defaults, שכבר עוברת
+// במראה - ולכן עמדה בנתק מסתירה את מה שהמרכז קבע לאחרונה.
+router.get('/api/system/hidden-actions', async (_req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    const { rows } = await pool.query(`SELECT value FROM system_defaults WHERE key = $1`, [HIDDEN_ACTIONS_KEY]);
+    res.json({ hidden: parseHiddenActions(rows[0]?.value) });
+  } catch { res.status(500).json({ error: 'Failed to read hidden actions' }); }
+});
+
+router.put('/api/system/hidden-actions', async (req, res) => {
+  if (!Array.isArray(req.body?.hidden)) return res.status(400).json({ error: 'hidden חייב להיות מערך' });
+  const hidden = parseHiddenActions(req.body.hidden);
+  try {
+    await pool.query(
+      `INSERT INTO system_defaults (key, value, updated_at) VALUES ($1, $2, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+      [HIDDEN_ACTIONS_KEY, JSON.stringify(hidden)],
+    );
+    // שינוי כלל-מערכתי - נרשם ביומן הפעילות עם מי ששינה
+    await pool.query(
+      `INSERT INTO activity_log (event_type, severity, crew_member_id, crew_member_name, details)
+       VALUES ('system_setting', 'high', $1, $2, $3)`,
+      [req.user?.crewMemberId ?? null, req.user?.name ?? null,
+        JSON.stringify({ key: HIDDEN_ACTIONS_KEY, hidden })],
+    ).catch(() => {});
+    res.json({ hidden });
+  } catch { res.status(500).json({ error: 'Failed to save hidden actions' }); }
 });
 
 // ── יחידות ─────────────────────────────────────────────────────────────────

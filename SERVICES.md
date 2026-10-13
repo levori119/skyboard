@@ -849,6 +849,9 @@ DB מנוהל היה נופל יחד עם העמדה.
 **תפקיד:** המודל של **קונטיינר החלונות** — אילו חלונות צפים מעוגנים, באיזה סדר, ומה רוחב העמודה. מקור-אמת יחיד עם pub/sub, כי החלונות מפוזרים על עשרה קבצים ועומק עץ שונה. שומר ל-`localStorage` פר-עמדה (ממוטמן — `dockLoad` נקרא ברינדור של כל חלון). בדיקת הפגיעה עובדת על `clientX/clientY` **גולמיים** — הם ו-`getBoundingClientRect` כבר באותן יחידות אחרי `zoom: var(--s)`.
 **מייצא:** `setDockPreset`, `setDockEnabled`, `isDockEnabled`, `registerDockable`, `registerDockZone`, `setDockSlotEl`, `getDockSlotEl`, `dockLoad`, `dockPut`, `dockRemove`, `dockSetWidth`, `dockPlace`, `dockInsertIndex`, `dockInsertIndexGrid`, `dockHitTest`, `beginDockDrag`, `isDocked`, `clampToViewport`, `dockSetPosition`, `dockColumns`, `DOCK_POSITION_ORDER`, `DOCK_POSITIONS`, `DOCK_COL_WIDTH`, `DockPosition`, `DOCKED_ROOT_STYLE`, `DOCK_MIN_WIDTH`/`DOCK_MAX_WIDTH`/`DOCK_DEFAULT_WIDTH`.
 
+### `src/hooks/useHiddenActions.ts` + `shared/hiddenActions.js`
+**תפקיד:** הסתרה גורפת של כפתורים ופעולות בכל העמדות. `shared/hiddenActions.js` הוא **הקטלוג** - כל כפתור של העמדה (סרגל עליון, תפריטי משתמש/יצירה/תצוגה/הגדרות, השתקת התראות) עם id וקבוצה; התוויות ב-`src/i18n/registry/actions.json`. המנהל מכבה ב"הגדרות כלליות" (`HiddenActionsSection`), נשמר ב-`system_defaults` (`hiddenActions`, מערך JSON), והעמדה קוראת בסקר משותף כל 30 ש' ומיד ב"רענן הגדרות". ההסתרה רק מורידה (נוספת על תנאי העמדה). יציאה מהמערכת ותפריטי תצוגה/הגדרות עצמם לא בקטלוג, בכוונה. **מייצא:** `useHiddenActions()` -> `show(id)`, `refreshHiddenActions()`; ב-shared: `ACTIONS`, `ACTION_GROUPS`, `HIDDEN_ACTIONS_KEY`, `parseHiddenActions`.
+
 ### `src/hooks/useDockableWindow.ts`
 **תפקיד:** הופך חלון צף לחלון שאפשר לדחוף לקונטיינר, בשלושה שינויים בלבד בחלון עצמו (`rootStyle` על השורש, `onHeaderPointerDown` על הידית, `render` על ההחזרה). החלון נשאר **במקומו בעץ הרכיבים** — רק היעד ב-DOM מתחלף (`createPortal`), ולכן חלון שהיה באמצע עריכה לא מאבד את מה שהוקלד בו.
 **מייצא:** `useDockableWindow(id, title, opts)` (default), `DockableWindow` (רכיב render-prop לחלונות שנולדים ב-`map()`), `Dockable`, `DockableOptions`.
@@ -1606,6 +1609,8 @@ POST /api/bdh/:id/items
 POST /api/defaults
 GET /api/station/failover
 PUT /api/station/failover
+GET /api/system/hidden-actions
+PUT /api/system/hidden-actions
 POST /api/serials/import
 POST /api/strip-serial-dismissals
 POST /api/strip-serial-selections

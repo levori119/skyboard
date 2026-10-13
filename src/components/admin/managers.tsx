@@ -1,5 +1,6 @@
 import { tr } from '../../i18n/tr';
 import { ReaderSystemOpenMode } from './ReaderAdmin';
+import { HiddenActionsSection } from './HiddenActionsSection';
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { API_URL } from '../../config';
 import { sc } from '../../utils/scale';
@@ -3831,6 +3832,8 @@ export const GeneralSettingsManager = () => {
         <div style={{ color: '#e2e8f0', fontSize: '16px', fontWeight: 'bold', marginBottom: '10px' }}>📖 {tr('reader.openModeLabel')}</div>
         <ReaderSystemOpenMode isAdmin />
       </div>
+      {/* כפתורים ופעולות - הסתרה גורפת בכל העמדות (shared/hiddenActions.js) */}
+      <HiddenActionsSection />
     </div>
   );
 };

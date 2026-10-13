@@ -103,6 +103,7 @@ import HelpSpotlight from '../shared/HelpSpotlight';
 import type { HelpContext } from '../../utils/helpTopics';
 import { captureStation } from '../../utils/stationSnapshot';
 import { useScreenRecorder } from '../../hooks/useScreenRecorder';
+import { useHiddenActions, refreshHiddenActions } from '../../hooks/useHiddenActions';
 import ScreenshotButton from '../shared/ScreenshotButton';
 import { CRITICAL_BLINK_CLASS } from '../../utils/signalSeverity';
 import { recordingPathRoot } from '../../../shared/screenRecording';
@@ -4291,6 +4292,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const parentBaseId: number | null = myPresetConfig?.parent_base_id ? Number(myPresetConfig.parent_base_id) : null;
   // הקלטת פעולות במסך (SCREEN_RECORDING_SPEC.md). הנתיב מוגדר פר-בסיס
   // בניהול הטכני, ולכן העמדה מוסרת את הבסיס שלה ולא נתיב.
+  // כפתורים שהמנהל הסתיר בהגדרות כלליות - בכל העמדות (shared/hiddenActions.js)
+  const show = useHiddenActions();
   const screenRec = useScreenRecorder({
     baseId: parentBaseId,
     presetName: session.workstationName || '',
@@ -5621,6 +5624,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const refreshWorkstation = async () => {
     if (refreshing) return;
     setRefreshing(true);
+    void refreshHiddenActions();
     let ok = true;
     const mapId = currentMapId;
     try {
@@ -11717,7 +11721,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
             )}
             {/* צילום מסך - לחיצה אחת, PNG ב-Downloads בשם העמדה + תאריך ושעה */}
-            <ScreenshotButton station={session.workstationName} style={{ padding: '2px 7px', fontSize: '13px' }} />
+            {show('screenshot') && <ScreenshotButton station={session.workstationName} style={{ padding: '2px 7px', fontSize: '13px' }} />}
             {/* חיווי הקלטה - גלוי כל זמן שהמסך מוקלט. מסך שמוקלט
                 בלי שהיושב בו יודע הוא בעיה, ולכן זה חלק מהפיצר ולא קישוט. */}
             {screenRec.state.recording && (
@@ -11750,30 +11754,33 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <div style={{ padding: '6px 12px', fontSize: '10px', color: menuMuted, borderBottom: `1px solid ${menuBorder}` }}>
                       {session.crewMember ? session.crewMember.name : 'אין משתמש מחובר'}
                     </div>
-                    <button
+                    {show('switchUser') && <button
                       onClick={() => { loadCrewMembers(); setShowCrewSwap(true); setShowUserMenu(false); }}
                       style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#fbbf24','#b45309'), cursor: 'pointer', fontSize: '13px' }}
                       onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                       onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                     >
                       {tr('ctrl.switchUser')}
-                    </button>
-                    <button
+                    </button>}
+                    {show('updateCrew') && <button
                       onClick={() => { setShowCrewForm(true); setShowUserMenu(false); }}
                       style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#7dd3fc','#0369a1'), cursor: 'pointer', fontSize: '13px' }}
                       onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                       onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                     >
                       {tr('ctrl.updateStationCrew')}
-                    </button>
-                    <button
+                    </button>}
+                    {show('debrief') && <button
                       onClick={() => { setShowUserMenu(false); void openDebrief(); }}
                       style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#fdba74','#c2410c'), cursor: 'pointer', fontSize: '13px' }}
                       onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                       onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                     >
                       {tr('ctrl.createDebrief')}
-                    </button>
+                    </button>}
+                    {/* הסתרת הקלטת המסך מורידה רק את הפקדים - ההקלטה האוטומטית
+                        וחיווי "מוקלט" בסרגל ממשיכים כרגיל (SCREEN_RECORDING_SPEC). */}
+                    {show('screenRecording') && (<>
                     {/* הקלטת מסך: מצב, התחל/עצור ו"שמור את הקטע הזה".
                         כשאי-אפשר להקליט מוצגת **הסיבה** ולא כפתור דומם - כפתור
                         שנדלק בלי שקורה משהו נראה למפעיל כמו פיצ׳ר שבור. */}
@@ -11858,14 +11865,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         {tr('screenRec.start')}
                       </button>
                     )}
-                    <button
+                    </>)}
+                    {show('handwritingCalibration') && <button
                       onClick={() => { setShowCalibration(true); setShowUserMenu(false); }}
                       style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#86efac','#15803d'), cursor: 'pointer', fontSize: '13px' }}
                       onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                       onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                     >
                       {tr('ctrl.handwritingCalibration')}
-                    </button>
+                    </button>}
                     <div style={{ borderTop: `1px solid ${menuBorder}` }}>
                       <button
                         onClick={() => { if (session.presetId) { fetch(`${API_URL}/signals/adhoc/${session.presetId}`, { method: 'DELETE' }).catch(() => {}); void closeStationSession(Number(session.presetId), 'logout'); } onLogout(); }}
@@ -12123,7 +12131,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         {/* חיפוש או"ק הוסר מהסרגל העליון (לבקשת המשתמש) */}
         <div style={{ order: 2, display: 'flex', flexWrap: 'wrap', rowGap: '6px', gap: '6px', alignItems: 'center', marginInlineStart: 'auto' }}>
           {/* כפתור כל המכלול — פ"ממים, לא רלוונטי לדסק משימה */}
-          {myPresetConfig?.show_full_picture && !isMissionDeskMode && (
+          {myPresetConfig?.show_full_picture && !isMissionDeskMode && show('fullPicture') && (
             <button
               data-help="fullPicture"
               onClick={() => setShowFullPicture(v => !v)}
@@ -12133,7 +12141,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           )}
           {/* כפתור עומס הועבר לתפריט "תצוגה" (לבקשת המשתמש) */}
           {/* כפתור זיהוי קולי — אומר גובה לסטריפ, לא רלוונטי לדסק משימה */}
-          {!isMissionDeskMode && (
+          {!isMissionDeskMode && show('voice') && (
           <button
             data-help="voice"
             onClick={startVoiceAlt}
@@ -12152,7 +12160,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           >{voiceListening ? tr('ctrl.voiceListening') : voiceTranscribing ? tr('ctrl.voiceTranscribingShort') : tr('ctrl.voice')}</button>
           )}
           {/* כפתור דש בורד מנהל */}
-          {myPresetConfig?.show_dashboard && (
+          {myPresetConfig?.show_dashboard && show('dashboard') && (
             <button
               data-help="dashboard"
               onClick={() => setShowAdminDashboard(true)}
@@ -12163,7 +12171,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </button>
           )}
           {/* כפתור אחד/פצל — גלוי רק במוד מפה */}
-          {!isClassicMode && !isGroundMode && !isMissionDeskMode && !tableMode && (
+          {!isClassicMode && !isGroundMode && !isMissionDeskMode && !tableMode && show('mergeSplit') && (
             <button
               data-help="mergeSplitStrip"
               onClick={() => setMapSplitMergeMode(v => !v)}
@@ -12173,7 +12181,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           )}
           {/* תפריט יצירה — מסגרת ליצירות ad-hoc. כרגע: נקודת העברה זמנית בין 2 עמדות
               (נקודות העברה לא רלוונטיות לדסק משימה) */}
-          {!isMissionDeskMode && (
+          {/* מוסתר בניהול - אבל בקשה של עמדה אחרת שמחכה לאישורי, או הלאמה שאני
+              מנהל, עדיין צריכות דרך פנימה: אחרת הן תקועות בלי שאיש יכול לטפל */}
+          {!isMissionDeskMode && (show('createMenu') || provPendingForMe.length > 0 || seizure.myCreated.length > 0) && (
           <div style={{ position: 'relative' }}>
             <button
               data-help="createMenu"
@@ -12187,17 +12197,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 <div onClick={() => setShowCreateMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
                 <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', zIndex: 3000, minWidth: '230px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: dir, overflow: 'hidden' }}
                   onClick={e => e.stopPropagation()}>
-                  <button onClick={() => { setShowProvDialog(true); setShowCreateMenu(false); }}
+                  {show('provPoint') && <button onClick={() => { setShowProvDialog(true); setShowCreateMenu(false); }}
                     style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#86efac', '#15803d'), cursor: 'pointer', fontSize: '13px' }}
                     onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                     onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                  >➕ {tr('ctrl.createProvPoint')}</button>
+                  >➕ {tr('ctrl.createProvPoint')}</button>}
                   {/* ── הלאם אזור זמני ──────────────────────────────────────
                       שלושה תנאים: הרשאת העמדה · מוד מפה · **מפה מעוגנת**.
                       כשהמפה אינה מעוגנת הכפתור מוצג ומושבת **עם נימוק** ולא
                       נעלם ולא נדלק לריק - פקד שנדלק בלי שקורה דבר נראה למפעיל
                       בדיוק כמו פיצ'ר שבור (CLAUDE.md). */}
-                  {myPresetConfig?.can_seize_zone === true && !isClassicMode && !isGroundMode && !tableMode && (
+                  {myPresetConfig?.can_seize_zone === true && !isClassicMode && !isGroundMode && !tableMode && show('seizeZone') && (
                     <div style={{ borderTop: `1px solid ${menuBorder}` }}>
                       <button
                         onClick={() => { if (!mapGeoAnchor) return; setSeizureDraft(null); setSeizureDrawPts([]); setSeizureDrawing(true); setShowCreateMenu(false); }}
@@ -12268,7 +12278,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   onClick={e => e.stopPropagation()}>
                   <div style={{ padding: '6px 12px', fontSize: '10px', color: menuMuted, borderBottom: `1px solid ${menuBorder}` }}>{tr('shared.displayMode')}</div>
                   {/* לוח הודעות שמוצג במשבצת בדסק - אין מה לפתוח */}
-                  {!deskHostsOwnTable('messages') && <div
+                  {!deskHostsOwnTable('messages') && show('messageBoard') && <div
                     onClick={() => { setSignalOpenTick(t => t + 1); setShowViewMenu(false); }}
                     style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: menuAcc('#93c5fd','#2563eb'), borderBottom: `1px solid ${menuBorder}`, display: 'flex', alignItems: 'center', gap: '6px' }}
                     onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
@@ -12279,7 +12289,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   {/* תצוגת עמדות אחרות — סרגל הריבועים בתחתית המסך. לחיץ רק אם
                       הוגדרו לעמדה עמדות לצפייה שאיש הצוות מורשה להן; אחרת כבוי,
                       ומתחתיו הסיבה (הגדרה חסרה בניהול / אין הרשאת מיראז'). */}
-                  <div
+                  {show('peekBar') && <div
                     data-testid="peek-menu-toggle"
                     aria-disabled={!peekReady}
                     onClick={peekReady ? () => { setShowPeekBar(v => !v); setShowViewMenu(false); } : undefined}
@@ -12293,10 +12303,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       {peekShown && <span style={{ fontSize: '10px', color: menuAcc('#60a5fa', '#2563eb') }}>{tr('ctrl.active')}</span>}
                     </span>
                     {!peekReady && <span style={{ fontSize: '10px', color: menuMuted, fontWeight: 'normal' }}>{peekReason}</span>}
-                  </div>
+                  </div>}
                   {/* קריאה מהירה - המדף האישי של העזרים. אותה רצועה תחתונה של
                       סרגל העמדות: כששניהם דולקים היא מתחלקת, קריאה מהירה בשמאל. */}
-                  <div
+                  {show('quickRead') && <div
                     onClick={() => { setShowQuickRead(v => !v); setShowViewMenu(false); }}
                     style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: showQuickRead ? menuAcc('#93c5fd', '#2563eb') : menuText, borderBottom: `1px solid ${menuBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: showQuickRead ? 'bold' : 'normal' }}
                     onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
@@ -12304,10 +12314,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   >
                     <span>📖 {tr('reader.quickToggle')}</span>
                     {showQuickRead && <span style={{ fontSize: '10px', color: menuAcc('#60a5fa', '#2563eb') }}>{tr('ctrl.active')}</span>}
-                  </div>
+                  </div>}
                   {/* קונטיינר החלונות - זמין ב**כל** עמדה. ההגדרה בניהול קובעת
                       רק אם הוא פתוח בעליית העמדה, לא אם הוא קיים. */}
-                  {!deskHostsTable('container') && (
+                  {!deskHostsTable('container') && show('windowContainer') && (
                     <div
                       data-testid="dock-menu-toggle"
                       onClick={() => { setShowWindowContainerSession(v => !(v ?? (myPresetConfig?.show_window_container === true))); setShowViewMenu(false); }}
@@ -12338,14 +12348,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   {/* בורר המיקום - מקופל עד שלוחצים על המשולש. מוצג רק
                       כשהקונטיינר פתוח, אחרת הוא פקד שנדלק בלי שקורה משהו
                       על המסך (CLAUDE.md §Do NOT). */}
-                  {showWindowContainer && showDockPosMenu && !deskHostsTable('container') && (
+                  {showWindowContainer && showDockPosMenu && !deskHostsTable('container') && show('windowContainer') && (
                     <div style={{ padding: '6px 12px', borderBottom: `1px solid ${menuBorder}` }}>
                       <div style={{ fontSize: '10px', color: menuMuted, marginBottom: '4px', textAlign: 'center' }}>{tr('dock.position')}</div>
                       <DockPositionPicker themeMode={themeMode} onPick={() => setShowViewMenu(false)} />
                     </div>
                   )}
                   {/* Map and Table options — only when view switching is allowed (ולא בדסק משימה) */}
-                  {(myPresetConfig?.allow_view_switching !== false) && !isMissionDeskMode && (<>
+                  {(myPresetConfig?.allow_view_switching !== false) && !isMissionDeskMode && show('switchView') && (<>
                   {/* Map option */}
                   <div style={{ borderBottom: `1px solid ${menuBorder}` }}>
                     <div
@@ -12460,7 +12470,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   </div>
                   </>)}
                   {/* Vertical view toggle — always available (פ"ממים בבלוקים; לא בדסק משימה) */}
-                  {!isMissionDeskMode && (
+                  {!isMissionDeskMode && show('blockView') && (
                   <div
                     onClick={() => { setShowVerticalView(v => !v); setShowViewMenu(false); }}
                     style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: showVerticalView ? '#c084fc' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: showVerticalView ? 'bold' : 'normal' }}
@@ -12472,7 +12482,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   </div>
                   )}
                   {/* עומס — הועבר מהסרגל העליון לתפריט התצוגה */}
-                  {loadRelevant && (
+                  {loadRelevant && show('loadView') && (
                     <div
                       onClick={() => { setShowLoadForecast(v => !v); setShowViewMenu(false); }}
                       title={tr('ctrl.loadForecastHourlyLoad')}
@@ -12490,7 +12500,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       בעמדת ניהול שדה אין מז"א כלל (לא בסרגל המפה ולא כאן):
                       בלי הגידור הפריט היה נדלק ושום דבר לא היה קורה, כי העמדה
                       אינה מקבלת את `weather` - בדיוק "פקד שנדלק בלי תוצאה". */}
-                  {!isGroundMgmtMode && (
+                  {!isGroundMgmtMode && show('weather') && (
                   <div
                     onClick={() => { toggleWeather(); setShowViewMenu(false); }}
                     style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: weatherOpen ? '#38bdf8' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: weatherOpen ? 'bold' : 'normal', gap: '6px' }}
@@ -12514,7 +12524,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </div>
                   )}
                   {/* Camera wall — wherever the airfield has cameras */}
-                  {airfieldElements.some((e: any) => e.camera_url) && (
+                  {airfieldElements.some((e: any) => e.camera_url) && show('cameraBoard') && (
                     <div
                       onClick={() => { setShowAppCameraWall(true); setShowViewMenu(false); }}
                       style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: menuAcc('#93c5fd','#2563eb'), display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #1e3a5f' }}
@@ -12526,7 +12536,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </div>
                   )}
                   {/* FLOW פ"מים - בכל עמדה */}
-                  <div
+                  {show('stripFlow') && <div
                     data-testid="view-menu-strip-flow"
                     onClick={() => { if (stripFlowOpen) setStripFlowOpen(false); else openStripFlow(null); setShowViewMenu(false); }}
                     style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: stripFlowOpen ? '#93c5fd' : '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #1e3a5f' }}
@@ -12535,9 +12545,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   >
                     <span>{tr('flow.menuItem')}</span>
                     <span style={{ fontSize: '10px', color: stripFlowOpen ? '#60a5fa' : '#94a3b8' }}>{stripFlowOpen ? '✓' : ''}</span>
-                  </div>
+                  </div>}
                   {/* טבלת האלמנטים - בכל עמדות המגדל של הבסיס */}
-                  {isGroundMode && (
+                  {isGroundMode && show('elementsTable') && (
                     <div
                       data-testid="view-menu-elements-table"
                       onClick={() => { setShowElementsTable(v => !v); setShowViewMenu(false); }}
@@ -12550,7 +12560,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </div>
                   )}
                   {/* טבלת "בהקפה" - עמדת מגדל בלבד; לניהול שדה אין הקפות */}
-                  {isGroundMode && !isGroundMgmtMode && (
+                  {isGroundMode && !isGroundMgmtMode && show('patternTraffic') && (
                     <div
                       data-testid="view-menu-pattern-traffic"
                       onClick={() => { setShowPatternTraffic(v => !v); setShowViewMenu(false); }}
@@ -12563,7 +12573,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </div>
                   )}
                   {/* חלון שכבות — הצג/הסתר (עמדת שדה) */}
-                  {isGroundMode && (
+                  {isGroundMode && show('groundLayers') && (
                     <div
                       onClick={() => { setShowGroundLayers(v => !v); setShowViewMenu(false); }}
                       style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: showGroundLayers ? '#93c5fd' : '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #1e3a5f' }}
@@ -12575,7 +12585,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </div>
                   )}
                   {/* כניסת רכבים — רק בעמדת שדה תעופה */}
-                  {isGroundMode && (
+                  {isGroundMode && show('vehicleEntry') && (
                     <div style={{ borderTop: `1px solid ${menuBorder}` }}>
                       <button
                         onClick={() => { setShowVehiclePanel(v => !v); setShowViewMenu(false); }}
@@ -12621,9 +12631,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   {/* ── התראות: השתקה/הפעלה ─────────────────────────────────
                       הפקח משתק ומפעיל אותן תוך כדי עבודה מול המסך, ולכן הן יושבות
                       בתצוגה ולא בהגדרות העמדה. ההשתקה לסשן בלבד - לא נשמרת. */}
-                  <div style={{ padding: '6px 12px', fontSize: '10px', color: menuMuted, borderTop: `1px solid ${menuBorder}`, borderBottom: `1px solid ${menuBorder}` }}>{tr('ctrl.alerts')}</div>
+                  {(show('muteBlocks') || show('muteConflicts')) && <div style={{ padding: '6px 12px', fontSize: '10px', color: menuMuted, borderTop: `1px solid ${menuBorder}`, borderBottom: `1px solid ${menuBorder}` }}>{tr('ctrl.alerts')}</div>}
                   {/* התראות בלוקים (חריגה מבלוק) */}
-                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
+                  {show('muteBlocks') && <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
                     <span style={{ fontSize: '12px', color: muteBlockAlerts ? menuMuted : menuAcc('#86efac', '#15803d') }}>
                       {muteBlockAlerts ? '⚪ ' : '🟢 '}{muteBlockAlerts ? tr('ctrl.blocksMuted') : tr('ctrl.blocksActive')}
                     </span>
@@ -12633,10 +12643,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       style={{ background: muteBlockAlerts ? (_menuLight ? '#e2e8f0' : '#334155') : (_menuLight ? '#dcfce7' : '#1e2a1f'), color: muteBlockAlerts ? menuMuted : menuAcc('#86efac', '#15803d'), border: `1px solid ${muteBlockAlerts ? (_menuLight ? '#94a3b8' : '#475569') : '#22c55e'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                       {muteBlockAlerts ? `🔔 ${tr('ctrl.unmute')}` : `🔕 ${tr('ctrl.mute')}`} {tr('ctrl.blocks')}
                     </button>
-                  </div>
+                  </div>}
                   {/* התראות קונפליקטים (חפיפת גובה) - טבלה, מפה ותצוגה אנכית יחד.
                       ההשתקה מכבה את ההבהוב בלבד; הסימון נשאר כדי שהפקח ידע מה מצב הפ"מ. */}
-                  <div title={tr('ctrl.conflictsMuteHint')} style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
+                  {show('muteConflicts') && <div title={tr('ctrl.conflictsMuteHint')} style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
                     <span style={{ fontSize: '12px', color: muteConflictAlerts ? menuMuted : menuAcc('#fca5a5', '#b91c1c') }}>
                       {muteConflictAlerts ? '⚪ ' : '🔴 '}{muteConflictAlerts ? tr('ctrl.conflictsMuted') : tr('ctrl.conflictsActive')}
                     </span>
@@ -12646,10 +12656,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       style={{ background: muteConflictAlerts ? (_menuLight ? '#e2e8f0' : '#334155') : (_menuLight ? '#fee2e2' : '#2a1414'), color: muteConflictAlerts ? menuMuted : menuAcc('#fca5a5', '#b91c1c'), border: `1px solid ${muteConflictAlerts ? (_menuLight ? '#94a3b8' : '#475569') : '#ef4444'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                       {muteConflictAlerts ? `🔔 ${tr('ctrl.unmute')}` : `🔕 ${tr('ctrl.mute')}`} {tr('ctrl.conflicts')}
                     </button>
-                  </div>
+                  </div>}
                   {/* רענן הגדרות — מושך מהשרת את הגדרות התצוגה של העמדה בלי
                       לצאת ולהיכנס. התפריט נסגר מיד; המשוב מגיע בטוסט. */}
-                  <div style={{ borderTop: `1px solid ${menuBorder}` }}>
+                  {show('refreshSettings') && <div style={{ borderTop: `1px solid ${menuBorder}` }}>
                     <button
                       data-testid="view-menu-refresh"
                       onClick={() => { void refreshWorkstation(); setShowViewMenu(false); }}
@@ -12661,7 +12671,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <span>{refreshing ? '⏳' : '🔄'}</span>
                       <span style={{ flex: 1 }}>{refreshing ? tr('ctrl.refreshingSettings') : tr('ctrl.refreshSettings')}</span>
                     </button>
-                  </div>
+                  </div>}
                 </div>
               </>
             )}
@@ -12688,18 +12698,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', zIndex: 3000, minWidth: '220px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: dir, overflow: 'hidden' }}
                   onClick={e => e.stopPropagation()}>
                   {/* ─── עומס ───────────────────────────────────── */}
-                  {loadRelevant && <>
+                  {loadRelevant && (show('loadView') || show('muteLoad')) && <>
                   <div style={{ padding: '6px 12px', fontSize: '10px', color: menuMuted, borderBottom: `1px solid ${menuBorder}` }}>{tr('ctrl.loadAndAlerts')}</div>
                   {/* Load forecast toggle */}
-                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
+                  {show('loadView') && <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
                     <span style={{ fontSize: '12px', color: showLoadForecast ? menuAcc('#a78bfa','#7c3aed') : menuMuted }}>{tr('ctrl.loadForecast')}</span>
                     <button onClick={() => { setShowLoadForecast(v => !v); setShowSettingsMenu(false); }}
                       style={{ background: showLoadForecast ? '#2e1a5e' : '#334155', color: showLoadForecast ? '#a78bfa' : '#94a3b8', border: `1px solid ${showLoadForecast ? '#7c3aed' : '#475569'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                       {showLoadForecast ? '🔕 סגור' : '🔔 פתח'}
                     </button>
-                  </div>
+                  </div>}
                   {/* Load alert */}
-                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${menuBorder}`, gap: '8px' }}>
+                  {show('muteLoad') && <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${menuBorder}`, gap: '8px' }}>
                     <span style={{ fontSize: '12px', color: loadLevel !== 'none' ? menuAcc('#93c5fd','#2563eb') : menuMuted }}>
                       {loadLevel !== 'none' ? (loadLevel === 'full' ? '🔴 עומס מלא' : '🟠 עומס חלקי') : '⚪ אין עומס'}
                     </span>
@@ -12707,10 +12717,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       style={{ background: muteLoadAlerts ? '#334155' : '#1e3a5f', color: muteLoadAlerts ? '#94a3b8' : '#93c5fd', border: `1px solid ${muteLoadAlerts ? '#475569' : '#3b82f6'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                       {muteLoadAlerts ? '🔔 הפעל' : '🔕 השתק'} {tr('dashboard.load')}
                     </button>
-                  </div>
+                  </div>}
                   </>}
                   {/* הצג כמות מטוסים — חלונות הנתונים. מוסתר כשמשבצת בדסק מציגה אותם */}
-                  {!deskHostsOwnTable('quantities') && <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
+                  {!deskHostsOwnTable('quantities') && show('dataWindowsCount') && <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
                     <span style={{ fontSize: '12px', color: showDataWindows ? menuAcc('#93c5fd','#2563eb') : menuMuted }}>
                       {showDataWindows ? '📊 ' : '⚪ '}{tr('dataWindows.showAircraftCount')}
                     </span>
@@ -12720,7 +12730,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </button>
                   </div>}
                   {/* Contacts on transfer */}
-                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
+                  {show('contactsOnTransfer') && <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
                     <span style={{ fontSize: '12px', color: showContactsOnTransfer ? menuAcc('#93c5fd','#2563eb') : menuMuted }}>
                       {showContactsOnTransfer ? '📡 קשרים בהעברה' : '⚪ קשרים בהעברה'}
                     </span>
@@ -12728,9 +12738,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       style={{ background: showContactsOnTransfer ? '#1e3a5f' : '#334155', color: showContactsOnTransfer ? '#93c5fd' : '#94a3b8', border: `1px solid ${showContactsOnTransfer ? '#3b82f6' : '#475569'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                       {showContactsOnTransfer ? '🔕 כבה' : '🔔 הפעל'}
                     </button>
-                  </div>
+                  </div>}
                   {/* Suggest alt range for formation */}
-                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
+                  {show('altRangeFormation') && <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
                     <span style={{ fontSize: '12px', color: suggestAltRangeFormation ? menuAcc('#a78bfa','#7c3aed') : menuMuted }}>
                       {suggestAltRangeFormation ? '📐 מרחב לפמ>זוג' : '⚪ מרחב לפמ>זוג'}
                     </span>
@@ -12738,7 +12748,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       style={{ background: suggestAltRangeFormation ? '#2e1a5e' : '#334155', color: suggestAltRangeFormation ? '#a78bfa' : '#94a3b8', border: `1px solid ${suggestAltRangeFormation ? '#7c3aed' : '#475569'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                       {suggestAltRangeFormation ? '🔕 כבה' : '🔔 הפעל'}
                     </button>
-                  </div>
+                  </div>}
                   {/* ─── לוגיקות תמונ"א ───────────────────────────
                       זיהוי חריגה מאזור ומעקב הקפה אוטומטי. בהגדרות העמדה ולא
                       בפאנל התמונ"א (הכרעת הפקח): זו התנהגות של העמדה - מה המערכת
@@ -12762,7 +12772,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   ))}
                   </>}
                   {/* שידוך פ"מ בלחיצה — חלופה לגרירה (רק במסך אזורי טיסה) */}
-                  {isFlightZonesMode && (
+                  {isFlightZonesMode && show('clickPairing') && (
                     <div style={{ padding: '8px 12px', borderBottom: `1px solid ${menuBorder}` }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                         <span style={{ fontSize: '12px', color: fzPairMode ? menuAcc('#67e8f9','#0e7490') : menuMuted }}>
@@ -12782,7 +12792,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       באותו דיאלוג נשאל אם לנקות גם ציורים חופשיים, הלאמות שהעמדה יצרה
                       והגבלות (סגור/מוגבל) של אזורי המפות הפתוחות - כבויים כברירת מחדל,
                       כי הלאמה והגבלה משפיעות גם על עמדות אחרות */}
-                  <button
+                  {show('clearStation') && <button
                     onClick={async () => {
                       setShowSettingsMenu(false);
                       if (!session.presetId) return;
@@ -12829,7 +12839,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = 'none'}
                   >
                     {tr('ctrl.clearAWorkstationS')}
-                  </button>
+                  </button>}
                 </div>
               </>
             )}
@@ -12969,13 +12979,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             );
           })()}
 
-          <button
+          {show('theme') && <button
             data-help="theme"
             onClick={() => setThemeMode(m => m === 'dark' ? 'light' : m === 'light' ? 'ocean' : 'dark')}
             title={themeMode === 'light' ? 'עבור למצב תכלת' : themeMode === 'ocean' ? 'עבור למצב לילה' : 'עבור למצב יום'}
             style={{ background: themeMode === 'ocean' ? '#1e3a5c' : themeMode === 'light' ? '#334155' : '#1e293b', border: `1px solid ${themeMode === 'ocean' ? '#38bdf8' : 'transparent'}`, borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', fontSize: '15px', lineHeight: 1, display: 'flex', alignItems: 'center', gap: '3px' }}
-          >{themeMode === 'light' ? '🌊' : themeMode === 'ocean' ? '🌙' : '☀️'}</button>
-          <button data-help="notepad" onClick={() => {
+          >{themeMode === 'light' ? '🌊' : themeMode === 'ocean' ? '🌙' : '☀️'}</button>}
+          {show('freeDesk') && <button data-help="notepad" onClick={() => {
             if (showNotepad) {
               const canvas = notepadCanvasRef.current;
               if (canvas) notepadSavedImageRef.current = canvas.toDataURL();
@@ -12983,8 +12993,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             setShowNotepad(v => !v);
           }} style={{ background: showNotepad ? '#f59e0b' : '#334155', padding: '4px 9px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', fontWeight: showNotepad ? 'bold' : 'normal' }}>
             {tr('ctrl.freeDesk')}
-          </button>
-          <div style={{ position: 'relative' }}>
+          </button>}
+          {show('stickyNotes') && <div style={{ position: 'relative' }}>
             <button
               data-help="stickyNotes"
               onClick={() => setShowStickyDropdown(v => !v)}
@@ -13044,9 +13054,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </div>
               </>
             )}
-          </div>
+          </div>}
           {/* כפתור ספרורים — מוסתר כשהעמדה הוגדרה ללא ספרורים */}
-          {(myPresetConfig?.show_serials !== false) && (() => {
+          {(myPresetConfig?.show_serials !== false) && show('serials') && (() => {
             // Alert only when a strip has a selection that is outdated (newer serial exists) —
             // matching exactly the red-badge logic shown in the table rows.
             const hasSerialAlerts = myTableStrips.some(strip => {

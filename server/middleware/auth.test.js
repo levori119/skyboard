@@ -49,6 +49,9 @@ describe('deny by default', () => {
     // דגל "התחשבות בנתק": הסוכן קורא בעלייה בלי משתמש; רק מנהל משנה
     expect(requirementFor('GET', '/api/station/failover')).toBe(NEED.PUBLIC);
     expect(requirementFor('PUT', '/api/station/failover')).toBe(NEED.ADMIN);
+    // הסתרת כפתורים: כל עמדה קוראת, רק מנהל משנה
+    expect(requirementFor('GET', '/api/system/hidden-actions')).toBe(NEED.USER);
+    expect(requirementFor('PUT', '/api/system/hidden-actions')).toBe(NEED.ADMIN);
   });
 
   it('בלי אסימון - 401 על נתיבים תפעוליים', async () => {
