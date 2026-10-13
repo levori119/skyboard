@@ -2563,8 +2563,8 @@
       "en": "Zone names"
     },
     "zoneNameBrightnessHint": {
-      "he": "בהירות שמות האזורים על המפה - לחיצה מחליפה: חלש, רגיל, בהיר",
-      "en": "Brightness of zone names on the map - click to cycle: dim, normal, bright"
+      "he": "שמות האזורים על המפה - לחיצה מחליפה: חלש, רגיל, בהיר, מוסתר. תוויות סגור/מוגבל נשארות תמיד",
+      "en": "Zone names on the map - click to cycle: dim, normal, bright, hidden. Closed/restricted labels always stay"
     },
     "zoneNameBrightnessDim": {
       "he": "חלש",
@@ -2577,6 +2577,34 @@
     "zoneNameBrightnessBright": {
       "he": "בהיר",
       "en": "Bright"
+    },
+    "zoneNameBrightnessHidden": {
+      "he": "מוסתר",
+      "en": "Hidden"
+    },
+    "zoneLineWidth": {
+      "he": "קווי אזורים",
+      "en": "Zone lines"
+    },
+    "zoneLineWidthHint": {
+      "he": "עובי קווי האזורים על המפה - לחיצה מחליפה: דק, רגיל, עבה, עבה מאוד",
+      "en": "Zone line thickness on the map - click to cycle: thin, normal, thick, extra thick"
+    },
+    "zoneLineWidthThin": {
+      "he": "דק",
+      "en": "Thin"
+    },
+    "zoneLineWidthNormal": {
+      "he": "רגיל",
+      "en": "Normal"
+    },
+    "zoneLineWidthThick": {
+      "he": "עבה",
+      "en": "Thick"
+    },
+    "zoneLineWidthXThick": {
+      "he": "עבה מאוד",
+      "en": "Extra thick"
     }
   }
 }

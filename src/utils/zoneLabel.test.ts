@@ -3,6 +3,7 @@ import { pointInPolygon } from './zoneHit';
 import {
   interiorLabelPoint, interiorSpansAtY, lightenHex, nextZoneNameBrightness,
   zoneNameFill, isZoneNameBrightness, DEFAULT_ZONE_NAME_BRIGHTNESS,
+  nextZoneLineWidth, zoneLineWidthFactor, isZoneLineWidth, DEFAULT_ZONE_LINE_WIDTH,
 } from './zoneLabel';
 
 const square = [{ x: 10, y: 10 }, { x: 30, y: 10 }, { x: 30, y: 30 }, { x: 10, y: 30 }];
@@ -44,10 +45,15 @@ describe('בהירות שם האזור', () => {
     expect(DEFAULT_ZONE_NAME_BRIGHTNESS).toBe('dim');
     expect(zoneNameFill(false, 'dim')).toBe('rgba(255,255,255,0.55)');
   });
-  it('מחזור חלש -> רגיל -> בהיר -> חלש', () => {
+  it('מחזור חלש -> רגיל -> בהיר -> מוסתר -> חלש', () => {
     expect(nextZoneNameBrightness('dim')).toBe('normal');
     expect(nextZoneNameBrightness('normal')).toBe('bright');
-    expect(nextZoneNameBrightness('bright')).toBe('dim');
+    expect(nextZoneNameBrightness('bright')).toBe('hidden');
+    expect(nextZoneNameBrightness('hidden')).toBe('dim');
+  });
+  it('מוסתר - בלי צבע', () => {
+    expect(zoneNameFill(false, 'hidden')).toBe('none');
+    expect(zoneNameFill(true, 'hidden')).toBe('none');
   });
   it('ערך שמור לא תקין נדחה', () => {
     expect(isZoneNameBrightness('bright')).toBe(true);
@@ -63,5 +69,27 @@ describe('lightenHex', () => {
   });
   it('צבע לא hex חוזר כמו שהוא', () => {
     expect(lightenHex('red', 0.5)).toBe('red');
+  });
+});
+
+describe('עובי קווי האזורים', () => {
+  it('ברירת המחדל = העובי הקיים', () => {
+    expect(DEFAULT_ZONE_LINE_WIDTH).toBe('normal');
+    expect(zoneLineWidthFactor('normal')).toBe(1);
+  });
+  it('מכפיל עולה עם הרמה', () => {
+    expect(zoneLineWidthFactor('thin')).toBeLessThan(1);
+    expect(zoneLineWidthFactor('thick')).toBeGreaterThan(1);
+    expect(zoneLineWidthFactor('xthick')).toBeGreaterThan(zoneLineWidthFactor('thick'));
+  });
+  it('מחזור דק -> רגיל -> עבה -> עבה מאוד -> דק', () => {
+    expect(nextZoneLineWidth('thin')).toBe('normal');
+    expect(nextZoneLineWidth('normal')).toBe('thick');
+    expect(nextZoneLineWidth('thick')).toBe('xthick');
+    expect(nextZoneLineWidth('xthick')).toBe('thin');
+  });
+  it('ערך שמור לא תקין נדחה', () => {
+    expect(isZoneLineWidth('thick')).toBe(true);
+    expect(isZoneLineWidth('huge')).toBe(false);
   });
 });

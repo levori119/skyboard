@@ -13,15 +13,19 @@
 
 import { pointInPolygon, type ZonePoint } from './zoneHit';
 
-/** רמות הבהירות של שם האזור. ברירת המחדל `dim` - בגוון הגבול האפור. */
-export const ZONE_NAME_BRIGHTNESS_LEVELS = ['dim', 'normal', 'bright'] as const;
+/**
+ * רמות הבהירות של שם האזור. ברירת המחדל `dim` - בגוון הגבול האפור.
+ * `hidden` מסתיר את שמות האזורים (והערות המפעיל עליהם) לגמרי. תוויות **סטטוס**
+ * (סגור/מוגבל, מגבלה) נשארות תמיד - הן מידע בטיחותי ולא כיתוב.
+ */
+export const ZONE_NAME_BRIGHTNESS_LEVELS = ['dim', 'normal', 'bright', 'hidden'] as const;
 export type ZoneNameBrightness = typeof ZONE_NAME_BRIGHTNESS_LEVELS[number];
 export const DEFAULT_ZONE_NAME_BRIGHTNESS: ZoneNameBrightness = 'dim';
 
 export const isZoneNameBrightness = (v: unknown): v is ZoneNameBrightness =>
   typeof v === 'string' && (ZONE_NAME_BRIGHTNESS_LEVELS as readonly string[]).includes(v);
 
-/** הרמה הבאה במחזור חלש -> רגיל -> בהיר -> חלש. */
+/** הרמה הבאה במחזור חלש -> רגיל -> בהיר -> מוסתר -> חלש. */
 export const nextZoneNameBrightness = (v: ZoneNameBrightness): ZoneNameBrightness =>
   ZONE_NAME_BRIGHTNESS_LEVELS[(ZONE_NAME_BRIGHTNESS_LEVELS.indexOf(v) + 1) % ZONE_NAME_BRIGHTNESS_LEVELS.length];
 
@@ -30,6 +34,7 @@ export const nextZoneNameBrightness = (v: ZoneNameBrightness): ZoneNameBrightnes
  * כך שהשם נקרא כחלק מהגבול ולא כטקסט שצועק מעל המפה.
  */
 export function zoneNameFill(light: boolean, level: ZoneNameBrightness): string {
+  if (level === 'hidden') return 'none';
   if (light) return level === 'dim' ? 'rgba(0,0,0,0.55)' : level === 'normal' ? 'rgba(0,0,0,0.8)' : '#000000';
   return level === 'dim' ? 'rgba(255,255,255,0.55)' : level === 'normal' ? 'rgba(255,255,255,0.8)' : '#ffffff';
 }
@@ -105,3 +110,20 @@ export function lightenHex(color: string, amt: number): string {
     .map(v => Math.round(v + (255 - v) * Math.min(Math.max(amt, 0), 1)));
   return '#' + ch.map(v => v.toString(16).padStart(2, '0')).join('');
 }
+
+/**
+ * עובי קווי האזורים - מכפיל על כל קווי המתאר של האזור (ניטרלי, מודגש, רצועות
+ * גובה, סגור/מוגבל). ברירת המחדל `normal` = העובי הקיים. הבהוב והדגשת אזור
+ * נבחר אינם מושפעים - הם התראה ולא קו מתאר.
+ */
+export const ZONE_LINE_WIDTH_LEVELS = ['thin', 'normal', 'thick', 'xthick'] as const;
+export type ZoneLineWidth = typeof ZONE_LINE_WIDTH_LEVELS[number];
+export const DEFAULT_ZONE_LINE_WIDTH: ZoneLineWidth = 'normal';
+const LINE_WIDTH_FACTOR: Record<ZoneLineWidth, number> = { thin: 0.5, normal: 1, thick: 2, xthick: 3 };
+
+export const isZoneLineWidth = (v: unknown): v is ZoneLineWidth =>
+  typeof v === 'string' && (ZONE_LINE_WIDTH_LEVELS as readonly string[]).includes(v);
+export const zoneLineWidthFactor = (v: ZoneLineWidth): number => LINE_WIDTH_FACTOR[v] ?? 1;
+/** הרמה הבאה במחזור דק -> רגיל -> עבה -> עבה מאוד -> דק. */
+export const nextZoneLineWidth = (v: ZoneLineWidth): ZoneLineWidth =>
+  ZONE_LINE_WIDTH_LEVELS[(ZONE_LINE_WIDTH_LEVELS.indexOf(v) + 1) % ZONE_LINE_WIDTH_LEVELS.length];
