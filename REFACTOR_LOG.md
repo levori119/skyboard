@@ -10003,3 +10003,39 @@ y=897 לוגי — מתחת לגבול התצוגה; ב-15.6" `elementFromPoint`
 
 **קבצים:** `server/routes/strips.js` (+test), `src/components/shared/ConfirmModal.tsx`,
 `src/components/views/SectorDashboard.tsx`, `src/i18n/registry/ctrl.json`.
+
+### #059 - עמדה שעלתה בלי אינטרנט: "מיראז' לא זמין" בכניסה, כשבפועל המרכז לא עונה
+
+**הדיווח:** עמדת Electron שעולה בלי אינטרנט מציגה במסך הכניסה "מיראז' לא זמין".
+
+**השורש:** שלושה דברים יחד.
+1. הנתב (`electron/apiRouter.cjs`) עולה במצב "המרכז חי", ועובר למקומי רק אחרי 3 כשלים ואישור
+   מול `/api/health`. בקשת הכניסה היא מהראשונות בעמדה, ולכן הלכה למרכז.
+2. הפרוקסי של העמדה החזיר עליה `502 upstream unreachable`.
+3. `mirageAuthErrorKey` מיפה **כל** 502 ל-`login.mirageUnavailable`. ההנחה ("השרת שלנו חי,
+   המיראז' לא ענה") נכונה בדפדפן מול המרכז, לא בעמדה - שם ה-502 בא מהפרוקסי של העמדה עצמה.
+
+כך מסלול הכניסה בנתק (העתק המיראז' שבעמדה + אסמכתאות שמורות, `localLogin`) לא הופעל כלל.
+
+**מה שונה:**
+- **`stationServer` §כניסה בנתק** - כשבקשת הכניסה לא קיבלה תשובה מהמרכז: בדיקת `/api/health`.
+  עונה = המרכז איטי, לא מנותק - `502 central_timeout`, בלי מעבר למקומי. לא עונה = נתק מאומת:
+  `router.declareRemoteDown()` **לפני** הכניסה המקומית (אחרת האסימון המקומי נשלח בבקשה הבאה
+  למרכז והפקח נזרק למסך הכניסה), ואז אותו גוף נשלח למאגר המקומי. אין מאגר מקומי -
+  `502 central_unreachable` עם `local: 'starting' | 'none'`.
+- **תקרת זמן לכניסה** - פי 2 מהתפעולית (16 ש'). המרכז ממתין למיראז' עד 10 ש', ו-8 ש' חתכו
+  את תשובתו האמיתית.
+- **`apiRouter`** - `health.declareDown()` / `router.declareRemoteDown()`: נתק מאומת מבחוץ, בלי סף.
+- **לקוח** - `central_unreachable` / `upstream unreachable` / `central_timeout` ממופים להודעות
+  `login.centralUnreachable`, `login.centralUnreachableLocalStarting`, `login.centralTimeout`.
+  `mirage_unavailable` של המרכז נשאר "מיראז' לא זמין".
+- **`electron-main`** - `localStarting`: התהליך הבן רץ ועוד לא דיווח מוכן.
+- **באג רדום שנסגר בדרך** - פרוקסי הכניסה העביר `transfer-encoding: chunked` יחד עם
+  `content-length`, שילוב שנדחה ב-400. דפדפן שולח אורך ידוע ולכן זה לא צץ בפועל.
+
+**קבצים:** `electron/stationServer.cjs` (+test), `electron/apiRouter.cjs`, `electron-main.cjs`,
+`src/utils/mirageAuthError.ts` (+test), `src/i18n/locales/{he,en}.json`.
+
+**QA:** 5 בדיקות אינטגרציה חדשות בשרת העמדה (מרכז מת + מקומי מוכן / עולה / חסר, מרכז איטי,
+מעבר הנתב) + 4 במיפוי השגיאות. `tsc` נקי, 4480 בדיקות ירוקות.
+**לא נבדק:** עמדה ארוזה אמיתית בניתוק כבל.

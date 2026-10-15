@@ -107,6 +107,19 @@ function createRemoteHealth({
       });
   }
 
+  /**
+   * נתק **מאושר** מבחוץ - בלי לחכות לסף.
+   *
+   * למה: בקשת הכניסה בעמדה שעלתה בלי קשר. היא נשלחת למרכז לפני שנצברו 3
+   * כשלים, ואם היא עוברת למקומי בזמן שהנתב עוד "מול המרכז", האסימון המקומי
+   * שהיא מקבלת נשלח בבקשה הבאה למרכז - והפקח נזרק למסך הכניסה. הקורא
+   * אחראי לאשר קודם מול /api/health (ראה stationServer §כניסה בנתק).
+   */
+  function declareDown() {
+    confirming = false;
+    if (online) goOffline();
+  }
+
   function goOffline() {
     online = false;
     offlineSince = now();
@@ -150,6 +163,7 @@ function createRemoteHealth({
     snapshot,
     markUp,
     markDown,
+    declareDown,
     probeOnce,
     subscribe: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
     stop: stopProbing,
@@ -306,6 +320,12 @@ function createApiRouter({
       // הקשר האמיתי למטה, והעמדה הייתה נשארת "מנותקת" גם אחרי כיבוי הדימוי.
       if (simulated) return;
       if (ok) health.markUp(); else health.markDown(sentAt);
+    },
+
+    /** המרכז אומת כמנותק (בקשה נפלה וגם /api/health) - עוברים למקומי מיד. */
+    declareRemoteDown() {
+      if (simulated) return;
+      health.declareDown();
     },
 
     /** מצב לחיווי בממשק. */

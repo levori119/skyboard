@@ -103,7 +103,7 @@ function isAssetLike(urlPath) {
  * `accept-encoding: identity` נכפה כדי שהתשובה תגיע כ-JSON קריא ולא דחוסה —
  * גוף הכניסה הוא מאות בתים, ואין מה לחסוך בדחיסה שתחייב פענוח כאן.
  */
-function proxyLoginRequest(req, res, apiTarget, timeoutMs, bridge, onResult) {
+function proxyLoginRequest(req, res, apiTarget, timeoutMs, bridge, onResult, onUnreachable) {
   let targetUrl;
   try {
     targetUrl = new URL(req.url, apiTarget);
@@ -122,6 +122,8 @@ function proxyLoginRequest(req, res, apiTarget, timeoutMs, bridge, onResult) {
       ...req.headers, host: targetUrl.host,
       'accept-encoding': 'identity', 'content-length': String(reqBody.length),
     };
+    // הגוף נשלח שלם עם אורך ידוע. chunked יחד עם content-length נדחה ב-400.
+    delete headers['transfer-encoding'];
     const upstream = mod.request(targetUrl, { method: req.method, headers }, up => {
       onResult(true);
       const outChunks = [];
@@ -144,11 +146,42 @@ function proxyLoginRequest(req, res, apiTarget, timeoutMs, bridge, onResult) {
     upstream.on('error', err => {
       onResult(false);
       if (res.headersSent) { res.destroy(); return; }
+      // הגוף כבר בזיכרון, ולכן - בניגוד לכל בקשה אחרת - אפשר לשלוח אותו שוב
+      // ליעד אחר. ראה createStationServer §כניסה בנתק.
+      if (onUnreachable) { onUnreachable({ reqBody, err }); return; }
       res.writeHead(502, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'upstream unreachable', detail: err.message }));
     });
     upstream.end(reqBody);
   });
+}
+
+/** שולח גוף שכבר נקרא ליעד אחר ומעביר את התשובה כמות שהיא. */
+function forwardBufferedRequest(req, res, target, body, timeoutMs, extraHeaders) {
+  let targetUrl;
+  try {
+    targetUrl = new URL(req.url, target);
+  } catch {
+    res.writeHead(502, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'bad local target' }));
+    return;
+  }
+  const mod = targetUrl.protocol === 'https:' ? https : http;
+  const headers = {
+    ...req.headers, host: targetUrl.host, 'content-length': String(body.length), ...(extraHeaders || {}),
+  };
+  delete headers['transfer-encoding'];
+  const upstream = mod.request(targetUrl, { method: req.method, headers }, up => {
+    res.writeHead(up.statusCode || 502, up.headers);
+    up.pipe(res);
+  });
+  upstream.setTimeout(timeoutMs, () => upstream.destroy(new Error('local timeout')));
+  upstream.on('error', err => {
+    if (res.headersSent) { res.destroy(); return; }
+    res.writeHead(502, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'central_unreachable', local: 'failed', detail: err.message }));
+  });
+  upstream.end(body);
 }
 
 function proxyRequest(req, res, apiTarget, timeoutMs, opts) {
@@ -225,6 +258,15 @@ function serveStatic(res, distDir, urlPath) {
 const SYNC_TIMEOUT_MS = 120_000;
 const isSyncPath = (p) => p.startsWith('/api/sync/') || p.includes('/sync/mirror');
 const timeoutFor = (base) => (urlPath) => (isSyncPath(urlPath || '') ? SYNC_TIMEOUT_MS : base);
+
+/**
+ * הכניסה מקבלת פי 2 מהתקרה התפעולית (16 ש' בעמדה).
+ *
+ * המרכז ממתין למיראז' עד 10 ש' (MIRAGE_TIMEOUT_MS ב-server/routes/mirage.js),
+ * כי ההתעוררות הקרה של המיראז' לוקחת ~6 ש'. תקרה של 8 ש' כאן חתכה את הכניסה
+ * לפני שהמרכז הספיק לענות, והתשובה האמיתית שלו לא הגיעה לפקח.
+ */
+const LOGIN_TIMEOUT_FACTOR = 2;
 
 /**
  * העלאת קובץ - **אינה עדות לבריאות הקשר** (2026-10-11).
@@ -308,6 +350,9 @@ function createStationServer({
   distDir, apiTarget, airPictureTarget, airPictureToken,
   port = 0, host = '127.0.0.1', timeoutMs: baseTimeoutMs = 8000,
   localApiTarget = () => null, localMode = 'auto',
+  // האם המאגר המקומי בדרך (התהליך הבן רץ ועוד לא דיווח מוכן). מבדיל בהודעת
+  // הכניסה בין "נסה שוב בעוד רגע" לבין "אין בעמדה הזו מאגר מקומי".
+  localStarting = () => false,
   // בפיתוח: שרת ה-Vite. הנכסים מפורקססים אליו במקום להיקרא מ-dist, ולכן
   // אפשר לעבוד על העמדה האמיתית - עם המאגר המקומי ועם כפתור הנתק - בלי
   // build אחרי כל שינוי. בייצור הוא null, והנכסים מגיעים מהדיסק.
@@ -335,6 +380,41 @@ function createStationServer({
 
   const allowOrigin = createOriginGate(apiTarget, allowedOrigins);
   const timeoutForPath = timeoutFor(baseTimeoutMs);
+
+  // ── §כניסה בנתק (2026-10-15) ───────────────────────────────────────────────
+  // העמדה עולה כש"המרכז חי" - הנתב עובר למקומי רק אחרי 3 כשלים. בעמדה שעלתה
+  // בלי רשת, בקשת הכניסה היא מהראשונות: היא הלכה למרכז, נפלה, וחזרה 502 -
+  // שהלקוח הציג כ"מיראז' לא זמין". מסלול הכניסה המקומי (העתק המיראז' שבעמדה
+  // ואסמכתאות שמורות) לא הופעל בכלל.
+  //
+  // לכן כשבקשת הכניסה לא קיבלה תשובה מהמרכז:
+  //   1. שואלים את /api/health. עונה = המרכז חי ורק איטי (המיראז' בהתעוררות
+  //      קרה) - לא נגררים למקומי בגלל איטיות, ומדווחים `central_timeout`.
+  //   2. לא עונה = נתק מאומת. מכריזים עליו בנתב **לפני** הכניסה המקומית: אחרת
+  //      האסימון המקומי שהיא מחזירה נשלח בבקשה הבאה למרכז, והפקח נזרק למסך
+  //      הכניסה מיד אחרי שנכנס.
+  //   3. יש מאגר מקומי - הכניסה עוברת אליו עם אותו גוף. אין - `central_unreachable`
+  //      עם `local: 'starting' | 'none'`, כדי שההודעה תאמר מה באמת קרה.
+  const centralFailure = (res, body) => {
+    if (res.headersSent) { res.destroy(); return; }
+    res.writeHead(502, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(body));
+  };
+  async function loginWithoutCentral(req, res, reqBody, err) {
+    const alive = await router.health.probeOnce().catch(() => false);
+    if (alive) {
+      return centralFailure(res, { error: 'central_timeout', detail: err.message });
+    }
+    router.declareRemoteDown();
+    const { target: local } = router.resolveForced('local');
+    if (!local) {
+      return centralFailure(res, {
+        error: 'central_unreachable', local: localStarting() ? 'starting' : 'none', detail: err.message,
+      });
+    }
+    console.log('[station] המרכז אינו עונה - הכניסה מאומתת מול המאגר המקומי');
+    forwardBufferedRequest(req, res, local, reqBody, baseTimeoutMs * LOGIN_TIMEOUT_FACTOR);
+  }
 
   const server = http.createServer((req, res) => {
     const urlPath = (req.url || '/').split('?')[0];
@@ -455,7 +535,8 @@ function createStationServer({
       // כניסה שכבר מנותבת למקומי אינה נלכדת: אין שם מה ללמוד, השרת המקומי
       // הוא כבר זה שמאמת.
       if (which === 'remote' && req.method === 'POST' && urlPath === authBridge.LOGIN_PATH) {
-        return proxyLoginRequest(req, res, target, timeoutForPath(urlPath), authBridge, onResult);
+        return proxyLoginRequest(req, res, target, LOGIN_TIMEOUT_FACTOR * baseTimeoutMs, authBridge, onResult,
+          ({ reqBody, err }) => loginWithoutCentral(req, res, reqBody, err));
       }
 
       // ניתוב למאגר המקומי: האסימון המרכזי מוחלף במקומי, אחרת כל בקשה

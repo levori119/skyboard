@@ -570,3 +570,135 @@ describe('שרת העמדה - דגל התחשבות בנתק', () => {
     }
   });
 });
+
+// ── כניסה בעמדה שעלתה בלי קשר (2026-10-15) ───────────────────────────────────
+// העמדה עולה כש"המרכז חי" (אין עדיין 3 כשלים), ולכן בקשת הכניסה הראשונה
+// הלכה למרכז, נפלה, וחזרה 502 - שהלקוח הציג כ"מיראז' לא זמין". המסלול שנבנה
+// בדיוק לזה (כניסה מול המאגר המקומי) לא הופעל בכלל.
+describe('שרת העמדה - כניסה כשהמרכז אינו עונה', () => {
+  let dist, local, localUrl, localSeen, deadUrl;
+  const call = (url, opts = {}) => new Promise((resolve) => {
+    const req = http.request(url, opts, res => {
+      let body = '';
+      res.on('data', c => { body += c; });
+      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body }));
+    });
+    req.on('error', err => resolve({ status: 0, headers: {}, body: '', err }));
+    if (opts.body) req.write(opts.body);
+    req.end();
+  });
+  const login = (station) => call(`${station.url}/api/auth/mirage-login`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ personalNumber: '1234567', password: 'pw' }),
+  });
+
+  beforeAll(async () => {
+    dist = fs.mkdtempSync(path.join(os.tmpdir(), 'skyking-dist-login-'));
+    fs.writeFileSync(path.join(dist, 'index.html'), '<html>SKY-KING</html>');
+    localSeen = [];
+    local = http.createServer((req, res) => {
+      let body = '';
+      req.on('data', c => { body += c; });
+      req.on('end', () => {
+        // רק בקשות כניסה - הנתב דוגם ברקע גם את /api/__localdb/pending
+        if (req.url.startsWith('/api/auth/')) localSeen.push({ path: req.url, body });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ who: 'local', token: 'local-token', source: 'local' }));
+      });
+    });
+    await new Promise(r => local.listen(0, '127.0.0.1', r));
+    localUrl = `http://127.0.0.1:${local.address().port}`;
+    // פורט שהיה תפוס ונסגר - "אין שרת מרכזי", ECONNREFUSED מיידי כמו בלי רשת
+    const tmp = http.createServer();
+    await new Promise(r => tmp.listen(0, '127.0.0.1', r));
+    deadUrl = `http://127.0.0.1:${tmp.address().port}`;
+    await new Promise(r => tmp.close(r));
+  });
+
+  afterAll(async () => {
+    await new Promise(r => local.close(r));
+    fs.rmSync(dist, { recursive: true, force: true });
+  });
+
+  it('המרכז אינו עונה והמאגר המקומי מוכן - הכניסה עוברת למקומי מיד, עם אותו גוף', async () => {
+    localSeen.length = 0;
+    const station = await createStationServer({
+      distDir: dist, apiTarget: deadUrl, localApiTarget: () => localUrl, timeoutMs: 500, checkFailover: false,
+    });
+    try {
+      const r = await login(station);
+      expect(r.status).toBe(200);
+      expect(JSON.parse(r.body)).toMatchObject({ who: 'local' });
+      expect(localSeen).toHaveLength(1);
+      expect(localSeen[0].path).toBe('/api/auth/mirage-login');
+      expect(JSON.parse(localSeen[0].body)).toEqual({ personalNumber: '1234567', password: 'pw' });
+    } finally {
+      await station.close();
+    }
+  });
+
+  it('אחרי כניסה מקומית העמדה כבר מנותבת למקומי - אחרת האסימון המקומי היה נשלח למרכז', async () => {
+    const station = await createStationServer({
+      distDir: dist, apiTarget: deadUrl, localApiTarget: () => localUrl, timeoutMs: 500, checkFailover: false,
+    });
+    try {
+      expect(station.router.status().serving).toBe('remote');
+      await login(station);
+      expect(station.router.status().serving).toBe('local');
+    } finally {
+      await station.close();
+    }
+  });
+
+  it('המרכז אינו עונה והמאגר המקומי עוד עולה - 502 central_unreachable, לא "מיראז\'"', async () => {
+    const station = await createStationServer({
+      distDir: dist, apiTarget: deadUrl, localApiTarget: () => null, localStarting: () => true,
+      timeoutMs: 500, checkFailover: false,
+    });
+    try {
+      const r = await login(station);
+      expect(r.status).toBe(502);
+      expect(JSON.parse(r.body)).toMatchObject({ error: 'central_unreachable', local: 'starting' });
+    } finally {
+      await station.close();
+    }
+  });
+
+  it('המרכז אינו עונה ואין מאגר מקומי כלל - 502 central_unreachable עם local:none', async () => {
+    const station = await createStationServer({
+      distDir: dist, apiTarget: deadUrl, timeoutMs: 500, checkFailover: false,
+    });
+    try {
+      const r = await login(station);
+      expect(r.status).toBe(502);
+      expect(JSON.parse(r.body)).toMatchObject({ error: 'central_unreachable', local: 'none' });
+    } finally {
+      await station.close();
+    }
+  });
+
+  it('המרכז חי (/api/health עונה) והכניסה רק איטית - לא נגררים למקומי', async () => {
+    // המרכז עונה ל-health, אבל בקשת הכניסה נתקעת (המיראז' בהתעוררות קרה)
+    const slow = http.createServer((req, res) => {
+      if (req.url === '/api/health') { res.writeHead(200); res.end('{}'); return; }
+      // לא עונים - הבקשה תיחתך בתקרת הזמן
+    });
+    await new Promise(r => slow.listen(0, '127.0.0.1', r));
+    const slowUrl = `http://127.0.0.1:${slow.address().port}`;
+    localSeen.length = 0;
+    const station = await createStationServer({
+      distDir: dist, apiTarget: slowUrl, localApiTarget: () => localUrl, timeoutMs: 300, checkFailover: false,
+    });
+    try {
+      const r = await login(station);
+      expect(r.status).toBe(502);
+      expect(JSON.parse(r.body)).toMatchObject({ error: 'central_timeout' });
+      expect(localSeen).toHaveLength(0);
+      expect(station.router.status().serving).toBe('remote');
+    } finally {
+      await station.close();
+      slow.closeAllConnections?.();
+      await new Promise(r => slow.close(r));
+    }
+  });
+});

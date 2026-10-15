@@ -33,7 +33,18 @@ export async function mirageAuthErrorKey(res: MirageErrorResponse): Promise<stri
     case 429:
       return 'login.mirageRateLimited';
     case 502:
-      // 502 ספציפי: השרת שלנו חי אבל *המיראז'* לא ענה
+      // בעמדה (Electron / סוכן) ה-502 יכול להגיע מהפרוקסי של העמדה עצמה, כשהשרת
+      // המרכזי לא עונה - ואז "מיראז' לא זמין" שולח את הפקח לחפש במקום הלא נכון
+      // (electron/stationServer.cjs §כניסה בנתק). `upstream unreachable` הוא
+      // הקוד של גרסאות עמדה קודמות.
+      if (body?.error === 'central_unreachable') {
+        return body?.local === 'starting'
+          ? 'login.centralUnreachableLocalStarting'
+          : 'login.centralUnreachable';
+      }
+      if (body?.error === 'upstream unreachable') return 'login.centralUnreachable';
+      if (body?.error === 'central_timeout') return 'login.centralTimeout';
+      // 502 של השרת המרכזי עצמו: הוא חי, *המיראז'* לא ענה
       return 'login.mirageUnavailable';
     default:
       return res.status >= 500 ? 'login.errorServerDown' : 'login.errorLogin';

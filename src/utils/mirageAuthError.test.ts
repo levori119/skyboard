@@ -68,3 +68,26 @@ describe('mirageAuthErrorKey', () => {
     expect(await mirageAuthErrorKey(broken401)).toBe('login.mirageBadCredentials');
   });
 });
+
+// עמדת Electron שעלתה בלי רשת: ה-502 מגיע מהפרוקסי של העמדה, לא מהמיראז'.
+// "מיראז' לא זמין" שלח את הפקח לחפש את התקלה במקום הלא נכון (2026-10-15).
+describe('mirageAuthErrorKey - השרת המרכזי אינו עונה (עמדה)', () => {
+  it('central_unreachable כשהמאגר המקומי עולה → לנסות שוב בעוד רגע', async () => {
+    expect(await mirageAuthErrorKey(res(502, { error: 'central_unreachable', local: 'starting' })))
+      .toBe('login.centralUnreachableLocalStarting');
+  });
+  it('central_unreachable בלי מאגר מקומי → אין קשר לשרת המרכזי', async () => {
+    expect(await mirageAuthErrorKey(res(502, { error: 'central_unreachable', local: 'none' })))
+      .toBe('login.centralUnreachable');
+  });
+  it('upstream unreachable (פרוקסי העמדה בגרסה קודמת) → אין קשר לשרת המרכזי', async () => {
+    expect(await mirageAuthErrorKey(res(502, { error: 'upstream unreachable' })))
+      .toBe('login.centralUnreachable');
+  });
+  it('central_timeout (המרכז חי, הכניסה איטית) → השרת המרכזי לא ענה בזמן', async () => {
+    expect(await mirageAuthErrorKey(res(502, { error: 'central_timeout' }))).toBe('login.centralTimeout');
+  });
+  it('mirage_unavailable אמיתי נשאר "מיראז\' לא זמין"', async () => {
+    expect(await mirageAuthErrorKey(res(502, { error: 'mirage_unavailable' }))).toBe('login.mirageUnavailable');
+  });
+});

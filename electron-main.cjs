@@ -520,6 +520,8 @@ async function createWindow() {
         distDir: distDir(), apiTarget: target.apiTarget,
         airPictureTarget: target.airPictureTarget, airPictureToken: target.airPictureToken,
         localApiTarget: () => localDb.url,
+        // התהליך הבן רץ ועוד לא דיווח מוכן - "נסה שוב בעוד רגע" בהודעת הכניסה
+        localStarting: () => !!localDb.child && !localDb.url,
         port: stationPort(target.cfg),
         // מי מורשה לדבר עם הסוכן מדפדפן שעל אותו מחשב. ברירת המחדל היא
         // `apiTarget` ולוקלהוסט; ALLOWED_ORIGINS מוסיף פריסה עם כתובת אחרת.
