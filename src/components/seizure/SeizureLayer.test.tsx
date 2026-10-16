@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import SeizureLayer, { SEIZURE_DASH, SEIZURE_STROKE_W, SEIZURE_LABEL_WEIGHT } from './SeizureLayer';
+import SeizureLayer, { SEIZURE_DASH, SEIZURE_STROKE_W, SEIZURE_LABEL_WEIGHT, SEIZURE_LABEL_SIZE } from './SeizureLayer';
 import { projectSeizure } from './useTempZoneSeizures';
 import type { MapGeoAnchor } from '../../utils/geo';
 import type { TempZoneSeizure } from '../../types';
@@ -131,7 +131,7 @@ describe('SeizureLayer - הקו והלחיצה', () => {
   });
 
   it('הקו דק - הוא לא אמור להתחרות באזורים ובפ"מים שמתחתיו', () => {
-    expect(SEIZURE_STROKE_W).toBeLessThan(0.9);
+    expect(SEIZURE_STROKE_W).toBeLessThanOrEqual(0.3);
     expect(render([SEIZURE], ANCHOR)).toContain(`stroke-width="${SEIZURE_STROKE_W}"`);
   });
 
@@ -186,5 +186,11 @@ describe('SeizureLayer - התווית', () => {
     expect(html).not.toContain('font-weight="bold"');
     expect(html).toContain(`font-weight="${SEIZURE_LABEL_WEIGHT}"`);
     expect(SEIZURE_LABEL_WEIGHT).toBeLessThan(400);
+  });
+
+  it('התווית קטנה - לא מכסה את האזורים שמתחתיה', () => {
+    expect(SEIZURE_LABEL_SIZE.name).toBeLessThanOrEqual(1.6);
+    expect(SEIZURE_LABEL_SIZE.sub).toBeLessThanOrEqual(1.2);
+    expect(render([SEIZURE], ANCHOR)).toContain(`font-size="${SEIZURE_LABEL_SIZE.name}"`);
   });
 });

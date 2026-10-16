@@ -40,7 +40,7 @@ import { geoToImagePct, imagePctToGeo, fmtDms, buildGeoAnchor as getAnchorFromMa
 import { listAtsimMaps, loadAtsimMapImage, atsimAnchor, revokeAtsimMapImage, type AtsimMap } from '../../airPicture/atsimMaps';
 import { computeTransferEta, stripSavedGeo, stripPinGeo, transferPointGeo, closestGeoOnPolygon, haversineNm, type GeoPoint, type AutoEta } from '../../utils/eta';
 import { zoneAtPoint, zoneAtPointOrEdge, zoneAtEdgeOnly, pointInPolygon } from '../../utils/zoneHit';
-import { DEFAULT_ZONE_LINE_WIDTH, DEFAULT_ZONE_NAME_BRIGHTNESS, estimateTextWidth, interiorLabelPoint, isZoneLineWidth, isZoneNameBrightness, lightenHex, nextZoneLineWidth, nextZoneNameBrightness, zoneLineWidthFactor, zoneNameFill, type ZoneLineWidth, type ZoneNameBrightness } from '../../utils/zoneLabel';
+import { DEFAULT_ZONE_LINE_WIDTH, DEFAULT_ZONE_NAME_BRIGHTNESS, ZONE_STATUS_STYLE, estimateTextWidth, interiorLabelPoint, isZoneLineWidth, isZoneNameBrightness, lightenHex, nextZoneLineWidth, nextZoneNameBrightness, zoneLineWidthFactor, zoneNameFill, type ZoneLineWidth, type ZoneNameBrightness } from '../../utils/zoneLabel';
 import { assignmentRestriction, bandRestricted, bandRestrictionKind, bandLabel, closedForAllBands, openBands, restrictedBandIds, zoneRestrictionOf, isRestricted, restrictionCoversAllAltitudes, restrictionRangeLabel, type ZoneRestriction } from '../../utils/zoneRestriction';
 // `numericStripId` מיובא בשם אחר: בקובץ יש כמה `const numericStripId` מקומיים
 // (הקצאת אזור), והצללה שלהם הייתה הופכת קריאה לפונקציה לקריאה למספר.
@@ -446,15 +446,6 @@ const ZONE_RESTRICTION_COLOR: Record<'closed' | 'restricted', string> = {
   closed: '#ef4444',
   restricted: '#f59e0b',
 };
-
-/**
- * משקל תוויות הסטטוס על המפה (הגבלה, מגבלה חופשית, מרחב מולאם).
- *
- * **דק בכוונה.** התווית יושבת מעל המפה ולצד שם האזור, והצבע האדום/כתום כבר
- * צועק מספיק; משקל כבד הופך אותה ממידע לרעש שמכסה את מה שהיא אמורה לתאר.
- * הצבע והמיקום נושאים את המשמעות - לא העובי.
- */
-const ZONE_STATUS_WEIGHT = 300;
 
 /**
  * כמה זמן כתיבה מקומית של מצב אזור גוברת על הפולינג. שני טיקים (5 שניות כל
@@ -3480,8 +3471,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             // data-zone-band: מזהה הבלוק של הרצועה. הבדיקות זקוקות לו כדי
             // לשחרר פ"מ על **רצועה מסוימת** ולא על האזור סתם.
             <g key={`band-${zone.id}-${i}`} data-zone-band={blk.id}>
-              <polygon points={bpts} fill={bandRestr !== '' ? `${ZONE_RESTRICTION_COLOR[bandRestr]}33` : (isLimited ? '#ef444422' : bandFill)} stroke={bandRestr !== '' ? ZONE_RESTRICTION_COLOR[bandRestr] : (hit ? zc : bandStroke)} strokeWidth={bandRestr !== '' ? 0.5 * ZW : (hit ? 0.4 * ZW : bandWidth)} strokeDasharray={bandRestr !== '' ? '1.2,0.8' : (hit ? '2,1' : 'none')} />
-              {!(ZONE_NAMES_HIDDEN && !isFlashing && bandRestr === '' && !isLimited) && <text x={bcx} y={bcy} textAnchor="middle" dominantBaseline="middle" fill={bandRestr !== '' ? ZONE_RESTRICTION_COLOR[bandRestr] : (isLimited ? '#fca5a5' : (isFlashing ? '#fde047' : (hit ? zc : bandText)))} fontSize={ZONE_NEUTRAL_NAME_SIZE} fontWeight={(hit || bandRestr !== '') ? 'bold' : 'normal'} style={{ userSelect: 'none' }}>
+              <polygon points={bpts} fill={bandRestr !== '' ? `${ZONE_RESTRICTION_COLOR[bandRestr]}33` : (isLimited ? '#ef444422' : bandFill)} stroke={bandRestr !== '' ? ZONE_RESTRICTION_COLOR[bandRestr] : (hit ? zc : bandStroke)} strokeWidth={bandRestr !== '' ? ZONE_STATUS_STYLE.bandOutlineW * ZW : (hit ? 0.4 * ZW : bandWidth)} strokeDasharray={bandRestr !== '' ? '1.2,0.8' : (hit ? '2,1' : 'none')} />
+              {!(ZONE_NAMES_HIDDEN && !isFlashing && bandRestr === '' && !isLimited) && <text x={bcx} y={bcy} textAnchor="middle" dominantBaseline="middle" fill={bandRestr !== '' ? ZONE_RESTRICTION_COLOR[bandRestr] : (isLimited ? '#fca5a5' : (isFlashing ? '#fde047' : (hit ? zc : bandText)))} fontSize={ZONE_NEUTRAL_NAME_SIZE} fontWeight={hit ? 'bold' : (bandRestr !== '' ? ZONE_STATUS_STYLE.weight : 'normal')} style={{ userSelect: 'none' }}>
                 {/* בידוד **אחד** על הצירוף כולו, ולא אחד לכל חלק: שני מבודדים נפרדים
                     מסודרים לפי כיוון הפסקה ולכן התהפכו ל"גבוה 61 צפון". מבודד יחיד
                     נקרא כרצף עברי אחד - "61 צפון גבוה" - בכל כיוון של הממשק. */}
@@ -3492,17 +3483,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         })}
         {/* סגירה **גורפת** מקבלת מסגרת סביב האזור כולו: כשכל הבלוקים סגורים,
             צביעה פר-בלוק לבדה אינה אומרת "האזור סגור" אלא "כל אחד מחלקיו". */}
-        {restrAll && <polygon points={pts.map(q => `${q.x},${q.y}`).join(' ')} fill="none" stroke={restrColor} strokeWidth={0.9 * ZW} strokeDasharray="2.5,1.5" />}
+        {restrAll && <polygon points={pts.map(q => `${q.x},${q.y}`).join(' ')} fill="none" stroke={restrColor} strokeWidth={ZONE_STATUS_STYLE.outlineW * ZW} strokeDasharray="2.5,1.5" />}
         {/* המגבלה יושבת בראש האזור ולא במרכזו: במרכז נמצאת תווית תת-האזור האמצעי,
             והשתיים היו נופלות אחת על השנייה */}
         {(limit || restr !== '') && (() => {
           const txt = [restr !== '' ? `${restr === 'closed' ? '⛔' : '⚠'} ${bidiAuto(restrLabel)}` : '', limit ? `⚠ ${bidiAuto(limit)}` : ''].filter(Boolean).join(' · ');
           // נקודה **בתוך** האזור, קרובה לראשו: בראש משולש או אזור קעור ממוצע
           // הקודקודים בגובה הזה נופל מחוץ לקו והתווית נקראה כשייכת לשכן.
-          const lp = interiorLabelPoint(pts, Math.min(...pts.map(p => p.y)) + 1.8, estimateTextWidth(txt, 1.6));
+          const lp = interiorLabelPoint(pts, Math.min(...pts.map(p => p.y)) + 1.8, estimateTextWidth(txt, ZONE_STATUS_STYLE.fontSize));
           return (
-            <text x={lp.x} y={lp.y} textAnchor="middle" dominantBaseline="middle" fill={restr !== '' ? ZONE_RESTRICTION_TEXT(restr) : '#fca5a5'} fontSize="1.6" fontWeight={ZONE_STATUS_WEIGHT} letterSpacing="0.05"
-              stroke={ZONE_LABEL_HALO} strokeWidth={0.35} paintOrder="stroke" strokeLinejoin="round" style={{ userSelect: 'none' }}>
+            <text x={lp.x} y={lp.y} textAnchor="middle" dominantBaseline="middle" fill={restr !== '' ? ZONE_RESTRICTION_TEXT(restr) : '#fca5a5'} fontSize={ZONE_STATUS_STYLE.fontSize} fontWeight={ZONE_STATUS_STYLE.weight} letterSpacing="0.05"
+              stroke={ZONE_LABEL_HALO} strokeWidth={ZONE_STATUS_STYLE.haloW} paintOrder="stroke" strokeLinejoin="round" style={{ userSelect: 'none' }}>
               {txt}
             </text>
           );
@@ -3517,7 +3508,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     // עוגן התוויות **בתוך** האזור. באזור רגיל זה ממוצע הקודקודים ודבר לא זז;
     // באזור קעור (L, פרסה) הממוצע בחוץ, והתוויות עוברות לשורה הקרובה שיש בה מקום.
     {
-      const lw = Math.max(estimateTextWidth(zone.name, dimmed ? ZONE_NEUTRAL_NAME_SIZE : 2.5), restr !== '' ? estimateTextWidth(`⚠ ${restrLabel}`, 1.7) : 0);
+      const lw = Math.max(estimateTextWidth(zone.name, dimmed ? ZONE_NEUTRAL_NAME_SIZE : 2.5), restr !== '' ? estimateTextWidth(`⚠ ${restrLabel}`, ZONE_STATUS_STYLE.fontSize) : 0);
       const lp = interiorLabelPoint(pts, cy, lw);
       cx = lp.x; cy = lp.y;
     }
@@ -3528,15 +3519,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {/* אזור לא מפוצל: אין בלוקים לצבוע, ולכן ההגבלה נקראת מהמסגרת ומהתווית.
           המסגרת מצוירת גם כשההגבלה טווחית - "סגור 100-140" הוא עדיין אזור שיש
           בו סגירה, והטווח עצמו כתוב בתווית שמתחת לשם. */}
-      {restr !== '' && <polygon points={pts.map(q => `${q.x},${q.y}`).join(' ')} fill={`${restrColor}1f`} stroke={restrColor} strokeWidth={0.9 * ZW} strokeDasharray="2.5,1.5" />}
+      {restr !== '' && <polygon points={pts.map(q => `${q.x},${q.y}`).join(' ')} fill={`${restrColor}1f`} stroke={restrColor} strokeWidth={ZONE_STATUS_STYLE.outlineW * ZW} strokeDasharray="2.5,1.5" />}
       {restr !== '' && (
-        <text x={cx} y={cy - 1.6} textAnchor="middle" dominantBaseline="middle" fill={ZONE_RESTRICTION_TEXT(restr)} fontSize="1.7" fontWeight={ZONE_STATUS_WEIGHT} letterSpacing="0.06"
-          stroke={ZONE_LABEL_HALO} strokeWidth={0.35} paintOrder="stroke" strokeLinejoin="round" style={{ userSelect: 'none' }}>
+        <text x={cx} y={cy - 1.6} textAnchor="middle" dominantBaseline="middle" fill={ZONE_RESTRICTION_TEXT(restr)} fontSize={ZONE_STATUS_STYLE.fontSize} fontWeight={ZONE_STATUS_STYLE.weight} letterSpacing="0.06"
+          stroke={ZONE_LABEL_HALO} strokeWidth={ZONE_STATUS_STYLE.haloW} paintOrder="stroke" strokeLinejoin="round" style={{ userSelect: 'none' }}>
           {restr === 'closed' ? '⛔' : '⚠'} {bidiAuto(restrLabel)}
         </text>
       )}
       {(limit || activeNames.length > 0) && (
-        <text x={cx} y={cy + nameDy + (note ? 5.3 : 2.9)} textAnchor="middle" dominantBaseline="middle" fill="#fca5a5" fontSize="1.6" fontWeight={ZONE_STATUS_WEIGHT} letterSpacing="0.05" style={{ userSelect: 'none' }}>
+        <text x={cx} y={cy + nameDy + (note ? 5.3 : 2.9)} textAnchor="middle" dominantBaseline="middle" fill="#fca5a5" fontSize={ZONE_STATUS_STYLE.fontSize} fontWeight={ZONE_STATUS_STYLE.weight} letterSpacing="0.05" style={{ userSelect: 'none' }}>
           ⚠ {[bidiAuto(limit), activeNames.length > 0 ? `${tr('ctrl.limitedTo')} ${activeNames.map(bidiAuto).join('/')}` : ''].filter(Boolean).join(' · ')}
         </text>
       )}
@@ -10219,7 +10210,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     const ccy = editRing.reduce((s, p) => s + p[1], 0) / editRing.length;
                     return (
                       <g key={`fzhull-${a.strip_id}`}>
-                        <polygon points={pts} fill={`${color}0d`} stroke={color} strokeWidth={0.7} strokeDasharray="1.7 1.3" strokeLinejoin="round" strokeLinecap="round" />
+                        <polygon points={pts} fill={`${color}0d`} stroke={color} strokeWidth={ZONE_STATUS_STYLE.groupOutlineW} strokeDasharray="1.7 1.3" strokeLinejoin="round" strokeLinecap="round" />
                         {fzGroupEdit && editRing.map((pt, vi) => {
                           const nxt = editRing[(vi + 1) % editRing.length];
                           const mid: [number, number] = [(pt[0] + nxt[0]) / 2, (pt[1] + nxt[1]) / 2];

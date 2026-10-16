@@ -56,13 +56,18 @@ export const SEIZURE_DASH = '0.01 1.1 0.01 1.1 0.01 1.1 2.6 1.4';
  * עובי הקו. **דק בכוונה**: המרחב המולאם מכסה שטח גדול על המפה, וקו עבה סביבו
  * מתחרה באזורים עצמם ובפ"מים שבתוכו. התבנית והצבע נושאים את המשמעות, לא העובי.
  */
-export const SEIZURE_STROKE_W = 0.5;
+export const SEIZURE_STROKE_W = 0.3;
 /**
  * משקל התווית. **דק בכוונה**: התווית יושבת מעל המפה ומעל שם האזור שמתחתיה,
  * ומשקל כבד הופך אותה מסימון למסך שמכסה את מה שהיא אמורה לתאר. הצבע והמיקום
  * נושאים את המשמעות - לא העובי. הבהירות מגיעה מ**גוון מובהר והילה**, לא מעובי.
  */
 export const SEIZURE_LABEL_WEIGHT = 300;
+/**
+ * גודל התווית (שם המרחב, ושורת הגבהים והיוצר). **קטנה בכוונה**, מאותה סיבה
+ * של המשקל: המרחב גדול, והתווית יושבת מעל אזורים ושמות שהיא לא אמורה להסתיר.
+ */
+export const SEIZURE_LABEL_SIZE = { name: 1.6, sub: 1.2 } as const;
 /** כמה מבהירים את צבע ההלאמה בתווית על רקע כהה (0..1). */
 export const SEIZURE_LABEL_LIGHTEN = 0.45;
 
@@ -91,7 +96,7 @@ export default function SeizureLayer({ bounds, seizures, anchor, onOpen, zIndex 
         const line1 = `⛶ ${s.name}`;
         const line2 = `${range || tr('seizure.allAlts')} · ${s.creator_preset_name ?? ''}`;
         const { x: cx, y: cy } = interiorLabelPoint(pts, undefined,
-          Math.max(estimateTextWidth(line1, 2), estimateTextWidth(line2, 1.45)));
+          Math.max(estimateTextWidth(line1, SEIZURE_LABEL_SIZE.name), estimateTextWidth(line2, SEIZURE_LABEL_SIZE.sub)));
         const labelFill = light ? s.color : lightenHex(s.color, SEIZURE_LABEL_LIGHTEN);
         // ⚠️ `pointerdown` ולא `click`: בעט ובאצבע ה-click המסונתז נבלע כשהמצביע
         // זז מעט בין הירידה לעלייה, והלחיצה פשוט "לא נתפסת".
@@ -113,16 +118,16 @@ export default function SeizureLayer({ bounds, seizures, anchor, onOpen, zIndex 
             )}
             {/* שתי השורות מאוזנות סביב המרכז, ולכן הגוש כולו ממורכז - ולא השורה
                 הראשונה בלבד עם השנייה תלויה מתחתיה. */}
-            <text x={cx} y={cy - 1.15} textAnchor="middle" dominantBaseline="middle"
-              fill={labelFill} fontSize="2" fontWeight={SEIZURE_LABEL_WEIGHT} letterSpacing="0.06"
-              stroke={halo} strokeWidth={0.4} paintOrder="stroke" strokeLinejoin="round"
+            <text x={cx} y={cy - 0.95} textAnchor="middle" dominantBaseline="middle"
+              fill={labelFill} fontSize={SEIZURE_LABEL_SIZE.name} fontWeight={SEIZURE_LABEL_WEIGHT} letterSpacing="0.06"
+              stroke={halo} strokeWidth={0.25} paintOrder="stroke" strokeLinejoin="round"
               onPointerDown={open}
               style={{ userSelect: 'none', pointerEvents: open ? 'all' : 'none', cursor: open ? 'pointer' : 'default' }}>
               ⛶ {bidiAuto(s.name)}
             </text>
-            <text x={cx} y={cy + 1.35} textAnchor="middle" dominantBaseline="middle"
-              fill={labelFill} fontSize="1.45" fontWeight={SEIZURE_LABEL_WEIGHT} letterSpacing="0.04"
-              stroke={halo} strokeWidth={0.3} paintOrder="stroke" strokeLinejoin="round"
+            <text x={cx} y={cy + 1.1} textAnchor="middle" dominantBaseline="middle"
+              fill={labelFill} fontSize={SEIZURE_LABEL_SIZE.sub} fontWeight={SEIZURE_LABEL_WEIGHT} letterSpacing="0.04"
+              stroke={halo} strokeWidth={0.2} paintOrder="stroke" strokeLinejoin="round"
               style={{ userSelect: 'none' }}>
               {bidiAuto(range || tr('seizure.allAlts'))} · {bidiAuto(s.creator_preset_name)}
             </text>

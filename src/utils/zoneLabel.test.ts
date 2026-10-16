@@ -4,6 +4,7 @@ import {
   interiorLabelPoint, interiorSpansAtY, lightenHex, nextZoneNameBrightness,
   zoneNameFill, isZoneNameBrightness, DEFAULT_ZONE_NAME_BRIGHTNESS,
   nextZoneLineWidth, zoneLineWidthFactor, isZoneLineWidth, DEFAULT_ZONE_LINE_WIDTH,
+  ZONE_STATUS_STYLE,
 } from './zoneLabel';
 
 const square = [{ x: 10, y: 10 }, { x: 30, y: 10 }, { x: 30, y: 30 }, { x: 10, y: 30 }];
@@ -91,5 +92,23 @@ describe('עובי קווי האזורים', () => {
   it('ערך שמור לא תקין נדחה', () => {
     expect(isZoneLineWidth('thick')).toBe(true);
     expect(isZoneLineWidth('huge')).toBe(false);
+  });
+});
+
+describe('ZONE_STATUS_STYLE - קו וטקסט של אזור סגור/מוגבל/מחובר', () => {
+  it('קו המתאר דק - לא מתחרה באזורים ובפ"מים שבתוכו', () => {
+    expect(ZONE_STATUS_STYLE.outlineW).toBeLessThanOrEqual(0.5);
+    expect(ZONE_STATUS_STYLE.bandOutlineW).toBeLessThanOrEqual(0.35);
+    expect(ZONE_STATUS_STYLE.groupOutlineW).toBeLessThanOrEqual(0.4);
+  });
+
+  it('הבלוק המוגבל לא עבה מהמסגרת הגורפת של האזור', () => {
+    expect(ZONE_STATUS_STYLE.bandOutlineW).toBeLessThanOrEqual(ZONE_STATUS_STYLE.outlineW);
+  });
+
+  it('תווית הסטטוס קטנה ודקה - פונט והילה', () => {
+    expect(ZONE_STATUS_STYLE.fontSize).toBeLessThanOrEqual(1.35);
+    expect(ZONE_STATUS_STYLE.haloW).toBeLessThanOrEqual(0.25);
+    expect(ZONE_STATUS_STYLE.weight).toBeLessThan(400);
   });
 });
