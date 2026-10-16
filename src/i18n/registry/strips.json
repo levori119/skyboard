@@ -186,6 +186,10 @@
       "he": "מרחב בלוקים",
       "en": "Block space"
     },
+    "cardZoneHint": {
+      "he": "האזור שהפ\"מ שויך אליו",
+      "en": "The zone this strip is assigned to"
+    },
     "clickToAdd": {
       "he": "לחץ + להוספה",
       "en": "Click + to add"

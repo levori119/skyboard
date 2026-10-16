@@ -112,6 +112,7 @@ import { recordingHintKey } from '../../utils/screenRecording';
 import { openStationSession, closeStationSession, heartbeatStationSession } from '../../utils/stationSession';
 import { renderGroundSvgIcon, GroundMarkerSVG, getElemDisplayStateOpts, normalizeAircraftPositions, GROUND_STATUSES, GROUND_POINT_MARKERS, GROUND_SVG_ICON_KEYS, ALL_MAZAA_STATUSES, AIR_DEFENSE_STATUSES, YABA_AIR_DEFENSE_STATUSES, toEmbedUrl } from '../ground/groundShared';
 import type { MapZone, ZoneAltRange, StripZoneAssignment, AircraftPos, GroundAircraftRow, VectorData } from '../../types/ground';
+import { StripCardLocation, stripCardLocation } from '../strips/StripCardLocation';
 import type { SGNode, SGCell, SGCondition } from '../../types/stripGrid';
 import type { StripControl as StripControlDef, StripControlValue } from '../../types/stripControls';
 import { ensureSGBlinkStyle } from '../../utils/stripGrid';
@@ -9124,7 +9125,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           </span>
                         )}
                       </div>
-                      {s.alt && <span style={{ fontSize: '10px', color: T.muted, border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, padding: '1px 5px', borderRadius: '3px', background: T.bgAlt }}>גובה: {normalizeAlt(s.alt)}</span>}
+                      <StripCardLocation info={stripCardLocation(isFlightZonesMode ? stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === parseInt(String(s.id).replace(/^s/, ''), 10)) : null, s.alt)} text={T.text} muted={T.muted} border={lightMode ? '#cbd5e1' : '#334155'} bgAlt={T.bgAlt} />
                     </div>
                     {(() => {
                       if (!myTableStrips.find(ts => ts.id === s.id)) return null;
@@ -18074,7 +18075,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           </span>
                         )}
                       </div>
-                      {s.alt && <span style={{ fontSize: '10px', color: T.muted, border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, padding: '1px 5px', borderRadius: '3px', background: T.bgAlt }}>גובה: {normalizeAlt(s.alt)}</span>}
+                      <StripCardLocation info={stripCardLocation(isFlightZonesMode ? stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === parseInt(String(s.id).replace(/^s/, ''), 10)) : null, s.alt)} text={T.text} muted={T.muted} border={lightMode ? '#cbd5e1' : '#334155'} bgAlt={T.bgAlt} />
                     </div>
                     {(() => {
                       if (!myTableStrips.find(ts => ts.id === s.id)) return null;
