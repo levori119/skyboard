@@ -18,7 +18,32 @@
 // מחזיק אותה עד ה-`release()`. זה מסדר את הבקשות בתור במקום להריץ 12 במקביל —
 // מחיר סביר לעמדה בודדת, שהעומס עליה הוא של מפעיל אחד.
 
+import fs from 'fs';
 import path from 'path';
+
+/** כמה עותקים פגומים נשמרים לצד המאגר. כל אחד ~100MB - לא צוברים בלי סוף. */
+const KEEP_CORRUPT = 2;
+
+/** קבצי העמדה (לא של Postgres) שעוברים מתיקייה פגומה לזו שהחליפה אותה */
+const CARRY_OVER_FILES = ['auth-secret'];
+
+const isMemoryDir = dir => !dir || String(dir).startsWith('memory://') || String(dir).startsWith('idb://');
+
+/** תיקייה שכבר הכילה מאגר - רק אותה מעבירים הצידה. תיקייה ריקה היא עלייה ראשונה. */
+function hasDataDir(dir) {
+  try { return fs.existsSync(path.join(dir, 'PG_VERSION')); } catch { return false; }
+}
+
+const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
+
+function pruneCorrupt(dir, keep) {
+  const parent = path.dirname(dir);
+  const prefix = `${path.basename(dir)}.corrupt-`;
+  const old = fs.readdirSync(parent).filter(n => n.startsWith(prefix)).sort().reverse().slice(keep);
+  for (const n of old) {
+    try { fs.rmSync(path.join(parent, n), { recursive: true, force: true }); } catch { /* נעול - בפעם הבאה */ }
+  }
+}
 
 /**
  * נעילה סדרתית עם החזקה (lease).
@@ -87,14 +112,72 @@ export function createLocalPool({ dataDir } = {}) {
 
   const acquire = createLock();
   let bootPromise = null;
+  let recovery = { recovered: false };
   const handlers = { error: [] };
+  const onDisk = !isMemoryDir(dir);
+  const backupFile = `${dir}.backup.tar.gz`;
 
   async function boot() {
     const { PGlite } = await import('@electric-sql/pglite');
     const { pgcrypto } = await import('@electric-sql/pglite/contrib/pgcrypto');
+    const open = (extra = {}) => PGlite.create({ dataDir: dir, extensions: { pgcrypto }, ...extra });
     const t0 = Date.now();
-    const db = await PGlite.create({ dataDir: dir, extensions: { pgcrypto } });
+    let db;
+    try {
+      db = await open();
+    } catch (err) {
+      if (!onDisk || !hasDataDir(dir)) throw err;
+      db = await recoverDataDir(open, err);
+    }
     console.log(`[localPool] המאגר המקומי עלה תוך ${Date.now() - t0}ms — ${dir}`);
+    return db;
+  }
+
+  /**
+   * המאגר שבדיסק לא נפתח - העמדה עולה בכל זאת.
+   *
+   * הסיבה הנפוצה: התהליך נהרג באמצע כתיבה (כיבוי, קריסה, `child.kill()`),
+   * ו-PGlite קורס בפתיחה הבאה ב-`Aborted()`. בלי הטיפול הזה initDb מנסה שוב
+   * ושוב, השרת המקומי לא מגיע ל-ready, ובנתק אין מאגר ואין העתק מיראז'.
+   *
+   * הפגום **מועבר הצידה ולא נמחק** (שני האחרונים נשמרים, לחקירה ולחילוץ ידני).
+   * ואז: הגיבוי האחרון-תקין אם יש (`backup()`), אחרת מאגר ריק שהמראה וחבילת
+   * האתחול ממלאים. גיבוי שגם הוא לא נפתח - נופלים למאגר ריק, לא נתקעים.
+   */
+  async function recoverDataDir(open, cause) {
+    const aside = `${dir}.corrupt-${stamp()}`;
+    console.error(`[localPool] ⚠️ המאגר המקומי לא נפתח (${String(cause?.message || cause).slice(0, 120)}) - מועבר ל-${aside}`);
+    // ⚠️ **העתקה וריקון, לא rename.** ב-Windows ה-PGlite שקרס ממשיך להחזיק
+    // ידית על התיקייה עד סוף התהליך, ו-rename נופל ב-EPERM. העתקה וריקון
+    // התוכן עוברים (נבדק), והתיקייה הריקה היא בדיוק מה ש-loadDataDir דורש.
+    fs.cpSync(dir, aside, { recursive: true });
+    for (const name of fs.readdirSync(dir)) fs.rmSync(path.join(dir, name), { recursive: true, force: true });
+    pruneCorrupt(dir, KEEP_CORRUPT);
+
+    let db = null;
+    if (fs.existsSync(backupFile)) {
+      try {
+        db = await open({ loadDataDir: new Blob([fs.readFileSync(backupFile)]) });
+        recovery = { recovered: true, from: 'backup', aside, backupAt: fs.statSync(backupFile).mtime.toISOString() };
+        console.error(`[localPool] ✅ המאגר שוחזר מהגיבוי של ${recovery.backupAt}`);
+      } catch (err) {
+        console.error(`[localPool] גם הגיבוי לא נפתח (${String(err?.message || err).slice(0, 120)}) - עולה מאגר ריק`);
+        for (const name of fs.readdirSync(dir)) fs.rmSync(path.join(dir, name), { recursive: true, force: true });
+      }
+    }
+    if (!db) {
+      db = await open();
+      recovery = { recovered: true, from: 'fresh', aside };
+      console.error('[localPool] ✅ עלה מאגר ריק - המראה תמלא אותו כשיחזור קשר למרכז');
+    }
+    // קבצי העמדה שיושבים בתוך התיקייה ואינם חלק מ-Postgres. סוד החתימה
+    // (server/local.js) עובר - בלעדיו כל מי שמחובר היה מנותק בעלייה הבאה.
+    // `snapshot-at` בכוונה **לא**: מאגר ריק חייב לקלוט שוב את חבילת האתחול.
+    for (const name of CARRY_OVER_FILES) {
+      const from = path.join(aside, name);
+      const to = path.join(dir, name);
+      try { if (fs.existsSync(from) && !fs.existsSync(to)) fs.copyFileSync(from, to); } catch { /* לא קריטי */ }
+    }
     return db;
   }
 
@@ -160,11 +243,49 @@ export function createLocalPool({ dataDir } = {}) {
     };
   }
 
+  /**
+   * גיבוי אחרון-תקין של המאגר כולו, לקובץ אחד לצד התיקייה.
+   *
+   * רץ **תחת הנעילה**: החיבור יחיד, ו-dump באמצע טרנזקציה של מפעיל היה
+   * מצלם מצב חצוי. נכתב ל-`.tmp` ואז rename - כיבוי באמצע הכתיבה משאיר את
+   * הגיבוי הקודם שלם, ולא קובץ חתוך שישחזר זבל.
+   */
+  async function backup() {
+    if (!onDisk) return { ok: false, reason: 'memory' };
+    if (!bootPromise) return { ok: false, reason: 'not_booted' };
+    const db = await ready();
+    const release = await acquire();
+    try {
+      const t0 = Date.now();
+      const blob = await db.dumpDataDir('gzip');
+      const buf = Buffer.from(await blob.arrayBuffer());
+      const tmp = `${backupFile}.tmp`;
+      fs.writeFileSync(tmp, buf);
+      fs.renameSync(tmp, backupFile);
+      return { ok: true, bytes: buf.length, ms: Date.now() - t0 };
+    } finally {
+      release();
+    }
+  }
+
   return {
     query,
     connect,
     on: (event, handler) => { (handlers[event] ??= []).push(handler); },
-    end: async () => { if (bootPromise) (await bootPromise).close(); },
+    // ⚠️ **ממתינים ל-close.** סגירה שלא הושלמה לפני יציאת התהליך משאירה את
+    // התיקייה כמו הריגה - בדיוק מה שהפיל את העמדה בעלייה הבאה.
+    // תחת הנעילה: סגירה באמצע שאילתה של סיבוב מראה הייתה חותכת אותה.
+    end: async () => {
+      if (!bootPromise) return;
+      const db = await bootPromise.catch(() => null);
+      bootPromise = null;
+      if (!db || db.closed) return;
+      const release = await acquire();
+      try { await db.close(); } finally { release(); }
+    },
+    backup,
+    /** האם המאגר עלה מתוך התאוששות (ומאיזה מקור) - לחיווי ולבדיקות */
+    recovery: () => recovery,
     /** לבדיקות ולחיווי: האם המאגר כבר עלה */
     isBooted: () => bootPromise !== null,
     dataDir: dir,

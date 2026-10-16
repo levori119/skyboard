@@ -4,6 +4,7 @@ const fs = require('fs');
 const { resolveSttPaths, sttStatus, transcribeWav } = require('./electron/whisper.cjs');
 const { createStationServer } = require('./electron/stationServer.cjs');
 const { createScreenRecorder } = require('./electron/screenRecorder.cjs');
+const { stopLocalDbChild } = require('./electron/localDbProcess.cjs');
 const { saveScreenshot } = require('./electron/screenshot.cjs');
 const { openDocExternally } = require('./electron/openDoc.cjs');
 
@@ -700,6 +701,17 @@ async function createWindow() {
     scheduleRetry(details.reason);
   });
 
+  // כיבוי/יציאה של Windows: `before-quit` **אינו** נשלח, והמערכת הורגת את
+  // התהליכים תוך שניות. מבקשים מהמאגר המקומי להיסגר מיד - מה שלא יספיק
+  // להיסגר יתאושש בעלייה הבאה מהגיבוי (server/db/localPool.js).
+  mainWindow.on('session-end', () => {
+    if (!localDb.child) return;
+    const child = localDb.child;
+    localDb.child = null;
+    localDb.url = null;
+    stopLocalDbChild(child, { timeoutMs: 4000 });
+  });
+
   mainWindow.on('closed', () => {
     clearTimeout(retryTimer);
     retryTimer = null;
@@ -739,11 +751,22 @@ app.on('window-all-closed', () => {
 
 // סגירת שרת העמדה לפני יציאה — אחרת הפורט נשאר תפוס והפעלה חוזרת מהירה
 // (סגירה ופתיחה של העמדה) הייתה נופלת ללקוח דק.
-app.on('before-quit', () => {
+app.on('before-quit', event => {
+  // תהליך המאגר המקומי מחזיק את תיקיית PGlite. הריגה ישרה השאירה אותה פגומה
+  // והעמדה לא עלתה בנתק (electron/localDbProcess.cjs) - לכן היציאה נדחית עד
+  // שהוא נסגר מסודר, והאירוע חוזר כשאין כבר תהליך.
+  if (localDb.child) {
+    event.preventDefault();
+    const child = localDb.child;
+    localDb.child = null;
+    localDb.url = null;
+    stopLocalDbChild(child).then(how => {
+      console.log(`[station] המאגר המקומי נסגר (${how})`);
+      app.quit();
+    });
+    return;
+  }
   if (stationServer) { stationServer.close().catch(() => {}); stationServer = null; }
-  // תהליך המאגר המקומי מחזיק קבצים פתוחים; בלי הריגה הוא שורד את העמדה
-  // ומחזיק את תיקיית המאגר נעולה בהפעלה הבאה.
-  if (localDb.child) { try { localDb.child.kill(); } catch { /* כבר מת */ } localDb.child = null; }
   // הקלטה שלא נסגרה משאירה קובץ בלי זנב - ב-fMP4/WebM הוא ניגן, אבל בלי אורך
   if (screenRecorder) { screenRecorder.stop().catch(() => {}); }
 });

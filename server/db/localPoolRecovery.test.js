@@ -79,6 +79,23 @@ describe('מאגר מקומי שנפגם - התאוששות בעלייה', () =>
     await b.end();
   }, 120_000);
 
+  it('סוד החתימה של העמדה עובר לתיקייה המשוחזרת - המחוברים לא מנותקים', async () => {
+    const dir = tmpDir();
+    const a = createLocalPool({ dataDir: dir });
+    await a.query('SELECT 1');
+    await a.end();
+    fs.writeFileSync(path.join(dir, 'auth-secret'), 'S'.repeat(64));
+    fs.writeFileSync(path.join(dir, 'snapshot-at'), '123');
+    corrupt(dir);
+
+    const b = createLocalPool({ dataDir: dir });
+    await b.query('SELECT 1');
+    expect(fs.readFileSync(path.join(dir, 'auth-secret'), 'utf8')).toBe('S'.repeat(64));
+    // מאגר ריק חייב לקלוט שוב את חבילת האתחול - הסימון לא עובר
+    expect(fs.existsSync(path.join(dir, 'snapshot-at'))).toBe(false);
+    await b.end();
+  }, 120_000);
+
   it('מאגר תקין: אין התאוששות, ואין העברה הצידה', async () => {
     const dir = tmpDir();
     const a = createLocalPool({ dataDir: dir });

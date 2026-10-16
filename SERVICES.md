@@ -1502,6 +1502,10 @@ DB מנוהל היה נופל יחד עם העמדה.
 **שתי מלכודות שנסגרו בבדיקות:** התנגשות שם באותה שנייה (הקטע הקודם נדרס) · `createWriteStream` נכשל רק אסינכרונית, ולכן נתיב רשת שאינו נגיש דווח "מקליט".
 **מייצא:** `createRecordingWriter({ loadConfig, log })` → `status / start / chunk / rotate / keep / stop`.
 
+### `electron/localDbProcess.cjs`
+**תפקיד:** סגירה מסודרת של תהליך המאגר המקומי ביציאה מהעמדה - `shutdown` ב-IPC, המתנה עד 8 ש' ורק אז הריגה. `child.kill()` ישר השאיר את תיקיית PGlite פגומה והעמדה לא עלתה בנתק (REFACTOR_LOG #060). מכוסה ב-`localDbProcess.test.js`.
+**מייצא:** `stopLocalDbChild(child, { timeoutMs })` → `graceful | killed | already_exited`.
+
 ### `electron/screenRecorder.cjs`
 **תפקיד:** מתאם דק בין ערוצי ה-IPC לליבה המשותפת. מזריק `loadConfig` ששואב תצורה מ-`/api/screen-recording/config/:baseId` עם האסימון שהעמדה מסרה - וזה כל מה ששונה מהשרת. מכוסה ב-`screenRecorder.test.js` (16), שעברו ללא שינוי אחרי חילוץ הליבה.
 **מייצא:** `createScreenRecorder({ apiBase })` → אותם ששה של הליבה.

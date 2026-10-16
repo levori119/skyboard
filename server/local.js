@@ -54,6 +54,35 @@ function ensureLocalAuthSecret(dataDir) {
 
 let stopMirror = () => {};
 
+// ── גיבוי אחרון-תקין ──────────────────────────────────────────────────────────
+// המאגר שנפגם בעלייה משוחזר מהקובץ הזה (db/localPool.js). הראשון אחרי
+// שהמראה הספיקה סיבוב מלא, ואחר כך כל 10 דקות - כך שבמקרה הגרוע אובדות
+// הדקות האחרונות, ולא כל העתק המיראז' והשדה.
+const BACKUP_FIRST_MS = 2 * 60_000;
+const BACKUP_EVERY_MS = 10 * 60_000;
+
+function startBackupLoop(rawPool) {
+  if (typeof rawPool?.backup !== 'function') return () => {};
+  let busy = false;
+  const run = async () => {
+    if (busy) return;
+    busy = true;
+    try {
+      const r = await rawPool.backup();
+      if (r.ok) console.log(`[local] גיבוי המאגר המקומי - ${Math.round(r.bytes / 1024)}KB תוך ${r.ms}ms`);
+    } catch (err) {
+      console.warn(`[local] גיבוי המאגר המקומי נכשל: ${err.message}`);
+    } finally {
+      busy = false;
+    }
+  };
+  const first = setTimeout(run, BACKUP_FIRST_MS);
+  const every = setInterval(run, BACKUP_EVERY_MS);
+  first.unref?.();
+  every.unref?.();
+  return () => { clearTimeout(first); clearInterval(every); };
+}
+
 export async function startLocalServer({ port = PORT, host = HOST } = {}) {
   process.env.SKYKING_LOCAL_DB = '1';
 
@@ -185,11 +214,26 @@ export async function startLocalServer({ port = PORT, host = HOST } = {}) {
   const actual = server.address().port;
   console.log(`[local] המאגר המקומי מוכן תוך ${Date.now() - t0}ms — http://${host}:${actual} (סוד: ${secretSource})`);
 
+  const { rawPool } = await import('./db/pool.js');
+  const recovery = rawPool.recovery?.();
+  if (recovery?.recovered) {
+    console.error(`[local] ⚠️ המאגר המקומי שוחזר בעלייה (${recovery.from}) - העותק הפגום נשמר ב-${recovery.aside}`);
+  }
+  const stopBackup = startBackupLoop(rawPool);
+
   return {
     url: `http://${host}:${actual}`,
     port: actual,
     dataDir,
-    close: () => new Promise(r => { stopMirror(); server.close(() => r()); }),
+    recovery,
+    // סדר הסגירה: קודם מפסיקים את מי שכותב (מראה, גיבוי, בקשות), ורק אז
+    // סוגרים את PGlite - ובהמתנה. סגירה שלא הושלמה = תיקייה פגומה.
+    close: async () => {
+      stopBackup();
+      stopMirror();
+      await new Promise(r => { server.close(() => r()); server.closeAllConnections?.(); });
+      await rawPool.end();
+    },
   };
 }
 
@@ -198,8 +242,31 @@ export async function startLocalServer({ port = PORT, host = HOST } = {}) {
 // שאפשר יהיה להריץ ידנית לאבחון: `node server/local.js`.
 const isDirectRun = process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1]));
 if (isDirectRun) {
+  // סגירה מסודרת: Electron מבקש 'shutdown' ביציאה (electron/localDbProcess.cjs),
+  // ו-'disconnect' הוא ההורה שמת בלי לבקש. בלי close() של PGlite התיקייה
+  // נשארת פגומה, והעמדה לא עולה בנתק בפעם הבאה.
+  let closeServer = null;
+  let shuttingDown = false;
+  const shutdown = async why => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`[local] סגירה מסודרת (${why})`);
+    try {
+      if (closeServer) await closeServer();
+      else { const { rawPool } = await import('./db/pool.js'); await rawPool.end(); }
+    } catch (err) {
+      console.error('[local] הסגירה נכשלה:', err.message);
+    }
+    process.exit(0);
+  };
+  process.on('message', msg => { if (msg?.type === 'shutdown') shutdown('ipc'); });
+  process.on('disconnect', () => shutdown('parent-gone'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+
   startLocalServer()
-    .then(({ url, port, dataDir }) => {
+    .then(({ url, port, dataDir, close }) => {
+      closeServer = close;
       console.log(`SKY-KING local API on ${url} · מאגר: ${dataDir}`);
       process.send?.({ type: 'local-api-ready', port, url, dataDir });
     })
