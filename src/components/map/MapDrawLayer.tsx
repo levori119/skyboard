@@ -1,7 +1,6 @@
 import React from 'react';
 import { tr } from '../../i18n/tr';
-import { useToolbarScale } from '../../hooks/useToolbarScale';
-import { tbPx } from '../../utils/scale';
+import { TOOL_BTN, TOOL_GAP, toolBtn } from '../../utils/toolbarStandard';
 import { useDragPosition } from '../../hooks/useDragPosition';
 import { windowFrame } from '../../utils/windowFrame';
 import { readRootScale } from '../../utils/pointerDrag';
@@ -47,6 +46,28 @@ const TOOL_LABELS: Record<DrawTool, string> = {
   polyline: 'map.drawPolyline',
   recognize: 'map.drawRecognize',
 };
+
+/**
+ * אייקון לכל כלי - **SVG** ולא תו יוניקוד: תווים כמו מחומש או קו שבור חסרים
+ * בגופני Windows ונופלים לריבוע. השם המלא של הכלי ב-title (סטנדרט הסרגלים).
+ */
+const ToolIcon: React.FC<{ tool: DrawTool }> = ({ tool }) => {
+  const p = { fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+  return (
+    <svg width={22} height={22} viewBox="0 0 24 24" aria-hidden="true" style={{ display: 'block' }}>
+      {tool === 'pen' && <><path {...p} d="M4 20l1-5L16 4l4 4L9 19z" /><path {...p} d="M13.5 6.5l4 4" /></>}
+      {tool === 'eraser' && <><path {...p} d="M20 20H8l-4-4 10-10 7 7-6 7" /><path {...p} d="M7.5 11.5l5 5" /></>}
+      {tool === 'circle' && <circle {...p} cx={12} cy={12} r={8} />}
+      {tool === 'rect' && <rect {...p} x={4} y={6} width={16} height={12} rx={1} />}
+      {tool === 'polygon' && <path {...p} d="M12 3l8.5 6.2-3.2 10H6.7L3.5 9.2z" />}
+      {tool === 'polyline' && <path {...p} d="M3 18l5-9 5 6 4-9 4 5" />}
+      {tool === 'recognize' && <text x={12} y={17} textAnchor="middle" fontSize={13} fontWeight="bold" fill="currentColor">Aa</text>}
+    </svg>
+  );
+};
+
+/** תווית שורה ("צבע:") כ-title - בלי הנקודתיים שבסוף. */
+const asHint = (label: string) => label.replace(/[:：]\s*$/, '');
 
 export const DEFAULT_DRAW_TOOLS: DrawTool[] = ['pen', 'eraser', 'circle', 'rect', 'polygon', 'polyline'];
 
@@ -119,22 +140,20 @@ export const MapDrawToolbar: React.FC<MapDrawToolbarProps> = ({
   lineStyle = 'solid', onLineStyleChange, onClear, onClose, themeMode = 'dark', tools = DEFAULT_DRAW_TOOLS, toolsExtra, polyDraft, children, style,
 }) => {
   const C = toolbarColors(themeMode);
-  const tb = useToolbarScale();
   // גרירה בעט ובאצבע דרך ה-hook המשותף - הוא כבר פותר את חלוקת ה---s, את
   // setPointerCapture ואת touchAction. מימוש ידני כאן היה חוזר על שלוש
   // המלכודות (CLAUDE.md §גרירה).
   const winRef = React.useRef<HTMLDivElement | null>(null);
   const drag = useDragPosition(winRef);
+  /** כפתור סרגל - סטנדרט 40x40 (`utils/toolbarStandard`) בצבעי סרגל הציור. */
   const chip = (active: boolean): React.CSSProperties => ({
-    padding: `${tbPx(3, tb)} ${tbPx(7, tb)}`,
-    fontSize: tbPx(11, tb),
-    borderRadius: '4px',
+    ...toolBtn(themeMode, { active }),
     border: `1px solid ${active ? C.onBorder : C.offBorder}`,
+    boxShadow: active ? `inset 0 0 0 1px ${C.onBorder}` : undefined,
     background: active ? C.on : C.off,
     color: active ? C.onText : C.offText,
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
   });
+  const row: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: TOOL_GAP, flexWrap: 'wrap' };
 
   return (
     <div
@@ -146,8 +165,8 @@ export const MapDrawToolbar: React.FC<MapDrawToolbarProps> = ({
       style={{
         // חלון **עריכה** (ציור על המפה) ולכן מסגרת כתומה - CLAUDE.md §מסגרת חלון
         position: 'absolute', zIndex: 210, background: C.panel, ...windowFrame('edit', themeMode, 8),
-        padding: '8px 10px', display: 'flex', flexDirection: 'column',
-        gap: '6px', minWidth: '160px', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', cursor: 'default',
+        padding: '6px 8px', display: 'flex', flexDirection: 'column',
+        gap: '6px', maxWidth: TOOL_BTN * 6 + TOOL_GAP * 5 + 20, boxShadow: '0 4px 20px rgba(0,0,0,0.6)', cursor: 'default',
         userSelect: 'none',
         ...style,
         // הגרירה גוברת על המיקום שהעמדה קבעה, ולכן היא **אחרי** ה-style.
@@ -167,44 +186,42 @@ export const MapDrawToolbar: React.FC<MapDrawToolbarProps> = ({
       </div>
 
       {/* בחירת כלי */}
-      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+      <div style={row}>
         {tools.map(t => (
-          <button key={t} onClick={() => onToolChange(t)} style={chip(tool === t)}>
-            {tr(TOOL_LABELS[t])}
+          <button key={t} data-draw-tool={t} aria-pressed={tool === t} onClick={() => onToolChange(t)}
+            title={tr(TOOL_LABELS[t])} aria-label={tr(TOOL_LABELS[t])} style={chip(tool === t)}>
+            <ToolIcon tool={t} />
           </button>
         ))}
         {toolsExtra}
       </div>
 
       {/* צבע */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '10px', color: C.label }}>{tr('shared.color2')}</span>
+      <div style={{ ...row, gap: '6px' }} title={asHint(tr('shared.color2'))}>
         {DRAW_PALETTE.map(c => (
           <button key={c} onClick={() => onColorChange(c)} title={c} aria-label={c}
-            style={{ width: tbPx(14, tb), height: tbPx(14, tb), padding: 0, borderRadius: '50%', background: c, border: color === c ? `2px solid ${C.accent}` : `1px solid ${C.offBorder}`, cursor: 'pointer', flexShrink: 0 }} />
+            style={{ width: 26, height: 26, padding: 0, borderRadius: '50%', background: c, border: color === c ? `2px solid ${C.accent}` : `1px solid ${C.offBorder}`, cursor: 'pointer', flexShrink: 0 }} />
         ))}
         <input type="color" value={color} onChange={e => onColorChange(e.target.value)} title={tr('map.drawCustomColor')}
-          style={{ width: tbPx(18, tb), height: tbPx(18, tb), padding: 0, border: 'none', borderRadius: '3px', cursor: 'pointer', background: 'transparent' }} />
+          style={{ width: 30, height: 30, padding: 0, border: 'none', borderRadius: '3px', cursor: 'pointer', background: 'transparent' }} />
       </div>
 
       {/* עובי */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-        <span style={{ fontSize: '10px', color: C.label, whiteSpace: 'nowrap' }}>{tr('ctrl.thickness')}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title={asHint(tr('ctrl.thickness'))}>
         <input type="range" min={1} max={20} value={size} onChange={e => onSizeChange(parseInt(e.target.value))}
-          style={{ flex: 1, accentColor: C.accent, height: 12 }} />
-        <span style={{ fontSize: '10px', color: C.value, width: 18, textAlign: 'center' }}>{size}</span>
+          style={{ flex: 1, accentColor: C.accent, height: 20 }} />
+        <span style={{ fontSize: '14px', fontWeight: 'bold', color: C.value, width: 24, textAlign: 'center' }}>{size}</span>
       </div>
 
       {/* סגנון הקו - רק לצורות. העט הוא כתב יד, ושם קו מקווקו רק מקשה על הקריאה.
           הכפתור מראה את הסגנון עצמו ולא שם שלו - מזוהה במבט אחד, ובלי תרגום. */}
       {SHAPE_TOOLS.includes(tool) && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '10px', color: C.label, whiteSpace: 'nowrap' }}>{tr('map.drawLineStyle')}</span>
+        <div style={row} title={asHint(tr('map.drawLineStyle'))}>
           {LINE_STYLES.map(s => (
             <button key={s} data-line-style={s} aria-pressed={lineStyle === s}
               onClick={() => onLineStyleChange?.(s)} title={tr(LINE_STYLE_LABELS[s])} aria-label={tr(LINE_STYLE_LABELS[s])}
-              style={{ ...chip(lineStyle === s), padding: `${tbPx(2, tb)} ${tbPx(4, tb)}`, lineHeight: 0 }}>
-              <LineStylePreview style={s} color={lineStyle === s ? C.onText : C.offText} width={Math.round(26 * tb)} />
+              style={chip(lineStyle === s)}>
+              <LineStylePreview style={s} color={lineStyle === s ? C.onText : C.offText} width={30} />
             </button>
           ))}
         </div>
@@ -212,10 +229,11 @@ export const MapDrawToolbar: React.FC<MapDrawToolbarProps> = ({
 
       {/* מילוי - רק לצורות שהן שטח (פוליגון פתוח הוא קו, לא שטח) */}
       {(tool === 'circle' || tool === 'rect' || tool === 'polygon') && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ fontSize: '10px', color: C.label }}>{tr('ctrl.fill')}</span>
-          <button onClick={() => onFilledChange(!filled)} style={{ ...chip(filled), padding: `${tbPx(2, tb)} ${tbPx(8, tb)}`, fontSize: tbPx(10, tb) }}>
-            {filled ? tr('map.drawFilled') : tr('map.drawOutline')}
+        <div style={row}>
+          <button data-fill-toggle="" aria-pressed={filled} onClick={() => onFilledChange(!filled)}
+            title={`${asHint(tr('ctrl.fill'))} ${filled ? tr('map.drawFilled') : tr('map.drawOutline')}`}
+            style={chip(filled)}>
+            {filled ? '■' : '□'}
           </button>
         </div>
       )}
@@ -223,20 +241,20 @@ export const MapDrawToolbar: React.FC<MapDrawToolbarProps> = ({
       {/* פוליגון: איך מסיימים + סיום / נקודה אחורה. בעט ובאצבע אין דאבל-קליק
           אמין ואין מקלדת בהישג יד, ולכן כפתורים ולא רק Enter/Backspace. */}
       {isPolyTool(tool) && (
-        <div data-poly-hint="" style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderTop: `1px solid ${C.sep}`, paddingTop: '6px' }}>
-          <div style={{ fontSize: '10px', color: C.label, lineHeight: 1.4, maxWidth: '260px' }}>
-            {tr(tool === 'polygon' ? 'map.drawPolyHintClosed' : 'map.drawPolyHintOpen')}
-          </div>
+        // ההסבר "איך מסיימים" הוא HINT - ב-title של השורה, לא טקסט מוצג
+        <div data-poly-hint="" title={tr(tool === 'polygon' ? 'map.drawPolyHintClosed' : 'map.drawPolyHintOpen')}
+          style={{ ...row, borderTop: `1px solid ${C.sep}`, paddingTop: '6px', minHeight: TOOL_BTN }}>
           {polyDraft && polyDraft.count > 0 && (
-            <div style={{ display: 'flex', gap: '4px' }}>
+            <>
               <button onClick={polyDraft.onFinish} disabled={polyDraft.count < POLY_MIN_POINTS[tool]}
-                style={{ ...chip(true), flex: 1, opacity: polyDraft.count < POLY_MIN_POINTS[tool] ? 0.5 : 1 }}>
-                {tr('map.drawPolyFinish', { count: polyDraft.count })}
+                title={tr('map.drawPolyFinish', { count: polyDraft.count })}
+                style={{ ...chip(true), opacity: polyDraft.count < POLY_MIN_POINTS[tool] ? 0.5 : 1 }}>
+                ✓
               </button>
-              <button onClick={polyDraft.onUndo} style={{ ...chip(false), flex: 1 }}>
-                {tr('map.drawPolyUndo')}
+              <button onClick={polyDraft.onUndo} title={tr('map.drawPolyUndo')} style={chip(false)}>
+                ↶
               </button>
-            </div>
+            </>
           )}
         </div>
       )}
@@ -244,14 +262,14 @@ export const MapDrawToolbar: React.FC<MapDrawToolbarProps> = ({
       {children}
 
       {/* נקה / סגור */}
-      <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
-        <button onClick={onClear}
-          style={{ flex: 1, padding: `${tbPx(3, tb)} 0`, fontSize: tbPx(10, tb), background: '#7f1d1d', color: '#fca5a5', border: '1px solid #991b1b', borderRadius: '4px', cursor: 'pointer' }}>
-          {tr('shared.clear3')}
+      <div style={{ ...row, marginTop: '2px' }}>
+        <button data-draw-action="clear" onClick={onClear} title={tr('shared.clear3')} aria-label={tr('shared.clear3')}
+          style={{ ...chip(false), flex: 1, background: '#7f1d1d', color: '#fca5a5', border: '1px solid #991b1b' }}>
+          🗑
         </button>
-        <button onClick={onClose}
-          style={{ flex: 1, padding: `${tbPx(3, tb)} 0`, fontSize: tbPx(10, tb), background: C.off, color: C.offText, border: `1px solid ${C.offBorder}`, borderRadius: '4px', cursor: 'pointer' }}>
-          {tr('shared.close2')}
+        <button data-draw-action="close" onClick={onClose} title={tr('shared.close2')} aria-label={tr('shared.close2')}
+          style={{ ...chip(false), flex: 1 }}>
+          ✕
         </button>
       </div>
     </div>
@@ -261,36 +279,30 @@ export const MapDrawToolbar: React.FC<MapDrawToolbarProps> = ({
 /**
  * כפתור ההדלקה/כיבוי של מצב הציור - אותו כפתור ✏ בשתי העמדות.
  *
- * `labeled` מוסיף כיתוב לצד האייקון. בעמדת המפה הכפתור יושב בסרגל אנכי צר ולכן
- * אייקון בלבד; בעמדת השדה הוא יושב בפאנל השכבות, ושם ריבוע 20px בלי כיתוב פשוט
- * לא נמצא בעין.
+ * סטנדרט הסרגלים: 40x40 כמו כפתורי סרגל המפה, **אייקון בלבד** וההסבר ב-title.
+ * `labeled` נשאר לתאימות קריאות קיימות ואינו מוסיף כיתוב - ריבוע 40 נמצא בעין
+ * גם בפאנל השכבות של עמדת השדה, שבגללו נולד הכיתוב כשהכפתור היה 20px.
  */
 export const MapDrawToggle: React.FC<{
   active: boolean;
   onToggle: () => void;
   themeMode?: ThemeMode;
+  /** @deprecated - אין כיתוב בסטנדרט הסרגלים. */
   labeled?: boolean;
   style?: React.CSSProperties;
-}> = ({ active, onToggle, themeMode = 'dark', labeled = false, style }) => {
+}> = ({ active, onToggle, themeMode = 'dark', style }) => {
   const C = toolbarColors(themeMode);
-  const tb = useToolbarScale();
   return (
-    <button onClick={onToggle} data-nopan
+    <button onClick={onToggle} data-nopan aria-pressed={active}
       onPointerDown={e => e.stopPropagation()}
       title={active ? tr('map.drawDisable') : tr('map.drawEnable')}
       style={{
+        ...toolBtn(themeMode, { active }),
         background: active ? '#7c3aed' : C.off,
         color: active ? '#ffffff' : C.offText, border: `1px solid ${active ? C.onBorder : C.offBorder}`,
-        borderRadius: '4px', cursor: 'pointer', fontSize: tbPx(11, tb), lineHeight: 1,
-        fontWeight: active ? 'bold' : 'normal', whiteSpace: 'nowrap',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: labeled ? '5px' : 0,
-        ...(labeled
-          ? { width: '100%', padding: `${tbPx(4, tb)} ${tbPx(8, tb)}` }
-          : { width: tbPx(20, tb), height: tbPx(20, tb), padding: 0 }),
         ...style,
       }}>
-      <span style={{ fontSize: tbPx(12, tb) }}>✏</span>
-      {labeled && <span>{tr('map.drawLabel')}</span>}
+      ✏
     </button>
   );
 };

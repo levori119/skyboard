@@ -6,6 +6,8 @@ import Pattern3DSplitPane, { splitMapInset, splitPaneInset } from './Pattern3DSp
 import { DEFAULT_PATTERN3D_PREFS, DOCKED_BAR_MAX_H, MIN_WIN_H, MIN_WIN_W } from './pattern3dPrefs';
 import { DEFAULT_CAMERA } from '../../utils/pattern3d';
 import { frameColor } from '../../utils/windowFrame';
+import { TOOL_BTN } from '../../utils/toolbarStandard';
+import { tr } from '../../i18n/tr';
 
 // שלוש הדרכים להציג את אותה סצנה. מה שנבדק כאן הוא מה שהפקח **רואה ויכול
 // ללחוץ עליו** - שאף פקד לא נעלם כשהסרגל עובר מהחלון הצף אל תוך חלון/חלונית,
@@ -64,17 +66,15 @@ describe('פקדי התלת מימד - אותו רכיב, שני מיקומים'
     }
   });
 
-  it('בסרגל המעוגן הרמז אינו גוזל שורה - הוא חי ב-tooltip', () => {
+  it('הרמז אינו טקסט מוצג באף מיקום - הוא חי ב-tooltip (סטנדרט הסרגלים)', () => {
     const hint = 'גרירה = סיבוב';
     /** הרמז כ**טקסט מוצג** (בין תגים) - זה מה שתופס שורה. */
     const asVisibleText = (m: string) => new RegExp(`>[^<]*${hint}`).test(m);
-    const floating = renderToStaticMarkup(<Pattern3DControls {...ctrlBase} />);
-    const docked = renderToStaticMarkup(<Pattern3DControls {...ctrlBase} placement="docked" />);
-    // בעמודה יש לו מקום, והוא נקרא במלואו
-    expect(asVisibleText(floating)).toBe(true);
-    // בסרגל הוא קיים - אבל כ-tooltip בלבד, ולא כשורה שגוזלת מהסצנה
-    expect(asVisibleText(docked)).toBe(false);
-    expect(docked).toContain(`title="${hint}`.slice(0, 12));
+    for (const placement of ['floating', 'docked'] as const) {
+      const m = renderToStaticMarkup(<Pattern3DControls {...ctrlBase} placement={placement} />);
+      expect(asVisibleText(m), placement).toBe(false);
+      expect(m, placement).toContain(`title="${hint}`.slice(0, 12));
+    }
   });
 
   it('חץ הצפון בסרגל מוקטן לגובה פקד, ובעמודה נשאר גדול', () => {
@@ -105,6 +105,38 @@ describe('פקדי התלת מימד - אותו רכיב, שני מיקומים'
     expect(withSplit).toContain('data-testid="p3d-split-orient"');
     expect(withSplit).toContain('data-testid="p3d-split-v" data-active="1"');
     expect(withSplit).toContain('data-testid="p3d-split-h" data-active="0"');
+  });
+});
+
+describe('סטנדרט הסרגלים - כמו סרגל המפה (+/−)', () => {
+  /** כל הכפתורים שבסרגל, לפי data-testid. */
+  const BUTTONS = ['tilt-down', 'tilt-up', 'rot-left', 'rot-right', 'zoom-in', 'zoom-out', 'recenter',
+    'p3d-mode-overlay', 'p3d-mode-window', 'p3d-mode-split', 'close'];
+  const styleOf = (m: string, id: string) =>
+    m.match(new RegExp(`data-testid="${id}"[^>]*style="([^"]*)"`))?.[1] ?? '';
+
+  it(`כל כפתור בגודל כפתור סרגל המפה - ${TOOL_BTN}x${TOOL_BTN}, בשני המיקומים`, () => {
+    for (const placement of ['floating', 'docked'] as const) {
+      const m = renderToStaticMarkup(<Pattern3DControls {...ctrlBase} placement={placement} />);
+      for (const id of BUTTONS) {
+        const st = styleOf(m, id);
+        expect(st, `${id} @ ${placement}`).toContain(`width:${TOOL_BTN}px`);
+        expect(st, `${id} @ ${placement}`).toContain(`height:${TOOL_BTN}px`);
+      }
+    }
+  });
+
+  it('בלי טקסט מסביר: אין תוויות קבוצה ואין מילים על הכפתורים - הכל ב-title', () => {
+    for (const placement of ['floating', 'docked'] as const) {
+      const m = renderToStaticMarkup(<Pattern3DControls {...ctrlBase} placement={placement} />);
+      for (const word of [tr('pattern3d.tilt'), tr('pattern3d.heading'), tr('pattern3d.mode'),
+        tr('pattern3d.recenter'), tr('pattern3d.modeOverlay'), tr('pattern3d.modeWindow'), tr('pattern3d.modeSplit')]) {
+        expect(m, `"${word}" מוצג כטקסט @ ${placement}`).not.toMatch(new RegExp(`>[^<]*${word}[^<]*<`));
+      }
+      // ...אבל ההסבר קיים כ-HINT
+      expect(m).toContain(`title="${tr('pattern3d.recenter')}`);
+      expect(m).toContain(`title="${tr('pattern3d.modeWindow')}`);
+    }
   });
 });
 

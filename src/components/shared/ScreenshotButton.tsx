@@ -10,11 +10,13 @@ interface Props {
   station?: string | null;
   /** עיצוב הכפתור, כדי שישב טבעי בסרגל של המסך המארח */
   style?: CSSProperties;
+  /** מחלקת CSS של הסרגל המארח (בסרגל העליון: `bt-tb` - גובה ופונט אחידים) */
+  className?: string;
 }
 
 const FEEDBACK_MS = 2500;
 
-export default function ScreenshotButton({ station, style }: Props) {
+export default function ScreenshotButton({ station, style, className }: Props) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const timer = useRef<number | undefined>(undefined);
@@ -50,6 +52,7 @@ export default function ScreenshotButton({ station, style }: Props) {
       <button
         type="button"
         data-help="screenshot"
+        className={className}
         onClick={shoot}
         disabled={busy}
         title={tr('screenRec.shotButton')}

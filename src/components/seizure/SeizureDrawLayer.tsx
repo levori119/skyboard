@@ -33,6 +33,7 @@ import { tr } from '../../i18n/tr';
 import { windowFrame, type FrameTheme } from '../../utils/windowFrame';
 import { SEIZURE_MIN_VERTICES, vertexAt, tapAction } from '../../utils/tempZoneSeizure';
 import { seizurePalette } from './seizureTheme';
+import { TOOL_GAP, toolBtn } from '../../utils/toolbarStandard';
 
 export interface DrawBounds { top: number; left: number; width: number; height: number }
 export type DrawPt = { x: number; y: number };
@@ -149,8 +150,9 @@ interface ToolbarProps {
 export function SeizureDrawToolbar({ pts, themeMode, top, left, onUndo, onDone, onCancel }: ToolbarProps) {
   const P = seizurePalette(themeMode);
   const canClose = pts.length >= SEIZURE_MIN_VERTICES;
+  // סטנדרט הסרגלים (utils/toolbarStandard): 40x40, אייקון בלבד, השם ב-title
   const btn = (active: boolean): React.CSSProperties => ({
-    padding: '6px 12px', borderRadius: 6, fontSize: 12, whiteSpace: 'nowrap',
+    ...toolBtn(themeMode, { disabled: !active }),
     border: `1px solid ${active ? '#f97316' : P.line}`,
     background: active ? '#431407' : P.panelAlt,
     color: active ? '#fdba74' : P.muted,
@@ -164,20 +166,22 @@ export function SeizureDrawToolbar({ pts, themeMode, top, left, onUndo, onDone, 
       background: P.panel, ...windowFrame('edit', themeMode, 8),
       padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 260,
       boxShadow: '0 4px 20px rgba(0,0,0,0.7)',
-    }}>
+    }} title={tr('seizure.drawHint')}>
       <div style={{ color: P.accent, fontSize: 13, fontWeight: 'bold' }}>{tr('seizure.drawTitle')}</div>
-      <div style={{ color: P.muted, fontSize: 11, lineHeight: 1.4 }}>{tr('seizure.drawHint')}</div>
       <div style={{ color: canClose ? P.ok : P.danger, fontSize: 11 }}>
         {pts.length} {tr('seizure.vertices')}{canClose ? '' : ` - ${tr('seizure.drawNeed3')}`}
       </div>
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: TOOL_GAP, flexWrap: 'wrap' }}>
         <button type="button" onClick={onUndo} disabled={!pts.length}
-          style={btn(pts.length > 0)}>↶ {tr('seizure.drawUndo')}</button>
+          title={tr('seizure.drawUndo')} aria-label={tr('seizure.drawUndo')}
+          style={btn(pts.length > 0)}>↶</button>
         <button type="button" onClick={() => canClose && onDone(pts)} disabled={!canClose}
-          style={btn(canClose)}>✓ {tr('seizure.drawClose')}</button>
+          title={tr('seizure.drawClose')} aria-label={tr('seizure.drawClose')}
+          style={btn(canClose)}>✓</button>
         <button type="button" onClick={onCancel}
+          title={tr('shared.cancel')} aria-label={tr('shared.cancel')}
           style={{ ...btn(true), border: `1px solid ${P.line}`, background: P.panelAlt, color: P.danger }}>
-          ✕ {tr('shared.cancel')}
+          ✕
         </button>
       </div>
     </div>

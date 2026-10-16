@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { TOOL_BTN } from '../../utils/toolbarStandard';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MapDrawToolbar, MapDrawToggle, MapShapeSvg, PolyDraftSvg, EraserCursorSvg, toolbarColors, type ThemeMode } from './MapDrawLayer';
 import { LINE_STYLES } from '../../utils/mapDrawing';
@@ -76,6 +77,35 @@ describe('MapDrawToolbar - כלי הציור', () => {
   });
 });
 
+describe('MapDrawToolbar - סטנדרט הסרגלים', () => {
+  it(`כל כפתור כלי בגודל כפתור סרגל המפה (${TOOL_BTN}x${TOOL_BTN}), אייקון בלבד והשם ב-title`, () => {
+    const m = render();
+    const tools = m.match(/<button[^>]*data-draw-tool="[^"]+"[^>]*>/g) ?? [];
+    expect(tools.length).toBe(6);
+    for (const b of tools) {
+      expect(b).toContain(`width:${TOOL_BTN}px`);
+      expect(b).toContain(`height:${TOOL_BTN}px`);
+      expect(b).toMatch(/title="[^"]+"/);
+    }
+    // השמות לא מוצגים כטקסט
+    for (const word of ['עט', 'מחק', 'עיגול', 'מלבן']) expect(m).not.toMatch(new RegExp(`>${word}<`));
+  });
+
+  it('בלי תוויות שורה מסבירות ("צבע", "עובי") - הן ב-title', () => {
+    const m = render({ tool: 'rect' });
+    for (const word of ['צבע', 'עובי', 'מילוי']) expect(m).not.toMatch(new RegExp(`>${word}[:\s]*<`));
+  });
+
+  it('נקה וסגור הם כפתורי אייקון בגודל הסטנדרט', () => {
+    const m = render();
+    for (const id of ['clear', 'close']) {
+      const b = m.match(new RegExp(`<button[^>]*data-draw-action="${id}"[^>]*>`))?.[0] ?? '';
+      expect(b, id).toContain(`height:${TOOL_BTN}px`);
+      expect(b, id).toMatch(/title="[^"]+"/);
+    }
+  });
+});
+
 describe('MapDrawToolbar - פוליגון סגור ופתוח', () => {
   it('שני כלי הפוליגון מוצגים כברירת מחדל, ליד העיגול והמלבן', () => {
     const m = render();
@@ -85,9 +115,8 @@ describe('MapDrawToolbar - פוליגון סגור ופתוח', () => {
   });
 
   it('מילוי מוצג לפוליגון סגור ולא לפתוח (קו שבור אינו שטח)', () => {
-    // '>קווי<' ולא 'קווי': שורת סגנון הקו מכילה "קווים", והבדיקה מכוונת לכפתור המילוי
-    expect(render({ tool: 'polygon' })).toContain('>קווי<');
-    expect(render({ tool: 'polyline' })).not.toContain('>קווי<');
+    expect(render({ tool: 'polygon' })).toContain('data-fill-toggle');
+    expect(render({ tool: 'polyline' })).not.toContain('data-fill-toggle');
   });
 
   it('בכלי פוליגון מוצג הסבר, וכפתורי סיום/נקודה אחורה כשיש נקודות', () => {
@@ -182,12 +211,13 @@ describe('MapDrawToggle - כפתור ההדלקה', () => {
     expect(renderToStaticMarkup(<MapDrawToggle active={false} onToggle={noop} />)).toContain('title="הפעל ציור על המפה"');
   });
 
-  // אייקון בלבד נעלם בפאנל השכבות של עמדת השדה - שם הכפתור חייב כיתוב
-  it('בגרסה עם כיתוב מופיע גם הטקסט, ולא רק האייקון', () => {
-    const labeled = renderToStaticMarkup(<MapDrawToggle active={false} labeled onToggle={noop} />);
-    expect(labeled).toContain('ציור');
-    expect(labeled).toContain('✏');
-    expect(renderToStaticMarkup(<MapDrawToggle active={false} onToggle={noop} />)).not.toContain('>ציור<');
+  // סטנדרט הסרגלים: כפתור סרגל המפה - 40x40, אייקון בלבד, ההסבר ב-title
+  it(`אייקון בלבד בגודל כפתור סרגל המפה (${TOOL_BTN}x${TOOL_BTN}) - בלי כיתוב`, () => {
+    const m = renderToStaticMarkup(<MapDrawToggle active={false} onToggle={noop} />);
+    expect(m).toContain('✏');
+    expect(m).not.toContain('>ציור<');
+    expect(m).toContain(`width:${TOOL_BTN}px`);
+    expect(m).toContain(`height:${TOOL_BTN}px`);
   });
 });
 

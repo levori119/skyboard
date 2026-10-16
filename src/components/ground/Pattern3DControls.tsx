@@ -1,8 +1,7 @@
 import React from 'react';
 import { tr } from '../../i18n/tr';
 import { useDragPosition } from '../../hooks/useDragPosition';
-import { useToolbarScale } from '../../hooks/useToolbarScale';
-import { tbPx } from '../../utils/scale';
+import { toolBtn } from '../../utils/toolbarStandard';
 import { frameColor, windowFrame } from '../../utils/windowFrame';
 import {
   DEFAULT_CAMERA, ROT_STEP, TILT_STEP, ZOOM_FACTOR,
@@ -33,11 +32,16 @@ import type { ThemeMode } from './Pattern3DScene';
 //
 //   רמז הגרירה  - הוא הסבר, לא פקד. עובר ל-`title` על הסרגל, שם הוא עולה אפס.
 //   חץ הצפון    - קריאון, ולכן מוקטן לגובה כפתור ויושב בשורה עם השאר.
-//   תוויות קבוצה - "תצוגה" נשמט (שלושת השבבים מסבירים את עצמם ב-title); "הטיה"
-//                 ו"כיוון" **נשארים**, כי בלעדיהם שני קריאונים במעלות נראים זהים.
+//   תוויות קבוצה - נשמטו (סטנדרט הסרגלים, `utils/toolbarStandard`). "הטיה"
+//                 ו"כיוון" חיים ב-title של הקריאון, ושני הקריאונים מובחנים
+//                 בחיצים שלצידם: ▼▲ להטיה, ◀▶ לכיוון.
 //
 // ועל הכול תקרת `DOCKED_BAR_MAX_H` - מיעוט מוצהר מהחלון המינימלי, כדי שאיש
 // (כולל אני, בעוד חצי שנה) לא ינפח את הסרגל בחזרה על חשבון ההקפה.
+//
+// ── סטנדרט הסרגלים ──────────────────────────────────────────────────────────
+// כל כפתור כאן הוא `toolBtn` - 40x40, כמו כפתורי הזום של סרגל המפה - ו**אייקון
+// בלבד**. ההסבר (שם הפקד, מצבי התצוגה, רמז הגרירה) עובר ל-title.
 //
 // **המספרים מוצגים כטקסט** (TILT 55° / HDG 015°) ולא רק כמצב של סליידר: פקח
 // אינו אומד זווית בעין, ובלי המספר אין לו דרך לתאר לעמית מה הוא רואה.
@@ -72,6 +76,8 @@ interface Props {
 
 const pad3 = (n: number) => String(Math.round(n)).padStart(3, '0');
 
+/** אייקון לכל מצב תצוגה - השם המלא וההסבר ב-title. */
+const MODE_ICON: Record<Pattern3DMode, string> = { overlay: '⛶', window: '❐', split: '◧' };
 const MODE_LABEL: Record<Pattern3DMode, string> = {
   overlay: 'pattern3d.modeOverlay', window: 'pattern3d.modeWindow', split: 'pattern3d.modeSplit',
 };
@@ -86,7 +92,6 @@ export default function Pattern3DControls({
   const docked = placement === 'docked';
   const winRef = React.useRef<HTMLDivElement | null>(null);
   const selfDrag = useDragPosition(winRef);
-  const tb = useToolbarScale();
 
   // ocean היא תמה **כהה** - לא לגזור "כל מה שאינו light הוא dark" ולהפך.
   const light = themeMode === 'light';
@@ -98,25 +103,24 @@ export default function Pattern3DControls({
   /** צבע ההדגשה נגזר מקוד הצבע של החלונות - מקור אמת יחיד, מותאם לשלוש התמות. */
   const accent = frameColor('view', themeMode);
 
-  const btn: React.CSSProperties = {
-    width: tbPx(24, tb), height: tbPx(22, tb), padding: 0, lineHeight: 1,
-    borderRadius: '4px', border: `1px solid ${C.border}`, background: C.btn, color: C.btnText,
-    cursor: 'pointer', fontSize: tbPx(12, tb), display: 'flex', alignItems: 'center', justifyContent: 'center',
-    touchAction: 'manipulation', boxSizing: 'border-box',
-  };
-  const wide: React.CSSProperties = {
-    ...btn, width: 'auto', flex: 1, minWidth: tbPx(50, tb),
-    padding: `0 ${tbPx(6, tb)}`, fontSize: tbPx(10, tb),
-  };
+  const btn = (active = false): React.CSSProperties => ({
+    ...toolBtn(themeMode, { active }),
+    // הצבעים של חלון התלת מימד - הכפתור יושב על הרקע שלו
+    background: active ? `${accent}33` : C.btn,
+    color: active ? C.text : C.btnText,
+    // פעיל = מסגרת עבה. ה-inset ולא border של 2px, כדי שהסרגל המעוגן לא יישא
+    // "מסגרת חלון" תורכיז משלו - זו שייכת למארח.
+    border: `1px solid ${active ? accent : C.border}`,
+    boxShadow: active ? `inset 0 0 0 1px ${accent}` : undefined,
+  });
   /** קבוצת פקדים. בעמודה היא שורה מלאה; בסרגל היא פריט שאינו נמעך. */
   const row: React.CSSProperties = docked
-    ? { display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }
-    : { display: 'flex', alignItems: 'center', gap: '4px' };
+    ? { display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }
+    : { display: 'flex', alignItems: 'center', gap: '2px' };
   const readout: React.CSSProperties = {
-    fontFamily: 'monospace', fontSize: tbPx(11, tb), color: C.text,
-    minWidth: tbPx(docked ? 42 : 52, tb), textAlign: 'center',
+    fontFamily: 'monospace', fontSize: '14px', fontWeight: 'bold', color: C.text,
+    minWidth: 46, textAlign: 'center',
   };
-  const groupLabel: React.CSSProperties = { fontSize: '10px', color: C.dim, minWidth: docked ? 0 : tbPx(30, tb) };
 
   const setTilt = (d: number) => onChange({ ...camera, tilt: clampTilt(camera.tilt + d) });
   const setYaw = (d: number) => onChange({ ...camera, yaw: normYaw(camera.yaw + d) });
@@ -153,15 +157,6 @@ export default function Pattern3DControls({
   // בלי מארח שנגרר (חלונית פיצול) אין ידית כלל - ולא ידית מתה שאינה עושה דבר.
   const handle = docked ? dragHandle : selfDrag.handleProps;
 
-  /** כפתור מצב/כיוון - **מסומן גם במסגרת ובעובי**, לא בצבע בלבד (FAA HF-STD-001). */
-  const chip = (active: boolean): React.CSSProperties => ({
-    ...btn, width: 'auto', padding: `0 ${tbPx(6, tb)}`, fontSize: tbPx(10, tb),
-    border: `1px solid ${active ? accent : C.border}`,
-    background: active ? `${accent}33` : C.btn,
-    color: active ? C.text : C.dim,
-    fontWeight: active ? 'bold' : 'normal',
-  });
-
   return (
     <div
       ref={winRef}
@@ -169,7 +164,7 @@ export default function Pattern3DControls({
       data-placement={placement}
       data-nopan
       /* הרמז הוא הסבר ולא פקד: בסרגל המעוגן הוא חי כאן, בעלות אפס בגובה */
-      title={docked ? tr('pattern3d.dragHint') : undefined}
+      title={tr('pattern3d.dragHint')}
       onPointerDown={e => e.stopPropagation()}
       onWheel={e => e.stopPropagation()}
       style={docked
@@ -177,7 +172,7 @@ export default function Pattern3DControls({
           // זרימה רגילה בתוך המארח - **בלי** position:fixed ובלי מסגרת משלו.
           position: 'relative', width: '100%', boxSizing: 'border-box',
           display: 'flex', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center',
-          gap: '3px 8px', padding: '3px 8px',
+          gap: '2px 6px', padding: '2px 6px',
           background: C.panel, color: C.text, borderBottom: `1px solid ${C.border}`,
           userSelect: 'none', flexShrink: 0,
           // התקרה שמחזירה את הגובה לסצנה. `auto` ולא `hidden`: פקד שלא נראה
@@ -190,8 +185,7 @@ export default function Pattern3DControls({
           background: C.panel, color: C.text,
           // חלון **צפייה ותפעול** - מסגרת תורכיז, מקור אמת יחיד
           ...windowFrame('view', themeMode, 10),
-          padding: '7px 9px 8px', display: 'flex', flexDirection: 'column', gap: '5px',
-          minWidth: 168, boxShadow: '0 6px 20px rgba(0,0,0,0.45)', userSelect: 'none',
+          padding: '6px 8px 8px', display: 'flex', flexDirection: 'column', gap: '4px', boxShadow: '0 6px 20px rgba(0,0,0,0.45)', userSelect: 'none',
         }}
     >
       <div style={{ ...row, ...(docked ? {} : { marginBottom: '1px' }) }}>
@@ -208,62 +202,57 @@ export default function Pattern3DControls({
         </b>
         {!docked && (
           <button data-testid="close" onClick={onClose} title={tr('pattern3d.close')}
-            style={{ ...btn, width: tbPx(20, tb), height: tbPx(18, tb), background: 'none', border: 'none', color: C.dim }}>✕</button>
+            style={{ ...btn(), background: 'none', border: 'none', color: C.dim }}>✕</button>
         )}
       </div>
 
       <div style={row}>
-        <span style={groupLabel}>{tr('pattern3d.tilt')}</span>
-        <button data-testid="tilt-down" onClick={() => setTilt(-TILT_STEP)} title={tr('pattern3d.tiltDown')} style={btn}>▼</button>
-        <span data-testid="tilt-value" style={readout}>{pad3(camera.tilt)}°</span>
-        <button data-testid="tilt-up" onClick={() => setTilt(TILT_STEP)} title={tr('pattern3d.tiltUp')} style={btn}>▲</button>
+        <button data-testid="tilt-down" onClick={() => setTilt(-TILT_STEP)} title={tr('pattern3d.tiltDown')} style={btn()}>▼</button>
+        <span data-testid="tilt-value" title={tr('pattern3d.tilt')} style={readout}>{pad3(camera.tilt)}°</span>
+        <button data-testid="tilt-up" onClick={() => setTilt(TILT_STEP)} title={tr('pattern3d.tiltUp')} style={btn()}>▲</button>
       </div>
 
       <div style={row}>
-        <span style={groupLabel}>{tr('pattern3d.heading')}</span>
-        <button data-testid="rot-left" onClick={() => setYaw(-ROT_STEP)} title={tr('pattern3d.rotLeft')} style={btn}>◀</button>
-        <span data-testid="yaw-value" style={readout}>{pad3(camera.yaw)}°</span>
-        <button data-testid="rot-right" onClick={() => setYaw(ROT_STEP)} title={tr('pattern3d.rotRight')} style={btn}>▶</button>
+        <button data-testid="rot-left" onClick={() => setYaw(-ROT_STEP)} title={tr('pattern3d.rotLeft')} style={btn()}>◀</button>
+        <span data-testid="yaw-value" title={tr('pattern3d.heading')} style={readout}>{pad3(camera.yaw)}°</span>
+        <button data-testid="rot-right" onClick={() => setYaw(ROT_STEP)} title={tr('pattern3d.rotRight')} style={btn()}>▶</button>
       </div>
 
       <div style={row}>
-        <button data-testid="zoom-out" onClick={() => setZoom(1 / ZOOM_FACTOR)} title={tr('pattern3d.zoomOut')} style={btn}>−</button>
-        <button data-testid="recenter" onClick={onRecenter} title={tr('pattern3d.recenterHint')} style={wide}>
-          {tr('pattern3d.recenter')}
-        </button>
-        <button data-testid="zoom-in" onClick={() => setZoom(ZOOM_FACTOR)} title={tr('pattern3d.zoomIn')} style={btn}>+</button>
+        <button data-testid="zoom-out" onClick={() => setZoom(1 / ZOOM_FACTOR)} title={tr('pattern3d.zoomOut')} style={btn()}>−</button>
+        <button data-testid="recenter" onClick={onRecenter}
+          title={`${tr('pattern3d.recenter')} - ${tr('pattern3d.recenterHint')}`} style={btn()}>⌖</button>
+        <button data-testid="zoom-in" onClick={() => setZoom(ZOOM_FACTOR)} title={tr('pattern3d.zoomIn')} style={btn()}>+</button>
       </div>
 
       {/* בחירת מצב התצוגה - **אותה בחירה בשני המיקומים**. הפקח שפתח תלת מימד
           מלא ורוצה אותו כחלון לצד המפה עושה זאת מכאן, ולא מתפריט אחר. */}
-      <div style={{ ...row, gap: '3px' }} data-testid="p3d-mode-picker">
-        {/* בסרגל הצר התווית נשמטת - שלושת השבבים מסבירים את עצמם ב-title,
-            בניגוד לשני קריאוני המעלות שבלי תווית נראים זהים. */}
-        {!docked && <span style={groupLabel}>{tr('pattern3d.mode')}</span>}
+      <div style={row} data-testid="p3d-mode-picker" title={tr('pattern3d.mode')}>
         {PATTERN3D_MODES.map(m => (
           <button key={m} data-testid={`p3d-mode-${m}`} data-active={mode === m ? '1' : '0'}
-            aria-pressed={mode === m} onClick={() => onModeChange(m)} title={tr(MODE_HINT[m])}
-            style={chip(mode === m)}>
-            {tr(MODE_LABEL[m])}
+            aria-pressed={mode === m} aria-label={tr(MODE_LABEL[m])} onClick={() => onModeChange(m)}
+            title={`${tr(MODE_LABEL[m])} - ${tr(MODE_HINT[m])}`}
+            style={btn(mode === m)}>
+            {MODE_ICON[m]}
           </button>
         ))}
       </div>
 
       {/* כיוון הפיצול - רק בחלונית פיצול, כי רק שם יש מה לכוון */}
       {split && (
-        <div style={{ ...row, gap: '3px' }} data-testid="p3d-split-orient">
+        <div style={row} data-testid="p3d-split-orient">
           {([['h', '◫', 'pattern3d.splitOrientH'], ['v', '⊟', 'pattern3d.splitOrientV']] as const).map(([o, icon, key]) => (
             <button key={o} data-testid={`p3d-split-${o}`} data-active={split.orient === o ? '1' : '0'}
               aria-pressed={split.orient === o} aria-label={tr(key)}
               onClick={() => split.onOrientChange(o)} title={tr(key)}
-              style={chip(split.orient === o)}>
+              style={btn(split.orient === o)}>
               {icon}
             </button>
           ))}
         </div>
       )}
 
-      <div style={{ ...row, justifyContent: docked ? undefined : 'space-between', gap: '6px' }}>
+      <div style={{ ...row, justifyContent: docked ? undefined : 'center' }}>
         <svg data-testid="north-arrow" width={nSize} height={nSize}
           viewBox={`${-R - NPAD} ${-R - NPAD} ${nSize} ${nSize}`} aria-label={tr('pattern3d.north')}
           style={{ flexShrink: 0, display: 'block' }}>
@@ -279,19 +268,12 @@ export default function Pattern3DControls({
           <text x={letterAt.x} y={letterAt.y} textAnchor="middle" dominantBaseline="central"
             fill={C.text} fontSize={R * 0.72} fontWeight="bold">{tr('pattern3d.northLetter')}</text>
         </svg>
-        {/* הרמז הוא הסבר ולא פקד. בעמודה יש לו מקום ולכן הוא נקרא במלואו;
-            בסרגל המעוגן הוא חי ב-`title` של הסרגל, בעלות אפס בגובה. */}
-        {!docked && (
-          <span style={{ flex: 1, fontSize: '9px', color: C.dim, lineHeight: 1.35, textAlign: 'start' }}>
-            {tr('pattern3d.dragHint')}
-          </span>
-        )}
       </div>
 
       {/* במצב מעוגן ה-✕ נדחף לקצה הסרגל - שם העין מחפשת סגירה של חלון */}
       {docked && (
         <button data-testid="close" onClick={onClose} title={tr('pattern3d.close')}
-          style={{ ...btn, width: tbPx(20, tb), height: tbPx(18, tb), background: 'none', border: 'none', color: C.dim, marginInlineStart: 'auto' }}>✕</button>
+          style={{ ...btn(), background: 'none', border: 'none', color: C.dim, marginInlineStart: 'auto' }}>✕</button>
       )}
     </div>
   );

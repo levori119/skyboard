@@ -872,3 +872,37 @@ body.light-mode tr.sk-row-b .frozen-col-last { background: #dde8f0 !important; }
 .zw-offender-ring {
   animation: zw-offender-ring 1.1s ease-in-out infinite;
 }
+
+/* ── הסרגל העליון - כל פקד בשורה באותו גודל ובאותו פונט ──────────────────────
+   כל כפתור/צ'יפ בשורה (שם עמדה, משתמש, לחץ, מז"א, עומס, תצוגה, הגדרות, דסק
+   חופשי, פתקים, סריאלים...) נושא `bt-tb`. מקור אמת יחיד: גובה, פונט, ריפוד
+   ועיגול נקבעים כאן ולא בכל כפתור לחוד - עד כה כל אחד הביא 10-15px ו-2-5px
+   משלו, והשורה נראתה כמו אוסף ולא כמו סרגל. `!important` גובר על ה-inline
+   הישן; הצבעים והמסגרות (שנושאים מצב) נשארים של כל פקד. */
+.bt-topbar .bt-tb {
+  height: 28px !important;
+  box-sizing: border-box;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 10px !important;
+  font-family: inherit;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+  border-radius: 6px !important;
+  white-space: nowrap;
+}
+/* טקסט בתוך הפקד (תווית, ערך, מונה) - באותו פונט כמו הפקד */
+.bt-topbar .bt-tb span,
+.bt-topbar .bt-tb select,
+.bt-topbar .bt-tb input {
+  font-size: 12px !important;
+}
+/* פקד אייקון (תמה, צילום מסך) - ריבוע באותו גובה */
+.bt-topbar .bt-tb-icon {
+  width: 32px;
+  padding: 0 !important;
+  font-size: 15px !important;
+}

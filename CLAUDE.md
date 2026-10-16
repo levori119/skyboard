@@ -149,6 +149,28 @@ style={{ border: '1px solid #334155', borderRadius: 8 }}
 
 ---
 
+## סרגלי כלים - סטנדרט אחד (חובה)
+
+כל סרגל כלים צף (מפה, תלת מימד, ציור, הלאמה, פקדי המבט במגדל) בנוי מאותו כפתור,
+במידה של כפתורי הזום של סרגל המפה:
+
+| | |
+|---|---|
+| **מידה** | 40x40 (`TOOL_BTN`). תחת `zoom: var(--s)` זה 66px במסך 24". **בלי** `tbPx` - הזום הגלובלי כבר מגדיל |
+| **תוכן** | **אייקון בלבד**. שם הפקד והסבר - ב-`title` (HINT), לא כטקסט ליד הכפתור |
+| **מצב** | פעיל = מסגרת עבה (inset), לא צבע בלבד |
+
+```tsx
+import { toolBtn } from '../../utils/toolbarStandard';
+<button title={tr('map.zoomIn')} style={toolBtn(themeMode, { active })}>+</button>
+```
+
+כותרות בפאנלי הצד (עזרים, פ"מים, נקודות העברה) - `sectionBar` / `sectionTitle` /
+`panelTitle` מ-[`src/utils/panelHeader.ts`](src/utils/panelHeader.ts): עבות, בצבע הטקסט
+החזק של התמה, באותו רווח. פקד בסרגל העליון נושא `className="bt-tb"` (גובה ופונט אחידים ב-`App.css`).
+
+---
+
 ## קונטיינר החלונות
 
 על המסך צפים עשרות חלונות בו-זמנית, וכל אחד מכסה חלק מהמפה. ה**קונטיינר** הוא
@@ -394,6 +416,7 @@ style={{ touchAction: 'none', userSelect: 'none' }}
 - ❌ **לא לקרוא ל-`pool.query()` בזמן שמחזיקים `pool.connect()`** - במאגר המקומי (PGlite) יש **חיבור יחיד**, וזה דדלוק שקט: הבקשה תלויה עד ה-timeout בלי שגיאה. handler שמחזיק client מריץ **הכל** דרכו. ראה [`server/db/localPool.js`](server/db/localPool.js) §חיבור יחיד
 - ❌ **לא לכתוב למאגר המקומי מטעם הסנכרון בלי `withoutJournal`** - קליטת מראה או אימוץ גרסת שרת שנרשמים ביומן נדחפים בסיבוב הבא חזרה למרכז, ומייצרים סתירות יש מאין. והעטיפה **חייבת טרנזקציה**: `SET LOCAL` מחוץ לאחת מתאפס לפני הכתיבה הבאה
 - ❌ **לא לתת לפקד להידלק בלי שקורה משהו** - כפתור שמשנה state אבל תנאי רינדור נוסף מונע את התוצאה נראה למפעיל בדיוק כמו פיצ'ר שבור, והוא מחפש את התקלה במקום הלא נכון. אם התנאי הנוסף הכרחי - להציג *למה* (כמו `ctrl.peekNoneConfigured` מול `ctrl.peekNonePermitted`), ואם לא - להסיר אותו (ראה `shouldRenderPattern3D`)
+- ❌ לא לבנות כפתור סרגל כלים במידה או בעיצוב משלו, או עם טקסט מסביר לידו - `toolBtn` מ-[`src/utils/toolbarStandard.ts`](src/utils/toolbarStandard.ts), אייקון בלבד וההסבר ב-`title`. ראה §סרגלי כלים
 - ❌ לא לממש עגינה ידנית לחלון צף - `useDockableWindow` מ-[`src/hooks/useDockableWindow.ts`](src/hooks/useDockableWindow.ts). ראה §קונטיינר החלונות
 - ❌ לא למחוק היסטוריה
 - ❌ לא לcommit secrets

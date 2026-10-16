@@ -62,6 +62,7 @@ import WeatherMenu from '../../weather/WeatherMenu';
 import WeatherWindow from '../../weather/WeatherWindow';
 import type { WeatherPrefs } from '../../weather/prefs';
 import { shouldShowNavOverlay, navPathStroke } from '../../utils/vehicleRouteAnim';
+import { TOOL_BTN, TOOL_GAP, toolBtn } from '../../utils/toolbarStandard';
 
 /**
  * כמה מקום להשאיר בתחתית פאנל השכבות לפאנל "מסלולים בשימוש".
@@ -3031,37 +3032,37 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 )}
               </div>
             </div>
-            {/* Zoom controls */}
-            <div style={{ borderTop: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, padding: '5px 8px', display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'space-between' }}>
+            {/* פקדי מבט - זום, תלת מימד וציור. **סטנדרט הסרגלים** (utils/toolbarStandard):
+                40x40 כמו כפתורי סרגל המפה, אייקון בלבד, וההסבר (כולל "גלגלת = זום,
+                גרירה = הזזה") ב-title. */}
+            <div data-testid="ground-view-controls" title={tr('ground.wheelDrag')}
+              style={{ borderTop: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, padding: '6px 8px', display: 'flex', alignItems: 'center', gap: TOOL_GAP, flexWrap: 'wrap' }}>
               <button onClick={() => setGroundMapZoom(z => Math.min(+(z * 1.25).toFixed(3), 8))}
-                style={{ width: '22px', height: '22px', borderRadius: '4px', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, background: lightMode ? '#f1f5f9' : '#1e293b', color: headerColor, cursor: 'pointer', fontSize: '14px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>+</button>
+                title={tr('map.zoomIn')} style={toolBtn(themeMode)}>+</button>
               <button onClick={() => { setGroundMapZoom(1); setGroundMapPan({ x: 0, y: 0 }); }}
                 title={tr('ground.resetZoomKey0')}
-                style={{ flex: 1, padding: '2px 4px', borderRadius: '4px', border: `1px solid ${groundMapZoom !== 1 || groundMapPan.x !== 0 || groundMapPan.y !== 0 ? '#6366f1' : (lightMode ? '#cbd5e1' : '#334155')}`, background: groundMapZoom !== 1 || groundMapPan.x !== 0 || groundMapPan.y !== 0 ? '#6366f122' : (lightMode ? '#f1f5f9' : '#1e293b'), color: groundMapZoom !== 1 || groundMapPan.x !== 0 || groundMapPan.y !== 0 ? '#818cf8' : headerColor, cursor: 'pointer', fontSize: '10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                style={{ ...toolBtn(themeMode, { active: groundMapZoom !== 1 || groundMapPan.x !== 0 || groundMapPan.y !== 0 }), width: 'auto', minWidth: TOOL_BTN + 12, padding: '0 6px', fontSize: '13px' }}>
                 {Math.round(groundMapZoom * 100)}%
               </button>
               <button onClick={() => setGroundMapZoom(z => Math.max(+(z / 1.25).toFixed(3), 0.2))}
-                style={{ width: '22px', height: '22px', borderRadius: '4px', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, background: lightMode ? '#f1f5f9' : '#1e293b', color: headerColor, cursor: 'pointer', fontSize: '14px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>−</button>
+                title={tr('map.zoomOut')} style={toolBtn(themeMode)}>−</button>
               {/* תלת מימד - כאן ולא ברשימת השכבות: זו בקרת **מבט**, אחות של
                   הזום, ולא שכבת תוכן שנדלקת ונכבית מעל המפה.
                   המבט הזה הוא על **ההקפה**, ולכן בעמדה שאין לה הקפות הוא יורד
                   יחד עם שאר פקדי ההקפה. `show3D` נולד כבוי ורק הכפתור מדליק
                   אותו, ולכן הסתרתו מספיקה - אין מצב של סצנה שנתקעה פתוחה. */}
               {!hidePatternControls && (
-              <button data-testid="pattern-3d-toggle" data-active={show3D ? '1' : '0'}
-                onClick={toggle3D} title={tr('pattern3d.toggleHint')}
-                style={{ padding: '2px 7px', height: '22px', borderRadius: '4px', border: `1px solid ${show3D ? '#22d3ee' : (lightMode ? '#cbd5e1' : '#334155')}`, background: show3D ? '#0e7490' : (lightMode ? '#f1f5f9' : '#1e293b'), color: show3D ? '#ecfeff' : headerColor, cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', lineHeight: 1, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                {tr('pattern3d.toggle')}
+              <button data-testid="pattern-3d-toggle" data-active={show3D ? '1' : '0'} aria-pressed={show3D}
+                onClick={toggle3D} title={`${tr('pattern3d.toggle')} - ${tr('pattern3d.toggleHint')}`}
+                style={{ ...toolBtn(themeMode, { active: show3D }), fontSize: '15px' }}>
+                3D
               </button>
               )}
-            </div>
-            {/* ציור על המפה - כאן, ליד פקדי הזום, כי זה המקום שהעין מחפשת בו כלי
-                מפה (בעמדת המפה ה-✏ יושב באותה פינה, בסרגל האנכי). */}
-            <div style={{ borderTop: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, padding: '5px 8px' }}>
-              <MapDrawToggle active={draw.active} themeMode={themeMode} labeled
+              {/* ציור על המפה - כאן, ליד פקדי הזום, כי זה המקום שהעין מחפשת בו כלי
+                  מפה (בעמדת המפה ה-✏ יושב באותה פינה, בסרגל האנכי). */}
+              <MapDrawToggle active={draw.active} themeMode={themeMode}
                 onToggle={() => draw.setActive(v => !v)} />
             </div>
-            <div style={{ padding: '2px 8px 4px', fontSize: '8px', color: lightMode ? '#94a3b8' : '#475569', textAlign: 'center' }}>{tr('ground.wheelDrag')}</div>
           </div>
           )}
 
@@ -3216,11 +3217,12 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 <button type="button" data-testid="ground-layers-open"
                   onPointerDown={e => e.stopPropagation()}
                   onClick={onOpenLayersPanel} title={tr('ground.layersOpen')}
-                  style={{ background: lightMode ? '#ffffffee' : '#0f172aee', color: lightMode ? '#475569' : '#94a3b8', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, whiteSpace: 'nowrap', padding: '5px 8px', boxShadow: '0 4px 16px #0006' }}>
-                  {tr('ground.layers')}
+                  aria-label={tr('ground.layers')}
+                  style={{ ...toolBtn(themeMode), boxShadow: '0 4px 16px #0006' }}>
+                  🗂
                 </button>
               )}
-              <MapDrawToggle active={draw.active} themeMode={themeMode} labeled
+              <MapDrawToggle active={draw.active} themeMode={themeMode}
                 onToggle={() => draw.setActive(v => !v)} />
             </div>
           )}
