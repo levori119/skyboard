@@ -68,10 +68,15 @@ export function editableCellUnderline(color: string, editable = true): CSSProper
  * שהפקח צריך למצוא מחדש בכל רענון כדי שהשדה ייפתח בכלל.
  * עמודת טבלת בן אינה נעולה - ההגדרה בניהול קובעת אילו שדות שלה פתוחים.
  */
+type EditableColDef = { key?: string; field?: string; editable?: string; isTable?: boolean; second?: EditableColDef | null };
+
 export function defaultEditableCols(
-  columns: { key?: string; field?: string; editable?: string; isTable?: boolean }[] | null | undefined,
+  columns: EditableColDef[] | null | undefined,
 ): Set<string> {
-  const keys = (columns || [])
+  // שדה השורה השנייה בתא (או"ק ומתחתיו טייסת) הוא שדה בפני עצמו, ולכן נפתח
+  // לפי ההגדרה **שלו** - עמודה נעולה יכולה לשאת מתחתיה שדה פתוח לכתיבה
+  const all = (columns || []).flatMap(c => (c && !c.isTable && c.second ? [c, c.second] : [c]));
+  const keys = all
     .filter(c => c && c.editable && c.editable !== 'none' && !c.isTable)
     .map(c => c.key || c.field || '')
     .filter(Boolean) as string[];

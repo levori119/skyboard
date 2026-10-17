@@ -23,7 +23,10 @@ import StationLoadingScreen from '../shared/StationLoadingScreen';
 import LearnDigitsOverlay from '../shared/LearnDigitsOverlay';
 import type { CrewMember, WorkstationSession, QGroup, TempZoneSeizure } from '../../types';
 import { evaluateQuery, emptyQGroup, hasConditions, clampMenuPos } from '../../utils/queryBuilder';
-import { catalogByKey, readControlValue } from '../../utils/stripControls';
+import { catalogByKey, readControlValue, controlDisplayText } from '../../utils/stripControls';
+import { resolveCellDecor, cellDecorStyle, resolveCellIcon, columnDisplayMode, hasSecondLine } from '../../utils/tableCellDisplay';
+import { useDisplayIcons } from '../../utils/displayIcons';
+import DisplayIcon from '../shared/DisplayIcon';
 import { canChangeElementStatus, displayStateOptions, nextServiceability, serviceabilityStyle } from '../../utils/elementStatus';
 import { loadStripFieldCatalog, useStripFieldCatalog } from '../../utils/stripFieldCatalog';
 import { stripInCombined, resolveTransferFromPreset, type CombinedPosition } from '../../utils/unifiedStrips';
@@ -1528,6 +1531,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [transferToDropOpen, setTransferToDropOpen] = useState<string | null>(null);
   const [availableTableModes, setAvailableTableModes] = useState<any[]>([]);
   const [selectedTableModeId, setSelectedTableModeId] = useState<number | null>(null);
+  // טבלת האייקונים נטענת רק כשאחד ממודי הטבלה של העמדה באמת מציג אייקון -
+  // התמונות כבדות יחסית, ועמדה בלי עמודת אייקון לא צריכה אותן
+  const tableModesUseIcons = availableTableModes.some((m: any) =>
+    (Array.isArray(m?.columns) ? m.columns : []).some((c: any) => columnDisplayMode(c) !== 'text' || columnDisplayMode(c?.second) !== 'text'));
+  const displayIcons = useDisplayIcons(tableModesUseIcons);
   const [tableGroupByKey, setTableGroupByKey] = useState<string | null>(null);
   const [tableGroupOrder, setTableGroupOrder] = useState<string[]>([]);
   const tableElRef = useRef<HTMLTableElement | null>(null);
@@ -16898,6 +16906,70 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               );
             };
 
+            // ── תצוגת תא: שורה שנייה, עיצוב ואייקון ─────────────────────────
+            // שכבה **מעל** renderCell ולא בתוכו: כל סוגי התאים (שדה מערכת, שדה
+            // מהקטלוג, שדה חופשי) ממשיכים להיבנות במקום אחד, וכאן רק עוטפים את
+            // התוכן שלהם. עמודה בלי ההגדרות האלה חוזרת כמו שהיא, בלי עטיפה.
+            // ראה TABLE_MODE_DISPLAY_SPEC.md
+            const tableCellValue = (s: any, colKey: string): string => {
+              const cf = fieldsByKey[colKey];
+              if (cf) return controlDisplayText(cf, readControlValue(cf, s, tableControlValues[s.id]));
+              return getStripFieldValue(s, colKey);
+            };
+            // מפתח העריכה של התא - כמו ב-renderCell (טייסת נערכת תחת `squadron`)
+            const cellEditKey = (s: any, colKey: string) => `${s.id}__${colKey === 'sq' ? 'squadron' : colKey}`;
+            const decorateCellContent = (content: React.ReactNode, col: any, s: any): React.ReactNode => {
+              const colKey: string = col.key || col.field || '';
+              const value = tableCellValue(s, colKey);
+              const rule = resolveCellDecor(col.decor, value);
+              const iconRef = resolveCellIcon(col, value);
+              if (!rule && !iconRef) return content;
+              const editKey = cellEditKey(s, colKey);
+              // בזמן עריכה התא מוצג כמו שהוא - מסגרת או אייקון סביב שדה קלט רק מפריעים
+              const isEditing = tableEditingCell === editKey;
+              const icon = iconRef
+                ? <DisplayIcon iconRef={iconRef} icons={displayIcons} color={T.text} size={Math.round(tableFontSize * 1.8)} title={value} />
+                : null;
+              // "אייקון בלבד" מחליף את התוכן. בשדה מהקטלוג (כפתור/תפריט) הפקד
+              // עצמו הוא הפעולה, ולכן האייקון נכנס לידו ולא במקומו.
+              const iconOnly = !!icon && columnDisplayMode(col) === 'icon' && !isEditing && !fieldsByKey[colKey];
+              const canReveal = col.editable && col.editable !== 'none';
+              let inner: React.ReactNode = content;
+              if (iconOnly) {
+                inner = (
+                  <span
+                    onClick={canReveal ? (e => { e.stopPropagation(); setTableEditingCell(editKey); }) : undefined}
+                    style={{ display: 'inline-flex', cursor: canReveal ? 'text' : 'default' }}
+                  >{icon}</span>
+                );
+              } else if (icon && !isEditing) {
+                inner = <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>{icon}{content}</span>;
+              }
+              if (rule && !isEditing) inner = <span style={cellDecorStyle(rule)}>{inner}</span>;
+              return inner;
+            };
+            const renderDisplayCell = (s: any, col: any) => {
+              const cell = renderCell(s, col);
+              if (!React.isValidElement(cell)) return cell;
+              const cellEl = cell as React.ReactElement<any>;
+              const hasDisplay = (Array.isArray(col.decor) && col.decor.length > 0) || columnDisplayMode(col) !== 'text';
+              const second = hasSecondLine(col) ? col.second : null;
+              if (!hasDisplay && !second) return cell;
+              const primary = hasDisplay ? decorateCellContent(cellEl.props.children, col, s) : cellEl.props.children;
+              if (!second) return React.cloneElement(cellEl, {}, primary);
+              const secondCol = { ...second, key: second.key || second.field };
+              const secondCell = renderCell(s, secondCol);
+              const secondContent = React.isValidElement(secondCell) ? (secondCell as React.ReactElement<any>).props.children : null;
+              return React.cloneElement(cellEl, { style: { ...cellEl.props.style, verticalAlign: 'middle' } },
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'flex-start' }}>
+                  <div>{primary}</div>
+                  <div style={{ borderTop: `1px dashed ${T.border}`, paddingTop: '2px', alignSelf: 'stretch', fontSize: '0.92em' }}>
+                    {decorateCellContent(secondContent, secondCol, s)}
+                  </div>
+                </div>,
+              );
+            };
+
             // במוד הטבלאי אין עמודות פ"מ, ולכן `frozenColumns` (שסופר אותן)
             // אינו חל. אבל **כן יש מה לקבע**: תא זהות הפ"מ הוא העוגן של השורה,
             // ובלעדיו גלילה צידית של טבלת הבן סוחבת אותו החוצה והפקח מאבד את
@@ -16966,7 +17038,27 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       return (
                         <th key={colKey} className={isFrozen ? (isLastFrozen ? 'frozen-col-last' : 'frozen-col') : undefined} style={{ padding: '8px 12px', textAlign: 'start', color: isGrouped ? '#a78bfa' : isSorted ? '#38bdf8' : (T.muted), borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, minWidth: '80px', userSelect: 'none', zIndex: isFrozen ? 12 : 10, fontSize: '11px', background: 'inherit', ...(isFrozen ? { insetInlineStart: frozenRight, background: lightMode ? '#e2e8f0' : '#1e293b', borderInlineEnd: isLastFrozen ? '2px solid #7c3aed' : undefined } : {}) }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-start' }}>
-                            <span>{col.label}</span>
+                            {hasSecondLine(col) ? (
+                              // שתי שורות בכותרת, באותו סדר של התא: השדה הראשי
+                              // ומתחתיו השדה השני (או"ק / טייסת)
+                              <span style={{ display: 'inline-flex', flexDirection: 'column', lineHeight: 1.15 }}>
+                                <span>{col.label}</span>
+                                <span style={{ fontSize: '0.92em', opacity: 0.8, borderTop: `1px dashed ${T.border}`, paddingTop: '1px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                  {col.second.label || col.second.key}
+                                  {(col.second.editable && col.second.editable !== 'none') && (() => {
+                                    const k2 = col.second.key || col.second.field;
+                                    const on = tableEditableCols.has(k2);
+                                    return (
+                                      <button
+                                        onClick={e => { e.stopPropagation(); setTableEditableCols(prev => { const n = new Set(prev); n.has(k2) ? n.delete(k2) : n.add(k2); return n; }); }}
+                                        title={on ? tr('tableDisplay.lockSecond') : tr('tableDisplay.unlockSecond')}
+                                        style={{ background: on ? '#d97706' : 'transparent', border: on ? '1px solid #f59e0b' : '1px solid transparent', color: on ? '#fef3c7' : T.muted, cursor: 'pointer', padding: '0 3px', borderRadius: '3px', fontSize: '10px', lineHeight: 1 }}
+                                      >✏️</button>
+                                    );
+                                  })()}
+                                </span>
+                              </span>
+                            ) : <span>{col.label}</span>}
                             {isGrouped && <span style={{ fontSize: '9px', background: '#4c1d95', color: '#c4b5fd', padding: '1px 4px', borderRadius: '3px' }}>⊞</span>}
                             {isSorted && <span style={{ fontSize: '11px' }}>{tableSortDir === 'asc' ? '↑' : '↓'}</span>}
                             {/* נעילת הכתיבה היא של עמודת פ"מ רגילה בלבד. עמודת
@@ -17343,7 +17435,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           </div>
                         </td>
                         {columns.map((col, colIdx) => {
-                          const cell = renderCell(s, col);
+                          const cell = renderDisplayCell(s, col) as React.ReactElement<any>;
                           const isFrozen = colIdx < frozenCount;
                           if (isFrozen) {
                             const fr = tableStickyOffsets[colIdx + 2];

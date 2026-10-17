@@ -109,6 +109,17 @@ describe('defaultEditableCols', () => {
     expect(set.size).toBe(3);
   });
 
+  it('שדה השורה השנייה בתא נפתח לעריכה לפי ההגדרה שלו, לא של העמודה', () => {
+    const set = defaultEditableCols([
+      { key: 'callSign', editable: 'none', second: { key: 'sq', editable: 'keyboard' } },
+      { key: 'alt', editable: 'keyboard', second: { key: 'task', editable: 'none' } },
+    ]);
+    expect(set.has('sq')).toBe(true);
+    expect(set.has('callSign')).toBe(false);
+    expect(set.has('task')).toBe(false);
+    expect(set.has('alt')).toBe(true);
+  });
+
   it('מוד בלי עמודות אינו מפיל', () => {
     expect(defaultEditableCols(null).size).toBe(0);
     expect(defaultEditableCols(undefined).size).toBe(0);

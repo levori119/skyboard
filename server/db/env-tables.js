@@ -122,6 +122,8 @@ export const CONFIG_TABLES = [
   'preset_aid_groups',
   'preset_mazaa_thresholds',
   'table_modes',
+  // טבלת האייקונים של מוד הטבלה - הגדרה משותפת, כמו מוד הטבלה עצמו
+  'display_icons',
   // פריסות ותצוגות
   'strip_window_layouts',
   'strip_window_columns',

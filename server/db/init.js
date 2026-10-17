@@ -201,6 +201,16 @@ async function applySchemaOnce() {
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS relevant_sectors JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS table_mode_id INTEGER REFERENCES table_modes(id) ON DELETE SET NULL`);
   await sq(`ALTER TABLE table_modes ADD COLUMN IF NOT EXISTS frozen_columns INTEGER DEFAULT 0`);
+  // טבלת האייקונים של מוד הטבלה - תמונות שהועלו בניהול, ומוצגות בתא במקום
+  // ערכו (למשל סוג מטוס). האייקונים המובנים (צלליות המטוסים) חיים בקוד ולא כאן.
+  // המיפוי ערך → אייקון יושב על העמודה עצמה (table_modes.columns[].iconMap).
+  // ראה TABLE_MODE_DISPLAY_SPEC.md
+  await sq(`CREATE TABLE IF NOT EXISTS display_icons (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    image_data TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS partial_load INTEGER DEFAULT 3`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS full_load INTEGER DEFAULT 5`);
   // "עומס רלוונטי לעמדה?" - כבוי: אין הזנת ספי עומס בהגדרות ואין עומס בעמדה

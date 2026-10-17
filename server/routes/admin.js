@@ -518,6 +518,69 @@ router.delete('/api/table-modes/:id', async (req, res) => {
   }
 });
 
+// --- Display Icons API (טבלת האייקונים של מוד הטבלה) ---
+// תמונה קטנה (PNG/SVG/JPG/WEBP) כ-data URL. התקרה שומרת את המראה של העמדה
+// קלה: האייקונים עוברים לכל עמדה מנותקת יחד עם שאר הקונפיג.
+const DISPLAY_ICON_MAX_CHARS = 400 * 1024;
+const isIconDataUrl = (v) => typeof v === 'string' && /^data:image\/(png|svg\+xml|jpeg|jpg|webp|gif);base64,/i.test(v);
+
+router.get('/api/display-icons', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, name, image_data FROM display_icons ORDER BY name, id');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching display icons:', err);
+    res.status(500).json({ error: 'Failed to fetch display icons' });
+  }
+});
+
+router.post('/api/display-icons', async (req, res) => {
+  try {
+    const name = String(req.body?.name || '').trim().slice(0, 100);
+    const image = req.body?.image_data;
+    if (!name) return res.status(400).json({ error: 'name required' });
+    if (!isIconDataUrl(image)) return res.status(400).json({ error: 'image_data must be an image data URL' });
+    if (image.length > DISPLAY_ICON_MAX_CHARS) return res.status(413).json({ error: 'icon too large' });
+    const result = await pool.query(
+      'INSERT INTO display_icons (name, image_data) VALUES ($1, $2) RETURNING id, name, image_data',
+      [name, image]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error creating display icon:', err);
+    res.status(500).json({ error: 'Failed to create display icon' });
+  }
+});
+
+router.put('/api/display-icons/:id', async (req, res) => {
+  try {
+    const name = String(req.body?.name || '').trim().slice(0, 100);
+    if (!name) return res.status(400).json({ error: 'name required' });
+    const image = req.body?.image_data;
+    if (image !== undefined && !isIconDataUrl(image)) return res.status(400).json({ error: 'image_data must be an image data URL' });
+    if (image && image.length > DISPLAY_ICON_MAX_CHARS) return res.status(413).json({ error: 'icon too large' });
+    const result = await pool.query(
+      'UPDATE display_icons SET name = $1, image_data = COALESCE($2, image_data) WHERE id = $3 RETURNING id, name, image_data',
+      [name, image ?? null, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Display icon not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating display icon:', err);
+    res.status(500).json({ error: 'Failed to update display icon' });
+  }
+});
+
+router.delete('/api/display-icons/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM display_icons WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting display icon:', err);
+    res.status(500).json({ error: 'Failed to delete display icon' });
+  }
+});
+
 // --- Activity Log API ---
 router.post('/api/activity-log', async (req, res) => {
   try {

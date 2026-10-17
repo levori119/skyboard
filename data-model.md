@@ -104,6 +104,20 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 
 ---
 
+## טבלת `display_icons` — טבלת האייקונים של מוד הטבלה
+
+| עמודה | טיפוס | |
+|---|---|---|
+| `id` | SERIAL PK | ההפניה מהעמודה: `img:<id>` |
+| `name` | VARCHAR(100) | שם לבחירה בניהול |
+| `image_data` | TEXT | data URL של תמונה (PNG/SVG/JPG/WEBP/GIF), עד ~400K תווים |
+| `created_at` | TIMESTAMPTZ | |
+
+**קונפיג** (`env-tables.js`) - משותפת לכל הסביבות ועוברת למראה של העמדה. האייקונים
+המובנים (צלליות המטוסים) חיים בקוד ולא כאן. המיפוי ערך ← אייקון, השורה השנייה וכללי
+העיצוב יושבים בתוך `table_modes.columns` (JSONB) - בלי עמודות חדשות. ראה
+[TABLE_MODE_DISPLAY_SPEC.md](TABLE_MODE_DISPLAY_SPEC.md) §5.
+
 ## טבלת `strips` — פ"מ (פלוגת מטוסים)
 
 | עמודה | סוג | תיאור |

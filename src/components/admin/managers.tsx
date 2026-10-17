@@ -16,6 +16,9 @@ import { sgGenId, sgDefaultCell, sgUpdate, sgSplit, sgRemove, sgGetAllCells } fr
 import StripControlsEditor, { StripFieldBadge, StripFieldDialog } from './StripControlsEditor';
 import StripControl from '../classic/StripControl';
 import { useStripFieldCatalog } from '../../utils/stripFieldCatalog';
+import TableColumnDisplayEditor from './TableColumnDisplayEditor';
+import DisplayIconsManager from './DisplayIconsManager';
+import { hasSecondLine, columnDisplayMode } from '../../utils/tableCellDisplay';
 import { isFreePlacement, pointToCellPercent } from '../../utils/stripControls';
 import { filterByAllowedBases, groupItemsByBase } from '../../utils/presetGroups';
 import { BaseGroupList, ParentBaseSelect } from './BaseGroupList';
@@ -561,6 +564,8 @@ export const TableModesManager = () => {
   const [newFieldOpen, setNewFieldOpen] = useState(false);
   const [editFieldKey, setEditFieldKey] = useState<string | null>(null);
   const fieldCatalog = useStripFieldCatalog();
+  // איזו עמודה פתוחה כרגע בעורך התצוגה (🎨) - אחת בכל פעם, כדי שהרשימה לא תתארך
+  const [displayOpenId, setDisplayOpenId] = useState<string | null>(null);
 
   const loadModes = async () => {
     const res = await fetch(`${API_URL}/table-modes`);
@@ -825,7 +830,7 @@ export const TableModesManager = () => {
                   onDrop={() => handleColDrop(idx)}
                   onDragEnd={() => { setDragColIdx(null); setDragOverColIdx(null); }}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: '8px',
+                    display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap',
                     background: isDragOver ? '#1d4ed8' : (idx < form.frozenColumns ? '#1a0e2e' : col.isCustom ? '#1a1040' : '#1e293b'),
                     border: isDragOver ? '2px solid #3b82f6' : (idx + 1 === form.frozenColumns ? '1px solid #7c3aed' : idx < form.frozenColumns ? '1px solid #4c1d95' : col.isCustom ? '1px solid #6d28d9' : '1px solid #334155'),
                     borderRadius: '6px', padding: '8px 10px',
@@ -885,7 +890,30 @@ export const TableModesManager = () => {
                     onClick={() => setForm(f => ({ ...f, frozenColumns: idx + 1 === f.frozenColumns ? 0 : idx + 1 }))}
                     style={{ padding: '4px 7px', background: idx < form.frozenColumns ? '#4c1d95' : 'transparent', color: idx + 1 === form.frozenColumns ? '#c4b5fd' : idx < form.frozenColumns ? '#a78bfa' : '#475569', border: `1px solid ${idx + 1 === form.frozenColumns ? '#7c3aed' : idx < form.frozenColumns ? '#4c1d95' : '#334155'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '13px', flexShrink: 0, transition: 'all 0.1s' }}
                   >📌</button>
+                  {(() => {
+                    // מדליק את הכפתור כשלעמודה יש הגדרת תצוגה - כדי שיהיה ברור
+                    // מהרשימה איזו עמודה מעוצבת, בלי לפתוח כל אחת
+                    const styled = hasSecondLine(col) || (Array.isArray(col.decor) && col.decor.length > 0) || columnDisplayMode(col) !== 'text';
+                    const open = displayOpenId === col.id;
+                    return (
+                      <button
+                        title={tr('tableDisplay.editDisplay')}
+                        onClick={() => setDisplayOpenId(open ? null : col.id)}
+                        style={{ padding: '4px 7px', background: open ? '#334155' : styled ? '#1e3a5f' : 'transparent', color: styled ? '#93c5fd' : '#64748b', border: `1px solid ${open || styled ? '#3b82f6' : '#334155'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}
+                      >🎨</button>
+                    );
+                  })()}
                   <button onClick={() => removeCol(idx)} style={{ padding: '4px 8px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', flexShrink: 0 }}>✕</button>
+                  {hasSecondLine(col) && displayOpenId !== col.id && (
+                    <div style={{ flexBasis: '100%', fontSize: '11px', color: '#93c5fd', paddingInlineStart: '24px' }}>
+                      ↳ {tr('tableDisplay.secondLine')}: {col.second.label || col.second.key}
+                    </div>
+                  )}
+                  {displayOpenId === col.id && (
+                    <div style={{ flexBasis: '100%', cursor: 'default' }}>
+                      <TableColumnDisplayEditor col={col} onChange={changes => updateCol(idx, changes)} catalogFields={fieldCatalog} />
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -932,7 +960,7 @@ export const TableModesManager = () => {
               <div>
                 <strong style={{ fontSize: '16px' }}>{mode.name}</strong>
                 <span style={{ color: '#64748b', fontSize: '13px', marginRight: '12px' }}>
-                  {mode.columns?.length || 0} {tr('admin.columns')} {(mode.columns || []).map((c: any) => c.label).join(' | ')}
+                  {mode.columns?.length || 0} {tr('admin.columns')} {(mode.columns || []).map((c: any) => (hasSecondLine(c) ? `${c.label}/${c.second.label || c.second.key}` : c.label)).join(' | ')}
                 </span>
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
@@ -946,6 +974,9 @@ export const TableModesManager = () => {
           <div style={{ textAlign: 'center', color: '#64748b', padding: '40px' }}>{tr('admin.aynMvdyTblhTsvr')}</div>
         )}
       </div>
+
+      {/* טבלת האייקונים - מקור האייקונים לעמודות שמוצגות כאייקון */}
+      <DisplayIconsManager />
     </div>
   );
 };

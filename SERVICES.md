@@ -989,6 +989,18 @@ DB מנוהל היה נופל יחד עם העמדה.
 `tableCellScroll` נותן לתא את גובה **שורה אחת**, תקרה של שלוש שורות וגלילה פנימית (ב-`em`, כי גודל הגופן בטבלה נשלט בעמדה) - בלעדיו הערה בת חמש שורות מתחה את כל שורת הפ"מ.
 **מייצא:** `cellEditKeyAction`, `handleCellEditKeyDown`, `insertNewline`, `editableCellUnderline`, `defaultEditableCols`, `tableCellScroll`, `TABLE_CELL_MAX_LINES`, `CellEditKeyAction`. **שימוש:** `SectorDashboard` (מוד טבלה), `StripControl` (וריאנט טבלה).
 
+### `src/utils/tableCellDisplay.ts`
+**תפקיד:** **תצוגת תא במוד טבלה** - הלוגיקה הטהורה של שלוש הגדרות העמודה: שורה שנייה (`second`), עיצוב לפי ערך (`decor` - משבצת / מעוגלת / עיגול / קו תחתון / כפולה / רקע מלא, בצבע, מודגש והגדלה; הכלל הראשון שמתאים מנצח, באותם כללי התאמה של `controlValueMatches`), ותצוגה כאייקון (`display` + `iconMap`, ערך ← `builtin:<מטוס>` / `img:<id>`). ב-`SectorDashboard` היא נצרכת ב-`renderDisplayCell` - שכבה **מעל** `renderCell` שעוטפת את התוכן שלו. **מייצא:** `CELL_SHAPES`, `CELL_SCALES`, `CELL_DISPLAY_MODES`, `DECOR_COLORS`, `BUILTIN_DISPLAY_ICONS`, `normalizeCellValue`, `resolveCellDecor`, `cellDecorStyle`, `columnDisplayMode`, `resolveCellIcon`, `parseIconRef`, `hasSecondLine`, `newDecorRule`. ראה [TABLE_MODE_DISPLAY_SPEC.md](TABLE_MODE_DISPLAY_SPEC.md).
+
+### `src/utils/displayIcons.ts`
+**תפקיד:** טבלת האייקונים (`display_icons`) בצד הלקוח - חנות ברמת המודול (כמו קטלוג השדות), נטענת בעמדה רק כשמוד טבלה כלשהו מציג אייקון. **מייצא:** `useDisplayIcons`, `loadDisplayIcons`, `saveDisplayIcon`, `deleteDisplayIcon`, `displayIconById`, `DisplayIconRow`.
+
+### `src/components/shared/DisplayIcon.tsx`
+**תפקיד:** ציור אייקון מטבלת האייקונים - צללית מטוס מובנית בצבע התמה, או תמונה שהועלתה. הפניה פגומה / אייקון שנמחק = כלום (התא נופל לטקסט). **שימוש:** `SectorDashboard` (מוד טבלה), `TableColumnDisplayEditor`, `DisplayIconsManager`.
+
+### `src/components/admin/TableColumnDisplayEditor.tsx` + `DisplayIconsManager.tsx`
+**תפקיד:** העורך שנפתח מכפתור 🎨 בשורת העמודה במודי טבלה (שורה שנייה, כללי עיצוב עם דוגמה חיה, טקסט/אייקון ומיפוי ערך ← אייקון; אותו עורך גם לשורה השנייה), וטבלת האייקונים באותה לשונית (העלאה, שינוי שם, מחיקה; המובנים לקריאה בלבד).
+
 ### `src/utils/stripWindow.tsx`
 **תפקיד:** טיפוסים + עזרים לחלון סטריפ (Strip Window) — פריסות waypoint. לכל תא (`SWLeaf`) יש `strip_table_id` אופציונלי - **תצוגת הפ"מ של אותו תא** מתוך `classic_strip_tables`; ריק = תצוגת העמדה. `swResolveStripTable` הוא מקור האמת לפתרון הזה (כולל נפילה חזרה כשהתצוגה נמחקה). **מייצא:** `SWLeaf`, `SWSplit`, `SWNode`, `SW_TEXTURES`, `SW_TEMPLATES`, `swGetBgStyle`, `swGenId`, `swDefaultLeaf`, `swRemapIds`, `swUpdate`, `swSplit`, `swRemove`, `swFindLeaf`, `swResolveStripTable`.
 
