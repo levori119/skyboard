@@ -23,6 +23,7 @@ import {
   type Camera3D,
   type Vec3,
   shouldRenderPattern3D,
+  shouldDraw2DPattern,
   shouldShowPatternLabels,
   descentSpans,
 } from './pattern3d';
@@ -438,6 +439,17 @@ describe('פקדי המצלמה', () => {
 // ── התלת מימד נפתח תמיד כשהמתג דלוק ─────────────────────────────────────────
 // דווח מהשטח: הכפתור נדלק בתורכיז ולא קורה כלום. הסיבה הייתה תנאי רינדור נוסף
 // (`imgBounds`) שנכשל בעמדה בלי מפת רקע, ואז לא עלו לא הסצנה ולא סרגל הבקרה.
+describe('shouldDraw2DPattern - תלת מימד והקפה שטוחה לא אחד על השני', () => {
+  it('בלי תלת מימד - שכבת ההקפה קובעת', () => {
+    expect(shouldDraw2DPattern(true, false)).toBe(true);
+    expect(shouldDraw2DPattern(false, false)).toBe(false);
+  });
+  it('כשהתלת מימד פתוח - ההקפה השטוחה לא מצוירת גם כשהשכבה דלוקה', () => {
+    expect(shouldDraw2DPattern(true, true)).toBe(false);
+    expect(shouldDraw2DPattern(false, true)).toBe(false);
+  });
+});
+
 describe('shouldRenderPattern3D - כפתור שנדלק חייב להראות משהו', () => {
   it('דלוק → מרנדר, כבוי → לא', () => {
     expect(shouldRenderPattern3D(true)).toBe(true);

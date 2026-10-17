@@ -34,7 +34,7 @@ import Pattern3DSplitPane, { splitMapInset } from '../ground/Pattern3DSplitPane'
 import {
   loadPattern3DPrefs, savePattern3DPrefs, smallWinInArea, type Pattern3DPrefs,
 } from '../ground/pattern3dPrefs';
-import { DEFAULT_CAMERA, shouldRenderPattern3D, shouldShowPatternLabels, type Camera3D } from '../../utils/pattern3d';
+import { DEFAULT_CAMERA, shouldRenderPattern3D, shouldDraw2DPattern, shouldShowPatternLabels, type Camera3D } from '../../utils/pattern3d';
 import { altToDisplay, collectGreensAlerts, freshEntries, greensAlert, greensPoint, type GreensAlertRow } from '../../utils/joiningPoints';
 import { usePatternAutotrack } from '../../airPicture/usePatternAutotrack';
 import PatternTrafficWindow from '../ground/PatternTrafficWindow';
@@ -63,6 +63,7 @@ import WeatherWindow from '../../weather/WeatherWindow';
 import type { WeatherPrefs } from '../../weather/prefs';
 import { shouldShowNavOverlay, navPathStroke } from '../../utils/vehicleRouteAnim';
 import { TOOL_BTN, TOOL_GAP, toolBtn } from '../../utils/toolbarStandard';
+import { windowFrame } from '../../utils/windowFrame';
 import usePinchZoom from '../../hooks/usePinchZoom';
 import { localStep, pinchZoomPan, type ZoomPanView } from '../../utils/pinchZoom';
 import { measureCssZoom } from '../../utils/mapPan';
@@ -78,7 +79,6 @@ import { measureCssZoom } from '../../utils/mapPan';
 const RUNWAY_PANEL_RESERVE = 120;
 
 /** כמה מפאנל השכבות חייב להישאר בתוך שטח המפה בגרירה - שלא ייגרר אל מחוץ להישג יד. */
-const LAYERS_KEEP_VISIBLE = 70;
 
 export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onUpdateStripAircraftFault, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, canAddVehicle = false, onDeleteElement, hideStrips, hideElementPanel, hidePatternControls = false, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], linkedRouteNotams = [], runwayAidStatuses = [], airfieldPatterns = [], activeRunwayIdents = [], runwayEndUse, activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, onCloseLayersPanel, onOpenLayersPanel, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark',
   joiningPoints = [], joiningPointStrips = [], joiningPointAircraft = [], landingRunways = [],
@@ -1076,47 +1076,18 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   const panelsTop = bannersH + 8;
 
   /**
-   * מיקום פאנל השכבות בתוך שטח המפה. `null` = הפינה ההתחלתית (8,8).
-   *
-   * למה נגרר בכלל: הפאנל יושב בפינה קבועה ומכסה בדיוק את מה שהפקח צריך לראות
-   * מתחתיו - קצה מסלול, נקודה או אזור שנופלים באותה פינה של השדה. עד היום
-   * הפתרון היחיד היה לסגור אותו לגמרי (מתפריט "תצוגה"), כלומר לוותר גם על
-   * מתגי השכבות, על פקדי הזום ועל כפתורי התלת מימד והציור שבתוכו.
-   *
-   * ⚠️ הפאנל הוא `position:absolute` **בתוך** `mapRef`, ולכן המיקום נמדד מול
-   * אזור המפה ולא מול החלון - וזו גם הסיבה שאי אפשר להשתמש כאן ב-`useDragPosition`,
-   * שמחזיר קואורדינטות מסך לחלון `position:fixed`. הגרירה עצמה דרך
-   * `startPointerDrag`, שכבר פותר את חלוקת ה---s, את ה-capture ואת touch-action
-   * (CLAUDE.md §גרירה - מגע ועט).
+   * ראש סרגל הכלים השמאלי. **קבוע** - לא נגרר: הפקח מוצא את השכבות, התצוגה
+   * והתלת מימד תמיד באותו מקום. יורד מתחת לערימת הבאנרים כשיש התראה.
    */
-  const [layersPos, setLayersPos] = React.useState<{ x: number; y: number } | null>(null);
-  const layersPanelRef = React.useRef<HTMLDivElement | null>(null);
-  const onLayersDragDown = (e: React.PointerEvent) => {
-    const el = layersPanelRef.current;
-    const area = mapRef.current;
-    if (!el || !area) return;
-    // `offsetLeft/offsetTop` ו-`clientWidth` כבר ביחידות מוגדלות, בדיוק כמו
-    // ההיסט שמחזיר `startPointerDrag` - אין להשוות אותם ל-getBoundingClientRect.
-    const base = { x: el.offsetLeft, y: el.offsetTop };
-    startPointerDrag(e, {
-      onMove: (dx, dy) => {
-        const maxX = Math.max(area.clientWidth - LAYERS_KEEP_VISIBLE, 0);
-        const maxY = Math.max(area.clientHeight - LAYERS_KEEP_VISIBLE, 0);
-        setLayersPos({
-          x: Math.min(Math.max(base.x + dx, 0), maxX),
-          y: Math.min(Math.max(base.y + dy, 0), maxY),
-        });
-      },
-    });
-  };
-  /**
-   * הקצה העליון בפועל - ממנו נגזר הגובה הפנוי לפאנל אחרי שנגרר.
-   *
-   * `Math.max` מול ערימת הבאנרים גם למיקום **שנגרר**: התראה שנפתחת מעל הפאנל
-   * מסתירה גם את ידית הגרירה וגם את כפתור איפוס המיקום שבתוכה, כלומר את שתי
-   * הדרכים להוציא אותו משם. הפאנל יורד למשך ההתראה וחוזר למקומו כשהיא חולפת.
-   */
-  const layersTop = Math.max(layersPos ? layersPos.y : 8, panelsTop);
+  const layersTop = panelsTop;
+  /** איזה תפריט פתוח מהסרגל השמאלי - שכבות או תצוגה (אחד בכל פעם). */
+  const [railFly, setRailFly] = React.useState<null | 'layers' | 'display'>(null);
+  React.useEffect(() => {
+    if (!railFly) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setRailFly(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [railFly]);
   const layersAvailH = layersMaxH != null ? Math.max(160, layersMaxH + 8 - layersTop) : null;
 
   // ציור על מפת השדה - **אותו סרגל** של עמדת המפה (ראה components/map/MapDrawLayer).
@@ -2931,194 +2902,199 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             </div>
           )}
 
-          {/* Layers panel + zoom controls — top-left; toggled from תצוגה menu */}
-          {showLayersPanel && (
-          /* גובה חסום + גלילה פנימית. בלעדיהם הפאנל נמתח מעבר לשטח המפה
-             (`overflow:hidden` של אזור המפה), והשורות התחתונות שלו - פקדי הזום,
-             **כפתור התלת מימד** וכפתור הציור - פשוט נחתכות מחוץ למסך. ככל שסקייל
-             המסך גדל (18"/24" → `--s`) יש פחות פיקסלים לוגיים לגובה, ולכן דווקא
-             בעמדת היעד הן היו הראשונות להיעלם: הפקח לחץ על התלת מימד ו"לא קרה כלום".
-             ה-`bottomReserve` הוא פאנל "מסלולים בשימוש" - הוא צף מעל (z=8900,
-             portal ל-body) בפינה התחתונה של אותו צד, ולכן שורה שיושבת מתחתיו
-             נראית לחיצה אך הקליק נבלע בו. */
-          <div ref={layersPanelRef} data-testid="ground-layers-panel"
-            style={{ position: 'absolute', top: layersTop, left: layersPos ? layersPos.x : 8, zIndex: 30, direction: 'rtl', background: lightMode ? '#ffffffee' : '#0f172aee', border: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, borderRadius: '8px', overflowY: 'auto', overflowX: 'hidden', maxHeight: layersAvailH ?? `calc(100% - 16px)`, overscrollBehavior: 'contain', boxShadow: '0 4px 16px #0006' }} data-nopan>
-            {/* הכותרת היא **ידית הגרירה**: כל הרוחב שלה, כדי שתהיה שטח מגע אמיתי
-                לעט ולאצבע ולא ריבוע זעיר. לחיצה כפולה מחזירה לפינה ההתחלתית,
-                כמו ידית ה-⇲ של חלון התלת מימד. */}
-            <div
-              onPointerDown={onLayersDragDown}
-              onDoubleClick={() => setLayersPos(null)}
-              title={tr('ground.layersDragHint')}
-              style={{ ...DRAG_HANDLE_STYLE, display: 'flex', alignItems: 'center', gap: '4px', paddingBlock: '5px', paddingInlineStart: '8px', paddingInlineEnd: '6px', background: lightMode ? '#e2e8f0' : '#0a1628', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#475569' : '#94a3b8', cursor: 'move' }}>
-              <span aria-hidden style={{ fontSize: '11px', opacity: 0.7, lineHeight: 1 }}>⠿</span>
-              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tr('ground.layers')}</span>
-              {layersPos && (
-                <button type="button" data-testid="ground-layers-reset"
-                  onClick={() => setLayersPos(null)} title={tr('ground.layersResetPos')}
-                  style={{ width: '20px', height: '20px', flexShrink: 0, padding: 0, lineHeight: 1, borderRadius: '4px', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, background: 'transparent', color: lightMode ? '#475569' : '#94a3b8', cursor: 'pointer', fontSize: '11px' }}>↩</button>
-              )}
-              {onCloseLayersPanel && (
-                <button type="button" data-testid="ground-layers-close"
-                  onClick={onCloseLayersPanel} title={tr('ground.layersClose')}
-                  style={{ width: '20px', height: '20px', flexShrink: 0, padding: 0, lineHeight: 1, borderRadius: '4px', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, background: 'transparent', color: lightMode ? '#475569' : '#94a3b8', cursor: 'pointer', fontSize: '12px' }}>✕</button>
-              )}
-            </div>
-            <div style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              {[{ key: 'polygons', label: '🔷 אזורים' }, { key: 'sectors', label: '⬛ סקטורים' }, { key: 'runways', label: tr('ground.layerRunways') }, { key: 'patterns', label: tr('ground.layerPatterns') }, { key: 'routes_aircraft', label: '✈ מסלולי מטוסים' }, { key: 'routes_vehicle', label: '🚗 מסלולי רכבים' }, { key: 'elements', label: '🔧 אלמנטים' }, { key: 'points', label: '📍 נקודות' }, { key: 'cameras', label: '📷 מצלמות' }].map(({ key, label }) => (
-                <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: headerColor }}>
-                  <input type="checkbox" checked={(mapLayers as any)[key]} onChange={e => setMapLayers(p => ({ ...p, [key]: e.target.checked }))} />
-                  {label}
-                </label>
-              ))}
-              {airfieldTaxiways.length > 0 && onToggleTaxiwayOpenOnly && (
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: showTaxiwayOpenOnly ? '#38bdf8' : headerColor, marginTop: '2px', borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}`, paddingTop: '4px' }}>
-                  <input type="checkbox" checked={showTaxiwayOpenOnly} onChange={onToggleTaxiwayOpenOnly} />
-                  {tr('ground.openTaxiwaysOnly')}
-                </label>
-              )}
-            </div>
-            <div style={{ padding: '3px 10px', borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#1e3a5f'}`, background: lightMode ? '#f1f5f9' : '#0a1628' }}>
-              <div style={{ fontSize: '9px', fontWeight: 'bold', color: lightMode ? '#64748b' : '#64748b', padding: '3px 0 3px', letterSpacing: '0.05em', textTransform: 'uppercase' }}>{tr('ground.displaySettings')}</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingBottom: '4px' }}>
-                {[{ key: 'showRoutes', label: 'הצג מסלול נסיעה' }, { key: 'showNames', label: 'הצג שמות' },
-                  ...(hidePatternControls ? [] : [{ key: 'showPatternNames', label: tr('ground.showPatternNames') }]),
-                  { key: 'showStatus', label: 'הצג סטטוס' }].map(({ key, label }) => (
-                  <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: headerColor }}>
-                    <input type="checkbox" checked={(mapDisplaySettings as any)[key]} onChange={e => setMapDisplaySettings(p => ({ ...p, [key]: e.target.checked }))} />
-                    {label}
-                  </label>
-                ))}
-                {/* מראה המסלול: על תצלום אוויר בהיר האספלט הכהה נבלע, ועל מפה
-                    סכמטית כהה דווקא הבהיר נעלם - ולכן זו בחירת תצוגה של הפקח,
-                    לא הגדרת שדה. */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: headerColor }}>
-                  <span style={{ flex: 1 }}>{tr('ground.runwayColor')}</span>
-                  {(['dark', 'light'] as RunwayPaletteMode[]).map(m => (
-                    <button key={m} type="button" data-testid={`runway-palette-${m}`}
-                      data-active={mapDisplaySettings.runwayPalette === m ? '1' : '0'}
-                      onClick={() => setMapDisplaySettings(p => ({ ...p, runwayPalette: m }))}
-                      title={m === 'dark' ? tr('ground.runwayColorDark') : tr('ground.runwayColorLight')}
-                      style={{ width: '22px', height: '18px', borderRadius: '3px', cursor: 'pointer', padding: 0,
-                               background: m === 'dark' ? '#1f2937' : '#e5e7eb',
-                               border: `2px solid ${mapDisplaySettings.runwayPalette === m ? '#38bdf8' : '#475569'}` }} />
-                  ))}
+          {/* ── סרגל הכלים השמאלי של המגדל ──
+              **קבוע** בצד שמאל של המפה, ובנוי לפי סטנדרט הסרגלים (utils/toolbarStandard):
+              אייקונים בלבד, השם ב-HINT. השכבות והגדרות התצוגה - שהיו פאנל ארוך
+              שכיסה את פינת השדה - נפתחות מכפתור משלהן, אחת בכל פעם. במצב "מלא"
+              של התלת מימד הפקדים שלו יושבים כאן, בעמודה שלצד הסרגל. */}
+          {(() => {
+            const flyPanel: React.CSSProperties = {
+              direction: 'rtl', background: lightMode ? '#ffffffee' : '#0f172aee',
+              ...windowFrame('view', themeMode, 8), padding: '8px 10px', minWidth: 200,
+              display: 'flex', flexDirection: 'column', gap: '4px',
+              maxHeight: layersAvailH ?? 'calc(100% - 16px)', overflowY: 'auto', overscrollBehavior: 'contain',
+              boxShadow: '0 4px 16px #0006',
+            };
+            const flyTitle: React.CSSProperties = { fontSize: '13px', fontWeight: 800, color: lightMode ? '#020617' : '#f8fafc', marginBottom: '2px' };
+            const sep = <div style={{ height: 1, background: lightMode ? '#cbd5e1' : '#334155', margin: '2px 0' }} />;
+            const flyBtn = (key: 'layers' | 'display', icon: string, label: string) => (
+              <button type="button" data-testid={`ground-${key}-btn`} aria-pressed={railFly === key}
+                onClick={() => setRailFly(f => (f === key ? null : key))} title={label} aria-label={label}
+                style={toolBtn(themeMode, { active: railFly === key })}>{icon}</button>
+            );
+            /** כפתור משנה מתחת לכפתור שכבה (⚙ / ☰) - באותו רוחב, נמוך יותר. */
+            const subBtn = (on: boolean): React.CSSProperties => ({
+              ...toolBtn(themeMode, { active: on }), height: 20, minHeight: 20, fontSize: '12px',
+              borderTopLeftRadius: 0, borderTopRightRadius: 0,
+            });
+            const rail3D = shouldRenderPattern3D(show3D) && p3d.mode === 'overlay';
+            return (
+              <div data-testid="ground-layers-panel" data-nopan
+                style={{ position: 'absolute', top: layersTop, left: '8px', zIndex: 30, display: 'flex', alignItems: 'flex-start', gap: '8px', direction: 'ltr' }}>
+                <div data-testid="ground-tool-rail" title={tr('ground.wheelDrag')}
+                  style={{ display: 'flex', flexDirection: 'column', gap: TOOL_GAP, padding: '4px', borderRadius: '6px', background: lightMode ? '#ffffffdd' : 'rgba(30,41,59,0.9)', boxShadow: '0 4px 16px #0006', maxHeight: layersAvailH ?? 'calc(100% - 16px)', overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain' }}>
+                  {showLayersPanel ? (<>
+                    {flyBtn('layers', '🗂', tr('ground.layers'))}
+                    {flyBtn('display', '👁', tr('ground.displaySettings'))}
+                    {/* תמונ"א - הכפתור **מדליק ומכבה**, ה-⚙ שמתחתיו פותח את ההגדרות.
+                        הצבע מסמן את מצב החיבור, כמו בסרגל המפה. */}
+                    {airPicture?.active && (
+                      <div style={{ position: 'relative', display: 'flex', flexDirection: 'column' }}>
+                        <button type="button" data-testid="ground-air-picture-btn" aria-pressed={airPicture.prefs.on}
+                          onClick={() => airPicture.onPrefsChange?.({ ...airPicture.prefs, on: !airPicture.prefs.on })}
+                          title={tr(airPicture.prefs.on ? 'airPicture.hideOnMap' : 'airPicture.showOnMap')}
+                          style={{ ...toolBtn(themeMode, { active: airPicture.prefs.on }), borderBottomLeftRadius: 0, borderBottomRightRadius: 0,
+                            color: airPicture.status === 'live' ? '#22c55e' : airPicture.status === 'down' || airPicture.status === 'server' ? '#ef4444' : '#f59e0b' }}>✈</button>
+                        <button type="button" onClick={airPicture.onToggleControls} title={tr('airPicture.settings')}
+                          style={subBtn(!!airPicture.controlsOpen)}>⚙</button>
+                        {airPicture.controlsOpen && airPicture.onPrefsChange && (
+                          <AirPictureControls
+                            placement="anchored"
+                            prefs={airPicture.prefs}
+                            onChange={airPicture.onPrefsChange}
+                            status={airPicture.status}
+                            ageSec={airPicture.ageSec || 0}
+                            count={airPicture.count || 0}
+                            visibleCount={airPicture.visibleCount}
+                            errorDetail={airPicture.errorDetail}
+                            offReason={airPicture.offReason}
+                            themeMode={airPicture.themeMode || 'dark'}
+                            onClose={airPicture.onToggleControls}
+                          />
+                        )}
+                      </div>
+                    )}
+                    {/* מז"א - 🌦 מדליק ומכבה, ☰ פותח את תפריט השכבות שלו */}
+                    {weather && (
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <button type="button" data-testid="ground-weather-btn" aria-pressed={weather.prefs.on}
+                          onClick={() => weather.onPrefsChange({ ...weather.prefs, on: !weather.prefs.on })}
+                          title={tr('weather.title')}
+                          style={{ ...toolBtn(themeMode, { active: weather.prefs.on }), borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}>🌦</button>
+                        <button type="button" onClick={weather.onToggle} title={tr('weather.menu')}
+                          style={subBtn(!!weather.open)}>☰</button>
+                      </div>
+                    )}
+                    {sep}
+                    <button onClick={() => setGroundMapZoom(z => Math.min(+(z * 1.25).toFixed(3), 8))}
+                      title={tr('map.zoomIn')} style={toolBtn(themeMode)}>+</button>
+                    <button onClick={() => { setGroundMapZoom(1); setGroundMapPan({ x: 0, y: 0 }); }}
+                      title={tr('ground.resetZoomKey0')}
+                      style={{ ...toolBtn(themeMode, { active: groundMapZoom !== 1 || groundMapPan.x !== 0 || groundMapPan.y !== 0 }), height: 28, minHeight: 28, fontSize: '11px' }}>
+                      {Math.round(groundMapZoom * 100)}%
+                    </button>
+                    <button onClick={() => setGroundMapZoom(z => Math.max(+(z / 1.25).toFixed(3), 0.2))}
+                      title={tr('map.zoomOut')} style={toolBtn(themeMode)}>−</button>
+                    {sep}
+                    {/* תלת מימד - בקרת **מבט**, אחות של הזום. בעמדה בלי הקפות הוא
+                        יורד יחד עם שאר פקדי ההקפה. */}
+                    {!hidePatternControls && (
+                      <button data-testid="pattern-3d-toggle" data-active={show3D ? '1' : '0'} aria-pressed={show3D}
+                        onClick={toggle3D} title={`${tr('pattern3d.toggle')} - ${tr('pattern3d.toggleHint')}`}
+                        style={{ ...toolBtn(themeMode, { active: show3D }), fontSize: '15px' }}>
+                        3D
+                      </button>
+                    )}
+                  </>) : onOpenLayersPanel && (
+                    /* הסרגל כובה מתפריט "תצוגה" - נשאר רק הכפתור שמחזיר אותו (וציור) */
+                    <button type="button" data-testid="ground-layers-open"
+                      onPointerDown={e => e.stopPropagation()}
+                      onClick={onOpenLayersPanel} title={tr('ground.layersOpen')} aria-label={tr('ground.layers')}
+                      style={toolBtn(themeMode)}>
+                      🗂
+                    </button>
+                  )}
+                  <MapDrawToggle active={draw.active} themeMode={themeMode}
+                    onToggle={() => draw.setActive(v => !v)} />
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: headerColor }}>
-                  <span style={{ flex: 1 }}>{tr('ground.runwayWidth')}</span>
-                  <button type="button" data-testid="runway-width-minus"
-                    onClick={() => setMapDisplaySettings(p => ({ ...p, runwayWidthScale: stepWidthScale(p.runwayWidthScale, -1) }))}
-                    style={{ width: '20px', height: '18px', borderRadius: '3px', cursor: 'pointer', padding: 0, background: '#1e293b', color: '#e2e8f0', border: '1px solid #475569' }}>-</button>
-                  <span data-testid="runway-width-scale" style={{ minWidth: '36px', textAlign: 'center', fontFamily: 'monospace' }}>
-                    {Math.round(mapDisplaySettings.runwayWidthScale * 100)}%
-                  </span>
-                  <button type="button" data-testid="runway-width-plus"
-                    onClick={() => setMapDisplaySettings(p => ({ ...p, runwayWidthScale: stepWidthScale(p.runwayWidthScale, 1) }))}
-                    style={{ width: '20px', height: '18px', borderRadius: '3px', cursor: 'pointer', padding: 0, background: '#1e293b', color: '#e2e8f0', border: '1px solid #475569' }}>+</button>
-                </div>
-                {/* נ"צ תחת הסמן - רק בעמדה מעוגנת. בעמדה לא מעוגנת אין למה
-                    להמיר את המיקום, ומתג שלא עושה דבר הוא רעש. */}
-                {geoAnchor && (
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: headerColor }}>
-                    <input type="checkbox" checked={mapDisplaySettings.showGeoCursor}
-                      onChange={e => setMapDisplaySettings(p => ({ ...p, showGeoCursor: e.target.checked }))} />
-                    {tr('ground.showGeoCursor')}
-                  </label>
+
+                {rail3D && (
+                  <Pattern3DControls
+                    camera={cam3D}
+                    onChange={setCam3D}
+                    onRecenter={() => { setCam3D(RECENTER.camera); setPan3D(RECENTER.pan); }}
+                    onClose={() => setShow3D(false)}
+                    themeMode={themeMode}
+                    mode={p3d.mode}
+                    onModeChange={setP3dMode}
+                    placement="rail"
+                  />
                 )}
-                {/* תמונ"א - כאן ולא ליד פקדי הזום. זו **שכבת תצוגה** בדיוק כמו
-                    השמות והסטטוס, ולכן מקומה עם שאר מתגי התצוגה. */}
-                {airPicture?.active && (
-                  <div style={{ position: 'relative' }}>
-                    {/* הצ'קבוקס **מכבה את התמונ"א**, לא פותח את הפאנל. הוא יושב
-                        בין "הצג שמות" ל"הצג סטטוס", ולכן קריאתו היחידה היא
-                        "הצג/אל תציג" - וכך הוא גם עוצר את הדגימה מהמאגר.
-                        ההגדרות נפתחות בגלגל השיניים, כמו בעמדת הבקר. */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: headerColor }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                        <input type="checkbox" checked={airPicture.prefs.on}
-                          onChange={e => airPicture.onPrefsChange?.({ ...airPicture.prefs, on: e.target.checked })} />
-                        <span style={{ color: airPicture.status === 'live' ? '#22c55e' : airPicture.status === 'down' || airPicture.status === 'server' ? '#ef4444' : '#f59e0b' }}>●</span>
-                        {tr('airPicture.title')}
+
+                {showLayersPanel && railFly === 'layers' && (
+                  <div data-testid="ground-layers-fly" style={flyPanel}>
+                    <div style={flyTitle}>{tr('ground.layers')}</div>
+                    {[{ key: 'polygons', label: '🔷 אזורים' }, { key: 'sectors', label: '⬛ סקטורים' }, { key: 'runways', label: tr('ground.layerRunways') }, { key: 'patterns', label: tr('ground.layerPatterns') }, { key: 'routes_aircraft', label: '✈ מסלולי מטוסים' }, { key: 'routes_vehicle', label: '🚗 מסלולי רכבים' }, { key: 'elements', label: '🔧 אלמנטים' }, { key: 'points', label: '📍 נקודות' }, { key: 'cameras', label: '📷 מצלמות' }].map(({ key, label }) => (
+                      <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: headerColor }}>
+                        <input type="checkbox" checked={(mapLayers as any)[key]} onChange={e => setMapLayers(p => ({ ...p, [key]: e.target.checked }))} />
+                        {label}
                       </label>
-                      <button onClick={airPicture.onToggleControls} title={tr('airPicture.settings')}
-                        style={{
-                          marginInlineStart: 'auto', width: 18, height: 16, lineHeight: 1, padding: 0,
-                          borderRadius: 3, border: 'none', cursor: 'pointer', fontSize: '10px',
-                          background: airPicture.controlsOpen ? '#1d4ed8' : (lightMode ? '#e2e8f0' : '#334155'),
-                          color: airPicture.controlsOpen ? '#fff' : headerColor,
-                        }}>⚙</button>
-                    </div>
-                    {airPicture.controlsOpen && airPicture.onPrefsChange && (
-                      <AirPictureControls
-                        placement="anchored"
-                        prefs={airPicture.prefs}
-                        onChange={airPicture.onPrefsChange}
-                        status={airPicture.status}
-                        ageSec={airPicture.ageSec || 0}
-                        count={airPicture.count || 0}
-                        visibleCount={airPicture.visibleCount}
-                        errorDetail={airPicture.errorDetail}
-                        offReason={airPicture.offReason}
-                        themeMode={airPicture.themeMode || 'dark'}
-                        onClose={airPicture.onToggleControls}
-                      />
+                    ))}
+                    {airfieldTaxiways.length > 0 && onToggleTaxiwayOpenOnly && (
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: showTaxiwayOpenOnly ? '#38bdf8' : headerColor, marginTop: '2px', borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}`, paddingTop: '4px' }}>
+                        <input type="checkbox" checked={showTaxiwayOpenOnly} onChange={onToggleTaxiwayOpenOnly} />
+                        {tr('ground.openTaxiwaysOnly')}
+                      </label>
+                    )}
+                    {show3D && mapLayers.patterns && (
+                      <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8' }} title={tr('ground.pattern2DHiddenIn3D')}>
+                        {tr('ground.pattern2DHiddenIn3D')}
+                      </div>
                     )}
                   </div>
                 )}
-                {/* מז"א - שכבת תצוגה בדיוק כמו התמונ"א, ולכן כאן ולא ליד פקדי
-                    הזום. הצ'קבוקס מכבה/מדליק, ה-☰ פותח את תפריט השכבות. */}
-                {weather && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: headerColor }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                      <input type="checkbox" checked={weather.prefs.on}
-                        onChange={e => weather.onPrefsChange({ ...weather.prefs, on: e.target.checked })} />
-                      <span>🌦</span>
-                      {tr('weather.title')}
-                    </label>
-                    <button onClick={weather.onToggle} title={tr('weather.menu')}
-                      style={{
-                        marginInlineStart: 'auto', width: 18, height: 16, lineHeight: 1, padding: 0,
-                        borderRadius: 3, border: 'none', cursor: 'pointer', fontSize: '10px',
-                        background: weather.open ? '#0284c7' : (lightMode ? '#e2e8f0' : '#334155'),
-                        color: weather.open ? '#fff' : headerColor,
-                      }}>☰</button>
+                {showLayersPanel && railFly === 'display' && (
+                  <div data-testid="ground-display-fly" style={flyPanel}>
+                    <div style={flyTitle}>{tr('ground.displaySettings')}</div>
+                    {[{ key: 'showRoutes', label: 'הצג מסלול נסיעה' }, { key: 'showNames', label: 'הצג שמות' },
+                      ...(hidePatternControls ? [] : [{ key: 'showPatternNames', label: tr('ground.showPatternNames') }]),
+                      { key: 'showStatus', label: 'הצג סטטוס' }].map(({ key, label }) => (
+                      <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: headerColor }}>
+                        <input type="checkbox" checked={(mapDisplaySettings as any)[key]} onChange={e => setMapDisplaySettings(p => ({ ...p, [key]: e.target.checked }))} />
+                        {label}
+                      </label>
+                    ))}
+                    {/* מראה המסלול: על תצלום אוויר בהיר האספלט הכהה נבלע, ועל מפה
+                        סכמטית כהה דווקא הבהיר נעלם - ולכן זו בחירת תצוגה של הפקח,
+                        לא הגדרת שדה. */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: headerColor }}>
+                      <span style={{ flex: 1 }}>{tr('ground.runwayColor')}</span>
+                      {(['dark', 'light'] as RunwayPaletteMode[]).map(m => (
+                        <button key={m} type="button" data-testid={`runway-palette-${m}`}
+                          data-active={mapDisplaySettings.runwayPalette === m ? '1' : '0'}
+                          onClick={() => setMapDisplaySettings(p => ({ ...p, runwayPalette: m }))}
+                          title={m === 'dark' ? tr('ground.runwayColorDark') : tr('ground.runwayColorLight')}
+                          style={{ width: '22px', height: '18px', borderRadius: '3px', cursor: 'pointer', padding: 0,
+                                   background: m === 'dark' ? '#1f2937' : '#e5e7eb',
+                                   border: `2px solid ${mapDisplaySettings.runwayPalette === m ? '#38bdf8' : '#475569'}` }} />
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: headerColor }}>
+                      <span style={{ flex: 1 }}>{tr('ground.runwayWidth')}</span>
+                      <button type="button" data-testid="runway-width-minus"
+                        onClick={() => setMapDisplaySettings(p => ({ ...p, runwayWidthScale: stepWidthScale(p.runwayWidthScale, -1) }))}
+                        style={{ width: '20px', height: '18px', borderRadius: '3px', cursor: 'pointer', padding: 0, background: '#1e293b', color: '#e2e8f0', border: '1px solid #475569' }}>-</button>
+                      <span data-testid="runway-width-scale" style={{ minWidth: '36px', textAlign: 'center', fontFamily: 'monospace' }}>
+                        {Math.round(mapDisplaySettings.runwayWidthScale * 100)}%
+                      </span>
+                      <button type="button" data-testid="runway-width-plus"
+                        onClick={() => setMapDisplaySettings(p => ({ ...p, runwayWidthScale: stepWidthScale(p.runwayWidthScale, 1) }))}
+                        style={{ width: '20px', height: '18px', borderRadius: '3px', cursor: 'pointer', padding: 0, background: '#1e293b', color: '#e2e8f0', border: '1px solid #475569' }}>+</button>
+                    </div>
+                    {/* נ"צ תחת הסמן - רק בעמדה מעוגנת. בעמדה לא מעוגנת אין למה
+                        להמיר את המיקום, ומתג שלא עושה דבר הוא רעש. */}
+                    {geoAnchor && (
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: headerColor }}>
+                        <input type="checkbox" checked={mapDisplaySettings.showGeoCursor}
+                          onChange={e => setMapDisplaySettings(p => ({ ...p, showGeoCursor: e.target.checked }))} />
+                        {tr('ground.showGeoCursor')}
+                      </label>
+                    )}
                   </div>
                 )}
               </div>
-            </div>
-            {/* פקדי מבט - זום, תלת מימד וציור. **סטנדרט הסרגלים** (utils/toolbarStandard):
-                40x40 כמו כפתורי סרגל המפה, אייקון בלבד, וההסבר (כולל "גלגלת = זום,
-                גרירה = הזזה") ב-title. */}
-            <div data-testid="ground-view-controls" title={tr('ground.wheelDrag')}
-              style={{ borderTop: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, padding: '6px 8px', display: 'flex', alignItems: 'center', gap: TOOL_GAP, flexWrap: 'wrap' }}>
-              <button onClick={() => setGroundMapZoom(z => Math.min(+(z * 1.25).toFixed(3), 8))}
-                title={tr('map.zoomIn')} style={toolBtn(themeMode)}>+</button>
-              <button onClick={() => { setGroundMapZoom(1); setGroundMapPan({ x: 0, y: 0 }); }}
-                title={tr('ground.resetZoomKey0')}
-                style={{ ...toolBtn(themeMode, { active: groundMapZoom !== 1 || groundMapPan.x !== 0 || groundMapPan.y !== 0 }), width: 'auto', minWidth: TOOL_BTN + 12, padding: '0 6px', fontSize: '13px' }}>
-                {Math.round(groundMapZoom * 100)}%
-              </button>
-              <button onClick={() => setGroundMapZoom(z => Math.max(+(z / 1.25).toFixed(3), 0.2))}
-                title={tr('map.zoomOut')} style={toolBtn(themeMode)}>−</button>
-              {/* תלת מימד - כאן ולא ברשימת השכבות: זו בקרת **מבט**, אחות של
-                  הזום, ולא שכבת תוכן שנדלקת ונכבית מעל המפה.
-                  המבט הזה הוא על **ההקפה**, ולכן בעמדה שאין לה הקפות הוא יורד
-                  יחד עם שאר פקדי ההקפה. `show3D` נולד כבוי ורק הכפתור מדליק
-                  אותו, ולכן הסתרתו מספיקה - אין מצב של סצנה שנתקעה פתוחה. */}
-              {!hidePatternControls && (
-              <button data-testid="pattern-3d-toggle" data-active={show3D ? '1' : '0'} aria-pressed={show3D}
-                onClick={toggle3D} title={`${tr('pattern3d.toggle')} - ${tr('pattern3d.toggleHint')}`}
-                style={{ ...toolBtn(themeMode, { active: show3D }), fontSize: '15px' }}>
-                3D
-              </button>
-              )}
-              {/* ציור על המפה - כאן, ליד פקדי הזום, כי זה המקום שהעין מחפשת בו כלי
-                  מפה (בעמדת המפה ה-✏ יושב באותה פינה, בסרגל האנכי). */}
-              <MapDrawToggle active={draw.active} themeMode={themeMode}
-                onToggle={() => draw.setActive(v => !v)} />
-            </div>
-          </div>
-          )}
+            );
+          })()}
 
           {/* מעקב הקפה אוטומטי: טבלת "בהקפה" והתראת הירוקים המתפרצת. שניהם
               portal - המיקום כאן בעץ אינו משנה את מיקומם על המסך. */}
@@ -3252,36 +3228,10 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               );
             }
 
-            // מלא - ההתנהגות שהפקח מכיר: הסצנה על כל שטח המפה, סרגל צף.
-            return (
-              <>
-                {scene}
-                {controls()}
-              </>
-            );
+            // מלא - הסצנה על כל שטח המפה. הפקדים **לא** צפים כאן: הם יושבים
+            // קבועים בעמודה השמאלית, לצד סרגל השכבות (ראה `rail3D` למטה).
+            return scene;
           })()}
-
-          {/* ── פאנל השכבות סגור ── שני הכפתורים שחייבים להישאר על המפה:
-              **🗂 שכבות** שמחזיר את הפאנל, ו**ציור** שממשיך לעבוד בלעדיו.
-              בלי כפתור ההחזרה נשאר על המפה רק "ציור", והמסקנה המתבקשת של הפקח
-              היא שהכלים אבדו - כי מתגי השכבות, פקדי הזום והתלת מימד יושבים
-              **רק** בתוך הפאנל, והדרך היחידה חזרה הייתה פריט עמוק בתפריט
-              "תצוגה". */}
-          {!showLayersPanel && (
-            <div style={{ position: 'absolute', top: panelsTop, left: '8px', zIndex: 31, display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '4px' }} data-nopan>
-              {onOpenLayersPanel && (
-                <button type="button" data-testid="ground-layers-open"
-                  onPointerDown={e => e.stopPropagation()}
-                  onClick={onOpenLayersPanel} title={tr('ground.layersOpen')}
-                  aria-label={tr('ground.layers')}
-                  style={{ ...toolBtn(themeMode), boxShadow: '0 4px 16px #0006' }}>
-                  🗂
-                </button>
-              )}
-              <MapDrawToggle active={draw.active} themeMode={themeMode}
-                onToggle={() => draw.setActive(v => !v)} />
-            </div>
-          )}
 
           {/* תפריט שכבות המז"א - **מחוץ** ל-mapInner במכוון: אלמנט `fixed` בתוך
               שכבה עם transform מתנהג כמו `absolute` יחסית אליה, והתפריט היה
@@ -3651,7 +3601,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           {/* ── הקפות ──
               אותו רכיב בדיוק ששימש לשרטוט בעמדת הניהול, במצב תצוגה בלבד -
               כך שההקפה שהמנהל צייר נראית בעמדה בדיוק כפי שצוירה. */}
-          {mapLayers.patterns && imgBounds && shownPatterns.length > 0 && (
+          {shouldDraw2DPattern(mapLayers.patterns, show3D) && imgBounds && shownPatterns.length > 0 && (
             <svg viewBox="0 0 100 100" preserveAspectRatio="none"
               style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 5 }}>
               <TrafficPatternLayer
@@ -3664,7 +3614,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           )}
           {/* הקפה כבויה שעדיין יש עליה מטוס - מעומעמת (היפוך הקפה). בלעדיה התווית
               של המטוס צפה על צלע שאינה מצוירת. */}
-          {mapLayers.patterns && imgBounds && flipGhostPatterns.length > 0 && (
+          {shouldDraw2DPattern(mapLayers.patterns, show3D) && imgBounds && flipGhostPatterns.length > 0 && (
             <svg viewBox="0 0 100 100" preserveAspectRatio="none" data-testid="pattern-flip-ghosts"
               style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 5, opacity: 0.35 }}>
               <TrafficPatternLayer

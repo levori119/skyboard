@@ -46,6 +46,15 @@ describe('פקדי התלת מימד - אותו רכיב, שני מיקומים'
     expect(m).not.toContain(`2px solid ${frameColor('view', 'dark')}`);
   });
 
+  it('קבוע בצד המפה (rail): לא צף ולא נגרר, אבל נושא מסגרת תורכיז וכל הפקדים', () => {
+    const m = renderToStaticMarkup(<Pattern3DControls {...ctrlBase} placement="rail" />);
+    expect(m).toContain('data-placement="rail"');
+    expect(m).not.toContain('position:fixed');
+    expect(m).not.toContain('data-drag-handle');
+    expect(m).toContain(`2px solid ${frameColor('view', 'dark')}`);
+    for (const id of EVERY_CONTROL) expect(m, id).toContain(`data-testid="${id}"`);
+  });
+
   it('מעוגן בלי מארח נגרר (חלונית פיצול) - אין ידית גרירה מתה', () => {
     const m = renderToStaticMarkup(<Pattern3DControls {...ctrlBase} placement="docked" />);
     expect(m).not.toContain('data-drag-handle');

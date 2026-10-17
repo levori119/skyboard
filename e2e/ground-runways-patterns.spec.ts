@@ -264,6 +264,9 @@ test('סרגל התצוגה מחליף את צבע המסלול ומשנה את 
     return Math.min(box.width, box.height); // הצלע הקצרה = רוחב המסלול
   };
 
+  // הגדרות התצוגה נפתחות מכפתור 👁 בסרגל השמאלי
+  await page.getByTestId('ground-display-btn').click();
+
   // ── צבע ──
   await expect(page.getByTestId('runway-palette-dark')).toHaveAttribute('data-active', '1');
   const dark = await fillOf();

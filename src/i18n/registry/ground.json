@@ -870,6 +870,10 @@
       "he": "דרך",
       "en": "Via"
     },
+    "pattern2DHiddenIn3D": {
+      "he": "ההקפה מוצגת בתלת מימד - על המפה השטוחה היא מוסתרת עד שהתלת מימד נסגר",
+      "en": "The pattern is shown in 3D - it is hidden on the flat map until 3D is closed"
+    },
     "wheelDrag": {
       "he": "= / − | גלגלת | גרירה",
       "en": "= / − | wheel | drag"

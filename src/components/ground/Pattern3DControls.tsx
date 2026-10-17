@@ -46,7 +46,13 @@ import type { ThemeMode } from './Pattern3DScene';
 // **המספרים מוצגים כטקסט** (TILT 55° / HDG 015°) ולא רק כמצב של סליידר: פקח
 // אינו אומד זווית בעין, ובלי המספר אין לו דרך לתאר לעמית מה הוא רואה.
 
-export type Pattern3DPlacement = 'floating' | 'docked';
+/**
+ * floating - חלון צף נגרר (מסגרת תורכיז, גורר את עצמו).
+ * docked   - סרגל אופקי בתוך מארח (חלון התלת מימד / חלונית הפיצול).
+ * rail     - עמודה **קבועה** בצד שמאל של המפה, לצד סרגל השכבות של המגדל, במצב
+ *            "מלא". לא צפה ולא נגררת: הפקח מוצא אותה תמיד באותו מקום.
+ */
+export type Pattern3DPlacement = 'floating' | 'docked' | 'rail';
 
 /** ידית גרירה של המארח - `useDragPosition().handleProps` או ידנית. */
 export interface DragHandleProps {
@@ -90,6 +96,7 @@ export default function Pattern3DControls({
   placement = 'floating', mode, onModeChange, dragHandle, split,
 }: Props) {
   const docked = placement === 'docked';
+  const rail = placement === 'rail';
   const winRef = React.useRef<HTMLDivElement | null>(null);
   const selfDrag = useDragPosition(winRef);
 
@@ -155,7 +162,7 @@ export default function Pattern3DControls({
 
   // ידית הגרירה: במצב צף הסרגל גורר את עצמו, במצב מעוגן הוא גורר את המארח.
   // בלי מארח שנגרר (חלונית פיצול) אין ידית כלל - ולא ידית מתה שאינה עושה דבר.
-  const handle = docked ? dragHandle : selfDrag.handleProps;
+  const handle = docked ? dragHandle : rail ? undefined : selfDrag.handleProps;
 
   return (
     <div
@@ -179,6 +186,14 @@ export default function Pattern3DControls({
           // עדיין נגיש בגלילה, ולעולם לא נמחק (pattern3dPrefs §DOCKED_BAR_MAX_H).
           maxHeight: DOCKED_BAR_MAX_H, overflowY: 'auto',
         }
+        : rail
+        ? {
+          // קבוע בתוך העמודה השמאלית של המפה - זרימה רגילה, בלי גרירה
+          position: 'relative', background: C.panel, color: C.text,
+          ...windowFrame('view', themeMode, 8),
+          padding: '4px', display: 'flex', flexDirection: 'column', gap: '4px',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.45)', userSelect: 'none',
+        }
         : {
           position: 'fixed', zIndex: 420,
           ...(selfDrag.dragged ? { left: selfDrag.pos!.x, top: selfDrag.pos!.y } : { insetInlineEnd: 14, bottom: 96 }),
@@ -198,7 +213,7 @@ export default function Pattern3DControls({
             זמין ב-tooltip של הסרגל. */}
         <b title={tr('pattern3d.title')}
           style={{ flex: docked ? undefined : 1, fontSize: '11px', whiteSpace: 'nowrap' }}>
-          {docked ? tr('pattern3d.toggle') : tr('pattern3d.title')}
+          {docked || rail ? tr('pattern3d.toggle') : tr('pattern3d.title')}
         </b>
         {!docked && (
           <button data-testid="close" onClick={onClose} title={tr('pattern3d.close')}
