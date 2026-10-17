@@ -109,5 +109,30 @@ export function fitLiveMap(
   return { center, zoom: clamp(Math.min(zoomW, zoomH)) };
 }
 
+/**
+ * צביטה בשתי אצבעות על מפת הבסיס: מרכז וזום חדשים כך שהנקודה שבין האצבעות
+ * נשארת מתחתיהן (ראה utils/pinchZoom). המפה מוצבת ב-`left = viewW/2 − center·sw`,
+ * ולכן הנקודה שמתחת ל-`prevMid` היא `(prevMid − left) / sw`, ובזום החדש המרכז
+ * נגזר ממנה ומ-`mid`. `prevMid/mid` בפיקסלי הפריסה של חלון המפה.
+ */
+export function pinchLiveMap(
+  view: { center: PctPoint; zoom: number },
+  baseW: number, baseH: number, viewW: number, viewH: number,
+  step: { scale: number; prevMid: PctPoint; mid: PctPoint },
+  opts: { min: number; max: number },
+): { center: PctPoint; zoom: number } {
+  if (!baseW || !baseH) return view;
+  const s = Number.isFinite(step.scale) && step.scale > 0 ? step.scale : 1;
+  const zoom = Math.min(opts.max, Math.max(opts.min, view.zoom * s));
+  const sw0 = baseW * view.zoom, sh0 = baseH * view.zoom;
+  const sw1 = baseW * zoom, sh1 = baseH * zoom;
+  const px = (step.prevMid.x - (viewW / 2 - (view.center.x / 100) * sw0)) / sw0;
+  const py = (step.prevMid.y - (viewH / 2 - (view.center.y / 100) * sh0)) / sh0;
+  return {
+    zoom,
+    center: { x: (px - (step.mid.x - viewW / 2) / sw1) * 100, y: (py - (step.mid.y - viewH / 2) / sh1) * 100 },
+  };
+}
+
 /** כמה קליטות אחרונות מציג שובל ההיסטוריה. 5 ש' לקליטה -> כעשר דקות. */
 export const LIVE_TRAIL_POINTS = 120;

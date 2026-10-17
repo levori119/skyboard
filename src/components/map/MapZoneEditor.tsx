@@ -10,6 +10,9 @@ import { customConfirm } from '../shared/ConfirmModal';
 import { parseParentRect } from '../../utils/sectorFocus';
 import { windowFrame } from '../../utils/windowFrame';
 import { useAnchorCoordPaste } from '../../hooks/useAnchorCoordPaste';
+import usePinchZoom from '../../hooks/usePinchZoom';
+import { localStep, pinchZoomPan, type ZoomPanView } from '../../utils/pinchZoom';
+import { measureCssZoom } from '../../utils/mapPan';
 import ZoneCoordList from './ZoneCoordList';
 import type { RectPct } from '../../utils/sectorFocus';
 import type { ZoneAltRange } from '../../types';
@@ -96,6 +99,23 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
   const [editorZoom, setEditorZoom] = useState(1);
   const [editorPan, setEditorPan] = useState({ x: 0, y: 0 });
   const editorPanDragRef = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null);
+  // צביטה בשתי אצבעות (אייפד / מגע): זום והזזה סביב הנקודה שבין האצבעות.
+  // הצעדים נצברים על עותק חי - בין שני אירועי תנועה React עוד לא בהכרח רינדר.
+  const editorPinchRef = useRef<ZoomPanView | null>(null);
+  const editorViewNow = useRef<ZoomPanView>({ zoom: 1, pan: { x: 0, y: 0 } });
+  editorViewNow.current = { zoom: editorZoom, pan: editorPan };
+  usePinchZoom('zone-editor', {
+    onStart: () => { editorPanDragRef.current = null; editorPinchRef.current = editorViewNow.current; },
+    onStep: (step, root) => {
+      if (!editorPinchRef.current) return;
+      const origin = { x: root.offsetWidth / 2, y: root.offsetHeight / 2 }; // transformOrigin: center center
+      const next = pinchZoomPan(editorPinchRef.current, localStep(step, root.getBoundingClientRect(), measureCssZoom(root)), origin, 0.25, 8);
+      editorPinchRef.current = next;
+      setEditorZoom(next.zoom);
+      setEditorPan(next.pan);
+    },
+    onEnd: () => { editorPinchRef.current = null; },
+  });
   const [panMode, setPanMode] = useState(false);
 
   // ── נקודות העברה קבועות ──────────────────────────────────────────────────
@@ -909,6 +929,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
           {/* Map area — takes most of the space, SVG positioned directly over image */}
           <div
             ref={containerRef}
+            data-pinch-root="zone-editor"
             style={{ flex: 1, position: 'relative', background: '#1e293b', overflow: 'hidden', cursor: panMode ? 'grab' : 'default', touchAction: 'none', userSelect: 'none' }}
             onPointerDown={e => {
               if (!panMode) return;

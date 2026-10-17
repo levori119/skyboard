@@ -25,7 +25,9 @@ import { buildGeoAnchor, geoToImagePct, type MapGeoAnchor } from '../../utils/ge
 import { measureCssZoom } from '../../utils/mapPan';
 import { suggestedVehicleIcon } from '../../utils/trips';
 import { liveVehicleTone, type LiveTrip } from '../../utils/liveTrips';
-import { LIVE_TRAIL_POINTS, fitLiveMap, liveMapColor, type PctPoint } from '../../utils/liveMap';
+import { LIVE_TRAIL_POINTS, fitLiveMap, liveMapColor, pinchLiveMap, type PctPoint } from '../../utils/liveMap';
+import { localStep } from '../../utils/pinchZoom';
+import usePinchZoom from '../../hooks/usePinchZoom';
 import useDragPosition from '../../hooks/useDragPosition';
 import { useDockableWindow } from '../../hooks/useDockableWindow';
 import { usePolling } from '../../hooks/usePollingRegistry';
@@ -192,6 +194,25 @@ export const TripLiveMapWindow: React.FC<TripLiveMapWindowProps> = ({
   // שהפקח זה עתה שינה
   const zoomBy = (f: number) => { setFit(false); setZoom(z => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z * f))); };
 
+  // צביטה בשתי אצבעות (אייפד / מגע): זום והזזה סביב הנקודה שבין האצבעות.
+  // כמו זום ידני - מכבה את "התאם לרכבים". הצעדים נצברים על עותק חי.
+  const liveViewNow = useRef({ center, zoom });
+  liveViewNow.current = { center, zoom };
+  const pinchViewRef = useRef<{ center: PctPoint; zoom: number } | null>(null);
+  usePinchZoom('trip-live', {
+    onStart: () => { panRef.current = null; setFit(false); pinchViewRef.current = liveViewNow.current; },
+    onStep: (step, root) => {
+      const v = pinchViewRef.current;
+      if (!v) return;
+      const next = pinchLiveMap(v, baseW, baseH, viewSize.w, viewSize.h,
+        localStep(step, root.getBoundingClientRect(), measureCssZoom(root)), { min: ZOOM_MIN, max: ZOOM_MAX });
+      pinchViewRef.current = next;
+      setZoom(next.zoom);
+      setCenter(next.center);
+    },
+    onEnd: () => { pinchViewRef.current = null; },
+  });
+
   // גרירה ב-Pointer Events (CLAUDE.md §גרירה): touch-action none, setPointerCapture,
   // וחלוקה בסקייל המסך - clientX בפיקסלים אמיתיים, והפריסה ביחידות המוגדלות
   const panRef = useRef<{ id: number; x: number; y: number; scale: number } | null>(null);
@@ -309,6 +330,7 @@ export const TripLiveMapWindow: React.FC<TripLiveMapWindowProps> = ({
   const baseMap = (
     <div
       ref={viewRef}
+      data-pinch-root="trip-live"
       onPointerDown={onMapPointerDown}
       onPointerMove={onMapPointerMove}
       onPointerUp={onMapPointerUp}

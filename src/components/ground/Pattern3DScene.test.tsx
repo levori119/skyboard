@@ -535,3 +535,50 @@ describe('Pattern3DScene - חצי המסלול בשימוש', () => {
     expect(arrows(render({ runways: [{ ...NAMED_RW, is_closed: true }], runwayUse: { takeoff: ['15'] } }))).toHaveLength(0);
   });
 });
+
+describe('Pattern3DScene - הקפה בהירה שלא תופסת מקום (2026-10)', () => {
+  const kOf = (m: string) => Number(/viewBox="[-\d.]+ [-\d.]+ ([\d.]+) /.exec(m)![1]) / 100;
+  const lineOf = (m: string) => {
+    const g = /<g data-testid="p3d-pattern"[\s\S]*?<\/g>/.exec(m)![0];
+    // הקו עצמו - ה-polyline היחיד בלי קווקוו
+    return [...g.matchAll(/<polyline [^>]*>/g)].map(x => x[0]).find(t => !t.includes('stroke-dasharray'))!;
+  };
+
+  it('קו ההקפה דק - לא עבה מתיבת המטוס', () => {
+    const m = render();
+    const w = Number(/stroke-width="([\d.]+)"/.exec(lineOf(m))![1]);
+    expect(w).toBeLessThanOrEqual(0.4 * kOf(m) + 1e-6);
+  });
+
+  it('ברקע כהה הקו מובהר לכיוון לבן; ברקע בהיר נשאר הצבע שהוגדר', async () => {
+    const { lightenHex } = await import('../../utils/zoneLabel');
+    expect(lineOf(render())).toContain(`stroke="${lightenHex('#38bdf8', 0.35)}"`);
+    expect(lineOf(render({ themeMode: 'ocean' }))).toContain(`stroke="${lightenHex('#38bdf8', 0.35)}"`);
+    expect(lineOf(render({ themeMode: 'light' }))).toContain('stroke="#38bdf8"');
+  });
+
+  it('שמות הצלעות קטנים ושקופים - רמז התמצאות, לא כותרת', () => {
+    const m = render();
+    const tag = (m.match(/<text data-testid="p3d-leg-label"[^>]*>/g) || [])[0];
+    const fs = Number(/font-size="([\d.]+)"/.exec(tag)![1]);
+    expect(fs).toBeLessThanOrEqual(1.3 * kOf(m) + 1e-6);
+    expect(Number(/opacity="([\d.]+)"/.exec(tag)![1])).toBeLessThanOrEqual(0.6);
+  });
+
+  it('צל ההקפה וקווי ההורדה מעומעמים - לא מתחרים בקו עצמו', () => {
+    const g = /<g data-testid="p3d-pattern"[\s\S]*?<\/g>/.exec(render())![0];
+    const shadow = [...g.matchAll(/<polyline [^>]*>/g)].map(x => x[0]).find(t => t.includes('stroke-dasharray'))!;
+    expect(Number(/opacity="([\d.]+)"/.exec(shadow)![1])).toBeLessThanOrEqual(0.5);
+    const drop = /<line [^>]*>/.exec(g)![0];
+    expect(Number(/opacity="([\d.]+)"/.exec(drop)![1])).toBeLessThanOrEqual(0.4);
+  });
+
+  it('במצב "מלא" הרקע שקוף למחצה והמפה נשארת מתחת; בחלון/פיצול - אטום', () => {
+    const over = render({ translucent: true });
+    expect(over).toMatch(/linear-gradient\(to bottom, #[0-9a-f]{6}a6 0%/);
+    expect(/data-testid="p3d-ground"[^>]*fill-opacity="0.55"/.test(over)).toBe(true);
+    const solid = render();
+    expect(solid).toMatch(/linear-gradient\(to bottom, #[0-9a-f]{6} 0%/);
+    expect(/data-testid="p3d-ground"[^>]*fill-opacity/.test(solid)).toBe(false);
+  });
+});

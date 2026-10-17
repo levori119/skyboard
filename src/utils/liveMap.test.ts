@@ -139,3 +139,31 @@ describe('מצב המפה הצפה - שדה אחד למפה', () => {
     expect(removeLiveMapTrip({ airfieldId: 1, tripIds: [7], historyIds: [] }, 7)).toBeNull();
   });
 });
+
+describe('pinchLiveMap - צביטה בשתי אצבעות', () => {
+  // המיקום של נקודת אחוזים p במסך, באותה נוסחה של TripLiveMapWindow (בלי חסימה)
+  const screenOf = (p: { x: number; y: number }, v: { center: { x: number; y: number }; zoom: number }, baseW: number, baseH: number, vw: number, vh: number) => ({
+    x: vw / 2 - (v.center.x / 100) * baseW * v.zoom + (p.x / 100) * baseW * v.zoom,
+    y: vh / 2 - (v.center.y / 100) * baseH * v.zoom + (p.y / 100) * baseH * v.zoom,
+  });
+
+  it('הנקודה שבין האצבעות נשארת מתחתיהן, גם כשהן זזות', async () => {
+    const { pinchLiveMap } = await import('./liveMap');
+    const v = { center: { x: 40, y: 55 }, zoom: 2 };
+    const prevMid = { x: 120, y: 90 }, mid = { x: 150, y: 70 };
+    // נקודת האחוזים שמתחת ל-prevMid לפני הצעד
+    const sw = 400 * 2, sh = 300 * 2;
+    const held = { x: ((prevMid.x - (250 - 0.4 * sw)) / sw) * 100, y: ((prevMid.y - (200 - 0.55 * sh)) / sh) * 100 };
+    const next = pinchLiveMap(v, 400, 300, 500, 400, { scale: 1.5, prevMid, mid }, { min: 1, max: 12 });
+    expect(next.zoom).toBeCloseTo(3);
+    const s = screenOf(held, next, 400, 300, 500, 400);
+    expect(s.x).toBeCloseTo(mid.x);
+    expect(s.y).toBeCloseTo(mid.y);
+  });
+
+  it('הזום נחסם לטווח של החלון', async () => {
+    const { pinchLiveMap } = await import('./liveMap');
+    const p = { x: 100, y: 100 };
+    expect(pinchLiveMap({ center: { x: 50, y: 50 }, zoom: 1 }, 400, 300, 500, 400, { scale: 0.5, prevMid: p, mid: p }, { min: 1, max: 12 }).zoom).toBe(1);
+  });
+});

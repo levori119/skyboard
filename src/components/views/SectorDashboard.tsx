@@ -87,6 +87,8 @@ const EMPTY_ZW_OFFENDERS: ZoneWatchOffender[] = [];
 import polygonClipping from 'polygon-clipping';
 import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
 import { useDragPosition } from '../../hooks/useDragPosition';
+import usePinchZoom from '../../hooks/usePinchZoom';
+import { localStep, pinchZoomPan, type ZoomPanView } from '../../utils/pinchZoom';
 import { windowFrame, frameColor } from '../../utils/windowFrame';
 import { deskBackgroundStyle, normalizeDeskBackground, loadDeskBackground, saveDeskBackground, DESK_BG_MIN_SIZE, DESK_BG_MAX_SIZE, type DeskBackground } from '../../utils/deskBackground';
 import { AimPointsSummary, AimPointsWindow } from '../strips/AimPointsTable';
@@ -976,6 +978,45 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // גרירת מפה: הפאן החי בזמן הגרירה, לפי מפה (המסך מרונדר מחדש כל סבב פולינג —
   // בלי זה רינדור באמצע הגרירה היה מחזיר את המפה לפאן שב-state ומקפיץ אותה).
   const mapPanDragRef = useRef<Record<string, MapPan | null>>({});
+  // ── צביטה בשתי אצבעות (אייפד / מגע): זום והזזה של פאנל מפה ───────────────
+  // כל פאנל (מפה ראשית, מפה שנייה, חלון מפה בדסק) מסומן ב-`data-pinch-root=
+  // "ctrl:<panKey>"`, ו-renderMapPanel רושם כאן את ה-cfg שלו. כמו בגרירת המפה:
+  // בזמן התנועה ה-transform נכתב ישירות לשכבות, וה-state מתעדכן פעם אחת בסוף.
+  const pinchCfgsRef = useRef<Record<string, { zoom: number; pan: MapPan; setZoom: (z: number) => void; setPan: (p: MapPan) => void }>>({});
+  const ctrlPinchRef = useRef<{ key: string; view: ZoomPanView; layers: HTMLElement[]; min: number; max: number } | null>(null);
+  usePinchZoom('ctrl', {
+    onStart: root => {
+      const key = (root.getAttribute('data-pinch-root') || '').slice('ctrl:'.length);
+      const cfg = pinchCfgsRef.current[key];
+      if (!cfg) return;
+      const layers = Array.from(root.querySelectorAll<HTMLElement>('[data-map-layer]'));
+      layers.forEach(l => { l.style.transition = 'none'; }); // אחרת המפה "רודפת" אחרי האצבעות
+      // טווח הכפתורים (50%-300%), אבל בלי לקפוץ אם מיקוד אזור כבר הביא את המפה מחוץ לו
+      ctrlPinchRef.current = {
+        key, layers, min: Math.min(0.5, cfg.zoom), max: Math.max(3, cfg.zoom),
+        view: { zoom: cfg.zoom, pan: mapPanDragRef.current[key] ?? cfg.pan },
+      };
+    },
+    onStep: (step, root) => {
+      const live = ctrlPinchRef.current;
+      if (!live) return;
+      const origin = { x: root.offsetWidth / 2, y: root.offsetHeight / 2 }; // transformOrigin: center center
+      live.view = pinchZoomPan(live.view, localStep(step, root.getBoundingClientRect(), measureCssZoom(root)), origin, live.min, live.max);
+      mapPanDragRef.current[live.key] = live.view.pan;
+      const t = mapLayerTransform(live.view.pan, live.view.zoom);
+      live.layers.forEach(l => { l.style.transform = t; });
+    },
+    onEnd: () => {
+      const live = ctrlPinchRef.current;
+      ctrlPinchRef.current = null;
+      if (!live) return;
+      live.layers.forEach(l => { l.style.transition = MAP_LAYER_TRANSITION; });
+      mapPanDragRef.current[live.key] = null;
+      const cfg = pinchCfgsRef.current[live.key];
+      cfg?.setZoom(live.view.zoom);
+      cfg?.setPan(live.view.pan);
+    },
+  });
   const [mapImgBounds, setMapImgBounds] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [mapGeoAnchor, setMapGeoAnchor] = useState<MapGeoAnchor | null>(null);
   // panKey: על איזה חלון מפה המצביע נמצא - הנ"צ מוצג בפינת **אותו** חלון ולא
@@ -9332,7 +9373,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const pinTypeOpen = showPinTypePanel && flyoutHere('pinType');
             const pinOnMapOpen = showPinOnMapPanel && flyoutHere('pinOnMap');
             // בזמן גרירה מוצג הפאן החי מה-ref; מחוץ לגרירה — הפאן שב-state.
-            const mapZoom = cfg.zoom, setMapZoom = cfg.setZoom, mapPan = mapPanDragRef.current[_panKey] ?? cfg.pan, setMapPan = cfg.setPan;
+            // ובזמן צביטה - גם הזום החי, כדי שרינדור באמצעה לא יחזיר את הזום הישן
+            const _pinch = ctrlPinchRef.current?.key === _panKey ? ctrlPinchRef.current : null;
+            const mapZoom = _pinch ? _pinch.view.zoom : cfg.zoom, setMapZoom = cfg.setZoom, mapPan = mapPanDragRef.current[_panKey] ?? cfg.pan, setMapPan = cfg.setPan;
+            pinchCfgsRef.current[_panKey] = { zoom: cfg.zoom, pan: cfg.pan, setZoom: cfg.setZoom, setPan: cfg.setPan };
             const mapBrightness = cfg.brightness, setMapBrightness = cfg.setBrightness;
             const mapImg = cfg.img, mapImgRef = cfg.imgRef, mapImgBounds = cfg.imgBounds, mapGeoAnchor = cfg.geoAnchor, computeMapImgBounds = cfg.computeBounds;
             const blindMapMode = cfg.blind, setBlindMapMode = cfg.setBlind, drawingMode = cfg.drawing, setDrawingMode = cfg.setDrawing;
@@ -9456,7 +9500,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             // data-help: עוגן ה"הצג לי" של העזרה, על המפה הראשית בלבד —
             // בדו-מפה אין טעם להאיר פעמיים.
             return (
-          <div key={cfg.panKey} data-map-panel="" data-help={cfg.secondary ? undefined : 'mapView'} style={{ position: 'absolute', overflow: 'hidden', ...dmMap1Region }}
+          <div key={cfg.panKey} data-map-panel="" data-pinch-root={`ctrl:${cfg.panKey}`} data-help={cfg.secondary ? undefined : 'mapView'} style={{ position: 'absolute', overflow: 'hidden', touchAction: 'none', ...dmMap1Region }}
             onContextMenu={e => {
               // קליק ימני (וכפתור הצד של העט, ש-Windows מתרגם לקליק ימני):
               //   על **הקו** של אזור  → תפריט האזור (הגבלות ובלוקים), כמו נגיעה בקו

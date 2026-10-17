@@ -197,6 +197,40 @@ export const clampTilt = (t: number): number => clamp(num(t), TILT_MIN, TILT_MAX
 export const clampZoom = (z: number): number => clamp(num(z), ZOOM_MIN, ZOOM_MAX);
 export const normYaw = (y: number): number => ((num(y) % 360) + 360) % 360;
 
+/**
+ * צביטה בשתי אצבעות על הסצנה: זום והזזה כך שנקודת הסצנה שבין האצבעות נשארת
+ * מתחתיהן (ראה utils/pinchZoom). הסיבוב וההטיה **אינם** משתנים - אצבע אחת
+ * מסובבת, שתיים מגדילות ומזיזות, ושני הממדים לא מתערבבים ביד.
+ *
+ * `rect` הוא מלבן ה-SVG על המסך, ו-`prevMid/mid` ב-`clientX/Y` - שניהם באותו
+ * מרחב, ולכן אין כאן חלוקה ב---s (כמו בגרירת הסיבוב). המסגרת ריבועית ומשובצת
+ * ב-meet: יחידת סצנה = size / הצלע הקטנה, עם היסט שמרכז אותה בצלע הארוכה.
+ * `centerProj` הוא היטל מרכז הכדור החוסם - אותו `c` של `viewBoxFor`.
+ */
+export function pinchCamera3D(
+  cam: Camera3D, pan: Pt, centerProj: Pt, radius: number,
+  rect: { left: number; top: number; width: number; height: number },
+  step: { scale: number; prevMid: Pt; mid: Pt },
+): { zoom: number; pan: Pt } {
+  const r = num(radius) > 0 ? num(radius) : 1;
+  const z0 = num(cam.zoom) > 0 ? num(cam.zoom) : 1;
+  const s = Number.isFinite(step.scale) && step.scale > 0 ? step.scale : 1;
+  const z1 = clampZoom(z0 * s);
+  const side = Math.min(rect.width, rect.height);
+  if (!(side > 0)) return { zoom: z0, pan: { x: num(pan?.x), y: num(pan?.y) } };
+  const offX = (rect.width - side) / 2, offY = (rect.height - side) / 2;
+  const size0 = (2 * r) / z0, size1 = (2 * r) / z1;
+  const vbX0 = centerProj.x - size0 / 2 + num(pan?.x);
+  const vbY0 = centerProj.y - size0 / 2 + num(pan?.y);
+  // נקודת הסצנה שמתחת לאמצע הקודם
+  const qx = vbX0 + (step.prevMid.x - rect.left - offX) * (size0 / side);
+  const qy = vbY0 + (step.prevMid.y - rect.top - offY) * (size0 / side);
+  // ה-viewBox החדש שמציב אותה מתחת לאמצע החדש
+  const vbX1 = qx - (step.mid.x - rect.left - offX) * (size1 / side);
+  const vbY1 = qy - (step.mid.y - rect.top - offY) * (size1 / side);
+  return { zoom: z1, pan: { x: vbX1 - centerProj.x + size1 / 2, y: vbY1 - centerProj.y + size1 / 2 } };
+}
+
 // ── פרופיל הגבהים של ההקפה ───────────────────────────────────────────────────
 
 /**

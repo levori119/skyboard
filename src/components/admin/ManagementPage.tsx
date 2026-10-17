@@ -40,6 +40,9 @@ import { AIM_POINT_COLUMNS, parseAimPointsCell } from '../../types/aimPoints';
 import { GROUND_POINT_MARKERS, toEmbedUrl } from '../ground/groundShared';
 import { geoToImagePct, imagePctToGeo, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
 import { useAnchorCoordPaste } from '../../hooks/useAnchorCoordPaste';
+import usePinchZoom from '../../hooks/usePinchZoom';
+import { localStep } from '../../utils/pinchZoom';
+import { measureCssZoom } from '../../utils/mapPan';
 import { filterDocsByKind, DOC_KIND_BDH, DOC_KIND_CHECKLIST } from '../../utils/bdhDocs';
 import { allowedBaseKeys, filterByAllowedBases, groupItemsByBase, groupPresetsByBase } from '../../utils/presetGroups';
 import { BaseGroupList, ParentBaseSelect } from './BaseGroupList';
@@ -480,6 +483,38 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
     el.addEventListener('wheel', handler, { passive: false });
     return () => el.removeEventListener('wheel', handler);
   }, []);
+  // צביטה בשתי אצבעות (אייפד / מגע): אותו זום של הגלגלת, סביב הנקודה שבין
+  // האצבעות. המפה כאן מוגדלת ברוחב ונגללת, ולכן "הנקודה נשארת מתחת לאצבעות"
+  // היא גלילה: נקודת התוכן מוכפלת ביחס הזום, ומפחיתים ממנה את מקום האמצע.
+  // הגלילה מוחלת **אחרי** שהזום החדש נפרס (useLayoutEffect), אחרת היא נחסמת
+  // לגודל התוכן הישן.
+  const adminPinchRef = React.useRef<{ zoom: number } | null>(null);
+  const adminPendingScroll = React.useRef<{ left: number; top: number } | null>(null);
+  const adminZoomNow = React.useRef(adminMapZoom);
+  adminZoomNow.current = adminMapZoom;
+  usePinchZoom('admin-map', {
+    onStart: () => { adminPinchRef.current = { zoom: adminZoomNow.current || 1 }; },
+    onStep: (step, root) => {
+      const live = adminPinchRef.current;
+      if (!live) return;
+      const z1 = Math.max(0.25, Math.min(5, +(live.zoom * step.scale).toFixed(3)));
+      const r = z1 / live.zoom;
+      const { prevMid, mid } = localStep(step, root.getBoundingClientRect(), measureCssZoom(root));
+      const base = adminPendingScroll.current ?? { left: root.scrollLeft, top: root.scrollTop };
+      adminPendingScroll.current = { left: (base.left + prevMid.x) * r - mid.x, top: (base.top + prevMid.y) * r - mid.y };
+      live.zoom = z1;
+      setAdminMapZoom(z1);
+      if (r === 1) { root.scrollLeft = adminPendingScroll.current.left; root.scrollTop = adminPendingScroll.current.top; adminPendingScroll.current = null; }
+    },
+    onEnd: () => { adminPinchRef.current = null; },
+  });
+  React.useLayoutEffect(() => {
+    const el = adminMapScrollRef.current, sc = adminPendingScroll.current;
+    if (!el || !sc) return;
+    adminPendingScroll.current = null;
+    el.scrollLeft = sc.left;
+    el.scrollTop = sc.top;
+  }, [adminMapZoom]);
   const adminPtPos = (x_pct: number, y_pct: number) => adminMapImgBounds
     ? { left: `${adminMapImgBounds.left + (x_pct / 100) * adminMapImgBounds.width}px`, top: `${adminMapImgBounds.top + (y_pct / 100) * adminMapImgBounds.height}px` }
     : { left: `${x_pct}%`, top: `${y_pct}%` };
@@ -7242,7 +7277,9 @@ CHARLIE,1,301,`}
                       </div>
                     );
                   })()}
-                  <div ref={adminMapScrollRef} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+                  {/* `pan-x pan-y`: אצבע אחת (ושתיים יחד) גוללות כרגיל, אבל צביטה אינה
+                      מגדילה את הדף - היא מגיעה ל-usePinchZoom ומגדילה את המפה */}
+                  <div ref={adminMapScrollRef} data-pinch-root="admin-map" style={{ flex: 1, overflow: 'auto', minHeight: 0, touchAction: 'pan-x pan-y' }}>
                   <div
                     ref={adminMapInnerRef}
                     style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${drawingPolygonId ? '#7c3aed' : drawingSectorId ? '#059669' : drawingRouteId ? '#f59e0b' : drawingVehicleRouteId ? '#f97316' : placingPointMode ? '#fbbf24' : placingAdminLocMode ? '#34d399' : afAnchorMode ? '#f97316' : placingElementMode ? '#ec4899' : placingRunwayEndpoint ? '#22c55e' : placingPatternElement ? '#f59e0b' : placingJoiningPointId ? '#38bdf8' : editingPatternId ? '#0ea5e9' : '#3b82f6'}`, cursor: (placingPointMode || placingAdminLocMode || afAnchorMode || drawingRouteId || drawingVehicleRouteId || placingElementMode || drawingPolygonId || drawingSectorId || placingRunwayEndpoint || placingPatternElement || placingJoiningPointId) ? 'crosshair' : 'default',

@@ -63,6 +63,9 @@ import WeatherWindow from '../../weather/WeatherWindow';
 import type { WeatherPrefs } from '../../weather/prefs';
 import { shouldShowNavOverlay, navPathStroke } from '../../utils/vehicleRouteAnim';
 import { TOOL_BTN, TOOL_GAP, toolBtn } from '../../utils/toolbarStandard';
+import usePinchZoom from '../../hooks/usePinchZoom';
+import { localStep, pinchZoomPan, type ZoomPanView } from '../../utils/pinchZoom';
+import { measureCssZoom } from '../../utils/mapPan';
 
 /**
  * כמה מקום להשאיר בתחתית פאנל השכבות לפאנל "מסלולים בשימוש".
@@ -1685,10 +1688,14 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   const mapInnerRef = React.useRef<HTMLDivElement>(null);
 
   // Sector zoom: when a sector is focused, smoothly zoom + pan the map to that sector.
+  // צביטה פעילה (ראה usePinchZoom למטה) - ה-transform נכתב ישירות ל-DOM, ורינדור
+  // מסיבה אחרת (פולינג) לא יחזיר את המפה אחורה באמצע התנועה.
+  const groundPinchRef = React.useRef<{ view: ZoomPanView; wasFocused: boolean } | null>(null);
   // When no sector focused, apply user-controlled zoom+pan instead.
   React.useEffect(() => {
     const el = mapInnerRef.current;
     if (!el) return;
+    if (groundPinchRef.current) return;
     if (!focusedSectorId) {
       if (groundMapZoom === 1 && groundMapPan.x === 0 && groundMapPan.y === 0) {
         el.style.transform = '';
@@ -1728,6 +1735,53 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
     el.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`;
     setEffectiveMapScale(scale);
   }, [focusedSectorId, imgBounds, airfieldSectors, groundMapZoom, groundMapPan]);
+
+  // ── צביטה בשתי אצבעות (אייפד / מגע): זום והזזה של מפת המגדל ──────────────
+  // אותו מודל של הגלגלת ומקשי +/- (`translate(pan) scale(zoom)` סביב מרכז השכבה),
+  // רק שהנקודה שבין האצבעות נשארת מתחתיהן. בזמן הצביטה ה-transform נכתב ל-DOM
+  // וה-state מתעדכן פעם אחת בסוף - המסך הזה כבד מכדי לרנדר בכל פריים.
+  // באזור ממוקד (`focusedSectorId`) הצביטה ממשיכה **מהתצוגה שעל המסך**: היא
+  // מומרת לזום/פאן שקולים, והמיקוד משתחרר בסוף - בלי קפיצה.
+  const groundPinchFrame = () => {
+    const area = mapRef.current, inner = mapInnerRef.current;
+    if (!area || !inner) return null;
+    return {
+      inner,
+      rect: area.getBoundingClientRect(),
+      cssZoom: measureCssZoom(area),
+      origin: { x: inner.offsetLeft + inner.offsetWidth / 2, y: inner.offsetTop + inner.offsetHeight / 2 },
+    };
+  };
+  usePinchZoom('ground', {
+    onStart: () => {
+      const fr = groundPinchFrame();
+      if (!fr) return;
+      let view: ZoomPanView = { zoom: groundMapZoom, pan: groundMapPan };
+      if (focusedSectorId) {
+        // מיקוד: `translate(t) scale(s)` סביב הפינה ⇒ פאן שקול סביב המרכז = t + (s−1)·(w/2,h/2)
+        const t = getComputedStyle(fr.inner).transform;
+        const m = t && t !== 'none' ? new DOMMatrixReadOnly(t) : null;
+        if (m) view = { zoom: m.a, pan: { x: m.e + (m.a - 1) * fr.inner.offsetWidth / 2, y: m.f + (m.a - 1) * fr.inner.offsetHeight / 2 } };
+      }
+      groundPinchRef.current = { view, wasFocused: !!focusedSectorId };
+      fr.inner.style.transition = 'none';
+      fr.inner.style.transformOrigin = '50% 50%';
+    },
+    onStep: step => {
+      const live = groundPinchRef.current, fr = groundPinchFrame();
+      if (!live || !fr) return;
+      live.view = pinchZoomPan(live.view, localStep(step, fr.rect, fr.cssZoom), fr.origin, 0.2, 8);
+      fr.inner.style.transform = `translate(${live.view.pan.x}px,${live.view.pan.y}px) scale(${live.view.zoom})`;
+    },
+    onEnd: () => {
+      const live = groundPinchRef.current;
+      groundPinchRef.current = null;
+      if (!live) return;
+      if (live.wasFocused) setFocusedSectorId(null);
+      setGroundMapZoom(+live.view.zoom.toFixed(3));
+      setGroundMapPan(live.view.pan);
+    },
+  });
 
   const PANEL: React.CSSProperties = { display: 'flex', flexDirection: 'column', overflow: 'hidden', background: panelBg };
   const HDR: React.CSSProperties = { background: headerBg, color: headerColor, padding: '6px 10px', fontSize: '13px', fontWeight: 'bold', textAlign: 'center', flexShrink: 0, borderBottom: `1px solid ${border}` };
@@ -2745,7 +2799,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           </div>
         )}
 
-        <div ref={mapRef} id="ground-map-area"
+        <div ref={mapRef} id="ground-map-area" data-pinch-root="ground"
           style={{ flex: 1, position: 'relative', overflow: 'hidden', background: airfieldMapSrc ? 'transparent' : (lightMode ? '#e2e8f0' : '#0f172a'), cursor: 'default', touchAction: 'none', userSelect: 'none' }}
           onWheel={e => {
             e.preventDefault();
@@ -3138,6 +3192,8 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 onCameraChange={setCam3D}
                 onPanChange={setPan3D}
                 themeMode={themeMode}
+                /* במצב "מלא" הסצנה יושבת על המפה - רקע שקוף למחצה */
+                translucent={p3d.mode === 'overlay'}
                 /* פאנל השכבות שולט גם כאן - **אותו מתג, אותה משמעות** בשני
                    המבטים. אחרת הפקח מכבה שכבה, רואה אותה נשארת, ומפסיק
                    להאמין לפאנל. */

@@ -2,6 +2,7 @@ import React from 'react';
 import { tr } from '../../i18n/tr';
 import { bidiAuto } from '../../utils/bidi';
 import useMapLabelScale from '../../hooks/useMapLabelScale';
+import usePinchZoom from '../../hooks/usePinchZoom';
 import { getFormationDisplayName } from '../../utils/strips';
 import {
   LEG_KEYS, LEG_LABEL_KEYS, normalizeGeometry, patternLegs,
@@ -16,6 +17,7 @@ import {
 import { CLASSIFICATION_COLOR } from '../../../shared/airTrafficApi';
 import { airPictureStore } from '../../airPicture/store';
 import { PATTERN_KEPT_COLOR } from '../../utils/patternFlip';
+import { lightenHex } from '../../utils/zoneLabel';
 import { ageSec, STALE_AFTER_SEC, trackLabelLines, trackSymbolPoints } from '../../airPicture/track';
 import { TREND_COLOR, TREND_OFFSET, trendArrowPoints } from '../../airPicture/trend';
 import { placeTracks3D } from '../../airPicture/track3d';
@@ -30,7 +32,7 @@ import type { JoiningPointView } from './JoiningPointPanel';
 import type { PatternRow } from '../map/TrafficPatternLayer';
 import {
   aglOf, altOnLeg, altProfileOf, clampTilt, clampZoom, normYaw, northArrow,
-  patternPath3D, project, sceneBounds, viewBoxFor, zScaleFor,
+  patternPath3D, pinchCamera3D, project, sceneBounds, viewBoxFor, zScaleFor,
   type Camera3D, type PatternAltProfile, type Projected, type Vec3,
 } from '../../utils/pattern3d';
 
@@ -103,6 +105,12 @@ interface Props {
   /** הגדרות התצוגה של אותו פאנל: שמות ההקפה ושמות הישויות. */
   display?: { showPatternNames?: boolean; showNames?: boolean };
   /**
+   * מצב "מלא" (overlay): הסצנה יושבת **על** המפה השטוחה. הרקע שקוף למחצה כדי
+   * שהמפה תישאר מוכרת מתחת, והסצנה לא "תבלע" את שטח העבודה. בחלון ובפיצול
+   * אין מה לראות מתחת, והרקע נשאר אטום.
+   */
+  translucent?: boolean;
+  /**
    * תמונ"א - **העוגן וההעדפות בלבד**. המטוסים עצמם נקראים מה-store, בדיוק כמו
    * בשכבה השטוחה, ולכן דגימה חדשה אינה מרנדרת את GroundView.
    * `null` / בלי עוגן = השכבה כבויה, ואין ניחוש מיקום.
@@ -134,13 +142,33 @@ const YAW_PER_WIDTH = 180;
 /** רגישות ההטיה: גרירה לגובה המסגרת = כל טווח ההטיה. */
 const TILT_PER_HEIGHT = 90;
 
-/** ocean היא תמה **כהה** - הצבעים שלה בהירים כמו dark, לא כמו light. */
+/**
+ * ocean היא תמה **כהה** - הצבעים שלה בהירים כמו dark, לא כמו light.
+ *
+ * הרקעים הכהים הוארו (2026-10): על השחור-כמעט הקודם הסצנה נראתה כבדה ותפסה את
+ * העין יותר מההקפה עצמה. עדיין כהים - חדר בקרה - אבל בדרגה שבה הקרקע והשמיים
+ * נקראים כרקע ולא כגוש.
+ */
 const colors = (theme: ThemeMode) =>
   theme === 'light'
-    ? { skyTop: '#eff6ff', skyBottom: '#dbeafe', ground: '#e2e8f0', groundEdge: '#94a3b8', grid: '#94a3b8', rwy: '#cbd5e1', rwyEdge: '#64748b', text: '#0f172a', dim: '#475569', axis: '#334155', shadow: '#64748b', drop: '#94a3b8', halo: '#ffffff' }
+    ? { skyTop: '#f8fbff', skyBottom: '#e6f0fe', ground: '#e8eef5', groundEdge: '#a3b3c7', grid: '#a3b3c7', rwy: '#cbd5e1', rwyEdge: '#64748b', text: '#0f172a', dim: '#475569', axis: '#334155', shadow: '#7c8ca3', drop: '#a3b3c7', halo: '#ffffff' }
     : theme === 'ocean'
-      ? { skyTop: '#012a35', skyBottom: '#05404e', ground: '#04333f', groundEdge: '#0e7490', grid: '#0e7490', rwy: '#083d4d', rwyEdge: '#22d3ee', text: '#cffafe', dim: '#7dd3fc', axis: '#67e8f9', shadow: '#0e7490', drop: '#0e7490', halo: '#012a35' }
-      : { skyTop: '#020617', skyBottom: '#0f172a', ground: '#111d33', groundEdge: '#334155', grid: '#1e3a5f', rwy: '#1e293b', rwyEdge: '#64748b', text: '#e2e8f0', dim: '#94a3b8', axis: '#94a3b8', shadow: '#475569', drop: '#475569', halo: '#000000' };
+      ? { skyTop: '#04394a', skyBottom: '#0a5466', ground: '#08485a', groundEdge: '#1592ad', grid: '#1592ad', rwy: '#0c5164', rwyEdge: '#22d3ee', text: '#cffafe', dim: '#7dd3fc', axis: '#67e8f9', shadow: '#1592ad', drop: '#1592ad', halo: '#012a35' }
+      : { skyTop: '#0e1e3a', skyBottom: '#1f3556', ground: '#1b2d4a', groundEdge: '#4a5f7c', grid: '#34557f', rwy: '#2a3a52', rwyEdge: '#7c8ba1', text: '#e2e8f0', dim: '#a5b4c8', axis: '#a5b4c8', shadow: '#5f7190', drop: '#5f7190', halo: '#000000' };
+
+/** שקיפות הרקע במצב "מלא" - המפה השטוחה נשארת מוכרת מתחת. */
+const TRANSLUCENT_SKY = 'a6';      // ~65%
+const TRANSLUCENT_GROUND = 0.55;
+
+/**
+ * קו ההקפה בסצנה: **דק ובהיר**. הקו העבה הקודם (0.62) עם צל וקווי הורדה
+ * בולטים תפס נפח שלם של המסך, והתחרה בתיבות המטוסים - שהן מה שהפקח בא לקרוא.
+ * ברקע כהה הצבע מובהר לכיוון לבן, כדי שקו דק יישאר קריא; ברקע בהיר הבהרה
+ * הייתה מורידה ניגודיות, ולכן הצבע נשאר כמו שהוגדר.
+ */
+const PATTERN_LINE_W = 0.38;
+const patternLineColor = (color: string, theme: ThemeMode) =>
+  theme === 'light' ? color : lightenHex(color, 0.35);
 
 /** קונפליקט אדום - **צבע סטטוס**, קבוע בשלוש התמות, ולעולם לא הערוץ היחיד (⚠). */
 const CONFLICT = '#dc2626';
@@ -158,7 +186,7 @@ const altStepFor = (maxFt: number): number =>
 export default function Pattern3DScene({
   patterns, aircraft, joiningPoints, joiningStrips, joiningAircraft, runways,
   aspect, elevFt, camera, pan, onCameraChange, onPanChange, themeMode = 'dark',
-  layers, display, airPicture = null, runwayUse, dimPatternIds, keptKeys,
+  layers, display, airPicture = null, runwayUse, dimPatternIds, keptKeys, translucent = false,
 }: Props) {
   const C = colors(themeMode);
   const labelScale = useMapLabelScale();
@@ -311,6 +339,29 @@ export default function Pattern3DScene({
   /** יחידות סצנה ל"אחוז מגובה תצוגה" - כדי שהטקסט יישאר בגודל של המפה השטוחה. */
   const k = size / 100;
   const P = React.useCallback((v: Vec3) => project(v, camera), [camera]);
+
+  // ── צביטה בשתי אצבעות: זום והזזה ─────────────────────────────────────────
+  // אצבע אחת מסובבת (startDrag), שתיים מגדילות ומזיזות. הצעדים נצברים על
+  // עותק חי ולא על ה-props: בין שני אירועי תנועה React עוד לא בהכרח רינדר,
+  // וצעד שנבנה על מצלמה ישנה היה מאבד את הצעד שלפניו.
+  const sceneNow = React.useRef({ camera, pan, center, radius });
+  sceneNow.current = { camera, pan, center, radius };
+  const pinchLive = React.useRef<{ camera: Camera3D; pan: Pt } | null>(null);
+  usePinchZoom('p3d', {
+    onStart: () => { pinchLive.current = { camera: sceneNow.current.camera, pan: sceneNow.current.pan }; },
+    onStep: (step, root) => {
+      const live = pinchLive.current;
+      const svg = root.querySelector('svg');
+      if (!live || !svg) return;
+      const { center: c3, radius: r3 } = sceneNow.current;
+      const next = pinchCamera3D(live.camera, live.pan, project(c3, live.camera), r3, svg.getBoundingClientRect(), step);
+      live.camera = { ...live.camera, zoom: next.zoom };
+      live.pan = next.pan;
+      onCameraChange(live.camera);
+      onPanChange(live.pan);
+    },
+    onEnd: () => { pinchLive.current = null; },
+  });
 
   // ── גרירה: Pointer Events בלבד ─────────────────────────────────────────────
   // `touchAction:'none'` + `setPointerCapture` - בלעדיהם אין `pointermove` באצבע
@@ -661,9 +712,12 @@ export default function Pattern3DScene({
     <div
       data-testid="pattern-3d-scene"
       data-nopan
+      data-pinch-root="p3d"
       style={{
         position: 'absolute', inset: 0, zIndex: 20,
-        background: `linear-gradient(to bottom, ${C.skyTop} 0%, ${C.skyBottom} 100%)`,
+        background: translucent
+          ? `linear-gradient(to bottom, ${C.skyTop}${TRANSLUCENT_SKY} 0%, ${C.skyBottom}${TRANSLUCENT_SKY} 100%)`
+          : `linear-gradient(to bottom, ${C.skyTop} 0%, ${C.skyBottom} 100%)`,
         touchAction: 'none', userSelect: 'none', overflow: 'hidden',
       }}
       onWheel={e => {
@@ -683,7 +737,8 @@ export default function Pattern3DScene({
       >
         {/* 1-2: הקרקע והרשת - סרגל המרחקים. בלעדיו הטיה נראית כמו הזזה. */}
         <polygon data-testid="p3d-ground" points={groundQuad}
-          fill={C.ground} stroke={C.groundEdge} strokeWidth={0.3 * k} />
+          fill={C.ground} fillOpacity={translucent ? TRANSLUCENT_GROUND : undefined}
+          stroke={C.groundEdge} strokeWidth={0.3 * k} />
         <g opacity={0.5}>
           {gridLines.map((l, i) => {
             const a = P(l.a), b = P(l.b);
@@ -793,21 +848,22 @@ export default function Pattern3DScene({
           const shadow = p.path.map(n => scr(P(W(n.x, n.y, 0)))).join(' ');
           const line = p.path.map(n => scr(P(W(n.x, n.y, n.z)))).join(' ');
           const ident = (p.row.runway_ident || '').trim();
+          const lineColor = patternLineColor(p.color, themeMode);
           return (
             <g key={p.row.id} data-testid="p3d-pattern" data-pattern-id={p.row.id}
               data-dim={dimPatternIds?.has(Number(p.row.id)) ? '1' : '0'}
               opacity={dimPatternIds?.has(Number(p.row.id)) ? 0.35 : undefined}>
               {/* 4: צל ההקפה - המיקום האופקי האמיתי, בלי הטיית הגובה */}
-              <polyline points={shadow} fill="none" stroke={C.shadow} strokeWidth={0.35 * k}
-                strokeDasharray={`${1.6 * k},${1.2 * k}`} opacity={0.85} />
+              <polyline points={shadow} fill="none" stroke={C.shadow} strokeWidth={0.2 * k}
+                strokeDasharray={`${1.4 * k},${1.2 * k}`} opacity={0.5} />
               {/* 5: קווי הורדה מכל צומת אל הצל שלו */}
               {p.path.map((n, i) => {
                 const a = P(W(n.x, n.y, n.z)), b = P(W(n.x, n.y, 0));
                 return <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y}
-                  stroke={C.drop} strokeWidth={0.18 * k} strokeDasharray={`${0.6 * k},${0.6 * k}`} opacity={0.7} />;
+                  stroke={C.drop} strokeWidth={0.1 * k} strokeDasharray={`${0.5 * k},${0.7 * k}`} opacity={0.4} />;
               })}
               {/* 6: ההקפה עצמה */}
-              <polyline points={line} fill="none" stroke={p.color} strokeWidth={0.62 * k}
+              <polyline points={line} fill="none" stroke={lineColor} strokeWidth={PATTERN_LINE_W * k}
                 strokeLinecap="round" strokeLinejoin="round" />
               {/* שמות הצלעות - **אותו מתג** של "שמות הקפות" במפה השטוחה
                   (`showLabels` של TrafficPatternLayer). מתג שמכבה שם במפה
@@ -836,11 +892,12 @@ export default function Pattern3DScene({
                 return (
                   <text key={key} data-testid="p3d-leg-label" data-leg={key}
                     x={q.x} y={q.y} textAnchor="middle" dominantBaseline="middle"
-                    fill={p.color} fontSize={1.6 * k * labelScale} fontWeight="bold"
-                    // זהות המטוס גוברת על שם הצלע: בהתנגשות שנותרה, הצלע נסוגה
-                    opacity={0.7}
+                    fill={lineColor} fontSize={1.25 * k * labelScale} fontWeight="bold"
+                    // זהות המטוס גוברת על שם הצלע: בהתנגשות שנותרה, הצלע נסוגה.
+                    // קטנה ושקופה - שם הצלע הוא רמז התמצאות, לא מידע לקריאה
+                    opacity={0.6}
                     style={{ userSelect: 'none', paintOrder: 'stroke' }}
-                    stroke={C.halo} strokeWidth={0.45 * k} strokeLinejoin="round">
+                    stroke={C.halo} strokeWidth={0.35 * k} strokeLinejoin="round">
                     {[tr(LEG_LABEL_KEYS[key as LegKey]), ident].filter(Boolean).join(' ')}
                   </text>
                 );

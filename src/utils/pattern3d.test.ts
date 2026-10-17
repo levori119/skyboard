@@ -528,3 +528,48 @@ describe('shouldShowPatternLabels - פקד שהוסתר לא משאיר שכבה
     expect(shouldShowPatternLabels(false, true)).toBe(false);
   });
 });
+
+describe('pinchCamera3D - צביטה בשתי אצבעות על הסצנה', () => {
+  // נקודת סצנה → מסך, לפי viewBoxFor ושיבוץ meet
+  const toScreen = (q: { x: number; y: number }, vb: number[], rect: { left: number; top: number; width: number; height: number }) => {
+    const side = Math.min(rect.width, rect.height);
+    return {
+      x: rect.left + (rect.width - side) / 2 + (q.x - vb[0]) * side / vb[2],
+      y: rect.top + (rect.height - side) / 2 + (q.y - vb[1]) * side / vb[2],
+    };
+  };
+  const toScene = (s: { x: number; y: number }, vb: number[], rect: { left: number; top: number; width: number; height: number }) => {
+    const side = Math.min(rect.width, rect.height);
+    return {
+      x: vb[0] + (s.x - rect.left - (rect.width - side) / 2) * vb[2] / side,
+      y: vb[1] + (s.y - rect.top - (rect.height - side) / 2) * vb[2] / side,
+    };
+  };
+
+  it('נקודת הסצנה שבין האצבעות נשארת מתחתיהן; סיבוב והטיה לא משתנים', async () => {
+    const { pinchCamera3D, viewBoxFor, project } = await import('./pattern3d');
+    const cam = { yaw: 30, tilt: 40, zoom: 1.2 };
+    const pan = { x: 3, y: -2 };
+    const center = { x: 50, y: 50, z: 5 };
+    const radius = 40;
+    const rect = { left: 100, top: 50, width: 800, height: 500 };
+    const vb0 = viewBoxFor(center, radius, cam, pan).split(' ').map(Number);
+    const prevMid = { x: 420, y: 260 }, mid = { x: 460, y: 240 };
+    const held = toScene(prevMid, vb0, rect);
+    const c = project(center, cam);
+    const next = pinchCamera3D(cam, pan, c, radius, rect, { scale: 1.6, prevMid, mid });
+    expect(next.zoom).toBeCloseTo(1.92);
+    const vb1 = viewBoxFor(center, radius, { ...cam, zoom: next.zoom }, next.pan).split(' ').map(Number);
+    const s = toScreen(held, vb1, rect);
+    expect(s.x).toBeCloseTo(mid.x, 1);
+    expect(s.y).toBeCloseTo(mid.y, 1);
+  });
+
+  it('הזום נחסם ל-ZOOM_MAX', async () => {
+    const { pinchCamera3D, ZOOM_MAX } = await import('./pattern3d');
+    const p = { x: 10, y: 10 };
+    const r = pinchCamera3D({ yaw: 0, tilt: 10, zoom: 3.5 }, { x: 0, y: 0 }, { x: 0, y: 0 }, 30,
+      { left: 0, top: 0, width: 400, height: 400 }, { scale: 4, prevMid: p, mid: p });
+    expect(r.zoom).toBe(ZOOM_MAX);
+  });
+});
