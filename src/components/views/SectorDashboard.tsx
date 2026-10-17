@@ -15914,9 +15914,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     );
                   }
                   return (
+                    // טייסת בלבד. פעם הוצמד כאן הגובה באופן קשיח (ורק כשהעמודה
+                    // נעולה), ולכן "גובה וטייסת באותו שדה" בלי שאיש הגדיר זאת. מי
+                    // שרוצה את שניהם בתא אחד מגדיר שורה שנייה (TABLE_MODE_DISPLAY_SPEC.md)
                     <td key={col.key} style={{ padding: '10px 12px', color: T.text, verticalAlign: 'top' }}>
                       <div>{s.sq || s.squadron || '—'}</div>
-                      {s.alt && <div style={{ fontSize: '0.85em', color: T.muted, marginTop: '2px' }}>{tr('shared.altitude')} {normalizeAlt(s.alt)}</div>}
                     </td>
                   );
                 }
