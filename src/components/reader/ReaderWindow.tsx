@@ -425,7 +425,7 @@ export default function ReaderWindow({
           ))}
         </span>
         {btn(inQuickList ? '★' : '☆', inQuickList ? tr('reader.quickRemove') : tr('reader.quickSave'), onToggleQuick, { active: inQuickList })}
-        {btn('🔖', tr('reader.bookmarksToggle'), () => setPanelOpen(v => !v), { active: panelOpen, disabled: engine === 'notes' })}
+        {btn(bookmarks.length ? `🔖 ${bookmarks.length}` : '🔖', tr('reader.bookmarksToggle'), () => setPanelOpen(v => !v), { active: panelOpen, disabled: engine === 'notes' })}
         {btn('↗', tr('reader.openExternal'), openExternal)}
         {btn('✕', tr('reader.close'), onClose)}
       </div>
@@ -506,6 +506,24 @@ export default function ReaderWindow({
           )}
         </div>
 
+        {/* פאנל סימניות מוסתר - לשונית צרה בצד, עם מספר הסימניות. לחיצה פותחת.
+            בלעדיה הדרך היחידה להחזיר את הפאנל הייתה 🔖 בכותרת, שלא נראה כמו
+            "הצג פאנל" (2026-10-17). */}
+        {!showPanel && (
+          <button
+            type="button" onClick={() => setPanelOpen(true)}
+            title={tr('reader.bookmarksShow')} aria-label={tr('reader.bookmarksShow')}
+            style={{
+              width: 24, flexShrink: 0, border: 'none', borderInlineStart: `1px solid ${C.border}`,
+              background: C.panel, color: C.muted, cursor: 'pointer', padding: '8px 0',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontSize: 11,
+            }}>
+            <span>{rtl ? '▶' : '◀'}</span>
+            <span>🔖</span>
+            {bookmarks.length > 0 && <span style={{ color: accent, fontWeight: 'bold' }}>{bookmarks.length}</span>}
+          </button>
+        )}
+
         {showPanel && (
           <div style={{
             width: PANEL_W, flexShrink: 0, borderInlineStart: `1px solid ${C.border}`, background: C.panel,
@@ -515,8 +533,10 @@ export default function ReaderWindow({
               display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4,
               padding: '4px 8px', borderBottom: `1px solid ${C.border}`, color: C.text, fontSize: 11, fontWeight: 'bold',
             }}>
-              <span>🔖 {tr('reader.bookmarks')}</span>
+              <span style={{ flex: 1 }}>🔖 {tr('reader.bookmarks')}</span>
               {btn('+', tr('reader.addBookmarkHere'), addBookmark)}
+              {/* הסתרה - פינוי מקום לשקף. במצב "הערות בלבד" הפאנל הוא כל התוכן ולכן אין מה להסתיר */}
+              {engine !== 'notes' && btn(rtl ? '◀' : '▶', tr('reader.bookmarksHide'), () => setPanelOpen(false))}
             </div>
             {bmError && (
               <div role="alert" style={{ padding: '4px 8px', fontSize: 10, color: '#fca5a5', borderBottom: `1px solid ${C.border}` }}>⚠ {bmError}</div>

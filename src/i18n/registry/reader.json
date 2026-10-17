@@ -325,6 +325,14 @@
     "saveFailed": {
       "he": "השמירה נכשלה",
       "en": "Save failed"
+    },
+    "bookmarksShow": {
+      "he": "הצג את פאנל הסימניות",
+      "en": "Show the bookmarks panel"
+    },
+    "bookmarksHide": {
+      "he": "הסתר את פאנל הסימניות",
+      "en": "Hide the bookmarks panel"
     }
   }
 }
