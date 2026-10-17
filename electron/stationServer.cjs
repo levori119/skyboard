@@ -200,6 +200,16 @@ function proxyRequest(req, res, apiTarget, timeoutMs, opts) {
   // הייתה מגלגלת את כל העמדה למאגר המקומי.
   const onResult = (opts && opts.onResult) || (() => {});
   const upstream = mod.request(targetUrl, { method: req.method, headers }, up => {
+    // 401 מהמרכז על בקשה שנכפתה אליו (forcesRemote) אינו "האסימון פג": האסימון
+    // הוא מקומי (כניסה בנתק), והמרכז פשוט לא מכיר אותו. 401 היה מנתק את הפקח
+    // מהעמדה בגלל עזר שלא נפתח - הופך ל-503 שהחלון מציג כ"אין גישה לשרת".
+    if (opts && opts.remote401As503 && up.statusCode === 401) {
+      up.resume();
+      onResult(true, 503);
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'remote-auth', detail: 'central server rejected a station-local token' }));
+      return;
+    }
     // הסטטוס עובר הלאה כי הוא מה שמבדיל בין "היעד חי" לבין "היעד חי **וקיבל
     // את הזהות הזו**" - והשני הוא מה שמאפשר להנפיק אסימון מקומי מקביל.
     onResult(true, up.statusCode || 0);
@@ -277,6 +287,17 @@ const LOGIN_TIMEOUT_FACTOR = 2;
  * המסך שהעלה מציג שגיאת העלאה - ההכרעה על נתק נשארת ל-/api/health ולשאר הבקשות.
  */
 const UPLOAD_TIMEOUT_MS = 30 * 60 * 1000;
+
+/**
+ * נתיבים שהולכים **תמיד** לשרת המרכזי, גם כשהעמדה עובדת מול המאגר המקומי.
+ *
+ * חלון הקריאה: הקבצים (`reader_docs`) אינם במראה המקומית - בכוונה, הם מגה-בייטים
+ * לשורה. בעמדה שנפלה למקומי כל קובץ חזר 404 ו"לא עלה בכלל" (2026-10-17), גם
+ * כשהמרכז היה זמין. נתק אמיתי - החלון מציג "אין קשר לשרת", לא "לא נמצא".
+ */
+function forcesRemote(urlPath = '') {
+  return /^\/api\/reader\//.test(String(urlPath).split('?')[0]);
+}
 const UPLOAD_JSON_BYTES = 1024 * 1024;
 function isUploadRequest(headers = {}, urlPath = '') {
   // המרת מצגת ל-PDF בשרת המרכזי: הבקשה קטנה, אבל התשובה מגיעה אחרי דקות
@@ -510,7 +531,11 @@ function createStationServer({
       });
     }
     if (shouldProxy(urlPath)) {
-      const { which, target } = router.resolve();
+      // עזרי קריאה - תמיד מהמרכז (forcesRemote). נתק **מדומה** מכובד: הוא תרגול,
+      // ושם העזר אמור להתנהג בדיוק כמו בנתק אמיתי.
+      const forced = forcesRemote(urlPath) && !router.isSimulated();
+      const { which, target } = forced ? router.resolveForced('remote') : router.resolve();
+      if (forced && !target) { res.writeHead(503, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'no-remote' })); return; }
 
       // נתק מדומה בעמדה **בלי** מאגר מקומי: אין לאן לנתב, ולכן הבקשה נכשלת
       // כמו בנתק אמיתי. הסוקט נסגר בלי תשובה בכוונה - שכבת ה-offline בלקוח
@@ -525,7 +550,9 @@ function createStationServer({
       // רגע היציאה - בקשות שהיו באוויר יחד נספרות כאירוע אחד (apiRouter markDown)
       const sentAt = Date.now();
       const onResult = (ok, status) => {
-        router.report(which, ok, sentAt);
+        // בקשה שנכפתה למרכז אינה מדגם של מצב הקשר: הנתב בחר מקומי מסיבה משלו,
+        // וכשל של עזר בודד לא צריך להכריע בשבילו (וגם הצלחה לא).
+        if (!forced) router.report(which, ok, sentAt);
         if (which === 'remote' && ok && status && status < 400) {
           authBridge.noteAccepted(req.headers.authorization);
         }
@@ -549,10 +576,10 @@ function createStationServer({
       // העלאת קובץ: תקרה ארוכה, וכשל אינו מדווח כנתק (ראה isUploadRequest)
       if (isUploadRequest(req.headers, urlPath)) {
         return proxyRequest(req, res, target, UPLOAD_TIMEOUT_MS, {
-          onResult: (ok, status) => { if (ok) onResult(ok, status); }, extraHeaders,
+          onResult: (ok, status) => { if (ok) onResult(ok, status); }, extraHeaders, remote401As503: forced,
         });
       }
-      return proxyRequest(req, res, target, timeoutForPath(urlPath), { onResult, extraHeaders });
+      return proxyRequest(req, res, target, timeoutForPath(urlPath), { onResult, extraHeaders, remote401As503: forced });
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); res.end(); return; }
 
@@ -626,6 +653,7 @@ module.exports = {
   SYNC_TIMEOUT_MS,
   isUploadRequest,
   UPLOAD_TIMEOUT_MS,
+  forcesRemote,
   resolveStaticPath,
   isAssetLike,
 };

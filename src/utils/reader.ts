@@ -290,6 +290,19 @@ export function canvasPixelScale(dpr: number, rootScale: number): number {
   return Math.min(4, Math.max(1, k));
 }
 
+/**
+ * מפתח ההודעה כשהעזר לא נטען, לפי מה שנכשל. "טעינת העזר נכשלה (502)" אינו
+ * אומר לפקח דבר (2026-10-17) - אין קשר לשרת, הקובץ לא נמצא ואין הרשאה הם
+ * שלושה מצבים שונים, ולכל אחד פעולה אחרת.
+ */
+export function loadErrorKey(detail: string): string {
+  const d = String(detail || '').trim();
+  if (/^(0|502|503|504)$/.test(d) || /failed to fetch|networkerror|load failed/i.test(d)) return 'reader.loadFailedNoServer';
+  if (d === '404') return 'reader.loadFailedMissing';
+  if (d === '401' || d === '403') return 'reader.loadFailedAuth';
+  return 'reader.loadFailed';
+}
+
 /** מנוע התצוגה לעזר נתון - עטיפה על ההכרעה המשותפת עם השרת. */
 export function engineFor(doc: ReaderDoc, officeMode: ReaderConfig['officeMode']): ReaderEngineResult {
   return readerEngine({ kind: doc.kind, hasFile: doc.hasFile, hasPdf: doc.hasPdf, url: doc.url, convertError: doc.convertError }, officeMode);

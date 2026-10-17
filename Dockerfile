@@ -59,7 +59,13 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends \
      libreoffice-impress libreoffice-writer \
      culmus fonts-noto-core fonts-dejavu-core \
+     fonts-liberation2 fonts-crosextra-carlito fonts-crosextra-caladea \
   && rm -rf /var/lib/apt/lists/*
+# מיפוי גופני Windows העבריים (David, Miriam, Tahoma...) לגופנים שהותקנו - בלעדיו
+# עברית במסמך שהומר יוצאת מפורקת. Liberation/Carlito/Caladea = תחליפים זהים ברוחב
+# ל-Arial/Times/Calibri/Cambria, ו-fontconfig ממפה אותם בעצמו.
+COPY server/fonts/skyking-fonts.conf /etc/fonts/local.conf
+RUN fc-cache -f
 
 # הרצה כמשתמש לא-root (קיים באימג' הרשמי). האפליקציה קוראת-בלבד מהדיסק.
 USER node

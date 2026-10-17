@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   defaultReaderRect, clampReaderRect, bottomBarSlots, shapeReaderDoc, engineFor, docIcon,
   READER_DEFAULT_FRACTION, READER_MIN_W, READER_MIN_H,
-  READER_SIZE_PRESETS, presetReaderRect, activeSizePreset, linkOpensInWindow, fitRectToContent, CONTENT_PAD, mergeRefreshedDocs, canvasPixelScale,
+  READER_SIZE_PRESETS, presetReaderRect, activeSizePreset, linkOpensInWindow, fitRectToContent, CONTENT_PAD, mergeRefreshedDocs, canvasPixelScale, loadErrorKey,
 } from './reader';
 
 describe('defaultReaderRect - ב"מ 40% מגודל המסך', () => {
@@ -256,4 +256,16 @@ describe('canvasPixelScale - טקסט חד בעמוד המצויר', () => {
     expect(canvasPixelScale(NaN, 1)).toBe(1);
     expect(canvasPixelScale(0, 0)).toBe(1);
   });
+});
+
+describe('loadErrorKey - למה העזר לא נטען, במשפט שהפקח מבין', () => {
+  // "טעינת העזר נכשלה (502)" אינו אומר לפקח דבר (2026-10-17)
+  it('אין קשר לשרת המרכזי', () => {
+    for (const c of ['502', '503', '504', '0', 'Failed to fetch', 'NetworkError when attempting to fetch resource.']) {
+      expect(loadErrorKey(c)).toBe('reader.loadFailedNoServer');
+    }
+  });
+  it('הקובץ לא נמצא', () => { expect(loadErrorKey('404')).toBe('reader.loadFailedMissing'); });
+  it('אין הרשאה', () => { expect(loadErrorKey('401')).toBe('reader.loadFailedAuth'); expect(loadErrorKey('403')).toBe('reader.loadFailedAuth'); });
+  it('כל השאר - ההודעה הכללית', () => { expect(loadErrorKey('Invalid PDF structure')).toBe('reader.loadFailed'); });
 });

@@ -333,6 +333,18 @@
     "bookmarksHide": {
       "he": "הסתר את פאנל הסימניות",
       "en": "Hide the bookmarks panel"
+    },
+    "loadFailedNoServer": {
+      "he": "אין קשר לשרת המרכזי - העזרים נמצאים בו. נסה שוב כשהקשר יחזור",
+      "en": "No connection to the central server, where the items are stored. Try again when the connection is back"
+    },
+    "loadFailedMissing": {
+      "he": "הקובץ לא נמצא בשרת - ייתכן שנמחק או הוחלף בניהול. רענן את העמדה",
+      "en": "File not found on the server - it may have been deleted or replaced. Refresh the workstation"
+    },
+    "loadFailedAuth": {
+      "he": "אין הרשאה לקובץ - היכנס מחדש לעמדה",
+      "en": "No permission for this file - sign in to the workstation again"
     }
   }
 }

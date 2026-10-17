@@ -480,13 +480,21 @@ function runProcess(cmd, args, timeoutMs) {
   });
 }
 
+/** מתי נבדק "אין soffice" - כדי לבדוק שוב ולא לקבע תשובה שלילית לכל חיי השרת */
+let sofficeMissingAt = 0;
+const SOFFICE_RECHECK_MS = 5 * 60 * 1000;
+
 export async function sofficeAvailable() {
-  if (sofficeCache !== null) return !!sofficeCache;
+  if (sofficeCache) return true;
+  if (sofficeCache === '' && Date.now() - sofficeMissingAt < SOFFICE_RECHECK_MS) return false;
   for (const cmd of SOFFICE_CANDIDATES) {
-    const r = await runProcess(cmd, ['--version'], 15000);
+    // 60 ש' ולא 15: עלייה ראשונה של LibreOffice בקונטיינר קר (בונה פרופיל)
+    // עלולה לחרוג - ותשובה שלילית שגויה חסמה כל המרה עד הפעלה מחדש של השרת.
+    const r = await runProcess(cmd, ['--version'], 60000);
     if (r.code === 0) { sofficeCache = cmd; return true; }
   }
   sofficeCache = '';
+  sofficeMissingAt = Date.now();
   return false;
 }
 

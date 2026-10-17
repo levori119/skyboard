@@ -23,7 +23,7 @@ import { startPointerDrag, DRAG_HANDLE_STYLE, readRootScale } from '../../utils/
 import {
   clampReaderRect, defaultReaderRect, docBytesUrl, docIcon, engineFor,
   loadReaderState, saveReaderState, READER_MIN_W, READER_MIN_H,
-  READER_SIZE_PRESETS, presetReaderRect, activeSizePreset, fitRectToContent, canvasPixelScale,
+  READER_SIZE_PRESETS, presetReaderRect, activeSizePreset, fitRectToContent, canvasPixelScale, loadErrorKey, shapeReaderDoc,
   type ReaderBookmark, type ReaderConfig, type ReaderDoc, type ReaderRect, type ReaderSizeKey,
 } from '../../utils/reader';
 import { useDockableWindow } from '../../hooks/useDockableWindow';
@@ -356,8 +356,17 @@ export default function ReaderWindow({
       const r = await fetch(`${API_URL}/reader/docs/${doc.id}/convert`, { method: 'POST' });
       const body = await r.json().catch(() => null);
       if (r.ok && body) onDocChanged({ ...doc, ...body, hasPdf: true });
-      else setErrorText(body?.error || tr('reader.reasonConvertFailed'));
-    } catch { setErrorText(tr('reader.reasonConvertFailed')); }
+      else {
+        // הכשל **מוצג**: קודם השגיאה נשמרה ב-errorText שבמצב "הערות בלבד" לא
+        // מוצג בכלל, והחלון נשאר על "ממיר..." לנצח. השרת רושם את הסיבה
+        // (convert_error) - נמשכת מחדש כדי שהחלון יעבור ל"ההמרה נכשלה" עם הסיבה.
+        setErrorText(body?.error || tr('reader.reasonConvertFailed'));
+        try {
+          const m = await fetch(`${API_URL}/reader/docs/${doc.id}`);
+          if (m.ok) onDocChanged(shapeReaderDoc(await m.json()));
+        } catch { /* מנותק - errorText מוצג */ }
+      }
+    } catch { setErrorText(tr(loadErrorKey('Failed to fetch'))); }
     setConverting(false);
   };
 
@@ -467,7 +476,7 @@ export default function ReaderWindow({
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         <div ref={viewportRef} style={{ flex: 1, minWidth: 0, overflow: 'auto', background: C.body, position: 'relative' }}>
           {status === 'loading' && <Centered color={C.muted}>{tr('reader.loading')}</Centered>}
-          {status === 'error' && <Centered color={C.muted}>{tr('reader.loadFailed')}{errorText ? ` (${errorText})` : ''}</Centered>}
+          {status === 'error' && <Centered color={C.muted}>{tr(loadErrorKey(errorText))}{errorText ? ` (${errorText})` : ''}</Centered>}
 
           {status === 'idle' && engine === 'pdf' && (
             <canvas ref={canvasRef} style={{ display: 'block', margin: '8px auto' }} />
@@ -490,6 +499,8 @@ export default function ReaderWindow({
               <div style={{ fontWeight: 'bold', marginBottom: 6 }}>{tr('reader.notesOnly')}</div>
               <div style={{ color: C.muted }}>{reasonText(reason)}</div>
               {doc.convertError && <div style={{ color: C.muted, marginTop: 6, fontSize: 11 }}>{doc.convertError}</div>}
+              {converting && <div style={{ color: C.text, marginTop: 6, fontSize: 11 }}>⏳ {tr('reader.converting')}</div>}
+              {!converting && errorText && !doc.convertError && <div style={{ color: '#fca5a5', marginTop: 6, fontSize: 11 }}>⚠ {errorText}</div>}
               <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
                 <button type="button" onClick={openExternal}
                   style={{ background: accent, color: '#04202b', border: 'none', borderRadius: 4, padding: '5px 10px', fontSize: 12, fontWeight: 'bold', cursor: 'pointer' }}>

@@ -702,3 +702,72 @@ describe('שרת העמדה - כניסה כשהמרכז אינו עונה', () =
     }
   });
 });
+
+describe('forcesRemote - עזרי קריאה תמיד מהשרת המרכזי', () => {
+  // הקבצים (reader_docs) אינם במראה המקומית - בכוונה, הם כבדים. בעמדה שנפלה
+  // למאגר המקומי כל קובץ חזר 404 ו"לא עלה בכלל" (2026-10-17), גם כשהמרכז זמין.
+  it('כל נתיבי חלון הקריאה - למרכז', async () => {
+    const { forcesRemote } = await import('./stationServer.cjs');
+    for (const p of ['/api/reader/docs/7/file', '/api/reader/open', '/api/reader/bookmarks/3', '/api/reader/docs/12/convert', '/api/reader/config?probe=1']) {
+      expect(forcesRemote(p)).toBe(true);
+    }
+  });
+  it('שאר ה-API - לפי מצב הקשר, כמו קודם', async () => {
+    const { forcesRemote } = await import('./stationServer.cjs');
+    expect(forcesRemote('/api/strips')).toBe(false);
+    expect(forcesRemote('/api/preset-links/3')).toBe(false);
+    expect(forcesRemote('/api/readers')).toBe(false);
+  });
+});
+
+describe('עמדה שעובדת מול המאגר המקומי - עזרי קריאה עדיין מהמרכז', () => {
+  let central, local, station, dist;
+  const call = (url) => new Promise((resolve) => {
+    const req = http.request(url, { method: 'GET', headers: { authorization: 'Bearer x' } }, res => {
+      let body = '';
+      res.on('data', c => { body += c; });
+      res.on('end', () => resolve({ status: res.statusCode, body }));
+    });
+    req.on('error', () => resolve({ status: 0, body: '' }));
+    req.end();
+  });
+  const server = (who) => http.createServer((req, res) => {
+    // המרכז דוחה אסימון מקומי - 401
+    if (who === 'central' && req.url.includes('/auth-fail')) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end('{"error":"unauthenticated"}'); return; }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ who, url: req.url }));
+  });
+
+  beforeAll(async () => {
+    dist = fs.mkdtempSync(path.join(os.tmpdir(), 'skyking-dist-reader-'));
+    fs.writeFileSync(path.join(dist, 'index.html'), '<html>SKY-KING</html>');
+    central = server('central'); local = server('local');
+    await new Promise(r => central.listen(0, '127.0.0.1', r));
+    await new Promise(r => local.listen(0, '127.0.0.1', r));
+    station = await createStationServer({
+      distDir: dist, apiTarget: `http://127.0.0.1:${central.address().port}`,
+      localApiTarget: () => `http://127.0.0.1:${local.address().port}`, localMode: 'local', timeoutMs: 500, checkFailover: false,
+    });
+  });
+  afterAll(async () => {
+    await station.close();
+    await new Promise(r => central.close(r));
+    await new Promise(r => local.close(r));
+    fs.rmSync(dist, { recursive: true, force: true });
+  });
+
+  it('API רגיל - למאגר המקומי (העמדה במצב מקומי)', async () => {
+    expect(JSON.parse((await call(`${station.url}/api/strips`)).body).who).toBe('local');
+  });
+
+  it('קובץ עזר - למרכז, למרות המצב המקומי', async () => {
+    const r = await call(`${station.url}/api/reader/docs/7/file`);
+    expect(JSON.parse(r.body)).toMatchObject({ who: 'central', url: '/api/reader/docs/7/file' });
+  });
+
+  it('401 מהמרכז על בקשה כפויה - 503 ולא 401 (שהיה מנתק את הפקח)', async () => {
+    const r = await call(`${station.url}/api/reader/auth-fail`);
+    expect(r.status).toBe(503);
+    expect(JSON.parse(r.body).error).toBe('remote-auth');
+  });
+});
