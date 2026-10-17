@@ -22,6 +22,8 @@ import {
 import { AdminSection, AdminSections, AdminSectionsToolbar } from './AdminSection';
 import MissionDeskView from '../missiondesk/MissionDeskView';
 import { ImageConfigEditor, RichLabelEditor } from '../missiondesk/configEditors';
+import { PIN_DISPLAY_MODES } from '../../../shared/pinDisplay';
+import { pinDisplayLabel } from '../strips/MapPinLabel';
 
 type DeskFull = MissionDesk & { services: MissionDeskService[] };
 
@@ -646,12 +648,7 @@ function MapWindowSettings({ settings, maps, sectors, boundStrips, onChange }: {
 
       <label style={S.label}>📍 {tr('missiondesk.mapPinDisplay')}</label>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, direction: 'rtl' }}>
-        {([
-          { val: 'handwrite', label: tr('ctrl.pinHandwrite') },
-          { val: 'strip', label: tr('ctrl.pinExpanded') },
-          { val: 'small', label: tr('ctrl.pinSmall') },
-          { val: 'icon', label: tr('ctrl.pinIcon') },
-        ] as { val: MDPresetMapSettings['fz_pin_display']; label: string }[]).map(opt => (
+        {PIN_DISPLAY_MODES.map(m => ({ val: m as MDPresetMapSettings['fz_pin_display'], label: pinDisplayLabel(m) })).map(opt => (
           <button key={String(opt.val)} type="button"
             onClick={() => onChange({ ...settings, fz_pin_display: opt.val })}
             style={chip((settings.fz_pin_display || 'handwrite') === opt.val)}>

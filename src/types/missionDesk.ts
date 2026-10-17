@@ -1,6 +1,7 @@
 // דסק משימה כללי (General Mission Desk) — טיפוסים.
 // עץ הפריסה (BSP) זהה במבנהו ל-SWNode/SGNode; ה-leaf מפנה לשירות (service_id)
 // במקום waypoint/fieldKey. state נשמר פר (service_id, preset_id) — ראה data-model.md.
+import type { PinDisplay } from '../../shared/pinDisplay';
 
 // ── עץ פריסה ────────────────────────────────────────────────────────────────
 export type MDNode = MDSplit | MDLeaf;
@@ -74,7 +75,7 @@ export interface MDPresetMapSettings {
   // סינון אזורים, שידוך בלחיצה). בעמדה רגילה זו הגדרה של העמדה כולה, אבל בדסק
   // כל מפה יכולה לשמש למשהו אחר.
   flight_zones_mode?: boolean;
-  fz_pin_display?: 'handwrite' | 'icon' | 'small' | 'strip';   // איך מוצג הפ"מ על המפה הזו
+  fz_pin_display?: PinDisplay;   // איך מוצג הפ"מ על המפה הזו
   // עמודת הפ"ממים בתוך אזור המפה. ברירת מחדל: מוצגת - אלא אם הוגדר לדסק חלון
   // פ"ממים עצמאי המקושר למפה הזו, ואז אין טעם בשתיהן.
   strips_panel?: boolean;

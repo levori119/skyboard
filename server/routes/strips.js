@@ -5,6 +5,7 @@ import { AIRCRAFT_FIELDS } from '../gapi/entities.js';
 import { aircraftFaultsSubquery, belongsToStrip } from '../db/aircraftFaults.js';
 import { recordFlowEvent, recordMergedFlow } from '../db/stripFlowEvents.js';
 import { diffAircraftPositions } from '../utils/stripFlow.js';
+import { normalizePinDisplay } from '../../shared/pinDisplay.js';
 const router = new Router();
 
 // עמודות טבלת המטוסים הניתנות לעריכה מהעמדה - נגזרות מרשימת שדות המטוס של
@@ -230,12 +231,12 @@ router.post('/api/strips/:id/accept-queued', async (req, res) => {
   }
 });
 
-// Per-strip override of the map pin display style ('icon' | 'strip' | 'small' | 'handwrite' | null = default)
+// Per-strip override of the map pin display style (shared/pinDisplay.js PIN_DISPLAY_MODES | null = default)
 router.patch('/api/strips/:id/pin-display', async (req, res) => {
   try {
     const id = parseInt(String(req.params.id).replace('s', ''));
     let { pin_display } = req.body;
-    if (!['icon', 'strip', 'small', 'handwrite'].includes(pin_display)) pin_display = null;
+    pin_display = normalizePinDisplay(pin_display, null);
     const r = await pool.query('UPDATE strips SET pin_display = $1 WHERE id = $2 RETURNING id, pin_display', [pin_display, id]);
     res.json(r.rows[0] || { id, pin_display });
   } catch (err) { res.status(500).json({ error: err.message }); }

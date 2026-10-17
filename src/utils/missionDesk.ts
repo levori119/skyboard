@@ -8,6 +8,7 @@ import type {
   MDViewTableKey, MDPresetViewTablesConfig, MDPresetViewTablesSettings,
 } from '../types/missionDesk';
 import { mdEmptyMapSettings } from '../types/missionDesk';
+import { normalizePinDisplay, DEFAULT_PIN_DISPLAY } from '../../shared/pinDisplay';
 
 // ── עץ פריסה (BSP) — אותה תבנית כמו sgSplit/sgRemove, עם leaf של שירות ──────
 export const mdGenId = (): string => Math.random().toString(36).slice(2, 9);
@@ -415,8 +416,6 @@ export function mdStripsServices(services: MissionDeskService[] | undefined | nu
   return (services || []).filter(s => s.service_type === 'strips').sort(bySortOrder);
 }
 
-const PIN_DISPLAYS = ['handwrite', 'icon', 'small', 'strip'] as const;
-
 /** הגדרות חלון מפה פר-עמדה, עם ברירות מחדל לחלון שטרם הוגדר. */
 export function mdMapSettings(cfg: MDPresetMapConfig | undefined | null, serviceId: number): MDPresetMapSettings {
   const raw = (cfg || {})[String(serviceId)];
@@ -428,9 +427,7 @@ export function mdMapSettings(cfg: MDPresetMapConfig | undefined | null, service
     sector_map_ids: (Array.isArray(raw.sector_map_ids) ? raw.sector_map_ids : []).map(Number).filter(Number.isFinite),
     flight_zones_mode: raw.flight_zones_mode === true,
     strips_panel: raw.strips_panel !== false,
-    fz_pin_display: (PIN_DISPLAYS as readonly string[]).includes(String(raw.fz_pin_display))
-      ? raw.fz_pin_display as MDPresetMapSettings['fz_pin_display']
-      : 'handwrite',
+    fz_pin_display: normalizePinDisplay(raw.fz_pin_display, DEFAULT_PIN_DISPLAY),
   };
 }
 

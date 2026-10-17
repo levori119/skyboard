@@ -1454,6 +1454,26 @@
       "he": "גובה · משימה",
       "en": "Alt · task"
     },
+    "pinBlock": {
+      "he": "▤ בלוק נתונים",
+      "en": "▤ Data block"
+    },
+    "pinPresetDefault": {
+      "he": "ברירת המחדל של העמדה",
+      "en": "Station default"
+    },
+    "pinStripDefault": {
+      "he": "ברירת מחדל",
+      "en": "Default"
+    },
+    "pinTag": {
+      "he": "🏷 תגית",
+      "en": "🏷 Tag"
+    },
+    "pinText": {
+      "he": "Aa כתב רגיל",
+      "en": "Aa Plain text"
+    },
     "pinHandwrite": {
       "he": "✍ כתב יד",
       "en": "✍ Handwriting"
@@ -2349,6 +2369,34 @@
     "youOwnNoFormations": {
       "he": "אין פ\"מים בבעלותך",
       "en": "You own no formations"
+    },
+    "zonePickAtTransfer": {
+      "he": "בנקודת העברה",
+      "en": "At a transfer point"
+    },
+    "zonePickAutoAccept": {
+      "he": "יתקבל אוטומטית",
+      "en": "will be accepted automatically"
+    },
+    "zonePickEmpty": {
+      "he": "אין פ\"מים בביצוע בשאילתא של העמדה",
+      "en": "No active strips in this station's query"
+    },
+    "zonePickInZone": {
+      "he": "באזור",
+      "en": "In zone"
+    },
+    "zonePickNoTransfer": {
+      "he": "ההעברה כבר לא ממתינה -",
+      "en": "The transfer is no longer pending -"
+    },
+    "zonePickSettings": {
+      "he": "תפריט האזור (הגבלות ובלוקים)",
+      "en": "Zone menu (restrictions and blocks)"
+    },
+    "zonePickTitle": {
+      "he": "בחר פ\"מ לשיבוץ באזור",
+      "en": "Pick a strip to place in this zone"
     },
     "zone": {
       "he": "→ אזור",

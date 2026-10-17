@@ -759,8 +759,8 @@
       "en": "Strip pins"
     },
     "mapView_pinsBody": {
-      "he": "כל פ\"מ שמוצב מופיע כפין על המפה. אפשר לגרור אותו למקום אחר, ואת צורת התצוגה (סמל מטוס, תווית קטנה, כתב יד או פ\"מ מלא) בוחרים בסרגל הכלים של המפה.",
-      "en": "Every placed strip appears as a pin on the map. You can drag it elsewhere, and its display form (aircraft icon, small label, handwriting or full strip) is chosen in the map toolbar."
+      "he": "כל פ\"מ שמוצב מופיע כפין על המפה. אפשר לגרור אותו למקום אחר, ואת צורת התצוגה (כתב יד, כתב רגיל, תגית, בלוק נתונים, תווית קטנה, פ\"מ מלא או סמל מטוס) בוחרים בסרגל הכלים של המפה. הבחירה נשמרת לעמדה.",
+      "en": "Every placed strip appears as a pin on the map. You can drag it elsewhere, and its display form (handwriting, plain text, tag, data block, small label, full strip or aircraft icon) is chosen in the map toolbar. The choice is kept for the station."
     },
     "mapView_conflictTitle": {
       "he": "סימון התנגשות",
@@ -779,12 +779,12 @@
       "en": "The points are shown as markers on the map and can be dragged to their geographically correct spot. Dragging a strip onto such a marker starts a transfer with a position."
     },
     "mapView_zoneMenuTitle": {
-      "he": "תפריט אזור (לחיצה ימנית)",
-      "en": "Zone menu (right click)"
+      "he": "תפריטי אזור (לחיצה ימנית)",
+      "en": "Zone menus (right click)"
     },
     "mapView_zoneMenuBody": {
-      "he": "לחיצה ימנית על אזור פותחת את מצבו התפעולי: אילו בלוקי גובה פעילים בו ומגבלה בטקסט חופשי. כך מסמנים אזור מוגבל בלי לשנות את ההגדרה שלו.",
-      "en": "Right clicking a zone opens its operational state: which altitude blocks are active in it and a free-text limitation. This is how a zone is marked restricted without changing its definition."
+      "he": "לחיצה ימנית (או כפתור הצד של העט) בתוך שטח האזור פותחת את רשימת הפ\"ממים בביצוע מהשאילתא של העמדה. בחירה משבצת את הפ\"מ באזור בנקודה שנלחצה: פ\"מ בנקודת העברה מתקבל אוטומטית, ופ\"מ שכבר באזור אחר עובר דרך טופס המעבר. נגיעה או לחיצה ימנית על הקו של האזור (או ⚙ ברשימה) פותחת את מצבו התפעולי: אילו בלוקי גובה פעילים בו ומגבלה בטקסט חופשי.",
+      "en": "Right clicking (or the pen side button) inside a zone opens the list of active strips from the station query. Picking one places it in the zone at the clicked spot: a strip at a transfer point is accepted automatically, and a strip already in another zone goes through the move form. Tapping or right clicking the zone line (or ⚙ in the list) opens its operational state: which altitude blocks are active and a free-text limitation."
     },
     "mapView_panTitle": {
       "he": "הזזת המפה",

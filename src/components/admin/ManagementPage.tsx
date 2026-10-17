@@ -1,4 +1,6 @@
 import { tr } from '../../i18n/tr';
+import { PIN_DISPLAY_MODES } from '../../../shared/pinDisplay';
+import { pinDisplayLabel } from '../strips/MapPinLabel';
 import { DockPositionPicker } from '../shared/WindowContainer';
 import type { DockPosition } from '../../utils/windowDock';
 import TranslationsManager from './TranslationsManager';
@@ -2275,7 +2277,7 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                   <div style={{ marginTop: '10px', padding: '12px', background: '#0f1a2a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
                     <label style={{ display: 'block', marginBottom: '8px', color: '#7dd3fc', fontSize: '13px', fontWeight: 'bold' }}>{tr('admin.ttsvgtPynymAlMph')}</label>
                     <div style={{ display: 'flex', gap: '8px', direction: 'rtl', flexWrap: 'wrap' }}>
-                      {([{ val: 'handwrite', label: tr('ctrl.pinHandwrite') }, { val: 'strip', label: tr('ctrl.pinExpanded') }, { val: 'small', label: tr('ctrl.pinSmall') }, { val: 'icon', label: tr('ctrl.pinIcon') }] as { val: string; label: string }[]).map(opt => (
+                      {PIN_DISPLAY_MODES.map(m => ({ val: m as string, label: pinDisplayLabel(m) })).map(opt => (
                         <button key={opt.val} type="button"
                           onClick={() => setPresetForm(p => ({ ...p, fz_pin_display: opt.val }))}
                           style={{ padding: '6px 16px', borderRadius: '6px', border: `1px solid ${(presetForm as any).fz_pin_display === opt.val ? '#0ea5e9' : '#334155'}`, background: (presetForm as any).fz_pin_display === opt.val ? '#0c2a40' : '#1e293b', color: (presetForm as any).fz_pin_display === opt.val ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '13px', fontWeight: (presetForm as any).fz_pin_display === opt.val ? 'bold' : 'normal' }}>
