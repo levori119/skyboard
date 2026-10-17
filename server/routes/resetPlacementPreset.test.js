@@ -209,6 +209,32 @@ describe('ניקוי הקצאות עמדה - בעלות והעברות', () => {
     expect((await stripRow(401)).workstation_preset_id).toBe(OTHER);
   });
 
+  // מפה רגילה (לא אזורי טיסה): ההצבה היא `on_map` + בעלות, בלי שורת הקצאת אזור.
+  // לפני התיקון הבעלות התאפסה ו-on_map נשאר - והפ"מ צץ על המפה של **כל** עמדה
+  // (המפה מציגה `on_map` שאין לו בעלים או שהבעלים הוא אני).
+  it('פ"מ שהעמדה הציבה על מפה רגילה - יורד מהמפה יחד עם הבעלות', async () => {
+    await addStrip(403, { owner: MINE, on_map: true });
+    await pool.query(`UPDATE strips SET x = 40, y = 60, map_lat = 32.1, map_lon = 34.8, map_zone_name = 'צפון' WHERE id = 403`);
+
+    const { json } = await clear(MINE, [MY_MAP]);
+    expect(json.strips).toBe(1);
+    const s = await stripRow(403);
+    expect(s.on_map).toBe(false);
+    expect(s.workstation_preset_id).toBe(null);
+    expect(s.map_lat).toBe(null);
+    expect(s.map_zone_name).toBe('');
+  });
+
+  it('פ"מ של עמדה אחרת על המפה שלה - לא יורד', async () => {
+    await addStrip(404, { owner: OTHER, on_map: true, in_table: true });
+    await pool.query(`INSERT INTO strip_table_assignments (strip_id, preset_id) VALUES (404, $1)`, [MINE]);
+
+    await clear(MINE, [MY_MAP]);
+    const s = await stripRow(404);
+    expect(s.on_map).toBe(true);
+    expect(s.workstation_preset_id).toBe(OTHER);
+  });
+
   it('העברה ממתינה של פ"מ שלי נמחקת והסטטוס חוזר ל-active', async () => {
     await addStrip(402, { owner: MINE, status: 'pending_transfer' });
     await pool.query(`INSERT INTO strip_transfers (strip_id, status, from_preset_id, to_preset_id) VALUES (402, 'pending', $1, $2)`, [MINE, OTHER]);

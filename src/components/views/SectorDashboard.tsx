@@ -12794,7 +12794,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       );
                       if (!answer) return;
                       try {
-                        const _mapIds = [currentMapId, effMap2Id].filter((m): m is number => !!m);
+                        // כל המפות שפתוחות בעמדה - גם חלונות המפה של דסק משימה (לשורות legacy בלי preset_id)
+                        const _mapIds = [...new Set([currentMapId, effMap2Id, ...mdMapWindows.map(w => w.mapId)]
+                          .filter((m): m is number => !!m))];
                         const res = await fetch(`${API_URL}/strips/reset-placement-preset`, {
                           method: 'POST', headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
@@ -12813,6 +12815,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           setMap2Shapes([]);
                         }
                         await loadData();
+                        // מקורות ההצבה ש-loadData לא מרענן - בלעדיהם הניקוי "לא עבד" בכל
+                        // סוג עמדה שאינו מפה ראשית: מוד הטבלה (סט מקומי שרק מתווסף מה-DB),
+                        // התצוגה האזרחית, מפה 2 וחלונות המפה של דסק משימה
+                        setTableOnBoard(new Set());
+                        const _pid = Number(session.presetId);
+                        if (isCivilianMode) { loadCivAssignments(_pid); loadCivStrips(_pid); }
+                        if (currentMapId) loadStripZoneAssignments(currentMapId);
+                        if (isDualMapMode && effMap2Id) reloadAssignmentsForMap(effMap2Id);
+                        mdMapWindows.forEach(w => {
+                          fetch(`${API_URL}/strip-zone-assignments?map_id=${w.mapId}`)
+                            .then(r => r.ok ? r.json() : [])
+                            .then((data: any[]) => mdPatchSlot(w.key, { assignments: data }))
+                            .catch(() => {});
+                        });
                         const extras = [
                           answer.drawings ? tr('ctrl.clearStationDoneDrawings') : '',
                           answer.seizures ? tr('ctrl.clearStationDoneSeizures', { n: d.seizures ?? 0 }) : '',

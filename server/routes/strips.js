@@ -422,9 +422,21 @@ router.post('/api/strips/reset-placement-preset', async (req, res) => {
       tr = await client.query(`DELETE FROM strip_transfers WHERE strip_id = ANY($1::int[]) AND status = 'pending'`, [ids]);
       // `in_table` יורד רק כשלא נשארה לפ"מ אף הקצאת דסק (הדסקים של עמדות אחרות
       // כבר נמחקו או לא - ה-EXISTS נקרא אחרי המחיקה שלי);
-      // בעלות מתאפסת רק אם הייתה של העמדה הזו (לא לגזול מעמדה אחרת)
+      // בעלות מתאפסת רק אם הייתה של העמדה הזו (לא לגזול מעמדה אחרת).
+      // מפה רגילה (לא אזורי טיסה): ההצבה היא `on_map` + בעלות, בלי הקצאת אזור,
+      // ולכן היא יורדת **יחד** עם הבעלות. אחרת נשאר `on_map` בלי בעלים - והמפה
+      // מציגה פ"מ כזה בכל העמדות. פ"מ של עמדה אחרת (בעלות שאינה שלי) לא נוגע.
       await client.query(
         `UPDATE strips SET
+           on_map = CASE WHEN workstation_preset_id = $1 THEN FALSE ELSE on_map END,
+           x = CASE WHEN workstation_preset_id = $1 THEN 0 ELSE x END,
+           y = CASE WHEN workstation_preset_id = $1 THEN 0 ELSE y END,
+           map_lat = CASE WHEN workstation_preset_id = $1 THEN NULL ELSE map_lat END,
+           map_lon = CASE WHEN workstation_preset_id = $1 THEN NULL ELSE map_lon END,
+           map_pin_x = CASE WHEN workstation_preset_id = $1 THEN NULL ELSE map_pin_x END,
+           map_pin_y = CASE WHEN workstation_preset_id = $1 THEN NULL ELSE map_pin_y END,
+           map_zone_name = CASE WHEN workstation_preset_id = $1 THEN '' ELSE map_zone_name END,
+           map_zone_alts = CASE WHEN workstation_preset_id = $1 THEN '' ELSE map_zone_alts END,
            in_table = EXISTS (SELECT 1 FROM strip_table_assignments sta WHERE sta.strip_id = strips.id),
            workstation_preset_id = CASE WHEN workstation_preset_id = $1 THEN NULL ELSE workstation_preset_id END,
            status = CASE WHEN status = 'pending_transfer' THEN 'active' ELSE status END
