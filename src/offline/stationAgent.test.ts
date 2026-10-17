@@ -128,6 +128,32 @@ describe('discoverStationAgent', () => {
     expect(await discoverStationAgent(AGENT)).toBeNull();
     expect(getAgentState().reason).toBe('self');
   });
+
+  // ⚠️ 2026-10-17: סוכן ישן (8/10) תפס את פורט 5100. עמדת ה-Electron נסוגה
+  // לפורט אחר - והדף שלה **אימץ את הסוכן הישן**, כי דף על לוקלהוסט מקבל כל
+  // יעד. כל תעבורת העמדה, כולל הכניסה, עברה דרך קוד בן תשעה ימים, והתיקון
+  // שבעמדה עצמה לא הופעל: "מיראז' לא זמין" בנתק גם אחרי התיקון.
+  it('דף שמוגש משרת עמדה בפורט אחר - העמדה מדברת עם עצמה, לא עם סוכן זר', async () => {
+    const SELF = 'http://127.0.0.1:5199';
+    const asked: string[] = [];
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      asked.push(String(input));
+      return new Response(JSON.stringify({ apiTarget: PAGE, localReady: true }), { status: 200 });
+    }) as unknown as typeof fetch;
+    expect(await discoverStationAgent(SELF)).toBeNull();
+    expect(getAgentState().reason).toBe('self');
+    expect(asked.some(u => u.startsWith(AGENT))).toBe(false);
+  });
+
+  // פיתוח: Vite על localhost:5000 מפרקסס את /api לשרת שאינו שרת עמדה (404),
+  // ושם הסוכן על 5100 **כן** משמש - כך בודקים אותו בלי build.
+  it('דף פיתוח על לוקלהוסט שאינו שרת עמדה - הסוכן עדיין נמצא', async () => {
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => String(input).startsWith(AGENT)
+      ? new Response(JSON.stringify({ apiTarget: 'http://127.0.0.1:3001', localReady: true }), { status: 200 })
+      : new Response('not found', { status: 404 })) as unknown as typeof fetch;
+    const info = await discoverStationAgent('http://localhost:5000');
+    expect(info?.origin).toBe(AGENT);
+  });
 });
 
 // ⚠️ עמדת Electron 36 רצה על Chromium 136. שם `permissions.query` עם

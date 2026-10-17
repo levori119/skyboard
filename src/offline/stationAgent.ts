@@ -98,8 +98,10 @@ const originOf = (url: string): string | null => {
  * בפיתוח (localhost) כל יעד מתקבל - שם ה-API יושב על פורט אחר מהדף מלכתחילה,
  * ובדיקה קשיחה הייתה מכבה את הסוכן בדיוק במקום שבו בודקים אותו.
  */
+const isLoopbackOrigin = (origin: string) => /^https?:\/\/(localhost|127\.0\.0\.1)(:|$)/i.test(origin);
+
 export function targetMatches(pageOrigin: string, apiTarget: string | null): boolean {
-  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:|$)/i.test(pageOrigin)) return true;
+  if (isLoopbackOrigin(pageOrigin)) return true;
   if (!apiTarget) return false;
   return originOf(apiTarget) === pageOrigin;
 }
@@ -170,6 +172,15 @@ export async function discoverStationAgent(pageOrigin = globalThis.location?.ori
   const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
   const timer = ctrl ? setTimeout(() => ctrl.abort(), PROBE_TIMEOUT_MS) : null;
   try {
+    // ⚠️ **דף שמוגש משרת עמדה בפורט אחר הוא עדיין "self" (2026-10-17).**
+    // עמדת Electron שמצאה את 5100 תפוס נסוגה לפורט חופשי. דף על לוקלהוסט
+    // מקבל כל יעד (targetMatches), ולכן הדף שלה אימץ את מי שישב על 5100 -
+    // סוכן ישן בן תשעה ימים - וכל התעבורה, כולל הכניסה, עברה דרך קוד ישן.
+    // שרת עמדה עונה על `__station/status` במקור של עצמו; Vite בפיתוח לא.
+    if (isLoopbackOrigin(pageOrigin) && await probe(pageOrigin, ctrl?.signal).catch(() => null)) {
+      set({ agent: null, reason: 'self', checkedAt: Date.now() });
+      return null;
+    }
     const info = await probe(origin, ctrl?.signal);
     if (!info) { set({ agent: null, reason: 'none', checkedAt: Date.now() }); return null; }
     if (!targetMatches(pageOrigin, info.apiTarget)) {
