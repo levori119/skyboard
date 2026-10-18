@@ -94,6 +94,25 @@ async function recordTransferClosedFlow(t, kind, user, details = {}) {
   });
 }
 
+// ─── מכונת המצבים של ההעברה ────────────────────────────────────────────────────
+// רק העברה **פתוחה** ניתנת לקבלה, לדחייה או לביטול. כמה עמדות רואות את אותה
+// העברה (סקטור), ובלי השמירה הזו שתי עמדות שלחצו "קבל" כמעט יחד הצליחו
+// **שתיהן**, והמוסר שביטל מכרטיס ישן החזיר אליו פ"מ שכבר התקבל - פ"מ בשתי
+// עמדות (CODE_REVIEW_3.md).
+export const TRANSFER_OPEN_STATUSES = ['pending', 'acknowledged'];
+
+/** סטטוס חסר נחשב פתוח - שורה ישנה בלי סטטוס לא תיחסם בגלל התיקון הזה. */
+const isTransferClosed = (t) => t.status != null && !TRANSFER_OPEN_STATUSES.includes(t.status);
+
+/**
+ * קורא את ההעברה ונועל אותה עד סוף הטרנזקציה. עמדה שנייה שמגיעה באותו רגע
+ * ממתינה כאן לראשונה, ואז רואה את הסטטוס **אחרי** שהראשונה סגרה אותה.
+ */
+async function lockTransfer(client, transferId) {
+  const { rows } = await client.query('SELECT * FROM strip_transfers WHERE id = $1 FOR UPDATE', [transferId]);
+  return rows[0] ?? null;
+}
+
 // שחזור סטריפ למוסר (משותף ל-reject ו-cancel). SQL זהה בשני הנתיבים.
 async function restoreStripToSender(db, stripId, fromWorkstationId) {
   const stripRow = await db.query('SELECT on_map, in_table FROM strips WHERE id = $1', [stripId]);
@@ -359,14 +378,16 @@ router.get('/api/presets/:presetId/classic-outgoing', async (req, res) => {
 // `flow.mode` - איך התקבל (manual / auto) לרישום ה-FLOW. הקבלה נרשמת **כאן**, בליבה,
 // כדי שכל מסלולי הקבלה ייספרו כ"נמצא בעמדה" - ורק הם.
 export async function acceptTransferTx(client, transferId, receivingPresetId, flow = {}) {
-  const transfer = await client.query('SELECT * FROM strip_transfers WHERE id = $1', [transferId]);
-  if (transfer.rows.length === 0) return { notFound: true, mergedIntoId: null };
+  const t = await lockTransfer(client, transferId);
+  if (!t) return { notFound: true, mergedIntoId: null };
+  // כבר התקבלה / נדחתה / בוטלה - לא נוגעים בפ"מ, והקורא מחזיר 409
+  if (isTransferClosed(t)) return { notFound: false, notOpen: true, status: t.status, mergedIntoId: null };
 
-  const { strip_id, to_sector_id, to_workstation_id, target_x, target_y, to_preset_id } = transfer.rows[0];
+  const { strip_id, to_sector_id, to_workstation_id, target_x, target_y, to_preset_id } = t;
   const assignedPresetId = receivingPresetId || to_preset_id || to_workstation_id || null;
 
   // לפני המיזוג: המיזוג מוחק את הפ"מ הנכנס
-  await recordAcceptedFlow(client, transfer.rows[0], assignedPresetId, { mode: flow.mode || 'manual', user: flow.user || null });
+  await recordAcceptedFlow(client, t, assignedPresetId, { mode: flow.mode || 'manual', user: flow.user || null });
 
   // אותו מיזוג-אחים בדיוק שמריצה קבלה-למפה. עותק אחד, כדי ששני מסלולי הקבלה
   // לא יסטו זה מזה בשקט (זו הייתה כוונת הקומיט "share sibling-merge").
@@ -405,6 +426,10 @@ router.post('/api/transfers/:id/accept', async (req, res) => {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Transfer not found' });
     }
+    if (result.notOpen) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'transfer_not_open', status: result.status });
+    }
     await client.query('COMMIT');
     res.json({ success: true, mergedIntoId: result.mergedIntoId });
   } catch (err) {
@@ -425,18 +450,22 @@ router.post('/api/transfers/:id/accept-to-map', async (req, res) => {
     const transferId = req.params.id;
     const { x, y, receivingPresetId } = req.body;
 
-    const transfer = await client.query('SELECT * FROM strip_transfers WHERE id = $1', [transferId]);
-    if (transfer.rows.length === 0) {
+    const t = await lockTransfer(client, transferId);
+    if (!t) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Transfer not found' });
     }
+    if (isTransferClosed(t)) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'transfer_not_open', status: t.status });
+    }
 
-    const { strip_id, to_sector_id, to_workstation_id } = transfer.rows[0];
+    const { strip_id, to_sector_id, to_workstation_id } = t;
     const assignedPresetId = receivingPresetId || to_workstation_id || null;
     const mapLat = req.body.map_lat ?? null;
     const mapLon = req.body.map_lon ?? null;
 
-    await recordAcceptedFlow(client, transfer.rows[0], assignedPresetId, { mode: 'map', user: req.user });
+    await recordAcceptedFlow(client, t, assignedPresetId, { mode: 'map', user: req.user });
 
     // פ"מ מפוצל שאחיו כבר בעמדה המקבלת — ממוזג; הפ"מ המאוחד הוא זה שמונח על המפה.
     const merged = await mergeWithSiblingIfAny(client, strip_id, assignedPresetId);
@@ -491,31 +520,63 @@ router.post('/api/transfers/:id/acknowledge', async (req, res) => {
   }
 });
 
-router.post('/api/transfers/:id/reject', async (req, res) => {
-  try {
-    const transferId = req.params.id;
-    const rejectNote = (req.body && typeof req.body.note === 'string') ? req.body.note.trim() : '';
+// ─── דחייה / ביטול - הליבה ────────────────────────────────────────────────────
+// שני הנתיבים עושים אותו דבר משני הצדדים: הפ"מ חוזר למוסר וההעברה נסגרת. עותק
+// אחד, בטרנזקציה ובנעילה - אחרת ביטול מכרטיס ישן החזיר למוסר פ"מ שכבר התקבל.
+// מניחה שטרנזקציה כבר פתוחה על ה-client שנמסר.
+const CLOSE_KINDS = ['rejected', 'cancelled'];
 
-    const transfer = await pool.query('SELECT * FROM strip_transfers WHERE id = $1', [transferId]);
-    if (transfer.rows.length === 0) {
-      return res.status(404).json({ error: 'Transfer not found' });
-    }
+export async function closeTransferTx(client, transferId, kind, { note = null } = {}) {
+  if (!CLOSE_KINDS.includes(kind)) throw new Error(`סגירת העברה לא מוכרת: ${kind}`);
+  const t = await lockTransfer(client, transferId);
+  if (!t) return { notFound: true };
+  if (isTransferClosed(t)) return { notFound: false, notOpen: true, status: t.status };
 
-    const stripId = transfer.rows[0].strip_id;
-    const fromWorkstationId = transfer.rows[0].from_workstation_id ?? null;
-    await restoreStripToSender(pool, stripId, fromWorkstationId);
-
-    await pool.query(
-      "UPDATE strip_transfers SET status = 'rejected', reject_note = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
-      [rejectNote || null, transferId]
+  await restoreStripToSender(client, t.strip_id, t.from_workstation_id ?? null);
+  if (kind === 'rejected') {
+    await client.query(
+      'UPDATE strip_transfers SET status = $1, reject_note = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3',
+      [kind, note || null, transferId]
     );
-    await recordTransferClosedFlow(transfer.rows[0], 'rejected', req.user, { note: rejectNote || null });
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error rejecting transfer:', err);
-    res.status(500).json({ error: 'Failed to reject transfer' });
+  } else {
+    await client.query(
+      'UPDATE strip_transfers SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [kind, transferId]
+    );
   }
+  return { notFound: false, transfer: t };
+}
+
+async function closeTransferRoute(req, res, kind, note = null) {
+  let closed = null;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await closeTransferTx(client, req.params.id, kind, { note });
+    if (result.notFound || result.notOpen) {
+      await client.query('ROLLBACK');
+      return result.notFound
+        ? res.status(404).json({ error: 'Transfer not found' })
+        : res.status(409).json({ error: 'transfer_not_open', status: result.status });
+    }
+    await client.query('COMMIT');
+    closed = result.transfer;
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch { /* connection כנראה מת */ }
+    console.error(`Error closing transfer (${kind}):`, err);
+    return res.status(500).json({ error: `Failed to ${kind === 'rejected' ? 'reject' : 'cancel'} transfer` });
+  } finally {
+    client.release();
+  }
+  // **אחרי** השחרור: רישום ה-FLOW כותב דרך pool.query, ובמאגר המקומי (חיבור
+  // יחיד תחת נעילה) קריאה כזו בזמן שה-client מוחזק ממתינה לעצמה לנצח.
+  await recordTransferClosedFlow(closed, kind, req.user, kind === 'rejected' ? { note: note || null } : {});
+  res.json({ success: true });
+}
+
+router.post('/api/transfers/:id/reject', async (req, res) => {
+  const rejectNote = (req.body && typeof req.body.note === 'string') ? req.body.note.trim() : '';
+  await closeTransferRoute(req, res, 'rejected', rejectNote);
 });
 
 // המוסר צפה בכרטיס דחייה (כתום) ומסלק אותו — הסטריפ כבר חזר אליו בעת הדחייה.
@@ -625,29 +686,7 @@ router.patch('/api/transfers/:id/note', async (req, res) => {
 });
 
 router.post('/api/transfers/:id/cancel', async (req, res) => {
-  try {
-    const transferId = req.params.id;
-
-    const transfer = await pool.query('SELECT * FROM strip_transfers WHERE id = $1', [transferId]);
-    if (transfer.rows.length === 0) {
-      return res.status(404).json({ error: 'Transfer not found' });
-    }
-
-    const stripId = transfer.rows[0].strip_id;
-    const fromWorkstationId = transfer.rows[0].from_workstation_id ?? null;
-    await restoreStripToSender(pool, stripId, fromWorkstationId);
-
-    await pool.query(
-      'UPDATE strip_transfers SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-      ['cancelled', transferId]
-    );
-    await recordTransferClosedFlow(transfer.rows[0], 'cancelled', req.user);
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error cancelling transfer:', err);
-    res.status(500).json({ error: 'Failed to cancel transfer' });
-  }
+  await closeTransferRoute(req, res, 'cancelled');
 });
 
 // ─── קבלה אוטומטית בנקודת מעבר ────────────────────────────────────────────────
@@ -736,7 +775,7 @@ export async function runAutoAcceptOnce() {
       // to_preset_id / to_workstation_id, וכשגם הם ריקים הפ"מ פשוט עוזב את
       // העמדה המוסרת - בדיוק כמו מסירה אמיתית לצד שאינו במערכת.
       const result = await acceptTransferTx(client, t.id, null, { mode: 'auto' });
-      if (result.notFound) {
+      if (result.notFound || result.notOpen) {
         await client.query('ROLLBACK');
         continue;
       }

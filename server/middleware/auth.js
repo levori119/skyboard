@@ -262,9 +262,25 @@ function satisfies(need, role) {
 const pathMatches = (pattern, path) =>
   typeof pattern === 'string' ? path === pattern : pattern.test(path);
 
+/**
+ * הצורה הקנונית של נתיב - זו שכל החלטת הרשאה נעשית מולה.
+ *
+ * ⚠️ **ה-Router של Express 5 סלחני, והשער חייב להיות סלחני באותה מידה.** הוא
+ * אינו רגיש לאותיות ומקבל לוכסן סופי, ולכן `/API/activity-log/` מגיע לאותו
+ * handler כמו `/api/activity-log`. כשהשער השווה את הנתיב כמו שהגיע, `/API/...`
+ * דילג על האימות כולו (לא "התחיל ב-/api"), ולוכסן סופי הוריד כל כלל ADMIN
+ * מדויק לברירת המחדל USER (CODE_REVIEW_3.md). אותיות קטנות, בלי לוכסנים
+ * כפולים ובלי לוכסן סופי - ואז אותו נתיב מקבל אותה דרישה בכל צורה.
+ */
+export function canonicalPath(path) {
+  const p = String(path || '/').toLowerCase().replace(/\/{2,}/g, '/').replace(/(.)\/+$/, '$1');
+  return p || '/';
+}
+
 /** מחזיר את הדרישה החלה על הבקשה. ברירת המחדל היא USER - אף פעם לא PUBLIC. */
-export function requirementFor(method, path) {
+export function requirementFor(method, rawPath) {
   const m = String(method || 'GET').toUpperCase();
+  const path = canonicalPath(rawPath);
   for (const rule of RULES) {
     if (rule.m && !rule.m.includes(m)) continue;
     if (!pathMatches(rule.p, path)) continue;
@@ -287,7 +303,7 @@ export function roleOf(claims) {
  * נתיבים שאינם /api (נכסים סטטיים, /driver, ה-SPA) עוברים כמו שהם.
  */
 export function authMiddleware(req, res, next) {
-  const path = req.path || '/';
+  const path = canonicalPath(req.path);
   if (!path.startsWith('/api')) return next();
 
   const need = requirementFor(req.method, path);

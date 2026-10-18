@@ -48,6 +48,44 @@ export async function currentColumns(client, schema, table) {
   return rows.map(r => r.name);
 }
 
+/** עמודות המפתח הראשי של טבלה, לפי הקטלוג. */
+export async function pkColumns(client, schema, table) {
+  const { rows } = await client.query(
+    `SELECT a.attname AS name
+       FROM pg_index i
+       JOIN pg_class c ON c.oid = i.indrelid
+       JOIN pg_namespace n ON n.oid = c.relnamespace
+       CROSS JOIN LATERAL unnest(i.indkey) WITH ORDINALITY AS k(attnum, ord)
+       JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = k.attnum
+      WHERE n.nspname = $1 AND c.relname = $2 AND i.indisprimary
+      ORDER BY k.ord`,
+    [schema, table],
+  );
+  return rows.map(r => r.name);
+}
+
+/**
+ * האם `pk` הוא **בדיוק** המפתח הראשי: כל עמודות המפתח, ורק הן, כל אחת ערך
+ * סקלרי שאינו null.
+ *
+ * ⚠️ `PK_MATCH` הוא הכלה, ולכן הוא מדויק רק כשהמפתח מלא: `{}` מוכל בכל שורה,
+ * ומפתח חלקי (`{strip_id: 1}` בטבלה שהמפתח שלה `(strip_id, preset_id)`) מוכל
+ * בכל השורות של אותו פ"מ. כשהמפתח מגיע מבחוץ - דחיפה מעמדה - זו מחיקה גורפת
+ * של טבלה במרכז (CODE_REVIEW_3.md). לכן כל מפתח שלא נכתב ע"י המערכת עצמה עובר
+ * כאן לפני שהוא נוגע בשורה.
+ */
+export function isExactPk(pk, columns) {
+  if (!pk || typeof pk !== 'object' || Array.isArray(pk)) return false;
+  if (!columns?.length) return false;
+  const keys = Object.keys(pk);
+  if (keys.length !== columns.length) return false;
+  return columns.every((c) => {
+    if (!Object.prototype.hasOwnProperty.call(pk, c)) return false;
+    const v = pk[c];
+    return typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean';
+  });
+}
+
 /** השורה הנוכחית ב-DB כ-JSONB, או null. */
 export async function currentRow(client, schema, table, pk) {
   const { rows } = await client.query(

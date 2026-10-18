@@ -16,7 +16,7 @@ import { OPERATIONAL_TABLES, CONFIG_TABLES } from '../db/env-tables.js';
 import { sortByDependency } from '../db/foreign-keys.js';
 import { VERSIONED_TABLES } from '../db/versionedTables.js';
 import { withoutJournal } from '../db/syncJournal.js';
-import { ident, qualified, currentColumns } from '../db/rowOps.js';
+import { ident, qualified, currentColumns, pkColumns } from '../db/rowOps.js';
 import { isLocalId } from '../db/localIds.js';
 
 /**
@@ -67,22 +67,6 @@ async function existingTables(client, schema, tables) {
        FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
       WHERE n.nspname = $1 AND c.relkind = 'r' AND c.relname = ANY($2::text[])`,
     [schema, tables],
-  );
-  return rows.map(r => r.name);
-}
-
-/** עמודות המפתח הראשי של טבלה, לפי הקטלוג. */
-async function pkColumns(client, schema, table) {
-  const { rows } = await client.query(
-    `SELECT a.attname AS name
-       FROM pg_index i
-       JOIN pg_class c ON c.oid = i.indrelid
-       JOIN pg_namespace n ON n.oid = c.relnamespace
-       CROSS JOIN LATERAL unnest(i.indkey) WITH ORDINALITY AS k(attnum, ord)
-       JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = k.attnum
-      WHERE n.nspname = $1 AND c.relname = $2 AND i.indisprimary
-      ORDER BY k.ord`,
-    [schema, table],
   );
   return rows.map(r => r.name);
 }

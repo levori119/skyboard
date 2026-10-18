@@ -28,7 +28,7 @@
 // שתשלח `table_schema: 'public'` מתוך תרגול לא תוכל לכתוב לסביבה האמיתית.
 
 import { VERSIONED_TABLES } from '../db/versionedTables.js';
-import { currentRow, insertRow, updateRow, deleteRow } from '../db/rowOps.js';
+import { currentRow, insertRow, updateRow, deleteRow, pkColumns, isExactPk } from '../db/rowOps.js';
 
 /** עמודות שהמרכז מתחזק בעצמו (טריגר `skyking_touch_row`) ולא נכתבות מהעמדה. */
 const SERVER_OWNED = ['rev', 'updated_at'];
@@ -102,7 +102,17 @@ export const REASON = {
   NO_TIMESTAMP: 'no_timestamp',   // אין על מה להשוות - הבקר יכריע
   LOCAL_ONLY: 'local_only',       // נוצרה ונמחקה בנתק
   NOT_SYNCED: 'not_synced',       // טבלה שאינה ברשימת הסנכרון
+  INVALID_PK: 'invalid_pk',       // המפתח אינו המפתח הראשי המלא - נדחה בלי לגעת בשורה
 };
+
+/** עמודות המפתח, פעם אחת לכל טבלה בדחיפה - ולא שאילתת קטלוג לכל פעולה. */
+async function pkColumnsCached(client, schema, table, cache) {
+  const key = `${schema}.${table}`;
+  if (cache?.has(key)) return cache.get(key);
+  const cols = await pkColumns(client, schema, table);
+  cache?.set(key, cols);
+  return cols;
+}
 
 const revOf = (row) => {
   const v = row?.rev;
@@ -149,6 +159,12 @@ export async function applyOp(client, op, schema, opts = {}) {
   // רשימה סגורה: עמדה אינה יכולה לדחוף שורות לטבלה שלא הוגדרה כמסונכרנת
   if (!VERSIONED_TABLES.includes(table)) {
     return { ...base, status: RESULT.ERROR, reason: REASON.NOT_SYNCED };
+  }
+
+  // המפתח מגיע מהעמדה, כלומר מבחוץ. מפתח ריק או חלקי היה מתאים לכל שורות
+  // הטבלה (ראה `isExactPk`) - והמחיקה או העדכון שאחריו היו גורפים.
+  if (!isExactPk(op.pk, await pkColumnsCached(client, schema, table, opts.pkCache))) {
+    return { ...base, status: RESULT.ERROR, reason: REASON.INVALID_PK };
   }
 
   const now = await currentRow(client, schema, table, op.pk);
@@ -238,6 +254,7 @@ export async function applyOps(client, ops, schema, opts = {}) {
   } catch { /* אילוץ שאינו DEFERRABLE - סדר ההחלה מ-coalesce מטפל בו */ }
 
   const results = [];
+  const opOpts = { ...opts, pkCache: opts.pkCache ?? new Map() };
   for (let i = 0; i < ops.length; i++) {
     const op = ops[i];
     const sp = `sync_op_${i}`;
@@ -246,7 +263,7 @@ export async function applyOps(client, ops, schema, opts = {}) {
     // וכל הדחיפה הייתה מתה בגלל שורה אחת.
     await client.query(`SAVEPOINT ${sp}`);
     try {
-      const r = await applyOp(client, op, schema, opts);
+      const r = await applyOp(client, op, schema, opOpts);
       if (r.status === RESULT.ERROR) await client.query(`ROLLBACK TO SAVEPOINT ${sp}`);
       await client.query(`RELEASE SAVEPOINT ${sp}`);
       results.push(r);

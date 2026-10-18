@@ -13,6 +13,7 @@ import { currentEnv } from '../db/env-context.js';
 import { runWithAction, withoutAction } from '../db/action-context.js';
 import { pruneSql } from '../db/undoJournal.js';
 import { labelFor } from '../undo/labels.js';
+import { canonicalPath } from './auth.js';
 
 /** הכותרת שנושאת את מזהה העמדה. אותה תבנית כמו X-Env. */
 export const STATION_HEADER = 'X-Station';
@@ -62,7 +63,9 @@ async function pruneIfDue() {
 /** האם הבקשה הזו היא פעולה שניתן לבטלה. */
 export function isUndoableRequest(req) {
   if (!WRITE_METHODS.has(String(req.method || '').toUpperCase())) return false;
-  const path = req.path || '/';
+  // אותה צורה קנונית כמו בשער האימות: אחרת `/API/...` עובר את השער אבל אינו
+  // נרשם כפעולה, ו-CTRL+Z לא רואה אותו
+  const path = canonicalPath(req.path);
   if (!path.startsWith('/api')) return false;
   if (SKIP_PATHS.some(p => p.test(path))) return false;
   if (!UNDOABLE_ROLES.has(req.user?.role)) return false;

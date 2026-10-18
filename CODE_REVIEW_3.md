@@ -41,10 +41,10 @@
 
 | # | חומרה | מה | איפה | ב-main |
 |---|-------|----|------|--------|
-| 1 | CRITICAL ✅ | **עקיפת אימות באותיות גדולות.** `path.startsWith('/api')` רגיש לאותיות, וה-Router של Express 5 לא. `GET /API/sync/mirror` שולף את כל ה-DB בלי אסימון | `server/middleware/auth.js:280`, `actionContext.js:66` | פתוח |
-| 2 | CRITICAL ✅ | **לוכסן סופי / אותיות עוקפים כללי ADMIN/STAFF.** כל פקח מחובר: `DELETE /api/activity-log/`, `POST /api/environments/11/reset/` (DROP SCHEMA), `PUT /api/air-picture/config/` (הפניית התמונ"א לשרת זר) | `auth.js:251-263` (`requirementFor`) | פתוח |
-| 3 | CRITICAL ✅ | **`/api/sync/push` עם `pk:{}` מוחק טבלה שלמה.** `to_jsonb(t) @> '{}'` מתאים לכל שורה, ואין אימות שה-pk מלא. פתוח לכל USER | `server/sync/apply.js:182`, `server/db/rowOps.js:35,114` | פתוח |
-| 4 | CRITICAL ✅ | **קבלת העברה כפולה / ביטול אחרי קבלה.** `acceptTransferTx`, `reject` ו-`cancel` לא נועלים (`FOR UPDATE`) ולא בודקים `status`. שתי עמדות מקבלות יחד, ושתיהן מצליחות | `server/routes/transfers.js:362,428,494,627` | פתוח |
+| 1 | CRITICAL ✅ | **עקיפת אימות באותיות גדולות.** `path.startsWith('/api')` רגיש לאותיות, וה-Router של Express 5 לא. `GET /API/sync/mirror` שולף את כל ה-DB בלי אסימון | `server/middleware/auth.js:280`, `actionContext.js:66` | ✅ תוקן (`canonicalPath`, REFACTOR_LOG #065) |
+| 2 | CRITICAL ✅ | **לוכסן סופי / אותיות עוקפים כללי ADMIN/STAFF.** כל פקח מחובר: `DELETE /api/activity-log/`, `POST /api/environments/11/reset/` (DROP SCHEMA), `PUT /api/air-picture/config/` (הפניית התמונ"א לשרת זר) | `auth.js:251-263` (`requirementFor`) | ✅ תוקן (#065) |
+| 3 | CRITICAL ✅ | **`/api/sync/push` עם `pk:{}` מוחק טבלה שלמה.** `to_jsonb(t) @> '{}'` מתאים לכל שורה, ואין אימות שה-pk מלא. פתוח לכל USER | `server/sync/apply.js:182`, `server/db/rowOps.js:35,114` | ✅ תוקן (`isExactPk`, #065) |
+| 4 | CRITICAL ✅ | **קבלת העברה כפולה / ביטול אחרי קבלה.** `acceptTransferTx`, `reject` ו-`cancel` לא נועלים (`FOR UPDATE`) ולא בודקים `status`. שתי עמדות מקבלות יחד, ושתיהן מצליחות | `server/routes/transfers.js:362,428,494,627` | ✅ תוקן (`FOR UPDATE` + 409, #065) |
 | 5 | CRITICAL | **הסוכן קולט מראה דרך `pool.query` על חיבור יחיד.** ה-`BEGIN`/`SET LOCAL`/`replica` נשארים פתוחים, וכתיבות מפעיל נכנסות לתוכם: אובדן שקט, או רישום ביומן ודחיפה חזרה כ"סתירה יש מאין" | `server/sync/daemon.js:129,231`, `server/sync/mirror.js:240-261` | פתוח |
 | 6 | CRITICAL ✅ | **ביטול חלקי של קבלת העברה.** על טבלה חסומה אין טריגר, ולכן `blockedTableIn` לא רואה אותה לעולם. CTRL+Z מחזיר את `strips` ומשאיר את `strip_transfers` במצב `accepted` | `server/db/undoJournal.js:222-241`, `server/undo/revert.js:90` | פתוח |
 | 7 | HIGH ✅ | **הדלתא (15ש') נחסמת ב-403 בייצור.** `/api/sync/mirror/delta` חסר ב-`STATION_PATHS`. הבדיקות עוקפות את ה-auth ולכן לא תפסו את זה | `auth.js:80-87` | פתוח |
