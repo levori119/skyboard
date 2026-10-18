@@ -12951,7 +12951,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           answer.seizures ? tr('ctrl.clearStationDoneSeizures', { n: d.seizures ?? 0 }) : '',
                           answer.restrictions ? tr('ctrl.clearStationDoneRestrictions', { n: d.restrictions ?? 0 }) : '',
                         ].filter(Boolean).map(x => ` · ${x}`).join('');
-                        setPosClearToast(`🧹 נוקו הקצאות העמדה: ${d.strips} פ"ממ · ${d.zoneAssignments} אזורים · ${d.tableAssignments} שולחנות · ${d.civilianAssignments ?? 0} אזרחיים · ${d.transfers} העברות${extras}`);
+                        setPosClearToast(tr('ctrl.clearStationDone', {
+                          strips: d.strips, zones: d.zoneAssignments, tables: d.tableAssignments,
+                          civilian: d.civilianAssignments ?? 0, transfers: d.transfers,
+                        }) + extras);
                         setTimeout(() => setPosClearToast(null), 4500);
                       } catch { setPosClearToast(tr('ctrl.clearStationNoServer')); setTimeout(() => setPosClearToast(null), 4000); }
                     }}

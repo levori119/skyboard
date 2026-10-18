@@ -314,6 +314,10 @@
       "he": "לנקות את כל ההקצאות של עמדה זו{{name}}?\nכל הפ\"ממים שהעמדה הזו הציבה בטבלה / מפה / נקודות העברה ינותקו ויחזרו לרשימה. הנתונים עצמם נשמרים.\n\nלנקות גם:",
       "en": "Clear all assignments of this workstation{{name}}?\nAll strips this workstation placed in the table / map / transfer points will be detached and return to the list. The data itself is kept.\n\nAlso clear:"
     },
+    "clearStationDone": {
+      "he": "🧹 נוקו הקצאות העמדה: {{strips}} פ\"ממ · {{zones}} אזורים · {{tables}} שולחנות · {{civilian}} אזרחיים · {{transfers}} העברות",
+      "en": "🧹 Workstation assignments cleared: {{strips}} strips · {{zones}} zones · {{tables}} tables · {{civilian}} civilian · {{transfers}} transfers"
+    },
     "clearStationAlsoDrawings": {
       "he": "✏️ ציורים חופשיים על המפה",
       "en": "✏️ Free drawings on the map"
