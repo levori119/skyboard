@@ -3,6 +3,7 @@ import {
   zoneRestrictionOf, isRestricted, altRangesOverlap, restrictionCoversAllAltitudes,
   bandRestricted, altitudeRestricted, assignmentRestriction, closedForAllBands, restrictionRangeLabel,
   restrictedBandIds, bandRestrictionKind, bandLabel, openBands,
+  hasLegacyActiveAlt, zoneMenuSeed,
   type RestrictableZone,
 } from './zoneRestriction';
 
@@ -336,5 +337,42 @@ describe('הגבהים הפתוחים ותיאור ההגבלה', () => {
     expect(bandLabel(LOW)).toBe('90-130');
     expect(bandLabel({ lo: null, hi: null })).toBe('');
     expect(bandLabel({ lo: 200, hi: null })).toBe('200+');
+  });
+});
+
+// ── הגבלת גובה ישנה (`active_alt_range_ids`) ─────────────────────────────
+// התפריט אוחד לרשימה אחת של היקף ההגבלה, ופקד "בלוקים פעילים" הוסר. ערך ישן
+// שנשאר שמור באזור המשיך להופיע במפה ("מוגבל ל: נמוך") בלי שום פקד שמבטל
+// אותו. התפריט חייב להציג אותו כהגבלה, ו"אשר" חייב לנקות אותו.
+describe('הגבלת גובה ישנה - active_alt_range_ids', () => {
+  const BLOCKS = [1, 2, 3];
+
+  it('hasLegacyActiveAlt - רק רשימה לא ריקה היא הגבלה ישנה', () => {
+    expect(hasLegacyActiveAlt({ active_alt_range_ids: [1] })).toBe(true);
+    expect(hasLegacyActiveAlt({ active_alt_range_ids: [] })).toBe(false);
+    expect(hasLegacyActiveAlt({ active_alt_range_ids: null })).toBe(false);
+    expect(hasLegacyActiveAlt({})).toBe(false);
+    expect(hasLegacyActiveAlt(null)).toBe(false);
+  });
+
+  it('אזור פתוח עם בלוק פעיל יחיד נפתח בתפריט כ"מוגבל" על שאר הבלוקים', () => {
+    expect(zoneMenuSeed(zone({ active_alt_range_ids: [3] }), BLOCKS))
+      .toEqual({ restriction: 'restricted', rangeIds: [1, 2] });
+  });
+
+  it('בלי הגבלה ישנה - הטיוטה היא המצב השמור, כמו קודם', () => {
+    expect(zoneMenuSeed(zone({ restriction: 'closed', restriction_range_ids: [2] }), BLOCKS))
+      .toEqual({ restriction: 'closed', rangeIds: [2] });
+    expect(zoneMenuSeed(zone(), BLOCKS)).toEqual({ restriction: '', rangeIds: [] });
+  });
+
+  it('אזור שכבר מוגבל במנגנון החדש - המצב החדש גובר', () => {
+    expect(zoneMenuSeed(zone({ restriction: 'closed', restriction_range_ids: [1], active_alt_range_ids: [3] }), BLOCKS))
+      .toEqual({ restriction: 'closed', rangeIds: [1] });
+  });
+
+  it('כל הבלוקים פעילים, או בלוקים שכבר נמחקו - אין מה להגביל', () => {
+    expect(zoneMenuSeed(zone({ active_alt_range_ids: [1, 2, 3] }), BLOCKS)).toEqual({ restriction: '', rangeIds: [] });
+    expect(zoneMenuSeed(zone({ active_alt_range_ids: [9] }), [])).toEqual({ restriction: '', rangeIds: [] });
   });
 });

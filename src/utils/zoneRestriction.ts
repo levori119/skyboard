@@ -53,6 +53,12 @@ export interface RestrictableZone {
    */
   restriction_alt_min?: number | null;
   restriction_alt_max?: number | null;
+  /**
+   * **מנגנון ישן**: הבלוקים ה**מותרים** (מה שלא ברשימה - מוגבל). פקד "בלוקים
+   * פעילים" שכתב אליו הוסר כשהתפריט אוחד לרשימה אחת, וערך שנשאר שמור הוצג
+   * במפה ("מוגבל ל: נמוך") בלי דרך לבטל אותו. ראה `zoneMenuSeed`.
+   */
+  active_alt_range_ids?: number[] | null;
 }
 
 /** מרחב גובה לבדיקה - בלוק גובה של האזור, ברום טיסה. */
@@ -67,6 +73,33 @@ export interface AltBand {
 export function restrictedBandIds(zone: RestrictableZone | null | undefined): number[] {
   const ids = zone?.restriction_range_ids;
   return Array.isArray(ids) ? ids.filter(n => typeof n === 'number') : [];
+}
+
+/** האם נשארה באזור הגבלת גובה במנגנון הישן (`active_alt_range_ids`). */
+export function hasLegacyActiveAlt(zone: RestrictableZone | null | undefined): boolean {
+  const ids = zone?.active_alt_range_ids;
+  return Array.isArray(ids) && ids.length > 0;
+}
+
+/**
+ * מצב והיקף ההגבלה שתפריט האזור נפתח איתם.
+ *
+ * אזור פתוח שנשארה בו הגבלה ישנה נפתח כ**מוגבל** על הבלוקים שאינם פעילים - זו
+ * המשמעות שלה (חריגה ממנה מתריעה ולא חוסמת). בלי התרגום הזה התפריט נפתח
+ * "פתוח" בזמן שהמפה מציגה מגבלה, ולא היה דרך לבטל אותה. "אשר" מנקה את
+ * המנגנון הישן בכל מקרה, כך שהוא נעלם עם השמירה הראשונה.
+ */
+export function zoneMenuSeed(
+  zone: RestrictableZone | null | undefined,
+  blockIds: number[],
+): { restriction: ZoneRestriction; rangeIds: number[] } {
+  const restriction = zoneRestrictionOf(zone);
+  const rangeIds = restrictedBandIds(zone);
+  if (restriction !== '' || !hasLegacyActiveAlt(zone)) return { restriction, rangeIds };
+  const active = zone!.active_alt_range_ids!;
+  const locked = blockIds.filter(id => !active.includes(id));
+  if (locked.length === 0) return { restriction: '', rangeIds: [] };
+  return { restriction: 'restricted', rangeIds: locked };
 }
 
 /** האם המצב שהתקבל הוא הגבלה מוכרת. כל ערך אחר (כולל `null`) = פתוח. */

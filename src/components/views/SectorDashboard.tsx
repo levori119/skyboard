@@ -44,7 +44,7 @@ import { listAtsimMaps, loadAtsimMapImage, atsimAnchor, revokeAtsimMapImage, typ
 import { computeTransferEta, stripSavedGeo, stripPinGeo, transferPointGeo, closestGeoOnPolygon, haversineNm, type GeoPoint, type AutoEta } from '../../utils/eta';
 import { zoneAtPoint, zoneAtPointOrEdge, zoneAtEdgeOnly, pointInPolygon } from '../../utils/zoneHit';
 import { DEFAULT_ZONE_LINE_WIDTH, DEFAULT_ZONE_NAME_BRIGHTNESS, ZONE_STATUS_STYLE, estimateTextWidth, interiorLabelPoint, isZoneLineWidth, isZoneNameBrightness, lightenHex, nextZoneLineWidth, nextZoneNameBrightness, zoneLineWidthFactor, zoneNameFill, type ZoneLineWidth, type ZoneNameBrightness } from '../../utils/zoneLabel';
-import { assignmentRestriction, bandRestricted, bandRestrictionKind, bandLabel, closedForAllBands, openBands, restrictedBandIds, zoneRestrictionOf, isRestricted, restrictionCoversAllAltitudes, restrictionRangeLabel, type ZoneRestriction } from '../../utils/zoneRestriction';
+import { assignmentRestriction, bandRestricted, bandRestrictionKind, bandLabel, closedForAllBands, openBands, restrictedBandIds, zoneRestrictionOf, zoneMenuSeed, hasLegacyActiveAlt, isRestricted, restrictionCoversAllAltitudes, restrictionRangeLabel, type ZoneRestriction } from '../../utils/zoneRestriction';
 // `numericStripId` מיובא בשם אחר: בקובץ יש כמה `const numericStripId` מקומיים
 // (הקצאת אזור), והצללה שלהם הייתה הופכת קריאה לפונקציה לקריאה למספר.
 import { isSameFormation, insertAfter, splitPinPosition, numericStripId as stripNumId } from '../../utils/formationSplit';
@@ -3715,11 +3715,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const fzOpenZoneMenu = (zoneId: number, x: number, y: number) => {
     const zone = findZoneWithAnchor(zoneId)?.zone ?? null;
     setFzZoneHint(null);
+    // הגבלת גובה ישנה (`active_alt_range_ids`) נפתחת כהגבלה, כדי שאפשר יהיה לבטל אותה
+    const seed = zoneMenuSeed(zone, zoneAltBlocks(zoneId).map(b => b.id));
     setFzZoneMenu({
       zoneId, x, y,
       draft: {
-        restriction: zoneRestrictionOf(zone),
-        rangeIds: restrictedBandIds(zone),
+        restriction: seed.restriction,
+        rangeIds: seed.rangeIds,
         altMin: zone?.restriction_alt_min ?? null,
         altMax: zone?.restriction_alt_max ?? null,
         note: zone?.limitation_note || '',
@@ -22696,6 +22698,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             restriction_alt_min: d.restriction === '' ? null : d.altMin,
             restriction_alt_max: d.restriction === '' ? null : d.altMax,
             limitation_note: d.note,
+            // המנגנון הישן מתבטל בכל אישור: התפריט הוא עכשיו המקום היחיד של ההגבלה
+            ...(hasLegacyActiveAlt(zone) ? { active_alt_range_ids: [] } : {}),
           });
           close();
         };
@@ -22705,7 +22709,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           || JSON.stringify(d.rangeIds) !== JSON.stringify(restrictedBandIds(zone))
           || (d.altMin ?? null) !== (zone.restriction_alt_min ?? null)
           || (d.altMax ?? null) !== (zone.restriction_alt_max ?? null)
-          || d.note !== (zone.limitation_note || '');
+          || d.note !== (zone.limitation_note || '')
+          // הגבלה ישנה תמיד "ממתינה לאישור" - אחרת בחירת "פתוח" לא הייתה מבטלת אותה
+          || hasLegacyActiveAlt(zone);
         const acc = d.restriction === '' ? '#16a34a' : ZONE_RESTRICTION_COLOR[d.restriction];
         return createPortal(
           <div style={{ position: 'fixed', inset: 0, zIndex: 9200 }} onClick={close} onContextMenu={e => { e.preventDefault(); close(); }}>
