@@ -217,6 +217,19 @@ test.describe('דסק משימה עם חלונות מפה', () => {
     await page.screenshot({ path: 'test-results/mission-desk-draw.png' });
   });
 
+  test('רשימת הפ"ממים של חלון מפה עם אזורי טיסה: קיבוץ לפי אזורים, והאזור שבחלון', async ({ page }) => {
+    // דווח: חלון הפ"ממים בדסק לא הציג קיבוץ. הרשימה קראה את מצב אזורי הטיסה,
+    // האזורים והשיוכים של המפה הראשית - שאין בדסק - ולא של חלון המפה שלה.
+    await page.addInitScript(() => localStorage.setItem('skyking.stationAgent', 'http://127.0.0.1:9'));
+    await loginToWorkstation(page, { preset: anchoredStation });
+    const stripsPanel = page.locator('[data-testid="mission-desk-canvas"] [data-map-strips-panel]');
+    await expect(stripsPanel).toBeVisible({ timeout: 30000 });
+    const group = stripsPanel.getByRole('group', { name: 'תצוגת רשימת הפ"ממים' });
+    await expect(group, 'בורר הקיבוץ מוצג בחלון שבמצב אזורי טיסה').toBeVisible();
+    await group.getByRole('button', { name: 'לפי אזורים' }).click();
+    await page.screenshot({ path: 'test-results/mission-desk-strips-zones.png' });
+  });
+
   test('מסך הניהול: קטגוריות מכווצות + קבוצת הגדרות לכל חלון מפה', async ({ page }) => {
     test.setTimeout(180000);
     await setScreenSize(page);

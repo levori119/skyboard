@@ -3783,7 +3783,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
     if (fzPinLongPressRef.current) { clearTimeout(fzPinLongPressRef.current); fzPinLongPressRef.current = null; }
     const dragId = fzPinDragRef.current;
-    if (!dragId || !currentMapId) { fzPinDownPos.current = null; return; }
+    if (!dragId || (!currentMapId && !isMissionDeskMode)) { fzPinDownPos.current = null; return; }
     // Click vs drag detection
     const downPos = fzPinDownPos.current;
     fzPinDownPos.current = null;
@@ -3801,7 +3801,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       // (מחזור הסטטוס נשאר זמין כשהמתג כבוי, ובתפריט הפין בלחיצה ארוכה)
       if (fzPairMode) { fzPairPick(dragId, true, dragLabel); return; }
       const cycleStatuses = ['בדרך לאזור', 'באזור', 'עוזב אזור'];
-      const existing = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
+      const existing = fzAssignmentsAll().find((a: StripZoneAssignment) => a.strip_id === dragId);
       if (existing) {
         const curIdx = cycleStatuses.indexOf(existing.status);
         const nextStatus = cycleStatuses[(curIdx + 1) % cycleStatuses.length];
@@ -3847,7 +3847,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       flashFz(`לפ"מ ${dragLabel || fzStripLabel(dragId)} לא הוקצה אזור`);
       return;
     }
-    const existing = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
+    const existing = fzAssignmentsAll().find((a: StripZoneAssignment) => a.strip_id === dragId);
     if (existing && existing.zone_id === zone.id) {
       doFzSave(dragId, zone.id, existing.altitude_range_id, existing.status, existing.note, existing.coordination_note, existing.is_coordinated, pxInMap, pyInMap, existing.requested_zone_ids, _ctx.mapId);
       return;
@@ -4008,10 +4008,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   };
 
   const handleFzSave = async () => {
-    if (!fzDialog || !currentMapId) return;
+    if (!fzDialog || (!currentMapId && !isMissionDeskMode)) return;
     const numericStripId = parseInt(String(fzDialog.stripId).replace(/^s/, ''), 10);
     const allDialogZones = [fzDialog.zoneId, ...(fzDialog.requestedZoneIds || [])];
-    const existing = stripZoneAssignments.filter((a: StripZoneAssignment) => {
+    const existing = fzAssignmentsAll().filter((a: StripZoneAssignment) => {
       if (!allDialogZones.some(z => z === a.zone_id || ((a.extra_zones||[]) as any[]).some((e:any) => e.zone_id === z))) return false;
       if (Number(a.strip_id) === numericStripId) return false;
       if (a.is_coordinated) return false;
@@ -4033,14 +4033,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     await doFzSave(fzDialog.stripId, fzDialog.zoneId, fzDialog.selectedAltIds[0] ?? null, fzDialog.selectedStatus, fzDialog.note, '', false, fzDialog.posX, fzDialog.posY, undefined, fzDialog.mapId, fzDialog.selectedAltIds);
     // Sync extra zones to proper DB rows
     const _numSid = parseInt(String(fzDialog.stripId).replace(/^s/,''), 10);
-    const _oldExtra = ((stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === _numSid)?.extra_zones) || []) as {id:number;zone_id:number}[];
+    const _oldExtra = ((fzAssignmentsAll().find((a: StripZoneAssignment) => a.strip_id === _numSid)?.extra_zones) || []) as {id:number;zone_id:number}[];
     const _oldExtraIds = new Set(_oldExtra.map((e) => e.zone_id));
     const _newExtraIds = new Set(fzDialog.requestedZoneIds || []);
     await Promise.all([
       ...[..._newExtraIds].filter(id => !_oldExtraIds.has(id)).map(zid => fetch(`${API_URL}/strip-zone-extra-zones`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ strip_id: _numSid, zone_id: zid, map_id: currentMapId }) }).catch(()=>{})),
       ..._oldExtra.filter((e) => !_newExtraIds.has(e.zone_id)).map((e) => fetch(`${API_URL}/strip-zone-extra-zones/${e.id}`, { method: 'DELETE' }).catch(()=>{}))
     ]);
-    if (currentMapId) loadStripZoneAssignments(currentMapId);
+    reloadCurrentAssignments();
     // התראה קצרה: לפ"מ X הוקצה אזור Y
     flashFz(`לפ"מ ${fzDialog.displayLabel || fzStripLabel(fzDialog.stripId)} הוקצה אזור ${fzDialog.zoneName}`);
     setFzDialog(null);
@@ -4048,6 +4048,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
   // Reload zone-assignments into the correct per-map state (map1 shared, map2 separate).
   const reloadAssignmentsForMap = (mapId: number) => {
+    if (isMissionDeskMode) { reloadMdAssignments(mapId); return; }
     if (isDualMapMode && effMap2Id === Number(mapId)) {
       fetch(`${API_URL}/strip-zone-assignments?map_id=${mapId}`).then(r => r.ok ? r.json() : []).then((d: any[]) => setMap2Assignments(d)).catch(() => {});
     } else {
@@ -4210,14 +4211,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     try {
       await fetch(`${API_URL}/strip-zone-assignments/${stripId}`, { method: 'DELETE' });
       await fetch(`${API_URL}/strip-zone-extra-zones/by-strip/${stripId}`, { method: 'DELETE' }).catch(()=>{});
-      if (currentMapId) loadStripZoneAssignments(currentMapId);
+      reloadCurrentAssignments();
     } catch {}
   };
 
   const handleRemoveExtraZone = async (extraZoneId: number) => {
     try {
       await fetch(`${API_URL}/strip-zone-extra-zones/${extraZoneId}`, { method: 'DELETE' });
-      if (currentMapId) loadStripZoneAssignments(currentMapId);
+      reloadCurrentAssignments();
     } catch {}
   };
 
@@ -4271,7 +4272,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         await doFzSave(stripId, assignment.zone_id, curAlts[0] ?? assignment.altitude_range_id, assignment.status, assignment.note, assignment.coordination_note, assignment.is_coordinated, undefined, undefined, keepReq, undefined, curAlts);
       }
     }
-    if (currentMapId) loadStripZoneAssignments(currentMapId);
+    reloadCurrentAssignments();
   };
 
   /** הסרת האזור העיקרי - מקרה פרטי של שחרור אזור בודד */
@@ -5548,6 +5549,26 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       const res = await fetch(`${API_URL}/strip-zone-assignments?map_id=${mapId}`);
       if (res.ok) setStripZoneAssignments(await res.json());
     } catch {}
+  };
+  // ── דסק משימה: השיוכים לאזורים יושבים בחלונות המפה (mdSlots) ──────────────
+  // בדסק אין מפה ראשית (currentMapId ריק), ולכן כל מסלול שקרא/רענן את
+  // stripZoneAssignments של המפה הראשית לא ראה את חלונות הדסק: גרירה בין אזורים
+  // לא נשמרה, ושיוך שנשמר לא הופיע בחלון עד טעינה מחדש.
+  const fzAssignmentsAll = (): StripZoneAssignment[] =>
+    isMissionDeskMode ? Object.values(mdSlots).flatMap(sl => sl.assignments || []) : stripZoneAssignments;
+  const reloadMdAssignments = (mapId?: number) => {
+    for (const w of mdMapWindows) {
+      if (mapId != null && Number(w.mapId) !== Number(mapId)) continue;
+      fetch(`${API_URL}/strip-zone-assignments?map_id=${w.mapId}`)
+        .then(r => r.ok ? r.json() : null)
+        .then((d: any[] | null) => { if (Array.isArray(d)) mdPatchSlot(w.key, { assignments: d }); })
+        .catch(() => {});
+    }
+  };
+  /** רענון השיוכים של המפה/ות שעל המסך - הראשית, או חלונות הדסק */
+  const reloadCurrentAssignments = () => {
+    if (isMissionDeskMode) reloadMdAssignments();
+    else if (currentMapId) loadStripZoneAssignments(currentMapId);
   };
 
   const loadZoneAltRangesForZones = async (zoneIds: number[]) => {
@@ -8966,7 +8987,22 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // של JSX) - העברה מכנית, בלי שינוי התנהגות.
   // stickyPadTop: ריווח עליון של הכותרת הנעוצה - בסרגל העמדה הריווח העליון עבר
   // מהסרגל לכותרת, כדי שבגלילה פ"מים לא יבצבצו מעליה.
-  const renderStripsPanel = (stickyPadTop = 0) => {
+  // שמות המפה הראשית, כדי שרשימת הפ"ממים תוכל להחליף אותם בשל חלון בדסק
+  const isFlightZonesModeMain = isFlightZonesMode;
+  const stripZoneAssignmentsMain = stripZoneAssignments;
+  const mapZonesMain = mapZones;
+  const fzOverlayRefMain = fzOverlayRef;
+  const renderStripsPanel = (stickyPadTop = 0, mdKey?: string) => {
+                // דסק משימה: הרשימה משרתת **חלון מפה** - מצב אזורי הטיסה, האזורים,
+                // השיוכים וה-overlay הם של החלון. בלי זה הקיבוץ לפי אזורים והגרירה
+                // למפה נשענו על המפה הראשית - שאין בדסק - ולא עבדו.
+                const _mdW = isMissionDeskMode
+                  ? (mdMapWindows.find(w => w.key === mdKey) ?? mdMapWindows.find(w => w.settings.flight_zones_mode) ?? mdMapWindows[0] ?? null)
+                  : null;
+                const isFlightZonesMode = _mdW ? _mdW.settings.flight_zones_mode === true : isFlightZonesModeMain;
+                const stripZoneAssignments = _mdW ? ((mdSlots[_mdW.key] || MD_MAP_SLOT_INIT).assignments) : stripZoneAssignmentsMain;
+                const mapZones = _mdW ? ((mdSlots[_mdW.key] || MD_MAP_SLOT_INIT).zones) : mapZonesMain;
+                const fzOverlayRef = _mdW ? mdRefsFor(_mdW.key).overlay : fzOverlayRefMain;
                 const sidebarStripList = myStrips.filter(s =>
                   (showPendingTransfer || s.status !== 'pending_transfer') &&
                   !s.onMap &&
@@ -9089,18 +9125,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         if (provId && otherPreset) { provDropRef.current?.(String(draggedId), provId, otherPreset); return; }
                       }
                     }
-                    const overlayEl = fzOverlayRef.current;
-                    if (!overlayEl || !currentMapId) return;
-                    const rect = overlayEl.getBoundingClientRect();
+                    // בדסק: חלון המפה שמתחת למצביע (יכולים להיות כמה), לא המפה הראשית
+                    const _dropCtx = isMissionDeskMode ? dmContextAtPoint(e.clientX, e.clientY) : null;
+                    const overlayEl = _dropCtx ? null : fzOverlayRef.current;
+                    if (_dropCtx ? (!_dropCtx.rect || _dropCtx.mapId == null) : (!overlayEl || !currentMapId)) return;
+                    const rect = _dropCtx ? _dropCtx.rect! : overlayEl!.getBoundingClientRect();
                     if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) return;
                     const dropX = e.clientX - rect.left;
                     const dropY = e.clientY - rect.top;
-                    const zoom = mapZoomRef.current;
-                    const pan = mapPanRef.current;
+                    const zoom = _dropCtx ? _dropCtx.zoom : mapZoomRef.current;
+                    const pan = _dropCtx ? _dropCtx.pan : mapPanRef.current;
                     const cx = rect.width / 2; const cy = rect.height / 2;
                     const contentX = cx + (dropX - pan.x - cx) / zoom;
                     const contentY = cy + (dropY - pan.y - cy) / zoom;
-                    const ib = mapImgBoundsRef.current;
+                    const ib = _dropCtx ? _dropCtx.imgBounds : mapImgBoundsRef.current;
+                    const _dropMapId = _dropCtx?.mapId ?? undefined;
                     const pxInMap = ib ? ((contentX - ib.left) / ib.width) * 100 : (contentX / rect.width) * 100;
                     const pyInMap = ib ? ((contentY - ib.top) / ib.height) * 100 : (contentY / rect.height) * 100;
                     const _ov = fzOverlayRef.current;
@@ -9126,15 +9165,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         return;
                       }
                     }
-                    const zone = fzGetZoneAtPoint(pxInMap, pyInMap);
+                    const zone = fzGetZoneAtPoint(pxInMap, pyInMap, _dropCtx ? _dropCtx.zones : undefined);
                     const existingAsgn = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === draggedId);
                     if (!zone) {
                       const keepStatus = existingAsgn?.status || 'בדרך לאזור';
-                      doFzSave(draggedId, null, null, keepStatus, existingAsgn?.note || '', existingAsgn?.coordination_note || '', existingAsgn?.is_coordinated || false, pxInMap, pyInMap, []);
+                      doFzSave(draggedId, null, null, keepStatus, existingAsgn?.note || '', existingAsgn?.coordination_note || '', existingAsgn?.is_coordinated || false, pxInMap, pyInMap, [], _dropMapId);
                       return;
                     }
                     if (existingAsgn && existingAsgn.zone_id === zone.id) {
-                      doFzSave(draggedId, zone.id, existingAsgn.altitude_range_id, existingAsgn.status, existingAsgn.note, existingAsgn.coordination_note, existingAsgn.is_coordinated, pxInMap, pyInMap, existingAsgn.requested_zone_ids);
+                      doFzSave(draggedId, zone.id, existingAsgn.altitude_range_id, existingAsgn.status, existingAsgn.note, existingAsgn.coordination_note, existingAsgn.is_coordinated, pxInMap, pyInMap, existingAsgn.requested_zone_ids, _dropMapId);
                       return;
                     }
                     const altRangesForZoneT = zoneAltRanges[zone.id] || [];
@@ -9143,7 +9182,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     // פותחת אותו, ושם הבלוקים הסגורים מסומנים ואינם נבחרים.
                     if (fzBlockClosedZone(zone.id, parseInt(String(draggedId).replace(/^s/, ''), 10), pxInMap, pyInMap)) return;
                     fzWarnRestrictedBand(zone.id, parseInt(String(draggedId).replace(/^s/, ''), 10), pxInMap, pyInMap);
-                    setFzDialog({ stripId: draggedId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZoneT, selectedAltIds: altRangesForZoneT[0] ? [altRangesForZoneT[0].id] : [], selectedStatus: 'בדרך לאזור', note: existingAsgn?.note || '', displayLabel: label ?? s.callSign ?? undefined, posX: pxInMap, posY: pyInMap, requestedZoneIds: preservedZonesT });
+                    setFzDialog({ stripId: draggedId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZoneT, selectedAltIds: altRangesForZoneT[0] ? [altRangesForZoneT[0].id] : [], selectedStatus: 'בדרך לאזור', note: existingAsgn?.note || '', displayLabel: label ?? s.callSign ?? undefined, posX: pxInMap, posY: pyInMap, requestedZoneIds: preservedZonesT , mapId: _dropMapId });
                   })}
                   style={{ marginBottom: '6px', cursor: isFlightZonesMode ? 'default' : 'grab', userSelect: 'none', display: 'flex', background: (() => { if (isFlightZonesMode && fzDragStripId === s.id) return '#1e3a5f'; if (isFlightZonesMode) { const _asgnC2 = stripZoneAssignments.find(a => a.strip_id === s.id); if (_asgnC2) { const _zA3 = [_asgnC2.zone_id, ...(((_asgnC2.extra_zones||[]) as any[]).map((e:any)=>e.zone_id))]; const _cfC2 = !_asgnC2.is_coordinated && stripZoneAssignments.some(b => { if (b.strip_id === _asgnC2.strip_id) return false; const bz3 = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)]; return _zA3.some(z => bz3.includes(z)) && altSetsConflict(asgnAltIds(_asgnC2), asgnAltIds(b)) && !b.is_coordinated; }); if (_cfC2) return lightMode ? '#fef2f2' : 'rgba(239,68,68,0.13)'; } } return lightMode ? '#f8fafc' : '#1e293b'; })(), border: `1px solid ${(() => { if (isFlightZonesMode) { const _asgnB2 = stripZoneAssignments.find(a => a.strip_id === s.id); if (_asgnB2) { const _zB2 = [_asgnB2.zone_id, ...(((_asgnB2.extra_zones||[]) as any[]).map((e:any)=>e.zone_id))]; const _cfB2 = !_asgnB2.is_coordinated && stripZoneAssignments.some(b => { if (b.strip_id === _asgnB2.strip_id) return false; const bz4 = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)]; return _zB2.some(z => bz4.includes(z)) && altSetsConflict(asgnAltIds(_asgnB2), asgnAltIds(b)) && !b.is_coordinated; }); return _cfB2 ? '#ef4444' : '#22c55e'; } } return tkPast ? '#ef4444' : (lightMode ? '#cbd5e1' : '#334155'); })()}`, borderRadius: '4px', overflow: 'hidden', direction: dir, touchAction: 'none' }}
                 >
@@ -11365,6 +11404,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     })
     .filter((w): w is { svc: MissionDeskService; key: string; mapId: number; settings: MDPresetMapSettings } => w.mapId != null);
   const mdWindowsKey = mdMapWindows.map(w => `${w.key}:${w.mapId}`).join('|');
+  // השיוכים של חלונות הדסק מתעדכנים כמו של המפה הראשית (פולינג 5ש') - אחרת
+  // שינוי של עמדה אחרת, או של העמדה עצמה, לא מגיע לחלון עד טעינה מחדש
+  const reloadMdAssignmentsRef = useRef(reloadMdAssignments);
+  reloadMdAssignmentsRef.current = reloadMdAssignments;
+  useEffect(() => {
+    if (!mdWindowsKey) return;
+    pollingRegistry.register('sd-md-zone-assignments', () => reloadMdAssignmentsRef.current(), 5000, { immediate: false });
+    return () => pollingRegistry.unregister('sd-md-zone-assignments');
+  }, [mdWindowsKey]);
 
   // תמונה, אזורים ושיוכי-אזור לכל חלון מפה - אותה זרימה בדיוק של מפה 2 בדו-מפה,
   // רק שכאן מספר המפות אינו ידוע מראש.
@@ -11632,7 +11680,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             style={{ background: T.bgAlt, border: 'none', color: T.muted, cursor: 'pointer', padding: '2px 6px', borderRadius: 4, fontSize: 12, lineHeight: 1, flexShrink: 0 }}>▶</button>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '0 6px 6px' }}>
-          {renderStripsPanel()}
+          {renderStripsPanel(0, key)}
         </div>
       </div>
     );
@@ -11674,7 +11722,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           ✈ {tr('missiondesk.stripsUnlinked')}
         </div>
       );
-      return renderStripsPanel();
+      return renderStripsPanel(0, w.key);
     }
     if (svc.service_type === 'view_tables') {
       // אותם רכיבים שנפתחים מתפריט "תצוגה", מוטמעים במשבצת (ViewTablesSlot עוטף
@@ -12960,7 +13008,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         setTableOnBoard(new Set());
                         const _pid = Number(session.presetId);
                         if (isCivilianMode) { loadCivAssignments(_pid); loadCivStrips(_pid); }
-                        if (currentMapId) loadStripZoneAssignments(currentMapId);
+                        reloadCurrentAssignments();
                         if (isDualMapMode && effMap2Id) reloadAssignmentsForMap(effMap2Id);
                         mdMapWindows.forEach(w => {
                           fetch(`${API_URL}/strip-zone-assignments?map_id=${w.mapId}`)
@@ -21654,7 +21702,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   ...[..._newExtraIds].filter(id => !_oldExtraIds.has(id)).map(zid => fetch(`${API_URL}/strip-zone-extra-zones`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ strip_id: _numSid, zone_id: zid, map_id: currentMapId }) }).catch(()=>{})),
                   ..._oldExtra.filter((e) => !_newExtraIds.has(e.zone_id)).map((e) => fetch(`${API_URL}/strip-zone-extra-zones/${e.id}`, { method: 'DELETE' }).catch(()=>{}))
                 ]);
-                if (currentMapId) loadStripZoneAssignments(currentMapId);
+                reloadCurrentAssignments();
                 setFzConflictDialog(null); setFzDialog(null);
               }} style={{ padding: '8px 16px', background: '#f59e0b', color: '#000', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
                 {tr('ctrl.continueAnyway')}
@@ -21698,7 +21746,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   ...[..._newExtraIds].filter(id => !_oldExtraIds.has(id)).map(zid => fetch(`${API_URL}/strip-zone-extra-zones`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ strip_id: _numSid, zone_id: zid, map_id: currentMapId }) }).catch(()=>{})),
                   ..._oldExtra.filter((e) => !_newExtraIds.has(e.zone_id)).map((e) => fetch(`${API_URL}/strip-zone-extra-zones/${e.id}`, { method: 'DELETE' }).catch(()=>{}))
                 ]);
-                if (currentMapId) loadStripZoneAssignments(currentMapId);
+                reloadCurrentAssignments();
                 setFzConflictDialog(null); setFzDialog(null);
               }} style={{ padding: '8px 16px', background: '#22c55e', color: '#000', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
                 {tr('ctrl.markAsCoordinated')}
@@ -21930,7 +21978,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   await Promise.all(selected.map(c =>
                     doFzSave(c.strip_id, c.zone_id, c.altitude_range_id, c.status, c.note, coordNote, true, c.pos_x ?? undefined, c.pos_y ?? undefined, c.requested_zone_ids)
                   ));
-                  if (currentMapId) loadStripZoneAssignments(currentMapId);
+                  reloadCurrentAssignments();
                   setFzCoordMenuDialog(null);
                 }}
                 style={{ flex: 2, padding: '10px 16px', background: fzCoordMenuDialog.selectedIds.size === 0 ? '#1e293b' : '#15803d', color: fzCoordMenuDialog.selectedIds.size === 0 ? '#475569' : 'white', border: `1px solid ${fzCoordMenuDialog.selectedIds.size === 0 ? '#334155' : '#22c55e'}`, borderRadius: '7px', cursor: fzCoordMenuDialog.selectedIds.size === 0 ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
