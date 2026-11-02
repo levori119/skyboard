@@ -272,6 +272,10 @@
     "shotFailed": {
       "he": "צילום המסך נכשל",
       "en": "Screenshot failed"
+    },
+    "shotMenuItem": {
+      "he": "📷 צילום מסך (Ctrl+P)",
+      "en": "📷 Screenshot (Ctrl+P)"
     }
   }
 }

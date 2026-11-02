@@ -110,7 +110,7 @@ import type { HelpContext } from '../../utils/helpTopics';
 import { captureStation } from '../../utils/stationSnapshot';
 import { useScreenRecorder } from '../../hooks/useScreenRecorder';
 import { useHiddenActions, refreshHiddenActions } from '../../hooks/useHiddenActions';
-import ScreenshotButton from '../shared/ScreenshotButton';
+import { useScreenshot, ScreenshotToast } from '../shared/ScreenshotButton';
 import { CRITICAL_BLINK_CLASS } from '../../utils/signalSeverity';
 import { recordingPathRoot } from '../../../shared/screenRecording';
 import { recordingBlockKey } from '../../utils/screenRecording';
@@ -4288,6 +4288,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // בניהול הטכני, ולכן העמדה מוסרת את הבסיס שלה ולא נתיב.
   // כפתורים שהמנהל הסתיר בהגדרות כלליות - בכל העמדות (shared/hiddenActions.js)
   const show = useHiddenActions();
+  // צילום מסך: Ctrl+P פעיל כל עוד הפקד מוצג בעמדה; הכפתור עצמו בתפריט המשתמש
+  const screenshot = useScreenshot(session.workstationName, show('screenshot'));
   const screenRec = useScreenRecorder({
     baseId: parentBaseId,
     presetName: session.workstationName || '',
@@ -11831,8 +11833,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </>)}
             </div>
             )}
-            {/* צילום מסך - לחיצה אחת, PNG ב-Downloads בשם העמדה + תאריך ושעה */}
-            {show('screenshot') && <ScreenshotButton station={session.workstationName} className="bt-tb bt-tb-icon" />}
+            {/* צילום מסך - בתפריט שם המשתמש (מתחת להקלטה). Ctrl+P עובד תמיד,
+                וההודעה "נשמר" צפה בראש המסך גם כשהתפריט סגור */}
+            <ScreenshotToast msg={screenshot.msg} />
             {/* חיווי הקלטה - גלוי כל זמן שהמסך מוקלט. מסך שמוקלט
                 בלי שהיושב בו יודע הוא בעיה, ולכן זה חלק מהפיצר ולא קישוט. */}
             {screenRec.state.recording && (
@@ -11978,6 +11981,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       </button>
                     )}
                     </>)}
+                    {/* צילום מסך - התפריט נסגר קודם, כדי שלא ייכנס לצילום */}
+                    {show('screenshot') && <button
+                      data-help="screenshot"
+                      onClick={() => { setShowUserMenu(false); requestAnimationFrame(() => requestAnimationFrame(() => { void screenshot.shoot(); })); }}
+                      disabled={screenshot.busy}
+                      title={tr('screenRec.shotButton')}
+                      style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', borderTop: `1px solid ${menuBorder}`, color: menuAcc('#7dd3fc', '#0369a1'), cursor: 'pointer', fontSize: '13px' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                    >
+                      {tr('screenRec.shotMenuItem')}
+                    </button>}
                     {show('handwritingCalibration') && <button
                       onClick={() => { setShowCalibration(true); setShowUserMenu(false); }}
                       style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#86efac','#15803d'), cursor: 'pointer', fontSize: '13px' }}
