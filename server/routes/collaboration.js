@@ -145,7 +145,7 @@ router.get('/api/sticky-notes', async (req, res) => {
     if (!presetId) return res.status(400).json({ error: 'presetId required' });
     const { rows } = await pool.query(`
       SELECT sn.*,
-        snr.x, snr.y, snr.minimized,
+        snr.x, snr.y, snr.minimized, snr.width, snr.height,
         TRUE as is_recipient
       FROM sticky_notes sn
       JOIN sticky_note_recipients snr ON snr.sticky_note_id = sn.id
@@ -155,6 +155,7 @@ router.get('/api/sticky-notes', async (req, res) => {
         COALESCE((SELECT x FROM sticky_note_recipients WHERE sticky_note_id=sn.id AND preset_id=$1), 100) as x,
         COALESCE((SELECT y FROM sticky_note_recipients WHERE sticky_note_id=sn.id AND preset_id=$1), 100) as y,
         COALESCE((SELECT minimized FROM sticky_note_recipients WHERE sticky_note_id=sn.id AND preset_id=$1), FALSE) as minimized,
+        NULL::integer as width, NULL::integer as height,
         FALSE as is_recipient
       FROM sticky_notes sn
       WHERE sn.creator_preset_id = $1
@@ -188,7 +189,7 @@ router.post('/api/sticky-notes', async (req, res) => {
 
 router.put('/api/sticky-notes/:id', async (req, res) => {
   try {
-    const { title, content, background_color, allow_all_edit, x, y, minimized, preset_id, crew_name } = req.body;
+    const { title, content, background_color, allow_all_edit, ink_image, pad_layout, x, y, width, height, minimized, preset_id, crew_name } = req.body;
     const fields = [];
     const vals = [];
     let idx = 1;
@@ -196,6 +197,8 @@ router.put('/api/sticky-notes/:id', async (req, res) => {
     if (content !== undefined) { fields.push(`content=$${idx++}`); vals.push(content); }
     if (background_color !== undefined) { fields.push(`background_color=$${idx++}`); vals.push(background_color); }
     if (allow_all_edit !== undefined) { fields.push(`allow_all_edit=$${idx++}`); vals.push(allow_all_edit); }
+    if (ink_image !== undefined) { fields.push(`ink_image=$${idx++}`); vals.push(ink_image || ''); }
+    if (pad_layout !== undefined) { fields.push(`pad_layout=$${idx++}::jsonb`); vals.push(JSON.stringify(pad_layout ?? {})); }
     if (fields.length > 0) {
       if (preset_id) {
         fields.push(`last_edited_by_preset_name=$${idx++}`); vals.push(req.body.preset_name || '');
@@ -205,13 +208,15 @@ router.put('/api/sticky-notes/:id', async (req, res) => {
       vals.push(req.params.id);
       await pool.query(`UPDATE sticky_notes SET ${fields.join(', ')} WHERE id=$${idx}`, vals);
     }
-    if (preset_id && (x !== undefined || y !== undefined || minimized !== undefined)) {
+    if (preset_id && (x !== undefined || y !== undefined || minimized !== undefined || width !== undefined || height !== undefined)) {
       const posFields = [];
       const posVals = [];
       let pi = 1;
       if (x !== undefined) { posFields.push(`x=$${pi++}`); posVals.push(x); }
       if (y !== undefined) { posFields.push(`y=$${pi++}`); posVals.push(y); }
       if (minimized !== undefined) { posFields.push(`minimized=$${pi++}`); posVals.push(minimized); }
+      if (width !== undefined) { posFields.push(`width=$${pi++}`); posVals.push(width == null ? null : Math.round(Number(width))); }
+      if (height !== undefined) { posFields.push(`height=$${pi++}`); posVals.push(height == null ? null : Math.round(Number(height))); }
       posVals.push(req.params.id, preset_id);
       await pool.query(`UPDATE sticky_note_recipients SET ${posFields.join(', ')} WHERE sticky_note_id=$${pi} AND preset_id=$${pi+1}`, posVals);
     }

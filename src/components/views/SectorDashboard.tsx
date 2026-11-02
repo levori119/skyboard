@@ -90,7 +90,8 @@ import { useDragPosition } from '../../hooks/useDragPosition';
 import usePinchZoom from '../../hooks/usePinchZoom';
 import { localStep, pinchZoomPan, type ZoomPanView } from '../../utils/pinchZoom';
 import { windowFrame, frameColor } from '../../utils/windowFrame';
-import { deskBackgroundStyle, normalizeDeskBackground, loadDeskBackground, saveDeskBackground, DESK_BG_MIN_SIZE, DESK_BG_MAX_SIZE, type DeskBackground } from '../../utils/deskBackground';
+import { loadPadLayout, savePadLayout, type PadLayout } from '../../utils/freeDeskLayout';
+import FreeDeskPad from '../shared/FreeDeskPad';
 import { AimPointsSummary, AimPointsWindow } from '../strips/AimPointsTable';
 import { AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY, COORD_PLACEHOLDER, aimFieldText, isValidCoord, normalizeCoord, toAimPoints, type AimPoint } from '../../types/aimPoints';
 import { getSubTable, isSubTableColumn, resolveTabularColumn, subTableAccent, subTableRows, subTableFrozenCount, subTableFrozenLayout, tabularCandidateColumns, toggleTabularKey } from '../../types/subTables';
@@ -144,7 +145,6 @@ import StripControl from '../classic/StripControl';
 import type { CivCol, CivAssignment } from '../classic/ClassicViews';
 import { QueryBuilder } from '../query/QueryBuilder';
 import { BlockSpaceCellTable } from '../shared/Modals';
-import OnScreenKeyboard from '../shared/OnScreenKeyboard';
 import { AdminDashboard, TransferFormModal } from '../dashboard/AdminDashboard';
 import { DraggableNeighborPanel, DraggableMapMarker } from '../transfers/DraggablePanels';
 import GroundVehiclePanel from '../ground/GroundVehiclePanel';
@@ -2062,77 +2062,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [showNotepad, setShowNotepad] = useState(false);
   const [notepadPos, setNotepadPos] = useState({ x: 200, y: 80 });
   const [notepadSize, setNotepadSize] = useState({ w: 640, h: 480 });
-  const [notepadMode, setNotepadMode] = useState<'keyboard' | 'handwriting' | 'both'>('handwriting');
   const [notepadText, setNotepadText] = useState('');
-  const [showNotepadOSK, setShowNotepadOSK] = useState(false);
-  const notepadSavedImageRef = useRef<string | null>(null);
-  const notepadCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  // Free-desk drawing tools
-  const [notepadTool, setNotepadTool] = useState<'pen' | 'eraser' | 'rect' | 'circle'>('pen');
-  const [notepadColor, setNotepadColor] = useState('#000000');
-  const [notepadPenSize, setNotepadPenSize] = useState(2);
-  // רקע הדסק (שורות/משבצות) - ב"מ חלק, והבחירה נשמרת פר-עמדה (localStorage)
-  const [notepadBg, setNotepadBgState] = useState<DeskBackground>(() => loadDeskBackground(session.presetId));
-  // שמירה בעת השינוי עצמו ולא ב-effect על notepadBg: אחרת החלפת עמדה הייתה כותבת
-  // את רקע העמדה הקודמת למפתח של החדשה לפני שהספיקה להיטען
-  const setNotepadBg = (fn: (b: DeskBackground) => DeskBackground) =>
-    setNotepadBgState(b => { const next = fn(b); saveDeskBackground(session.presetId, next); return next; });
-  useEffect(() => { setNotepadBgState(loadDeskBackground(session.presetId)); }, [session.presetId]);
-  const notepadShapeStartRef = useRef<{ x: number; y: number } | null>(null);
-  const notepadSnapshotRef = useRef<ImageData | null>(null);
+  // כתב היד של הדסק (רסטר). ב-state ולא על ה-canvas: עגינה ושחרור מרכיבים את
+  // החלון מחדש, וה-canvas החדש משוחזר ממנו
+  const [notepadInk, setNotepadInk] = useState<string | null>(null);
+  // פריסת הדסק (מצב, ספליטר, היפוך, רקע) - נשמרת פר-עמדה (localStorage)
+  const [notepadLayout, setNotepadLayoutState] = useState<PadLayout>(() => loadPadLayout(session.presetId));
+  // שמירה בעת השינוי עצמו ולא ב-effect: אחרת החלפת עמדה הייתה כותבת את פריסת
+  // העמדה הקודמת למפתח של החדשה לפני שהספיקה להיטען
+  const setNotepadLayout = (next: PadLayout) => { setNotepadLayoutState(next); savePadLayout(session.presetId, next); };
+  useEffect(() => { setNotepadLayoutState(loadPadLayout(session.presetId)); }, [session.presetId]);
 
   // Vertical View state
   const [showVerticalView, setShowVerticalView] = useState(false);
   const [verticalTimeField, setVerticalTimeField] = useState<'takeoff' | 'zmm'>('takeoff');
   const [verticalGroupBy, setVerticalGroupBy] = useState<'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id'>('none');
-  const notepadDrawingRef = useRef(false);
-  const notepadLastRef = useRef<{ x: number; y: number } | null>(null);
-  const notepadTextareaRef = useRef<HTMLTextAreaElement>(null);
-
-  const restoreNotepadCanvas = () => {
-    const saved = notepadSavedImageRef.current;
-    if (!saved) return;
-    const canvas = notepadCanvasRef.current;
-    if (!canvas) return;
-    const img = new Image();
-    img.onload = () => { const ctx = canvas.getContext('2d'); if (ctx) ctx.drawImage(img, 0, 0); };
-    img.src = saved;
-  };
-  // עגינה לקונטיינר ושחרור ממנו מחליפים את יעד ה-portal, ו-React מרכיב את החלון
-  // מחדש: ה-canvas נולד ריק. לכן כל משיכה נשמרת בסופה, וכל canvas חדש משוחזר
-  // מהשמירה ברגע שהוא עולה (ref callback) - אחרת כתב היד נמחק במעבר
-  const saveNotepadCanvas = () => {
-    const canvas = notepadCanvasRef.current;
-    if (canvas) notepadSavedImageRef.current = canvas.toDataURL();
-  };
-  const notepadCanvasCallbackRef = useCallback((el: HTMLCanvasElement | null) => {
-    notepadCanvasRef.current = el;
-    if (el) restoreNotepadCanvas();
-  }, []);
-  useEffect(() => { restoreNotepadCanvas(); }, [notepadSize, notepadMode]);
-  useEffect(() => {
-    if (showNotepad) { const t = setTimeout(restoreNotepadCanvas, 0); return () => clearTimeout(t); }
-  }, [showNotepad]);
-
-  const notepadInsertAtCursor = (char: string) => {
-    const el = notepadTextareaRef.current;
-    if (!el) { setNotepadText(v => v + char); return; }
-    const s = el.selectionStart ?? el.value.length;
-    const e2 = el.selectionEnd ?? s;
-    const next = el.value.slice(0, s) + char + el.value.slice(e2);
-    setNotepadText(next);
-    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(s + char.length, s + char.length); });
-  };
-  const notepadOskBackspace = () => {
-    const el = notepadTextareaRef.current;
-    if (!el) { setNotepadText(v => v.slice(0, -1)); return; }
-    const s = el.selectionStart ?? el.value.length;
-    const e2 = el.selectionEnd ?? s;
-    const next = s === e2 ? el.value.slice(0, Math.max(0, s - 1)) + el.value.slice(e2) : el.value.slice(0, s) + el.value.slice(e2);
-    const ns = s === e2 ? Math.max(0, s - 1) : s;
-    setNotepadText(next);
-    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(ns, ns); });
-  };
   const primarySector = session.relevantSectors[0];
   const primarySectorId = primarySector?.id;
 
@@ -13111,13 +13055,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             title={themeMode === 'light' ? 'עבור למצב תכלת' : themeMode === 'ocean' ? 'עבור למצב לילה' : 'עבור למצב יום'}
             style={{ background: themeMode === 'ocean' ? '#1e3a5c' : themeMode === 'light' ? '#334155' : '#1e293b', border: `1px solid ${themeMode === 'ocean' ? '#38bdf8' : 'transparent'}`, borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', fontSize: '15px', lineHeight: 1, display: 'flex', alignItems: 'center', gap: '3px' }}
           >{themeMode === 'light' ? '🌊' : themeMode === 'ocean' ? '🌙' : '☀️'}</button>}
-          {show('freeDesk') && <button data-help="notepad" className="bt-tb" onClick={() => {
-            if (showNotepad) {
-              const canvas = notepadCanvasRef.current;
-              if (canvas) notepadSavedImageRef.current = canvas.toDataURL();
-            }
-            setShowNotepad(v => !v);
-          }} style={{ background: showNotepad ? '#f59e0b' : '#334155', padding: '4px 9px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', fontWeight: showNotepad ? 'bold' : 'normal' }}>
+          {show('freeDesk') && <button data-help="notepad" className="bt-tb" onClick={() => setShowNotepad(v => !v)} style={{ background: showNotepad ? '#f59e0b' : '#334155', padding: '4px 9px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', fontWeight: showNotepad ? 'bold' : 'normal' }}>
             {tr('ctrl.freeDesk')}
           </button>}
           {show('stickyNotes') && <div style={{ position: 'relative' }}>
@@ -20941,23 +20879,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             >
               <span style={{ fontSize: '12px', fontWeight: 'bold' }}>{tr('ctrl.freeDesk')}</span>
               <div style={{ display: 'flex', gap: '4px' }}>
-                {(['keyboard', 'handwriting', 'both'] as const).map(m => (
-                  <button
-                    key={m}
-                    onClick={() => {
-                      const canvas = notepadCanvasRef.current;
-                      if (canvas) notepadSavedImageRef.current = canvas.toDataURL();
-                      setNotepadMode(m);
-                    }}
-                    style={{ padding: '2px 7px', fontSize: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', background: notepadMode === m ? '#3b82f6' : '#334155', color: 'white' }}
-                  >
-                    {m === 'keyboard' ? '⌨' : m === 'handwriting' ? '✍' : '⌨+✍'}
-                  </button>
-                ))}
                 <button
                   onClick={() => {
-                    const canvas = notepadCanvasRef.current;
-                    if (canvas) notepadSavedImageRef.current = canvas.toDataURL();
                     setShowNotepad(false);
                   }}
                   style={{ padding: '2px 7px', fontSize: '12px', borderRadius: '4px', border: 'none', cursor: 'pointer', background: '#ef4444', color: 'white', marginInlineStart: '4px' }}
@@ -20967,172 +20890,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </div>
             </div>
 
-            {/* סרגל רקע - סוג (ללא/שורות/משבצות), סגנון קו, גובה שורה / גודל משבצת. מוצג תמיד, בלי כפתור פתיחה */}
-            {(() => {
-              const seg = (active: boolean): React.CSSProperties => ({ padding: '2px 8px', fontSize: '12px', borderRadius: '4px', border: `1px solid ${active ? '#2563eb' : '#cbd5e1'}`, background: active ? '#2563eb' : 'white', color: active ? 'white' : '#475569', cursor: 'pointer', minWidth: 30 });
-              return (
-                <div data-testid="notepad-bg-bar" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '4px 8px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', flexWrap: 'wrap', direction: dir, flexShrink: 0, color: '#475569', fontSize: '11px' }}>
-                  <div style={{ display: 'flex', gap: '3px' }}>
-                    {([['none', '▢', 'ctrl.deskBgNone'], ['lines', '☰', 'ctrl.deskBgLines'], ['grid', '▦', 'ctrl.deskBgGrid']] as const).map(([k, icon, key]) => (
-                      <button key={k} title={tr(key)} onClick={() => setNotepadBg(b => ({ ...b, kind: k }))} style={seg(notepadBg.kind === k)}>{icon}</button>
-                    ))}
-                  </div>
-                  {notepadBg.kind !== 'none' && (<>
-                    <div style={{ display: 'flex', gap: '3px' }}>
-                      {([['solid', '───', 'ctrl.deskBgSolid'], ['dashed', '- - -', 'ctrl.deskBgDashed'], ['dotted', '·····', 'ctrl.deskBgDotted']] as const).map(([k, icon, key]) => (
-                        <button key={k} title={tr(key)} onClick={() => setNotepadBg(b => ({ ...b, line: k }))} style={{ ...seg(notepadBg.line === k), fontWeight: 'bold', letterSpacing: '-1px' }}>{icon}</button>
-                      ))}
-                    </div>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
-                      {tr(notepadBg.kind === 'lines' ? 'ctrl.deskBgRowHeight' : 'ctrl.deskBgCellSize')}
-                      <button onClick={() => setNotepadBg(b => normalizeDeskBackground({ ...b, size: b.size - 2 }))} style={seg(false)}>−</button>
-                      <input type="range" min={DESK_BG_MIN_SIZE} max={DESK_BG_MAX_SIZE} value={notepadBg.size}
-                        onChange={e => setNotepadBg(b => normalizeDeskBackground({ ...b, size: Number(e.target.value) }))} style={{ width: '80px', touchAction: 'none' }} />
-                      <button onClick={() => setNotepadBg(b => normalizeDeskBackground({ ...b, size: b.size + 2 }))} style={seg(false)}>+</button>
-                      <span style={{ minWidth: 22, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{notepadBg.size}</span>
-                    </label>
-                  </>)}
-                </div>
-              );
-            })()}
-
-            {/* Content area */}
-            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              {notepadMode !== 'handwriting' && (
-                <div style={{ padding: '2px 8px 0', display: 'flex', justifyContent: 'flex-start' }}>
-                  <button
-                    onPointerDown={e => { e.preventDefault(); setShowNotepadOSK(v => !v); }}
-                    style={{ padding: '3px 10px', background: showNotepadOSK ? '#2563eb' : '#475569', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}
-                  >{tr('shared.virtualKeyboard')}</button>
-                </div>
-              )}
-              <textarea
-                ref={notepadTextareaRef}
-                value={notepadText}
-                onChange={e => setNotepadText(e.target.value)}
-                placeholder={tr('ctrl.typeFreeTextHere')}
-                style={{
-                  flex: notepadMode === 'both' ? '0 0 45%' : 1,
-                  width: '100%',
-                  border: 'none',
-                  borderBottom: notepadMode === 'both' ? '1px solid #e2e8f0' : 'none',
-                  outline: 'none',
-                  resize: 'none',
-                  fontSize: '14px',
-                  padding: '10px',
-                  direction: dir,
-                  fontFamily: 'inherit',
-                  background: 'white',
-                  boxSizing: 'border-box',
-                  display: notepadMode === 'handwriting' ? 'none' : undefined,
-                  // ברקע שורות הטקסט יושב על השורות: גובה שורה = גובה השורה ברקע,
-                  // והרקע נגלל עם הטקסט (local) ומתחיל מתחת ל-padding העליון
-                  ...deskBackgroundStyle(notepadBg),
-                  ...(notepadBg.kind !== 'none' && { backgroundColor: 'white', backgroundAttachment: 'local', backgroundPosition: '0 10px' }),
-                  ...(notepadBg.kind === 'lines' && { lineHeight: `${notepadBg.size}px` }),
-                }}
-              />
-              {showNotepadOSK && notepadMode !== 'handwriting' && (
-                <OnScreenKeyboard
-                  onType={notepadInsertAtCursor}
-                  onBackspace={notepadOskBackspace}
-                  onEnter={() => notepadInsertAtCursor('\n')}
-                  onClose={() => setShowNotepadOSK(false)}
-                />
-              )}
-              {notepadMode !== 'keyboard' && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', borderBottom: '1px solid #e2e8f0', background: '#f1f5f9', flexWrap: 'wrap', direction: dir }}>
-                  {([['pen', '✏'], ['eraser', '🧹'], ['rect', '▭'], ['circle', '⭕']] as [typeof notepadTool, string][]).map(([t, icon]) => (
-                    <button key={t} onClick={() => setNotepadTool(t)}
-                      title={t === 'pen' ? 'עט' : t === 'eraser' ? 'מחק' : t === 'rect' ? 'ריבוע' : 'עיגול'}
-                      style={{ padding: '3px 8px', fontSize: '13px', borderRadius: '4px', border: `1px solid ${notepadTool === t ? '#2563eb' : '#cbd5e1'}`, background: notepadTool === t ? '#2563eb' : 'white', color: notepadTool === t ? 'white' : '#475569', cursor: 'pointer' }}>{icon}</button>
-                  ))}
-                  <input type="color" value={notepadColor} onChange={e => setNotepadColor(e.target.value)} title={tr('shared.color')}
-                    style={{ width: '28px', height: '24px', padding: '1px', border: '1px solid #cbd5e1', borderRadius: '3px', cursor: 'pointer' }} />
-                  <input type="range" min={1} max={12} value={notepadPenSize} onChange={e => setNotepadPenSize(Number(e.target.value))} title={`עובי: ${notepadPenSize}`} style={{ width: '70px' }} />
-                  <button onClick={() => { const c = notepadCanvasRef.current; const ctx = c?.getContext('2d'); if (c && ctx) ctx.clearRect(0, 0, c.width, c.height); notepadSavedImageRef.current = null; }}
-                    title={tr('shared.clearAll')} style={{ padding: '3px 9px', fontSize: '11px', borderRadius: '4px', border: 'none', background: '#fecaca', color: '#7f1d1d', cursor: 'pointer', fontWeight: 'bold' }}>{tr('shared.clear3')}</button>
-                </div>
-              )}
-              <canvas
-                data-testid="notepad-canvas"
-                ref={notepadCanvasCallbackRef}
-                width={notepadSize.w - 4}
-                height={notepadMode === 'both' ? Math.floor((notepadSize.h - 80) * 0.55) : notepadSize.h - 60}
-                style={{
-                  flex: 1,
-                  width: '100%',
-                  display: notepadMode === 'keyboard' ? 'none' : 'block',
-                  cursor: 'crosshair',
-                  touchAction: 'none',
-                  // רקע CSS ולא ציור על ה-canvas - המחק ו"נקה" לא נוגעים בו
-                  ...deskBackgroundStyle(notepadBg),
-                }}
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  const canvas = notepadCanvasRef.current;
-                  if (!canvas) return;
-                  notepadDrawingRef.current = true;
-                  const rect = canvas.getBoundingClientRect();
-                  notepadLastRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-                  if (notepadTool === 'rect' || notepadTool === 'circle') {
-                    const ctx = canvas.getContext('2d');
-                    const scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
-                    notepadShapeStartRef.current = { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
-                    notepadSnapshotRef.current = ctx ? ctx.getImageData(0, 0, canvas.width, canvas.height) : null;
-                  }
-                }}
-                onPointerMove={(e) => {
-                  e.stopPropagation();
-                  if (!notepadDrawingRef.current || !notepadLastRef.current) return;
-                  const canvas = notepadCanvasRef.current;
-                  if (!canvas) return;
-                  const ctx = canvas.getContext('2d');
-                  if (!ctx) return;
-                  const rect = canvas.getBoundingClientRect();
-                  const scaleX = canvas.width / rect.width;
-                  const scaleY = canvas.height / rect.height;
-                  const curX = (e.clientX - rect.left) * scaleX;
-                  const curY = (e.clientY - rect.top) * scaleY;
-                  if (notepadTool === 'rect' || notepadTool === 'circle') {
-                    if (notepadSnapshotRef.current) ctx.putImageData(notepadSnapshotRef.current, 0, 0);
-                    const s = notepadShapeStartRef.current!;
-                    ctx.globalCompositeOperation = 'source-over';
-                    ctx.strokeStyle = notepadColor; ctx.lineWidth = notepadPenSize; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-                    ctx.beginPath();
-                    if (notepadTool === 'rect') ctx.rect(Math.min(s.x, curX), Math.min(s.y, curY), Math.abs(curX - s.x), Math.abs(curY - s.y));
-                    else ctx.ellipse((s.x + curX) / 2, (s.y + curY) / 2, Math.abs(curX - s.x) / 2, Math.abs(curY - s.y) / 2, 0, 0, Math.PI * 2);
-                    ctx.stroke();
-                    return;
-                  }
-                  const prevX = notepadLastRef.current.x * scaleX;
-                  const prevY = notepadLastRef.current.y * scaleY;
-                  ctx.globalCompositeOperation = notepadTool === 'eraser' ? 'destination-out' : 'source-over';
-                  ctx.strokeStyle = notepadColor;
-                  ctx.lineWidth = notepadTool === 'eraser' ? Math.max(notepadPenSize * 5, 10) : notepadPenSize;
-                  ctx.lineCap = 'round';
-                  ctx.lineJoin = 'round';
-                  ctx.beginPath();
-                  ctx.moveTo(prevX, prevY);
-                  ctx.lineTo(curX, curY);
-                  ctx.stroke();
-                  ctx.globalCompositeOperation = 'source-over';
-                  notepadLastRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-                }}
-                onPointerUp={(e) => { e.stopPropagation(); if (notepadDrawingRef.current) saveNotepadCanvas(); notepadDrawingRef.current = false; notepadLastRef.current = null; notepadShapeStartRef.current = null; notepadSnapshotRef.current = null; }}
-                onPointerLeave={(e) => { e.stopPropagation(); if (notepadDrawingRef.current) saveNotepadCanvas(); notepadDrawingRef.current = false; notepadLastRef.current = null; notepadShapeStartRef.current = null; notepadSnapshotRef.current = null; }}
-              />
-            </div>
+            {/* גוף הדסק - רכיב משותף עם הפתקיות (מקלדת, כתב יד, ספליטר, היפוך, רקע) */}
+            <FreeDeskPad
+              text={notepadText} onTextChange={setNotepadText}
+              ink={notepadInk} onInkChange={setNotepadInk}
+              layout={notepadLayout} onLayoutChange={setNotepadLayout}
+              dir={dir}
+            />
 
             {/* Bottom bar */}
             <div style={{ background: '#f8fafc', borderTop: '1px solid #e2e8f0', padding: '4px 10px', display: 'flex', direction: 'ltr', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
               <button
                 onClick={() => {
                   setNotepadText('');
-                  notepadSavedImageRef.current = null;
-                  const canvas = notepadCanvasRef.current;
-                  if (canvas) canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
+                  setNotepadInk(null);
                 }}
                 style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 10px', fontSize: '11px', cursor: 'pointer' }}
               >
@@ -21143,8 +20914,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 style={{ ...DRAG_HANDLE_STYLE, width: 20, height: 20, cursor: 'nwse-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '14px', flexShrink: 0 }}
                 onPointerDown={(e) => {
                   e.stopPropagation();
-                  const canvas = notepadCanvasRef.current;
-                  if (canvas) notepadSavedImageRef.current = canvas.toDataURL();
                   const origW = notepadSize.w;
                   const origH = notepadSize.h;
                   startPointerDrag(e, {

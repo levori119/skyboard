@@ -33,6 +33,10 @@ import type { SWLeaf, SWSplit, SWNode } from '../../utils/stripWindow';
 import { geoToImagePct, imagePctToGeo, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
 import { DRAG_HANDLE_STYLE, readRootScale } from '../../utils/pointerDrag';
 import { DockableWindow } from '../../hooks/useDockableWindow';
+import FreeDeskPad from '../shared/FreeDeskPad';
+import { normalizePadLayout } from '../../utils/freeDeskLayout';
+import { startPointerDrag } from '../../utils/pointerDrag';
+import i18n from '../../i18n';
 
 export const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNotes }: {
   presetId: number; presetName: string; crewName: string;
@@ -46,6 +50,12 @@ export const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNot
   const [toast, setToast] = useState<string | null>(null);
   const dragRef = useRef<{ noteId: number; startX: number; startY: number; origX: number; origY: number } | null>(null);
   const isTouch = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
+  const dir = i18n.dir() as 'rtl' | 'ltr';
+  // שמירת תוכן בזמן הקלדה (גם במקלדת שעל המסך, שאינה מוציאה מהשדה): בלעדיה
+  // הפולינג של הפתקיות היה דורס את מה שהוקלד ועוד לא נשמר
+  const contentTimersRef = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
+  // גודל הפתקית בזמן גרירת ⇲ - נשמר בשרת רק בשחרור
+  const [resizing, setResizing] = useState<{ id: number; w: number; h: number } | null>(null);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -54,7 +64,7 @@ export const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNot
 
   const canEdit = (note: any) => note.allow_all_edit || note.creator_preset_id === presetId;
 
-  const updateNote = async (id: number, changes: any, saveToServer = true) => {
+  const updateNote = async (id: number, changes: any, saveToServer = true, logEdit = true) => {
     const currentNote = notes.find(n => n.id === id);
     setNotes(prev => prev.map(n => n.id === id ? { ...n, ...changes } : n));
     if (saveToServer) {
@@ -62,7 +72,7 @@ export const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNot
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...changes, preset_id: presetId, preset_name: presetName, crew_name: crewName }),
       });
-      if ('content' in changes || 'title' in changes) {
+      if (logEdit && ('content' in changes || 'title' in changes)) {
         const logDetails: Record<string, any> = { noteId: id };
         if ('content' in changes) {
           logDetails.oldContent = currentNote?.content ?? '';
@@ -79,6 +89,17 @@ export const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNot
       }
     }
   };
+
+  const typeContent = (id: number, content: string) => {
+    updateNote(id, { content }, false);
+    clearTimeout(contentTimersRef.current[id]);
+    contentTimersRef.current[id] = setTimeout(() => updateNote(id, { content }, true, false), 1200);
+  };
+  const commitContent = (id: number, content: string) => {
+    clearTimeout(contentTimersRef.current[id]);
+    updateNote(id, { content });
+  };
+  useEffect(() => () => { Object.values(contentTimersRef.current).forEach(clearTimeout); }, []);
 
   const deleteNote = async (id: number) => {
     await fetch(`${API_URL}/sticky-notes/${id}`, { method: 'DELETE' });
@@ -129,6 +150,10 @@ export const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNot
     <>
       {notes.filter(n => !n.minimized).map(note => {
         const editable = canEdit(note);
+        // גודל הפתקית - פר-עמדה, כמו המיקום. פתקית ישנה (בלי גודל) נפתחת בגודל ברירת המחדל
+        const size = resizing && resizing.id === note.id ? resizing : { w: note.width ?? 320, h: note.height ?? 300 };
+        // פתקית ישנה (בלי פריסה שמורה) היא פתקית מוקלדת - נפתחת במקלדת ולא בכתב יד
+        const layout = normalizePadLayout({ mode: 'keyboard', ...(note.pad_layout || {}) });
         const lastEdit = note.last_edited_at
           ? `עודכן: ${note.last_edited_by_preset_name || ''} / ${note.last_edited_by_crew_name || ''} — ${new Date(note.last_edited_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`
           : `נוצר: ${note.creator_preset_name || ''} / ${note.creator_crew_name || ''}`;
@@ -142,7 +167,7 @@ export const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNot
             floatingPos={() => ({ x: note.x, y: note.y })}
           >
           {dock => (
-          <div style={{ position: 'fixed', left: note.x, top: note.y, zIndex: 2100, width: note.minimized ? 220 : 270, boxShadow: '0 6px 24px rgba(0,0,0,0.4)', borderRadius: '8px', overflow: 'visible', userSelect: 'none', ...dock.rootStyle }}>
+          <div style={{ position: 'fixed', left: note.x, top: note.y, zIndex: 2100, width: note.minimized ? 220 : size.w, boxShadow: '0 6px 24px rgba(0,0,0,0.4)', borderRadius: '8px', overflow: 'visible', userSelect: 'none', ...dock.rootStyle }}>
             {/* Header */}
             <div
               onPointerDown={e => { dock.onHeaderPointerDown(e); startDrag(note.id, e); }}
@@ -174,7 +199,7 @@ export const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNot
 
             {/* Body */}
             {!note.minimized && (
-              <div style={{ background: note.background_color, borderRadius: '0 0 8px 8px', filter: 'brightness(1.04)' }}>
+              <div style={{ background: note.background_color, borderRadius: '0 0 8px 8px', height: size.h, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid rgba(0,0,0,0.1)' }}>
                   <input value={note.title} onChange={e => updateNote(note.id, { title: e.target.value }, false)}
                     onBlur={e => updateNote(note.id, { title: e.target.value })}
@@ -185,18 +210,24 @@ export const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNot
                     <VKTrigger value={note.title} onChange={v => updateNote(note.id, { title: v })} mode="full" label="כותרת" size={12} style={{ marginLeft: '4px', marginRight: '4px', border: '1px solid rgba(0,0,0,0.15)', color: '#475569' }} />
                   )}
                 </div>
-                <textarea value={note.content} onChange={e => updateNote(note.id, { content: e.target.value }, false)}
-                  onBlur={e => updateNote(note.id, { content: e.target.value })}
-                  disabled={!editable} placeholder={editable ? 'כתוב כאן...' : '(קריאה בלבד)'}
-                  rows={4}
-                  title={lastEdit}
-                  style={{ width: '100%', boxSizing: 'border-box', border: 'none', background: 'transparent', padding: '6px 8px', fontSize: '12px', direction: 'rtl', color: '#1e293b', outline: 'none', resize: 'vertical', minHeight: '80px', fontFamily: 'inherit' }}
-                />
+                {/* גוף הפתקית - אותו משטח של הדסק החופשי (מקלדת, כתב יד, ספליטר, היפוך, רקע) */}
+                <div title={lastEdit} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', userSelect: 'text' }}>
+                  <FreeDeskPad
+                    text={note.content || ''}
+                    onTextChange={v => typeContent(note.id, v)}
+                    onTextCommit={v => commitContent(note.id, v)}
+                    ink={note.ink_image || null}
+                    onInkChange={url => updateNote(note.id, { ink_image: url ?? '' }, true, false)}
+                    layout={layout}
+                    onLayoutChange={next => updateNote(note.id, { pad_layout: next }, true, false)}
+                    dir={dir}
+                    paper={note.background_color}
+                    readOnly={!editable}
+                    placeholder={editable ? undefined : tr('admin.kryahBlbdAynkMvrshh')}
+                  />
+                </div>
                 {/* Bottom bar */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px 6px', borderTop: '1px solid rgba(0,0,0,0.08)', position: 'relative' }}>
-                  {editable && (
-                    <VKTrigger value={note.content} onChange={v => updateNote(note.id, { content: v })} mode="full" label="תוכן" size={14} style={{ border: '1px solid rgba(0,0,0,0.15)', color: '#475569' }} />
-                  )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px 6px', borderTop: '1px solid rgba(0,0,0,0.08)', position: 'relative', flexShrink: 0 }}>
                   <button onClick={() => setShowColorPicker(showColorPicker === note.id ? null : note.id)} title={tr('admin.tsbaRka')}
                     style={{ background: note.background_color, border: '2px solid rgba(0,0,0,0.2)', borderRadius: '50%', width: '16px', height: '16px', cursor: 'pointer', padding: 0, flexShrink: 0 }} />
                   {showColorPicker === note.id && (
@@ -217,6 +248,19 @@ export const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNot
                   <div style={{ flex: 1 }} />
                   <button onClick={() => openDistribute(note.id)} title={tr('admin.hptsLnmanym')}
                     style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '10px', flexShrink: 0 }}>{tr('admin.hpts')}</button>
+                  {/* ⇲ שינוי גודל - כמו בדסק החופשי */}
+                  <div title={tr('ctrl.dragToResize')}
+                    style={{ ...DRAG_HANDLE_STYLE, width: 20, height: 20, cursor: 'nwse-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(0,0,0,0.45)', fontSize: '14px', flexShrink: 0 }}
+                    onPointerDown={e => {
+                      e.stopPropagation();
+                      const orig = size;
+                      let last = orig;
+                      startPointerDrag(e, {
+                        onMove: (dx, dy) => { last = { w: Math.max(240, orig.w + dx), h: Math.max(180, orig.h + dy) }; setResizing({ id: note.id, ...last }); },
+                        onEnd: () => { setResizing(null); updateNote(note.id, { width: last.w, height: last.h, preset_id: presetId }, true, false); },
+                      });
+                    }}
+                  >⇲</div>
                 </div>
               </div>
             )}

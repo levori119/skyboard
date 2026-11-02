@@ -2657,6 +2657,54 @@
     "zoneLineWidthXThick": {
       "he": "עבה מאוד",
       "en": "Extra thick"
+    },
+    "deskModeKeyboard": {
+      "he": "מקלדת",
+      "en": "Keyboard"
+    },
+    "deskModeInk": {
+      "he": "כתב יד",
+      "en": "Handwriting"
+    },
+    "deskModeBoth": {
+      "he": "מקלדת וכתב יד",
+      "en": "Keyboard and handwriting"
+    },
+    "deskStacked": {
+      "he": "אחד מעל השני",
+      "en": "Stacked"
+    },
+    "deskSide": {
+      "he": "זה לצד זה",
+      "en": "Side by side"
+    },
+    "deskSwap": {
+      "he": "החלף מקומות בין המקלדת לכתב היד",
+      "en": "Swap keyboard and handwriting"
+    },
+    "deskSplitter": {
+      "he": "גרור כדי לשנות את הגודל בין המקלדת לכתב היד",
+      "en": "Drag to resize keyboard and handwriting"
+    },
+    "deskPen": {
+      "he": "עט",
+      "en": "Pen"
+    },
+    "deskEraser": {
+      "he": "מחק",
+      "en": "Eraser"
+    },
+    "deskRect": {
+      "he": "ריבוע",
+      "en": "Rectangle"
+    },
+    "deskCircle": {
+      "he": "עיגול",
+      "en": "Circle"
+    },
+    "deskPenSize": {
+      "he": "עובי",
+      "en": "Thickness"
     }
   }
 }

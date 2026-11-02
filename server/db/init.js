@@ -344,6 +344,13 @@ async function applySchemaOnce() {
     PRIMARY KEY (sticky_note_id, preset_id)
   )`);
 
+  // פתקית = משטח הדסק החופשי (FreeDeskPad): כתב יד (רסטר) ופריסה (מצב, ספליטר,
+  // היפוך, רקע) שייכים לפתקית ומופצים איתה; הגודל - כמו המיקום - פר-עמדה
+  await sq(`ALTER TABLE sticky_notes ADD COLUMN IF NOT EXISTS ink_image TEXT DEFAULT ''`);
+  await sq(`ALTER TABLE sticky_notes ADD COLUMN IF NOT EXISTS pad_layout JSONB DEFAULT '{}'`);
+  await sq(`ALTER TABLE sticky_note_recipients ADD COLUMN IF NOT EXISTS width INTEGER`);
+  await sq(`ALTER TABLE sticky_note_recipients ADD COLUMN IF NOT EXISTS height INTEGER`);
+
   // ── Aid groups ────────────────────────────────────────────────────────────
 
   await sq(`CREATE TABLE IF NOT EXISTS aid_groups (

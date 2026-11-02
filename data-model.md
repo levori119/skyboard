@@ -3497,3 +3497,17 @@ REFACTOR_LOG #045.
 למאגר המקומי כשהמרכז לא עונה. כבוי = כמו לפני הגיבוי המקומי (הנתב לא מכיר מאגר
 מקומי, שירות המראה לא רץ). כל עמדה קוראת אותו **בעלייה** דרך `GET /api/station/failover`
 (ציבורי), ובנתק - מההעתק שהגיע במראה. ראה [`server/sync/failoverFlag.js`](server/sync/failoverFlag.js).
+
+## פתקית = משטח הדסק החופשי — `sticky_notes` · `sticky_note_recipients`
+
+הפתקית קיבלה את המשטח של הדסק החופשי ([`FreeDeskPad`](src/components/shared/FreeDeskPad.tsx)):
+מקלדת, כתב יד, ספליטר, היפוך ורקע.
+
+| טבלה | עמודה | משמעות |
+|---|---|---|
+| `sticky_notes` | `ink_image TEXT DEFAULT ''` | כתב היד כרסטר (`data:image/png`). ריק = אין כתב יד |
+| `sticky_notes` | `pad_layout JSONB DEFAULT '{}'` | מצב (מקלדת/כתב יד/שניהם), `orientation`, `swapped`, `split`, `bg` - ראה [`freeDeskLayout.ts`](src/utils/freeDeskLayout.ts). ריק = פתקית ותיקה, נפתחת במקלדת |
+| `sticky_note_recipients` | `width` / `height INTEGER` | גודל הפתקית **לעמדה**, כמו `x`/`y`. NULL = ברירת מחדל (320×300) |
+
+כתב היד והפריסה **שייכים לפתקית** ומופצים איתה; הגודל, כמו המיקום, שייך לכל נמען.
+בדסק החופשי עצמו הפריסה נשמרת פר-עמדה ב-localStorage (`skyking.freeDesk.layout_<preset>`).
