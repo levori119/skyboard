@@ -185,6 +185,38 @@ test.describe('דסק משימה עם חלונות מפה', () => {
     await page.screenshot({ path: 'e2e/__screenshots__/mission-desk-maps.png', fullPage: false });
   });
 
+  test('ציור בחלון מפה בדסק: ✏ פותח את סרגל הציור, והעט מצייר על החלון', async ({ page }) => {
+    // דווח: בדסק משימה עם מפה רכיב הציור לא נפתח. הסרגל הוצג רק על "המפה
+    // הראשית" - שאין בדסק - ומצב הציור של החלון לא הגיע למנגנון הציור.
+    await page.addInitScript(() => localStorage.setItem('skyking.stationAgent', 'http://127.0.0.1:9'));
+    await loginToWorkstation(page, { preset: stationName });
+    const panel = page.locator('[data-testid="mission-desk-canvas"] [data-map-panel]');
+    await expect(panel).toHaveCount(1, { timeout: 30000 });
+    await expect(panel.locator('img').first()).toBeVisible({ timeout: 30000 });
+
+    await panel.getByRole('button', { name: '✏' }).click();
+    await expect(panel.locator('[data-draw-toolbar]')).toBeVisible();
+
+    const canvasEl = panel.locator('canvas[data-map-layer]').first();
+    const inkPixels = () => canvasEl.evaluate((c: HTMLCanvasElement) => {
+      const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
+      let n = 0;
+      for (let i = 3; i < d.length; i += 4) if (d[i] > 0) n++;
+      return n;
+    });
+    // הקנבס בגודל החלון ולא ב-300x150 של ברירת המחדל
+    const dims = await canvasEl.evaluate((c: HTMLCanvasElement) => ({ w: c.width, cw: c.clientWidth }));
+    expect(dims.w, 'קנבס הציור בגודל החלון').toBeGreaterThanOrEqual(dims.cw - 2);
+
+    const b = (await panel.boundingBox())!;
+    await page.mouse.move(b.x + b.width * 0.7, b.y + b.height * 0.75);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width * 0.9, b.y + b.height * 0.88, { steps: 14 });
+    await page.mouse.up();
+    await expect.poll(inkPixels, { message: 'העט צייר על חלון המפה' }).toBeGreaterThan(0);
+    await page.screenshot({ path: 'test-results/mission-desk-draw.png' });
+  });
+
   test('מסך הניהול: קטגוריות מכווצות + קבוצת הגדרות לכל חלון מפה', async ({ page }) => {
     test.setTimeout(180000);
     await setScreenSize(page);

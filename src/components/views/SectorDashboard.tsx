@@ -1202,6 +1202,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // Current map-area pixel size (updated on resize) — used to convert
   // fraction-based shapes back to pixels at render time.
   const [mapAreaSize, setMapAreaSize] = useState({ w: 0, h: 0 });
+  // גודל #map-area בשם שאינו מוצל בתוך renderMapPanel (שם חלון מפה בדסק מחליף אותו)
+  const mainMapAreaSize = mapAreaSize;
   // פוליגון סגור/פתוח - אותה טיוטה כמו בעמדת השדה (usePolyDraft המשותף). הנקודות
   // במרחב **התוכן** של המפה, כמו תחילת הגרירה של המלבן/העיגול, ונשמרות בשברים.
   //
@@ -8813,7 +8815,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       const stroke = currentStrokeRef.current;
       // persist points as fractions (0..1) so the stroke stays map-anchored
       if (c) stroke.points = stroke.points.map(p => pxToFrac(p, c));
-      if (activeDrawCanvasRef.current === map2CanvasRef.current) {
+      const mdKey = mdKeyOfCanvas(activeDrawCanvasRef.current);
+      if (mdKey) {
+        // ציור בחלון מפה בדסק — לוג של החלון, לא נכנס ל-collab של העמדה
+        mdStrokeLogRef.current[mdKey] = [...(mdStrokeLogRef.current[mdKey] || []), stroke];
+      } else if (activeDrawCanvasRef.current === map2CanvasRef.current) {
         // ציור על מפה 2 — לוג נפרד, לא נכנס ל-collab של העמדה
         map2PenStrokeLogRef.current = [...map2PenStrokeLogRef.current, stroke];
       } else {
@@ -9331,6 +9337,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const neighborMarkers = cfg.nMarkers, neighborPins = cfg.nPins, neighbors = cfg.nbrs, setNeighborMarkers = cfg.setNMarkers, setNeighborPins = cfg.setNPins;
             const fzOverlayRef = cfg.overlayRef; // per-map drop overlay (capture + see-through must target the dropped map)
             const canvasRef = cfg.canvasRef;
+            // חלון מפה בדסק: מרחב התוכן של הצורות הוא הקנבס של החלון ולא #map-area
+            const _isMdPanel = _panKey.startsWith('md-');
+            const mapAreaSize = _isMdPanel ? (mdCanvasSize[_panKey] || { w: 0, h: 0 }) : mainMapAreaSize;
             // המחק על צורה (עיגול / מלבן / פוליגון) מוחק אותה **כולה** - צורה היא
             // אובייקט ולא פיקסלים. הנקודה מומרת למרחב **התוכן**, שבו חיות הצורות,
             // ולכן זיהוי הפגיעה נכון גם בזום ובמפה השנייה.
@@ -9871,7 +9880,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {/* סרגל הציור — **הרכיב המשותף** עם עמדת השדה (components/map/MapDrawLayer).
               פאנל אחד בלבד (על המפה הראשית) גם בדו-מפה. הייחודי לעמדת המפה —
               כלי או"ק, בדיקת MyScript ושיתוף העמדה — נכנס דרך הפתחים של הרכיב. */}
-          {drawingMode && !cfg.secondary && (<>
+          {drawingMode && (!cfg.secondary || _isMdPanel) && (<>
             <MapDrawToolbar
               style={{ top: 8, left: toolbarGap, direction: dir }}
               themeMode={themeMode}
@@ -9882,7 +9891,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               size={penSize} onSizeChange={setPenSize}
               filled={shapeFilled} onFilledChange={setShapeFilled}
               lineStyle={lineStyle} onLineStyleChange={setLineStyle}
-              onClear={clearCanvas}
+              onClear={_isMdPanel ? () => clearMdDrawing(_panKey) : clearCanvas}
               onClose={() => setDrawingMode(false)}
               toolsExtra={(
                 <button onClick={() => setShowMyScriptTest(true)} title={tr('ctrl.myscriptRecognitionTestPoc')} aria-label="MyScript"
@@ -11291,6 +11300,31 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     canvas: React.RefObject<HTMLCanvasElement>;
     overlay: React.RefObject<HTMLDivElement>;
   }>>({});
+  // ── ציור בחלון מפה בדסק ────────────────────────────────────────────────
+  // מצב ציור **אחד** (drawingMode - כל מנגנון הציור קורא אותו דרך drawingModeRef)
+  // ו"בעלים": החלון שבו הופעל ✏. בלי בעלים, מצב ציור פר-חלון לא הגיע למנגנון
+  // הציור כלל, והסרגל הוצג רק על המפה הראשית - שאין בדסק.
+  const [mdDrawKey, setMdDrawKey] = useState<string | null>(null);
+  // משיכות העט של כל חלון, בשברים - כדי לצייר אותן מחדש אחרי שינוי גודל
+  const mdStrokeLogRef = useRef<Record<string, PenStroke[]>>({});
+  // גודל קנבס הציור של כל חלון בפיקסלי פריסה = מרחב התוכן של הצורות בחלון.
+  // #map-area הוא הדסק כולו, ולכן אינו יכול לשמש כאן כמו במפה הראשית.
+  const [mdCanvasSize, setMdCanvasSize] = useState<Record<string, { w: number; h: number }>>({});
+  const mdKeyOfCanvas = (c: HTMLCanvasElement | null): string | null =>
+    c ? (Object.keys(mdSlotRefs.current).find(k => mdSlotRefs.current[k]?.canvas.current === c) ?? null) : null;
+  const redrawMdStrokes = (key: string) => {
+    const c = mdSlotRefs.current[key]?.canvas.current; const ctx = c?.getContext('2d');
+    if (!c || !ctx) return;
+    ctx.clearRect(0, 0, c.width, c.height);
+    for (const st of mdStrokeLogRef.current[key] || []) drawStrokeFrac(ctx, st, c);
+    ctx.globalCompositeOperation = 'source-over';
+  };
+  const clearMdDrawing = (key: string) => {
+    mdStrokeLogRef.current[key] = [];
+    redrawMdStrokes(key);
+    mdPatchSlot(key, { shapes: [] });
+    polyDraft.cancel();
+  };
   const mdRefsFor = (key: string) => {
     if (!mdSlotRefs.current[key]) {
       mdSlotRefs.current[key] = { img: { current: null }, canvas: { current: null }, overlay: { current: null } };
@@ -11410,6 +11444,27 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return () => observers.forEach(o => o.disconnect());
   }, [mdBoundsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // קנבס הציור של כל חלון בדסק בגודלו האמיתי (אותה מדידה של syncDrawCanvas
+  // במפה הראשית). בלעדיה נשאר bitmap ברירת המחדל 300x150 מתוח על החלון - קו
+  // עבה ומטושטש - והמשיכות לא צוירו מחדש אחרי שינוי גודל.
+  useEffect(() => {
+    const observers: ResizeObserver[] = [];
+    for (const w of mdMapWindows) {
+      const canvas = mdSlotRefs.current[w.key]?.canvas.current;
+      if (!canvas) continue;
+      const sync = () => {
+        const cw = Math.round(canvas.clientWidth), ch = Math.round(canvas.clientHeight);
+        setMdCanvasSize(prev => (prev[w.key]?.w === cw && prev[w.key]?.h === ch) ? prev : { ...prev, [w.key]: { w: cw, h: ch } });
+        if (syncCanvasBitmap(canvas, { width: cw, height: ch }, readRootScale())) redrawMdStrokes(w.key);
+      };
+      const ro = new ResizeObserver(sync);
+      ro.observe(canvas);
+      observers.push(ro);
+      sync();
+    }
+    return () => observers.forEach(o => o.disconnect());
+  }, [mdBoundsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // פקדי התצוגה של חלון מפה בדסק, בחתימה שה-cfg מצפה לה
   const mdViewSetter = <K extends keyof MDMapView>(key: string, field: K): React.Dispatch<React.SetStateAction<MDMapView[K]>> =>
     (v) => setMdViews(prev => {
@@ -11450,7 +11505,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       img: slot.img, imgRef: refs.img, imgBounds: slot.imgBounds, geoAnchor: slot.geoAnchor,
       computeBounds: (el: HTMLImageElement | null) => mdPatchSlot(w.key, { imgBounds: _computeImgBounds(el) }),
       blind: slot.blind, setBlind: mdSetter(w.key, 'blind'),
-      drawing: slot.drawing, setDrawing: mdSetter(w.key, 'drawing'),
+      drawing: drawingMode && mdDrawKey === w.key,
+      setDrawing: (v) => {
+        const cur = drawingMode && mdDrawKey === w.key;
+        const next = typeof v === 'function' ? v(cur) : v;
+        setMdDrawKey(next ? w.key : null);
+        setDrawingMode(next);
+      },
       shapes: slot.shapes, setShapes: mdSetter(w.key, 'shapes'),
       showBrightness: slot.showBrightness, setShowBrightness: mdSetter(w.key, 'showBrightness'),
       zones: slot.zones, assignments: slot.assignments,
