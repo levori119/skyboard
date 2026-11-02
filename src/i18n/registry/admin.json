@@ -3913,6 +3913,22 @@
     "landingPriorityNoRunways": {
       "he": "לא הוגדרו מסלולים בשדה",
       "en": "No runways defined at this airfield"
+    },
+    "presetUnsaved": {
+      "he": "● יש שינויים שלא נשמרו",
+      "en": "● Unsaved changes"
+    },
+    "presetNoChanges": {
+      "he": "✓ אין שינויים לשמירה",
+      "en": "✓ No unsaved changes"
+    },
+    "presetUpdateBtn": {
+      "he": "💾 עדכון",
+      "en": "💾 Update"
+    },
+    "presetAddBtn": {
+      "he": "✅ הוספה",
+      "en": "✅ Add"
     }
   }
 }

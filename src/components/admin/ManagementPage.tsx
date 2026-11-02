@@ -1348,10 +1348,24 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                 wide
               >
               <div style={{ borderRadius: '8px', padding: '0', marginBottom: '20px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '0 0 15px 0' }}>
+                {/* סרגל עליון דביק: שמירה + חיווי מצב. נשאר גלוי בגלילה, כדי שלא צריך
+                    לגלול לתחתית הטופס הארוך כדי לשמור או לדעת אם יש מה לשמור */}
+                <div data-testid="preset-top-bar" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', margin: '0 0 15px 0', position: 'sticky', top: '-28px', zIndex: 5, background: '#0f172a', padding: '10px 0', borderBottom: '1px solid #1e293b' }}>
                   <h3 style={{ margin: 0, fontSize: '16px', color: '#94a3b8' }}>
                     {editingPreset ? 'עריכת עמדה' : 'עמדה חדשה'}
                   </h3>
+                  <button
+                    type="button"
+                    data-testid="preset-save-top"
+                    onClick={savePreset}
+                    disabled={!presetIsDirty}
+                    style={{ padding: '6px 16px', background: presetIsDirty ? '#059669' : '#1e3a2a', color: presetIsDirty ? 'white' : '#4ade80', border: `1px solid ${presetIsDirty ? '#059669' : '#166534'}`, borderRadius: '6px', cursor: presetIsDirty ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold', opacity: presetIsDirty ? 1 : 0.5, flexShrink: 0 }}
+                  >
+                    {editingPreset ? tr('admin.presetUpdateBtn') : tr('admin.presetAddBtn')}
+                  </button>
+                  <span data-testid="preset-save-status" style={{ fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', color: presetSaveSuccess ? '#4ade80' : presetIsDirty ? '#fbbf24' : '#64748b' }}>
+                    {presetSaveSuccess ? tr('admin.nshmrBhtslchh') : presetIsDirty ? tr('admin.presetUnsaved') : tr('admin.presetNoChanges')}
+                  </span>
                   {/* מסך לדוגמה — המסך האמיתי של העמדה, על כל המסך, קריאה בלבד.
                       עמדה שטרם נשמרה אין לה מה להציג (אין מזהה ואין הגדרות בשרת). */}
                   <button
@@ -3015,7 +3029,7 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                     disabled={!presetIsDirty}
                     style={{ padding: '10px 25px', background: presetIsDirty ? '#059669' : '#1e3a2a', color: presetIsDirty ? 'white' : '#4ade80', border: `1px solid ${presetIsDirty ? '#059669' : '#166534'}`, borderRadius: '6px', cursor: presetIsDirty ? 'pointer' : 'not-allowed', fontSize: '14px', fontWeight: 'bold', opacity: presetIsDirty ? 1 : 0.5, transition: 'all 0.2s' }}
                   >
-                    {editingPreset ? '💾 עדכון' : '✅ הוספה'}
+                    {editingPreset ? tr('admin.presetUpdateBtn') : tr('admin.presetAddBtn')}
                   </button>
                   {presetSaveSuccess && (
                     <span style={{ color: '#4ade80', fontSize: '14px', fontWeight: 'bold', animation: 'fadeIn 0.3s' }}>{tr('admin.nshmrBhtslchh')}</span>
