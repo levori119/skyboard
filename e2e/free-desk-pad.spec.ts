@@ -18,7 +18,7 @@ async function openDeskInBothMode(page: Page) {
   await loginToWorkstation(page);
   await page.locator('[data-help="notepad"]').click();
   await expect(page.getByTestId('notepad-title-bar')).toBeVisible();
-  await bar(page).getByRole('button', { name: /^⌨\+✍$/ }).click();
+  await bar(page).getByRole('button', { name: 'מקלדת וכתב יד', exact: true }).click();
   await expect(page.getByTestId('desk-pad-text')).toBeVisible();
   await expect(page.getByTestId('notepad-canvas')).toBeVisible();
 }
@@ -55,12 +55,21 @@ test.describe('משטח הדסק החופשי', () => {
     const canvasWrap = page.getByTestId('notepad-canvas').locator('..');
     expect((await text.boundingBox())!.y, 'בהתחלה המקלדת למעלה').toBeLessThan((await canvasWrap.boundingBox())!.y);
 
-    await bar(page).getByRole('button', { name: '⇅' }).click();
+    await bar(page).getByRole('button', { name: /החלף מקומות/ }).click();
     await expect.poll(async () => (await canvasWrap.boundingBox())!.y < (await text.boundingBox())!.y, { message: 'אחרי היפוך כתב היד למעלה' }).toBe(true);
 
-    await bar(page).getByRole('button', { name: '⬌' }).click();
+    await bar(page).getByRole('button', { name: 'זה לצד זה', exact: true }).click();
     await expect.poll(async () => Math.abs((await canvasWrap.boundingBox())!.y - (await text.boundingBox())!.y) < 40, { message: 'זה לצד זה' }).toBe(true);
     await page.getByTestId('notepad-title-bar').locator('..').screenshot({ path: 'test-results/free-desk-side.png' });
+
+    // הסרגל הוא שורה אחת; רקע הדף נפתח כתפריט בשורה מתחתיו
+    const barBox = (await bar(page).boundingBox())!;
+    expect(barBox.height, 'הסרגל בשורה אחת').toBeLessThan(40);
+    await expect(page.getByTestId('desk-pad-bg-row')).toHaveCount(0);
+    await page.getByTestId('desk-pad-bg-menu').click();
+    await expect(page.getByTestId('desk-pad-bg-row')).toBeVisible();
+    await page.getByTestId('desk-pad-bg-row').getByRole('button', { name: /משבצות|Grid/ }).click();
+    await page.getByTestId('notepad-title-bar').locator('..').screenshot({ path: 'test-results/free-desk-bg-menu.png' });
   });
 
   test('כתב היד נשאר אחרי מעבר למקלדת בלבד וחזרה', async ({ page }) => {
@@ -76,9 +85,9 @@ test.describe('משטח הדסק החופשי', () => {
     const drawn = await inkPixels();
     expect(drawn, 'המשיכה צוירה').toBeGreaterThan(0);
 
-    await bar(page).getByRole('button', { name: /^⌨$/ }).click();
+    await bar(page).getByRole('button', { name: 'מקלדת', exact: true }).click();
     await expect(page.getByTestId('notepad-canvas')).toHaveCount(0);
-    await bar(page).getByRole('button', { name: /^⌨\+✍$/ }).click();
+    await bar(page).getByRole('button', { name: 'מקלדת וכתב יד', exact: true }).click();
     await expect.poll(inkPixels, { message: 'כתב היד שוחזר' }).toBeGreaterThan(drawn * 0.9);
   });
 });

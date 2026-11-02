@@ -57,6 +57,8 @@ export default function FreeDeskPad({
   const [penSize, setPenSize] = useState(2);
   // היחס בזמן גרירת הספליטר. נמסר לבעלים רק בשחרור - פתקית שומרת בשרת
   const [dragSplit, setDragSplit] = useState<number | null>(null);
+  // תפריט רקע הדף (סוג, קו, גודל) - נפתח בשורה מתחת לסרגל, כדי שהסרגל יישאר שורה אחת
+  const [showBgMenu, setShowBgMenu] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -296,42 +298,49 @@ export default function FreeDeskPad({
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: paper, direction: dir }}>
       {/* סרגל הדף: מצב, פריסה ורקע */}
       {!readOnly && (
-        <div data-testid="notepad-bg-bar" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 8px', borderBottom: `1px solid ${LINE}`, background: 'rgba(15,23,42,0.04)', flexWrap: 'wrap', flexShrink: 0, color: MUTED, fontSize: '11px' }}>
-          <div style={{ display: 'flex', gap: '3px' }}>
-            {([['keyboard', '⌨', 'ctrl.deskModeKeyboard'], ['handwriting', '✍', 'ctrl.deskModeInk'], ['both', '⌨+✍', 'ctrl.deskModeBoth']] as const).map(([m, icon, key]) => (
-              <button key={m} title={tr(key)} onClick={() => setLayout({ mode: m })} style={seg(layout.mode === m)}>{icon}</button>
-            ))}
-          </div>
-          {layout.mode === 'both' && (
-            <div style={{ display: 'flex', gap: '3px' }}>
-              <button title={tr(side ? 'ctrl.deskStacked' : 'ctrl.deskSide')} onClick={() => setLayout({ orientation: side ? 'stacked' : 'side' })} style={seg(false)}>{side ? '⬍' : '⬌'}</button>
-              <button title={tr('ctrl.deskSwap')} onClick={() => setLayout({ swapped: !layout.swapped })} style={seg(layout.swapped)}>{side ? '⇄' : '⇅'}</button>
-            </div>
-          )}
-          {layout.mode !== 'handwriting' && (
-            <button title={tr('shared.virtualKeyboard')} onPointerDown={e => { e.preventDefault(); if (showOSK) closeOSK(); else setShowOSK(true); }} style={seg(showOSK)}>{tr('shared.virtualKeyboard')}</button>
-          )}
-          <div style={{ display: 'flex', gap: '3px' }}>
-            {([['none', '▢', 'ctrl.deskBgNone'], ['lines', '☰', 'ctrl.deskBgLines'], ['grid', '▦', 'ctrl.deskBgGrid']] as const).map(([k, icon, key]) => (
-              <button key={k} title={tr(key)} onClick={() => setBg({ kind: k })} style={seg(bg.kind === k)}>{icon}</button>
-            ))}
-          </div>
-          {bg.kind !== 'none' && (<>
-            <div style={{ display: 'flex', gap: '3px' }}>
-              {([['solid', '───', 'ctrl.deskBgSolid'], ['dashed', '- - -', 'ctrl.deskBgDashed'], ['dotted', '·····', 'ctrl.deskBgDotted']] as const).map(([k, icon, key]) => (
-                <button key={k} title={tr(key)} onClick={() => setBg({ line: k })} style={{ ...seg(bg.line === k), fontWeight: 'bold', letterSpacing: '-1px' }}>{icon}</button>
+        <>
+          {/* שורה אחת, אייקונים בלבד (השם ב-title). רקע הדף - בתפריט שנפתח מתחת */}
+          <div data-testid="notepad-bg-bar" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '3px 6px', borderBottom: `1px solid ${LINE}`, background: 'rgba(15,23,42,0.04)', flexWrap: 'nowrap', overflow: 'hidden', flexShrink: 0, color: MUTED, fontSize: '11px' }}>
+            <div style={{ display: 'flex', gap: '3px', flexShrink: 0 }}>
+              {([['keyboard', '⌨', 'ctrl.deskModeKeyboard'], ['handwriting', '✍', 'ctrl.deskModeInk'], ['both', '⌨+✍', 'ctrl.deskModeBoth']] as const).map(([m, icon, key]) => (
+                <button key={m} title={tr(key)} aria-label={tr(key)} onClick={() => setLayout({ mode: m })} style={seg(layout.mode === m)}>{icon}</button>
               ))}
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
-              {tr(bg.kind === 'lines' ? 'ctrl.deskBgRowHeight' : 'ctrl.deskBgCellSize')}
-              <button onClick={() => setBg({ size: bg.size - 2 })} style={seg(false)}>−</button>
-              <input type="range" min={DESK_BG_MIN_SIZE} max={DESK_BG_MAX_SIZE} value={bg.size}
-                onChange={e => setBg({ size: Number(e.target.value) })} style={{ width: '70px', touchAction: 'none' }} />
-              <button onClick={() => setBg({ size: bg.size + 2 })} style={seg(false)}>+</button>
-              <span style={{ minWidth: 22, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{bg.size}</span>
-            </label>
-          </>)}
-        </div>
+            {layout.mode === 'both' && (
+              <div style={{ display: 'flex', gap: '3px', flexShrink: 0 }}>
+                <button title={tr(side ? 'ctrl.deskStacked' : 'ctrl.deskSide')} aria-label={tr(side ? 'ctrl.deskStacked' : 'ctrl.deskSide')} onClick={() => setLayout({ orientation: side ? 'stacked' : 'side' })} style={seg(false)}>{side ? '⬍' : '⬌'}</button>
+                <button title={tr('ctrl.deskSwap')} aria-label={tr('ctrl.deskSwap')} onClick={() => setLayout({ swapped: !layout.swapped })} style={seg(layout.swapped)}>{side ? '⇄' : '⇅'}</button>
+              </div>
+            )}
+            <button data-testid="desk-pad-bg-menu" title={tr('ctrl.deskBg')} aria-label={tr('ctrl.deskBg')} aria-expanded={showBgMenu}
+              onClick={() => setShowBgMenu(v => !v)} style={{ ...seg(showBgMenu), flexShrink: 0, marginInlineStart: 'auto' }}>
+              {bg.kind === 'lines' ? '☰' : bg.kind === 'grid' ? '▦' : '▢'} ▾
+            </button>
+          </div>
+          {showBgMenu && (
+            <div data-testid="desk-pad-bg-row" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '3px 6px', borderBottom: `1px solid ${LINE}`, background: 'rgba(15,23,42,0.07)', flexWrap: 'wrap', flexShrink: 0, color: MUTED, fontSize: '11px' }}>
+              <div style={{ display: 'flex', gap: '3px' }}>
+                {([['none', '▢', 'ctrl.deskBgNone'], ['lines', '☰', 'ctrl.deskBgLines'], ['grid', '▦', 'ctrl.deskBgGrid']] as const).map(([k, icon, key]) => (
+                  <button key={k} title={tr(key)} aria-label={tr(key)} onClick={() => setBg({ kind: k })} style={seg(bg.kind === k)}>{icon}</button>
+                ))}
+              </div>
+              {bg.kind !== 'none' && (<>
+                <div style={{ display: 'flex', gap: '3px' }}>
+                  {([['solid', '───', 'ctrl.deskBgSolid'], ['dashed', '- - -', 'ctrl.deskBgDashed'], ['dotted', '·····', 'ctrl.deskBgDotted']] as const).map(([k, icon, key]) => (
+                    <button key={k} title={tr(key)} aria-label={tr(key)} onClick={() => setBg({ line: k })} style={{ ...seg(bg.line === k), fontWeight: 'bold', letterSpacing: '-1px' }}>{icon}</button>
+                  ))}
+                </div>
+                <div title={tr(bg.kind === 'lines' ? 'ctrl.deskBgRowHeight' : 'ctrl.deskBgCellSize')} style={{ display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}>
+                  <button onClick={() => setBg({ size: bg.size - 2 })} style={seg(false)}>−</button>
+                  <input type="range" min={DESK_BG_MIN_SIZE} max={DESK_BG_MAX_SIZE} value={bg.size}
+                    onChange={e => setBg({ size: Number(e.target.value) })} style={{ width: '64px', touchAction: 'none' }} />
+                  <button onClick={() => setBg({ size: bg.size + 2 })} style={seg(false)}>+</button>
+                  <span style={{ minWidth: 20, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{bg.size}</span>
+                </div>
+              </>)}
+            </div>
+          )}
+        </>
       )}
 
       <div ref={bodyRef} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: side && layout.mode === 'both' ? 'row' : 'column', overflow: 'hidden' }}>
