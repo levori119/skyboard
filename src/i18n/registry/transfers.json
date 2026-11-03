@@ -277,6 +277,18 @@
     "heldElsewhereBody": {
       "he": "שים לב פ\"מ {{cs}} נמצא גם בעמדה {{stations}}",
       "en": "Note: strip {{cs}} is also at position {{stations}}"
+    },
+    "pointOff": {
+      "he": "כבויה לעמדה",
+      "en": "Off for this station"
+    },
+    "pointOffHint": {
+      "he": "נקודת ההעברה כבויה לעמדה הזו (ניהול ← נקודות העברה)",
+      "en": "This transfer point is off for this station (Admin - Transfer points)"
+    },
+    "pointOffBlocked": {
+      "he": "נקודת ההעברה \"{{point}}\" כבויה לעמדה - הפ\"מ לא נשלח",
+      "en": "Transfer point \"{{point}}\" is off for this station - the strip was not sent"
     }
   }
 }

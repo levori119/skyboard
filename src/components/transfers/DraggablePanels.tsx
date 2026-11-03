@@ -40,6 +40,7 @@ export const DraggableNeighborPanel = ({
   transferPointConfig,
   onUpdateTransferPointConfig,
   allPresets = [],
+  disabled = false,
 }: { 
   neighbor: any; 
   subSectors: any[];
@@ -69,6 +70,11 @@ export const DraggableNeighborPanel = ({
   transferPointConfig?: { alt_min?: number | null; alt_max?: number | null; parity?: string; partner_preset_ids?: number[]; ranges?: { preset_id?: number | null; label?: string; alt_min?: number | null; alt_max?: number | null; parity?: string }[] } | null;
   onUpdateTransferPointConfig?: (sectorId: number, ranges: { preset_id: number | null; alt_min: number | null; alt_max: number | null; parity: string }[]) => Promise<void>;
   allPresets?: { id: number; name: string }[];
+  /**
+   * הנקודה **כבויה לעמדה הזו** (ניהול ← נקודות העברה). היא מוצגת, אבל לא
+   * רגישה: לא יעד שחרור, ולא נתפסת בחיפוש נקודות לפי DOM (`neighbor-drop-zone`).
+   */
+  disabled?: boolean;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isStripDragOver, setIsStripDragOver] = useState(false);
@@ -290,10 +296,13 @@ export const DraggableNeighborPanel = ({
     <>
       {/* Card container */}
       <div
-        onDragOver={e => { e.preventDefault(); setIsStripDragOver(true); }}
+        data-tp-disabled={disabled || undefined}
+        onDragOver={e => { e.preventDefault(); if (!disabled) setIsStripDragOver(true); }}
         onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsStripDragOver(false); }}
-        onDrop={handleStripDropOnPoint}
+        onDrop={disabled ? (e => { e.preventDefault(); e.stopPropagation(); }) : handleStripDropOnPoint}
+        title={disabled ? tr('transfers.pointOffHint') : undefined}
         style={{
+        ...(disabled ? { opacity: 0.45, filter: 'grayscale(1)' } : {}),
         margin: '6px 6px',
         borderRadius: '10px',
         border: isStripDragOver ? '2px solid #22c55e' : (hasConflict ? '2px solid #ef4444' : (lightMode ? '1px solid #cbd5e1' : '1px solid #2d4060')),
@@ -302,10 +311,15 @@ export const DraggableNeighborPanel = ({
         boxShadow: lightMode ? '0 2px 8px rgba(0,0,0,0.12)' : '0 2px 10px rgba(0,0,0,0.5)',
         transition: 'border-color 0.15s, background 0.15s',
       }}>
+        {disabled && (
+          <div data-testid="tp-off-badge" style={{ fontSize: '11px', fontWeight: 'bold', padding: '2px 8px', background: lightMode ? '#e2e8f0' : '#1e293b', color: lightMode ? '#475569' : '#94a3b8' }}>
+            ⭘ {tr('transfers.pointOff')}
+          </div>
+        )}
 
         {/* Header — drag zone */}
         <div
-          className="neighbor-drop-zone"
+          className={disabled ? 'neighbor-drop-zone-off' : 'neighbor-drop-zone'}
           data-sector-id={neighbor.id}
           onPointerDown={(e) => { if (dragStripId) { e.preventDefault(); e.stopPropagation(); } else if (!tableMode) { handlePointerDown(e); } }}
           onPointerEnter={() => { if (dragStripId) setIsStripDragOver(true); }}

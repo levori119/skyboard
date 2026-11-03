@@ -178,6 +178,9 @@ async function applySchemaOnce() {
   // קבלה אוטומטית בנקודת מעבר (MVP - אין עמדה מקבלת): off / immediate / eta.
   // 'eta' = בתום הזמן שהוקצה לפ"מ להגיע. ראה server/utils/autoAccept.js.
   await sq(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS auto_accept_mode VARCHAR(12) DEFAULT 'off'`);
+  // עמדות שהנקודה **כבויה** אצלן (ניהול ← נקודות העברה). הנקודה עדיין מוצגת בעמדה
+  // אבל לא רגישה. ראה server/utils/transferPointStations.js
+  await sq(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS disabled_preset_ids JSONB DEFAULT '[]'`);
 
   // ── Workstation presets ───────────────────────────────────────────────────
 

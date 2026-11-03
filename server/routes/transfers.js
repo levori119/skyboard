@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { isPointDisabledFor, toggleDisabled, presetSectorIds, transfersToReturn } from '../../shared/transferPointStations.js';
 import pool from '../db/pool.js';
 import { isAutoAcceptDue } from '../utils/autoAccept.js';
 import { aircraftFaultsSubquery } from '../db/aircraftFaults.js';
@@ -196,10 +197,63 @@ export async function initiatePresetTransferTx(db, stripId, { fromPresetId, toPr
 
 export { recordTransferSentFlow, recordTransferClosedFlow };
 
+// ─── נקודת העברה כבויה לעמדה ──────────────────────────────────────────────────
+// ניהול ← נקודות העברה ← הדלקה/כיבוי פר-עמדה. נקודה כבויה לעמדה אינה מקבלת
+// ממנה שליחה, וכיבוי מחזיר למוסר את ההעברות הפתוחות שקשורות לעמדה.
+async function pointDisabledForSender(sectorId, fromPresetId) {
+  if (!sectorId || !fromPresetId) return false;
+  const { rows } = await pool.query('SELECT disabled_preset_ids FROM sectors WHERE id = $1', [Number(sectorId)]);
+  return rows[0] ? isPointDisabledFor(rows[0], fromPresetId) : false;
+}
+
+router.put('/api/sectors/:id/stations/:presetId', async (req, res) => {
+  const sectorId = parseInt(req.params.id, 10), presetId = parseInt(req.params.presetId, 10);
+  if (!Number.isFinite(sectorId) || !Number.isFinite(presetId)) return res.status(400).json({ error: 'Invalid ids' });
+  const enabled = req.body?.enabled === true;
+  const closed = [];
+  let returnNote = null;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const sec = (await client.query('SELECT * FROM sectors WHERE id = $1 FOR UPDATE', [sectorId])).rows[0];
+    if (!sec) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Sector not found' }); }
+    const next = toggleDisabled(sec, presetId, enabled);
+    await client.query('UPDATE sectors SET disabled_preset_ids = $1::jsonb WHERE id = $2', [JSON.stringify(next), sectorId]);
+    if (!enabled) {
+      // העמדות שעדיין יכולות לקבל בנקודה (משתמשות בה והיא דולקת אצלן)
+      const presets = (await client.query('SELECT id, relevant_sectors, classic_transfer_points, classic_receive_points FROM workstation_presets')).rows;
+      const receivers = presets.filter(p => presetSectorIds(p).has(sectorId) && !next.includes(Number(p.id))).map(p => Number(p.id));
+      const open = (await client.query(
+        "SELECT * FROM strip_transfers WHERE to_sector_id = $1 AND status IN ('pending','acknowledged')", [sectorId],
+      )).rows;
+      const name = (await client.query('SELECT name FROM workstation_presets WHERE id = $1', [presetId])).rows[0]?.name || String(presetId);
+      returnNote = `נקודת ההעברה "${sec.label_he || sec.name}" כובתה לעמדה ${name}`;
+      for (const t of transfersToReturn(open, sectorId, presetId, receivers)) {
+        // אותה סגירה של דחייה: הפ"מ חוזר למוסר, והמוסר רואה את ההערה בפופאפ
+        const r = await closeTransferTx(client, t.id, 'rejected', { note: returnNote });
+        if (r.transfer) closed.push(r.transfer);
+      }
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch { /* connection כנראה מת */ }
+    console.error('[transfer-point station toggle]', err);
+    return res.status(500).json({ error: 'Failed to toggle transfer point' });
+  } finally {
+    client.release();
+  }
+  // אחרי השחרור - ראה closeTransferRoute (חיבור יחיד במאגר המקומי)
+  for (const t of closed) await recordTransferClosedFlow(t, 'rejected', req.user, { note: returnNote, reason: 'transfer_point_disabled' });
+  res.json({ success: true, enabled, returned: closed.length });
+});
+
 router.post('/api/strips/:id/transfer', async (req, res) => {
   try {
     const stripId = parseInt(String(req.params.id).replace(/^s/, ''));
     if (isNaN(stripId)) return res.status(400).json({ error: 'Invalid strip id' });
+    if (await pointDisabledForSender(req.body?.toSectorId, req.body?.fromWorkstationId)) {
+      return res.status(409).json({ error: 'transfer_point_disabled' });
+    }
     const transfer = await initiateSectorTransferTx(pool, stripId, req.body);
     if (!transfer) return res.status(404).json({ error: 'Strip not found' });
     await recordTransferSentFlow(transfer, req.user);
@@ -603,6 +657,9 @@ router.post('/api/transfers/:id/move', async (req, res) => {
       return res.status(404).json({ error: 'Transfer not found or not pending' });
     }
     const t = existing.rows[0];
+    if (to_sector_id && await pointDisabledForSender(to_sector_id, t.from_workstation_id)) {
+      return res.status(409).json({ error: 'transfer_point_disabled' });
+    }
     const etaSetAt = (etaMinutes != null && etaMinutes > 0) ? new Date() : null;
     if (to_preset_id) {
       if (Number(t.to_preset_id) === Number(to_preset_id)) {

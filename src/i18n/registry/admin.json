@@ -4013,6 +4013,38 @@
     "blockSpaceAll": {
       "he": "כל המרחבים",
       "en": "All spaces"
+    },
+    "tpStationsTitle": {
+      "he": "עמדות שמשתמשות בנקודה",
+      "en": "Stations using this point"
+    },
+    "tpStationsHint": {
+      "he": "לחיצה מדליקה/מכבה את הנקודה לעמדה - חל מיד. בעמדה כבויה הנקודה מוצגת אבל לא רגישה, ופ\"מים שממתינים בה חוזרים למוסר.",
+      "en": "Click to turn the point on/off for a station - applies immediately. When off, the station still sees the point but it is inactive, and strips waiting in it return to the sender."
+    },
+    "tpStationsNone": {
+      "he": "אף עמדה לא משתמשת בנקודה הזו",
+      "en": "No station uses this point"
+    },
+    "tpStationTurnOff": {
+      "he": "כבה לעמדה",
+      "en": "Turn off for this station"
+    },
+    "tpStationTurnOn": {
+      "he": "הדלק לעמדה",
+      "en": "Turn on for this station"
+    },
+    "tpStationOffConfirm": {
+      "he": "לכבות את הנקודה לעמדה {{station}}? פ\"מים שממתינים בה יחזרו למוסר.",
+      "en": "Turn the point off for {{station}}? Strips waiting in it will return to the sender."
+    },
+    "tpStationReturned": {
+      "he": "{{count}} פ\"מים הוחזרו למוסר",
+      "en": "{{count}} strips returned to the sender"
+    },
+    "tpStationFailed": {
+      "he": "השינוי לא נשמר - נסה שוב",
+      "en": "The change was not saved - try again"
     }
   }
 }

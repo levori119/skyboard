@@ -91,6 +91,7 @@ import usePinchZoom from '../../hooks/usePinchZoom';
 import { localStep, pinchZoomPan, type ZoomPanView } from '../../utils/pinchZoom';
 import { windowFrame, frameColor } from '../../utils/windowFrame';
 import { thinScroll } from '../../utils/thinScroll';
+import { isPointDisabledFor } from '../../../shared/transferPointStations.js';
 import { TakeoffBadge, FormationCountBadge } from '../strips/StripCardBadges';
 import { splitSpaceSet, separatedBySpace, blockFitsSpace } from '../../utils/blockSpaces';
 import { recommendAltitude, stripArmaments, normalizeAltRules, type AltRecommendation, type RecBlock } from '../../utils/altRecommend';
@@ -2107,6 +2108,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   /** נדחף ב"רענן הגדרות" - טעינות תצורה שתלויות ב-effect קוראות אותו ב-deps */
   const [configRefreshTick, setConfigRefreshTick] = React.useState(0);
   const [refreshToast, setRefreshToast] = React.useState<string | null>(null);
+  const [tpOffToast, setTpOffToast] = React.useState<string | null>(null);
   const refreshToastTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const showRefreshToast = (msg: string) => {
     if (refreshToastTimer.current) clearTimeout(refreshToastTimer.current);
@@ -6992,6 +6994,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   }, [session?.presetId, session?.workstationName, session?.crewMember?.id, session?.crewMember?.name]);
 
   const handleTransfer = async (stripId: string, toSectorId: number, targetX?: number, targetY?: number, subSectorLabel?: string, toWorkstationId?: number, etaMinutes?: number) => {
+    // נקודה כבויה לעמדה (ניהול ← נקודות העברה): מוצגת אבל לא רגישה - כל שליחה
+    // אליה, מכל מסלול גרירה, נעצרת כאן. השרת חוסם גם הוא (409)
+    const _tpSec = [...allSectors, ...allSectorsFull].find((x: any) => Number(x.id) === Number(toSectorId));
+    if (!toWorkstationId && _tpSec && isPointDisabledFor(_tpSec, session.presetId)) {
+      setTpOffToast(tr('transfers.pointOffBlocked', { point: _tpSec.label_he || _tpSec.name || toSectorId }));
+      setTimeout(() => setTpOffToast(null), 3500);
+      return;
+    }
     // Dedup: check if strip already has an outgoing transfer
     const existingT = outgoingTransfersRef.current.find((t: any) => String(t.strip_id) === String(stripId));
     if (existingT) {
@@ -11706,6 +11716,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <DraggableNeighborPanel
               key={n.id}
               neighbor={n}
+              disabled={isPointDisabledFor(n, session.presetId)}
               subSectors={subSectors}
               onDropOnMap={handleNeighborDropOnMap}
               isExpanded={expandedNeighbors.has(n.id)}
@@ -11959,7 +11970,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             )}
             {/* צילום מסך - בתפריט שם המשתמש (מתחת להקלטה). Ctrl+P עובד תמיד,
                 וההודעה "נשמר" צפה בראש המסך גם כשהתפריט סגור */}
-            <ScreenshotToast msg={screenshot.msg} />
+            <ScreenshotToast msg={screenshot.msg} /><ScreenshotToast msg={tpOffToast ? { ok: false, text: tpOffToast } : null} />
             {/* חיווי הקלטה - גלוי כל זמן שהמסך מוקלט. מסך שמוקלט
                 בלי שהיושב בו יודע הוא בעיה, ולכן זה חלק מהפיצר ולא קישוט. */}
             {screenRec.state.recording && (
@@ -14905,6 +14916,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   <DraggableNeighborPanel
                     key={n.id}
                     neighbor={n}
+                    disabled={isPointDisabledFor(n, session.presetId)}
                     subSectors={subSectors}
                     onDropOnMap={handleNeighborDropOnMap}
                     isExpanded={expandedNeighbors.has(n.id)}
@@ -18343,6 +18355,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   <DraggableNeighborPanel
                     key={n.id}
                     neighbor={n}
+                    disabled={isPointDisabledFor(n, session.presetId)}
                     subSectors={subSectors}
                     onDropOnMap={handleNeighborDropOnMap}
                     isExpanded={expandedNeighbors.has(n.id)}

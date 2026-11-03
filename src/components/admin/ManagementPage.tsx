@@ -68,6 +68,7 @@ import { LandingPriorityEditor, runwayEndsOf } from './LandingPriorityEditor';
 import { nextRouteDirection, routeDirectionGlyph, routeDirectionArrows } from '../../utils/routeDirection';
 import { parseRoadRelevance, type RoadRelevance } from '../../../shared/elementRoadRelevance';
 import AltRulesEditor from './AltRulesEditor';
+import TransferPointStationsEditor from './TransferPointStationsEditor';
 import { normalizeAltRules } from '../../utils/altRecommend';
 
 /** טופס אלמנט בבסיס ריק. אלמנט חדש רלוונטי לרכבים ולמטוסים עד שבוחרים אחרת. */
@@ -3235,6 +3236,13 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                     {tr('admin.autoAcceptHint')}
                   </p>
                 </div>
+                {editingSector && (
+                  <TransferPointStationsEditor
+                    sector={sectors.find((x: any) => Number(x.id) === Number(editingSector.id)) || editingSector}
+                    presets={presets}
+                    onChanged={() => loadData()}
+                  />
+                )}
                 <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
                   <button
                     onClick={saveSector}
