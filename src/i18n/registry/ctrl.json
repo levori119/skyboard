@@ -2709,6 +2709,74 @@
     "deskHiddenContent": {
       "he": "יש כאן תוכן שמוסתר במצב הנוכחי",
       "en": "Has content hidden in the current mode"
+    },
+    "altRecTitle": {
+      "he": "המלצת גובה - {{label}}",
+      "en": "Altitude recommendation - {{label}}"
+    },
+    "altRecSingle": {
+      "he": "{{count}} מטוסים - בלוק אחד",
+      "en": "{{count}} aircraft - one block"
+    },
+    "altRecAdjacent": {
+      "he": "{{count}} מטוסים - {{blocks}} בלוקים סמוכים",
+      "en": "{{count}} aircraft - {{blocks}} adjacent blocks"
+    },
+    "altRecRule": {
+      "he": "חוק חימוש: {{armament}} - {{target}}",
+      "en": "Armament rule: {{armament}} - {{target}}"
+    },
+    "altRecNearest": {
+      "he": "הקרוב לגובה הנוכחי",
+      "en": "Nearest to the current altitude"
+    },
+    "altRecLowest": {
+      "he": "הנמוך הפנוי",
+      "en": "Lowest free"
+    },
+    "altRecNoFree": {
+      "he": "אין {{blocks}} בלוקים פנויים בטבלת הבלוקים של העמדה",
+      "en": "No {{blocks}} free blocks in the station block table"
+    },
+    "altRecMoveClimb": {
+      "he": "כדי לפנות {{blocks}} בלוקים: להטפיס את {{label}} מ-{{from}} ל-{{to}}",
+      "en": "To free {{blocks}} blocks: climb {{label}} from {{from}} to {{to}}"
+    },
+    "altRecMoveDescend": {
+      "he": "כדי לפנות {{blocks}} בלוקים: להנמיך את {{label}} מ-{{from}} ל-{{to}}",
+      "en": "To free {{blocks}} blocks: descend {{label}} from {{from}} to {{to}}"
+    },
+    "altRecDoMove": {
+      "he": "בצע",
+      "en": "Do it"
+    },
+    "altRecMoved": {
+      "he": "{{label}} עבר ל-{{to}}",
+      "en": "{{label}} moved to {{to}}"
+    },
+    "altRecOccupied": {
+      "he": "תפוס",
+      "en": "Occupied"
+    },
+    "altRecFree": {
+      "he": "פנוי",
+      "en": "Free"
+    },
+    "altRecRecommended": {
+      "he": "מומלץ",
+      "en": "Recommended"
+    },
+    "altRecApply": {
+      "he": "אישור {{alt}}",
+      "en": "Confirm {{alt}}"
+    },
+    "altRecPick": {
+      "he": "בחר בלוק",
+      "en": "Pick a block"
+    },
+    "altRecSkip": {
+      "he": "דלג",
+      "en": "Skip"
     }
   }
 }

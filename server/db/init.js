@@ -1296,6 +1296,9 @@ async function applySchemaOnce() {
   // dual-map: transfer-point sectors shown on map 2 (map 1 uses relevant_sectors)
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS map2_transfer_points JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS suggest_alt_range BOOLEAN DEFAULT false`);
+  // חוקי גובה לפי חימוש - בסיס להמלצת הגובה בכניסת פ"מ לעמדה (src/utils/altRecommend.ts).
+  // [{armament, kind:'band'|'alt'|'range', band, alt_ft, min_ft, max_ft}], לפי סדר עדיפות
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS alt_armament_rules JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS show_full_picture BOOLEAN DEFAULT false`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS blind_map_default BOOLEAN DEFAULT false`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS conflict_alt_rules JSONB DEFAULT '[]'`);

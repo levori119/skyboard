@@ -1447,8 +1447,8 @@
       "en": "When enabled, the 📊 Dashboard button appears for anyone entering this workstation (even without admin permission)."
     },
     "kshmvpalLachrHgdrtGvbh": {
-      "he": "כשמופעל: לאחר הגדרת גובה לפ\"מ עם 3+ מטוסים - המערכת מציעה טווח בלוק פנוי (+1000 רגל לכל זוג מטוסים מעבר לשניים). בלילה: הפרדה של 2000 רגל מפממים סמוכים.",
-      "en": "When enabled: after setting an altitude for a formation with 3+ aircraft, the system suggests a free block range (+1000 ft per pair of aircraft beyond two). At night: 2000 ft separation from adjacent formations."
+      "he": "כשמופעל: כשפ\"מ נגרר לטבלת העמדה - המערכת ממליצה על בלוק פנוי מטבלת הבלוקים ובוחרת אותו מראש (רביעייה = 2 בלוקים סמוכים), ומתריעה אם צריך להטפיס/להנמיך פ\"מ אחר כדי לפנות. בתצוגה האנכית: אחרי הגדרת גובה לפ\"מ עם 3+ מטוסים מוצע טווח פנוי (בלילה הפרדה של 2000 רגל).",
+      "en": "When enabled: when a strip is dragged into the station table, the system recommends a free block from the block table and pre-selects it (a four-ship gets 2 adjacent blocks), and warns if another strip must climb/descend to free one. In the vertical view: after setting an altitude for a 3+ formation, a free range is suggested (2000 ft separation at night)."
     },
     "kshmvpalLvchHmphMtsyg": {
       "he": "כשמופעל, לוח המפה מציג אזורים בלתי נראים - ניתן לגרור פממים ישירות אליהם. כל פ\"מ מקבל אזור + טווח גובה + סטטוס.",
@@ -3929,6 +3929,70 @@
     "presetAddBtn": {
       "he": "✅ הוספה",
       "en": "✅ Add"
+    },
+    "altRulesTitle": {
+      "he": "חוקי גובה לפי חימוש",
+      "en": "Altitude rules by armament"
+    },
+    "altRulesHint": {
+      "he": "החוק הראשון שהחימוש שלו על הפ\"מ קובע. נמוך/בינוני/גבוה = שליש מבלוקי העמדה. גבהים ברגל.",
+      "en": "The first rule whose armament is on the strip wins. Low/medium/high = a third of the station blocks. Altitudes in feet."
+    },
+    "altRulesArmament": {
+      "he": "חימוש",
+      "en": "Armament"
+    },
+    "altRulesKind": {
+      "he": "סוג החוק",
+      "en": "Rule type"
+    },
+    "altRulesKindBand": {
+      "he": "נמוך / בינוני / גבוה",
+      "en": "Low / medium / high"
+    },
+    "altRulesKindAlt": {
+      "he": "גובה פיזי",
+      "en": "Physical altitude"
+    },
+    "altRulesKindRange": {
+      "he": "טווח גבהים",
+      "en": "Altitude range"
+    },
+    "altRulesLow": {
+      "he": "נמוך",
+      "en": "Low"
+    },
+    "altRulesMid": {
+      "he": "בינוני",
+      "en": "Medium"
+    },
+    "altRulesHigh": {
+      "he": "גבוה",
+      "en": "High"
+    },
+    "altRulesFeet": {
+      "he": "רגל",
+      "en": "Feet"
+    },
+    "altRulesFrom": {
+      "he": "מ-",
+      "en": "From"
+    },
+    "altRulesTo": {
+      "he": "עד",
+      "en": "To"
+    },
+    "altRulesUp": {
+      "he": "העלה עדיפות",
+      "en": "Raise priority"
+    },
+    "altRulesDown": {
+      "he": "הורד עדיפות",
+      "en": "Lower priority"
+    },
+    "altRulesAdd": {
+      "he": "חוק",
+      "en": "Rule"
     }
   }
 }

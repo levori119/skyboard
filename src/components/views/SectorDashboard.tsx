@@ -90,6 +90,7 @@ import { useDragPosition } from '../../hooks/useDragPosition';
 import usePinchZoom from '../../hooks/usePinchZoom';
 import { localStep, pinchZoomPan, type ZoomPanView } from '../../utils/pinchZoom';
 import { windowFrame, frameColor } from '../../utils/windowFrame';
+import { recommendAltitude, stripArmaments, normalizeAltRules, type AltRecommendation, type RecBlock } from '../../utils/altRecommend';
 import { loadPadLayout, savePadLayout, type PadLayout } from '../../utils/freeDeskLayout';
 import FreeDeskPad from '../shared/FreeDeskPad';
 import { AimPointsSummary, AimPointsWindow } from '../strips/AimPointsTable';
@@ -828,6 +829,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const useMapZonesRef = useRef(false);
   const fzGetZoneAtPointRef = useRef<(px: number, py: number) => any>((_px: number, _py: number) => null);
   const zoneAltRangesRef = useRef<Record<number, any[]>>({});
+  const offerAltRecRef = useRef<(stripId: string) => void>(() => {});
   const [fzDialog, setFzDialog] = useState<{ stripId: number; zoneName: string; zoneId: number; altRanges: ZoneAltRange[]; selectedAltIds: number[]; selectedStatus: string; note: string; displayLabel?: string; posX?: number; posY?: number; requestedZoneIds: number[]; mapId?: number | null; prevZoneId?: number | null } | null>(null);
   const [fzConflictDialog, setFzConflictDialog] = useState<{ pending: { stripId: number; zoneId: number; altRangeIds: number[]; posX?: number; posY?: number; requestedZoneIds: number[] } | null; conflicts: StripZoneAssignment[]; coordNote: string } | null>(null);
   const [fzCoordMenuDialog, setFzCoordMenuDialog] = useState<{ assignment: StripZoneAssignment; strip: any; conflicts: StripZoneAssignment[]; selectedIds: Set<number>; coordNote: string } | null>(null);
@@ -5086,6 +5088,49 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // if none selected but only one relevant table exists, use it automatically so alerts fire without manual activation.
   const effectiveBlockTableId: number | null = activeBlockTableId ?? (miniViewBlockTableIds.length === 1 ? miniViewBlockTableIds[0] as number : null);
 
+  // ── המלצת גובה בכניסת פ"מ לטבלת העמדה ─────────────────────────────────
+  // פ"מ שנגרר לטבלה מקבל המלצה על בלוק פנוי מטבלת הבלוקים של העמדה (רביעייה =
+  // 2 בלוקים סמוכים, לפי חוקי החימוש בהגדרות העמדה), והבלוקים נבחרים מראש. אם
+  // אין רצף פנוי - התראה להטפיס/להנמיך פ"מ אחד כדי לפנות. src/utils/altRecommend.ts
+  const [altRec, setAltRec] = useState<{ stripId: string; label: string; formation: number; blocks: RecBlock[]; rec: AltRecommendation; selected: number[]; moved: boolean } | null>(null);
+  const altRecBlocks = (): RecBlock[] => {
+    const pid = session.presetId ? Number(session.presetId) : null;
+    const btIds: number[] = (myPresetConfig?.block_table_ids || []).map(Number);
+    return dashboardBlocks
+      .filter((b: any) => btIds.includes(Number(b.block_table_id)) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid)))
+      .filter((b: any) => !effectiveBlockTableId || Number(b.block_table_id) === Number(effectiveBlockTableId))
+      .map((b: any) => ({ id: Number(b.id), alt_from: Number(b.alt_from), alt_to: Number(b.alt_to), mission: b.mission || null }));
+  };
+  const computeAltRec = (stripId: string) => {
+    const strip: any = strips.find(st => String(st.id) === stripId);
+    if (!strip) return null;
+    const blocks = altRecBlocks();
+    if (!blocks.length) return null;
+    const formation = parseInt(String(strip.numberOfFormation ?? strip.number_of_formation ?? '1'), 10) || 1;
+    const others = myTableStrips
+      .filter((o: any) => String(o.id) !== stripId && o.alt)
+      .map((o: any) => ({ id: String(o.id), label: o.callSign || String(o.id), alt: String(o.alt) }));
+    const rec = recommendAltitude({
+      blocks, formation, armaments: stripArmaments(strip),
+      rules: normalizeAltRules((myPresetConfig as any)?.alt_armament_rules), currentAlt: strip.alt || null, others,
+    });
+    return { stripId, label: strip.callSign || stripId, formation, blocks, rec };
+  };
+  const offerAltRec = (stripId: string) => {
+    if (myPresetConfig?.suggest_alt_range !== true) return;
+    const r = computeAltRec(stripId);
+    if (r) setAltRec({ ...r, selected: r.rec.blockIds, moved: false });
+  };
+  offerAltRecRef.current = offerAltRec;
+  const putStripAlt = async (stripId: string, alt: string) => {
+    const target = strips.find(st => String(st.id) === stripId);
+    const dev = target ? computeBlockDeviation({ ...target, alt }, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false;
+    setStrips(prev => prev.map(st => String(st.id) === stripId ? { ...st, alt, block_deviation: dev } : st));
+    try {
+      await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt, block_deviation: dev }) });
+    } catch (e) { console.error(e); }
+  };
+
   // Load count per the rules:
   // 1. Airborne strips at my workstation
   // 2. Ground strips at my workstation with takeoff within next 10 min
@@ -7813,6 +7858,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               fetch(`${API_URL}/strip-table-assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strip_id: numId, preset_id: pid }) }).catch(() => {});
             }
             handleMoveRef.current(String(id), 0, 0, false);
+            offerAltRecRef.current(stripKey);
           } else {
             // Map mode: place strip on map at drop coordinates (accounting for zoom/pan)
             const zoom = mapZoomRef.current;
@@ -13286,6 +13332,72 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         </div>
       </header>
 
+      {/* המלצת גובה - פ"מ שנכנס לטבלת העמדה */}
+      {altRec && (() => {
+        const ar = altRec;
+        const byId = new Map(ar.blocks.map(b => [b.id, b]));
+        const sel = ar.selected.map(id => byId.get(id)).filter(Boolean).sort((a, b) => a!.alt_from - b!.alt_from) as RecBlock[];
+        const selAlt = sel.length ? `${sel[0].alt_from}-${sel[sel.length - 1].alt_to}` : '';
+        const rule = ar.rec.rule;
+        const ruleText = rule ? (rule.kind === 'band' ? tr(rule.band === 'high' ? 'admin.altRulesHigh' : rule.band === 'mid' ? 'admin.altRulesMid' : 'admin.altRulesLow')
+          : rule.kind === 'alt' ? `${rule.alt_ft} ${tr('admin.altRulesFeet')}` : `${rule.min_ft ?? ''}-${rule.max_ft ?? ''} ${tr('admin.altRulesFeet')}`) : '';
+        const mv = ar.rec.move;
+        const blk = (id: number) => { const b = byId.get(id); return b ? `${b.alt_from}-${b.alt_to}` : ''; };
+        return (
+          <div data-testid="alt-rec-dialog" onPointerDown={e => e.stopPropagation()}
+            style={{ position: 'fixed', top: 90, left: '50%', transform: 'translateX(-50%)', zIndex: 9000, width: 360, maxWidth: 'calc(100vw - 32px)', background: T.surface, color: T.text, padding: '12px', direction: dir, boxShadow: '0 8px 32px rgba(0,0,0,0.5)', ...windowFrame('view', themeMode, 8) }}>
+            <div style={{ fontSize: '15px', fontWeight: 'bold', marginBottom: '4px' }}>📐 {tr('ctrl.altRecTitle', { label: ar.label })}</div>
+            <div style={{ fontSize: '12px', color: T.muted, marginBottom: '8px' }}>
+              {ar.rec.needed > 1 ? tr('ctrl.altRecAdjacent', { count: ar.formation, blocks: ar.rec.needed }) : tr('ctrl.altRecSingle', { count: ar.formation })}
+              {rule ? ` · ${tr('ctrl.altRecRule', { armament: rule.armament, target: ruleText })}` : ar.rec.reason === 'nearest' ? ` · ${tr('ctrl.altRecNearest')}` : ar.rec.reason === 'lowest' ? ` · ${tr('ctrl.altRecLowest')}` : ''}
+            </div>
+            {ar.rec.blockIds.length === 0 && (
+              <div data-testid="alt-rec-none" style={{ fontSize: '12px', color: '#f87171', marginBottom: '8px' }}>⛔ {tr('ctrl.altRecNoFree', { blocks: ar.rec.needed })}</div>
+            )}
+            {mv && !ar.moved && (
+              <div data-testid="alt-rec-move" style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(245,158,11,0.15)', border: '1px solid #f59e0b', borderRadius: '6px', padding: '6px 8px', marginBottom: '8px', fontSize: '12px' }}>
+                <span style={{ flex: 1 }}>⚠ {tr(mv.direction === 'climb' ? 'ctrl.altRecMoveClimb' : 'ctrl.altRecMoveDescend', { label: mv.label, from: blk(mv.fromBlockId), to: blk(mv.toBlockId), blocks: ar.rec.needed })}</span>
+                <button data-testid="alt-rec-do-move" onClick={async () => { await putStripAlt(mv.stripId, mv.newAlt); setAltRec(prev => prev ? { ...prev, moved: true } : prev); }}
+                  style={{ background: '#b45309', color: 'white', border: 'none', borderRadius: '5px', padding: '4px 10px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px', flexShrink: 0 }}>{tr('ctrl.altRecDoMove')}</button>
+              </div>
+            )}
+            {mv && ar.moved && (
+              <div style={{ fontSize: '12px', color: '#4ade80', marginBottom: '8px' }}>✓ {tr('ctrl.altRecMoved', { label: mv.label, to: blk(mv.toBlockId) })}</div>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: 260, overflowY: 'auto', marginBottom: '10px' }}>
+              {[...ar.blocks].sort((a, b) => b.alt_from - a.alt_from).map(b => {
+                const on = ar.selected.includes(b.id);
+                const recd = ar.rec.blockIds.includes(b.id);
+                const occ = (ar.rec.occupants[b.id] || []).filter(l => !(ar.moved && mv && l === mv.label));
+                const movedIn = ar.moved && mv && mv.toBlockId === b.id ? [mv.label] : [];
+                const who = [...occ, ...movedIn];
+                return (
+                  <button key={b.id} data-testid="alt-rec-block" data-selected={on || undefined} data-recommended={recd || undefined}
+                    onClick={() => setAltRec(prev => prev ? { ...prev, selected: on ? prev.selected.filter(x => x !== b.id) : [...prev.selected, b.id] } : prev)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', textAlign: 'start', padding: '5px 8px', borderRadius: '5px', cursor: 'pointer', fontFamily: 'inherit',
+                      border: `1px solid ${on ? '#22c55e' : T.border}`, background: on ? 'rgba(34,197,94,0.18)' : 'transparent', color: T.text, fontSize: '13px' }}>
+                    <span style={{ fontWeight: 'bold', fontVariantNumeric: 'tabular-nums', minWidth: 64 }}>{b.alt_from}-{b.alt_to}</span>
+                    <span style={{ flex: 1, fontSize: '11px', color: who.length ? '#f87171' : T.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {who.length ? `${tr('ctrl.altRecOccupied')}: ${who.join(', ')}` : (b.mission || tr('ctrl.altRecFree'))}
+                    </span>
+                    {recd && <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#22c55e', border: '1px solid #22c55e', borderRadius: '4px', padding: '0 4px' }}>{tr('ctrl.altRecRecommended')}</span>}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button data-testid="alt-rec-apply" disabled={!selAlt}
+                onClick={async () => { const id = ar.stripId; setAltRec(null); if (selAlt) await putStripAlt(id, selAlt); }}
+                style={{ flex: 1, background: selAlt ? '#15803d' : '#334155', color: 'white', border: 'none', borderRadius: '6px', padding: '7px', cursor: selAlt ? 'pointer' : 'not-allowed', fontWeight: 'bold', fontSize: '13px' }}>
+                ✓ {selAlt ? tr('ctrl.altRecApply', { alt: selAlt }) : tr('ctrl.altRecPick')}
+              </button>
+              <button data-testid="alt-rec-skip" onClick={() => setAltRec(null)}
+                style={{ background: 'transparent', color: T.muted, border: `1px solid ${T.border}`, borderRadius: '6px', padding: '7px 12px', cursor: 'pointer', fontSize: '13px' }}>{tr('ctrl.altRecSkip')}</button>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Contacts Summary — floating draggable panel */}
       {contactsSummaryOpen && (() => {
         const myPreset = workstationPresets.find(p => Number(p.id) === Number(session.presetId));
@@ -14841,6 +14953,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   return s;
                 }));
               }
+              offerAltRec('s' + sid);
             }
           } : undefined}
           onClick={() => { setTableRowCtxMenu(null); setTableHeaderMenuKey(null); setVerticalCtxMenu(null); setAltUpdateForm(null); setBtCtxMenu(null); }}

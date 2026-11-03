@@ -67,6 +67,8 @@ import { parseLandingPriority } from '../../../shared/landingPriority';
 import { LandingPriorityEditor, runwayEndsOf } from './LandingPriorityEditor';
 import { nextRouteDirection, routeDirectionGlyph, routeDirectionArrows } from '../../utils/routeDirection';
 import { parseRoadRelevance, type RoadRelevance } from '../../../shared/elementRoadRelevance';
+import AltRulesEditor from './AltRulesEditor';
+import { normalizeAltRules } from '../../utils/altRecommend';
 
 /** טופס אלמנט בבסיס ריק. אלמנט חדש רלוונטי לרכבים ולמטוסים עד שבוחרים אחרת. */
 const emptyElementForm = () => ({
@@ -997,6 +999,7 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
           flight_zones_mode: presetForm.flight_zones_mode === true,
           fz_pin_display: (presetForm as any).fz_pin_display || 'handwrite',
           suggest_alt_range: presetForm.suggest_alt_range === true,
+          alt_armament_rules: normalizeAltRules((presetForm as any).alt_armament_rules),
           show_full_picture: (presetForm as any).show_full_picture === true,
           blind_map_default: (presetForm as any).blind_map_default === true,
           strip_window_id: (presetForm as any).strip_window_id ? Number((presetForm as any).strip_window_id) : null,
@@ -1093,6 +1096,7 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
       flight_zones_mode: preset.flight_zones_mode === true,
       fz_pin_display: preset.fz_pin_display || 'handwrite',
       suggest_alt_range: preset.suggest_alt_range === true,
+      alt_armament_rules: normalizeAltRules(preset.alt_armament_rules),
       show_full_picture: preset.show_full_picture === true,
       blind_map_default: preset.blind_map_default === true,
       strip_window_id: preset.strip_window_id || '',
@@ -2352,6 +2356,12 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                       ))}
                     </div>
                     <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#4ade80' }}>{tr('admin.kshmvpalLachrHgdrtGvbh')}</p>
+                    {presetForm.suggest_alt_range && (
+                      <AltRulesEditor
+                        rules={Array.isArray((presetForm as any).alt_armament_rules) ? (presetForm as any).alt_armament_rules : []}
+                        onChange={rules => setPresetForm(p => ({ ...p, alt_armament_rules: rules } as any))}
+                      />
+                    )}
                   </div>
                 )}
 

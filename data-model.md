@@ -3511,3 +3511,11 @@ REFACTOR_LOG #045.
 
 כתב היד והפריסה **שייכים לפתקית** ומופצים איתה; הגודל, כמו המיקום, שייך לכל נמען.
 בדסק החופשי עצמו הפריסה נשמרת פר-עמדה ב-localStorage (`skyking.freeDesk.layout_<preset>`).
+
+---
+
+## `workstation_presets.alt_armament_rules` — חוקי גובה לפי חימוש
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `alt_armament_rules` | JSONB DEFAULT `'[]'` | **חוקי המלצת הגובה** של העמדה, לפי סדר עדיפות: `[{armament, kind, band?, alt_ft?, min_ft?, max_ft?}]`. `kind` = `band` (`low`/`mid`/`high` = שליש מבלוקי העמדה) / `alt` (גובה פיזי ברגל) / `range` (טווח ברגל). פעיל רק כש-`suggest_alt_range` דולק. מנורמל ב-`normalizeAltRules` (חוק בלי חימוש או בלי ערך נזרק). ראה [ALT_RECOMMEND_SPEC.md](ALT_RECOMMEND_SPEC.md) |
