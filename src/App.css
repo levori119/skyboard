@@ -880,15 +880,17 @@ body.light-mode tr.sk-row-b .frozen-col-last { background: #dde8f0 !important; }
    משלו, והשורה נראתה כמו אוסף ולא כמו סרגל. `!important` גובר על ה-inline
    הישן; הצבעים והמסגרות (שנושאים מצב) נשארים של כל פקד. */
 .bt-topbar .bt-tb {
-  height: 28px !important;
+  /* קומפקטי - כדי שכל הסרגל ייכנס בשורה אחת */
+  height: 26px !important;
   box-sizing: border-box;
   display: inline-flex !important;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 0 10px !important;
+  gap: 4px;
+  padding: 0 7px !important;
+  flex-shrink: 0;
   font-family: inherit;
-  font-size: 12px !important;
+  font-size: 11.5px !important;
   font-weight: 600 !important;
   line-height: 1 !important;
   border-radius: 6px !important;
@@ -898,11 +900,11 @@ body.light-mode tr.sk-row-b .frozen-col-last { background: #dde8f0 !important; }
 .bt-topbar .bt-tb span,
 .bt-topbar .bt-tb select,
 .bt-topbar .bt-tb input {
-  font-size: 12px !important;
+  font-size: 11.5px !important;
 }
 /* פקד אייקון (תמה, צילום מסך) - ריבוע באותו גובה */
 .bt-topbar .bt-tb-icon {
-  width: 32px;
+  width: 28px;
   padding: 0 !important;
   font-size: 15px !important;
 }

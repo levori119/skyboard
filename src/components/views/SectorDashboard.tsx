@@ -2957,6 +2957,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const names = ids.map(id => (ranges.find((r: any) => r.id === id)?.name) || '').filter(Boolean);
     return names.length > 0 ? names.join('/') : (a.alt_range_name || '');
   };
+  /** גובה האזור לפין: שם הבלוק וטווח הגבהים שלו ("גבוה 100-200") - לכל בלוק שהפ"מ משויך אליו */
+  const asgnAltRangeLabel = (a: StripZoneAssignment): string => {
+    const ranges = zoneAltRangesRef.current[a.zone_id ?? -1] || [];
+    const parts = asgnAltIds(a).map(id => ranges.find((r: any) => r.id === id)).filter(Boolean).map((r: any) => {
+      const span = r.alt_min != null || r.alt_max != null ? `${r.alt_min ?? ''}-${r.alt_max ?? ''}` : '';
+      return [r.name, span].filter(Boolean).join(' ');
+    });
+    return parts.length ? parts.join(' / ') : asgnAltLabel(a);
+  };
   const fzPinExceedance = (a: StripZoneAssignment, strip: any, zone?: MapZone | null): { out: boolean; kind: 'undefined-alt' | 'limited' | null } => {
     if (!zone || a.zone_id == null) return { out: false, kind: null };
     const pinIds = asgnAltIds(a);
@@ -11175,6 +11184,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                        כדי ש-ע305 לא יתהפך ל-305ע - זה קורה בתוך הרצף, וכיוון הקונטיינר לא נוגע בו. */
                     <div style={{ whiteSpace: 'nowrap', direction: dir, textAlign: 'center', fontFamily: "'Segoe Print','Ink Free','Bradley Hand','Comic Sans MS',cursive", fontStyle: 'italic', fontWeight: 700, fontSize: `${Math.max(9, (fzPinFontSize + 3) / mapZoom)}px`, letterSpacing: '0.4px', color: hasConflict ? '#fca5a5' : '#fde68a', textShadow: '0 1px 2px rgba(0,0,0,0.95), 0 0 5px rgba(0,0,0,0.85)', transform: 'rotate(-3deg)' }}>
                       {hwParts.map((p, i) => <bdi key={i} dir={p.ltr ? 'ltr' : undefined}>{p.text}</bdi>)}
+                      {/* גובה האזור (הבלוק שהפ"מ משויך אליו) - מתחת לאו"ק, באותו כתב יד */}
+                      {altLabel && (
+                        <div data-testid="fz-pin-zone-alt" style={{ fontSize: '0.8em', lineHeight: 1.1, color: hasConflict ? '#fca5a5' : '#e2e8f0' }}>
+                          <bdi>{asgnAltRangeLabel(a)}</bdi>
+                        </div>
+                      )}
                     </div>
                   ) : isMapPinLabelMode(fzPinDisplay) ? (
                     /* כתב רגיל / תגית / בלוק נתונים - ראה MapPinLabel */
@@ -11916,8 +11931,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           fading={appReady}
         />
       )}
-      <header className="bt-topbar" style={{ padding: '6px 16px', background: T.surface, color: T.text, display: 'flex', flexWrap: 'wrap', rowGap: '6px', justifyContent: 'space-between', alignItems: 'center', direction: dir, borderBottom: `1px solid ${T.border}` }}>
-        <div style={{ order: 1, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
+      {/* שורה אחת תמיד. כשהסרגל לא נכנס ברוחב המסך כל התוכן **מוקטן באחיד**
+          (FitScaleBox) - לא גלישה לשורה שנייה ולא גלילה שמסתירה פקדים. overflow
+          נשאר visible: התפריטים הנפתחים יושבים בתוך הסרגל ואסור שייחתכו */}
+      <header className="bt-topbar" style={{ padding: '4px 10px', background: T.surface, color: T.text, display: 'flex', direction: dir, borderBottom: `1px solid ${T.border}` }}>
+        <FitScaleBox style={{ overflow: 'visible' }}
+          contentStyle={{ minWidth: '100%', display: 'flex', flexWrap: 'nowrap', justifyContent: 'space-between', alignItems: 'center', gap: '8px', direction: dir }}>
+        <div style={{ order: 1, display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
           <div data-help="systemIcon" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
             onClick={() => {
               // אנימציית פינג המכ"ם רצה **לפני** פתיחת החלון: החלון ממורכז ומכסה
@@ -12397,7 +12417,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           )}
         </div>
         {/* חיפוש או"ק הוסר מהסרגל העליון (לבקשת המשתמש) */}
-        <div style={{ order: 2, display: 'flex', flexWrap: 'wrap', rowGap: '6px', gap: '6px', alignItems: 'center', marginInlineStart: 'auto' }}>
+        <div style={{ order: 2, display: 'flex', flexWrap: 'nowrap', gap: '4px', alignItems: 'center', marginInlineStart: 'auto', flexShrink: 0 }}>
           {/* כפתור כל המכלול — פ"ממים, לא רלוונטי לדסק משימה */}
           {myPresetConfig?.show_full_picture && !isMissionDeskMode && show('fullPicture') && (
             <button
@@ -13373,6 +13393,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {/* סימן היצרן — בקצה הסרגל, אחרי השעון: נוכח אך לא מתחרה במידע התפעולי */}
           <LeoLogo height={17} themeMode={themeMode} opacity={0.9} />
         </div>
+        </FitScaleBox>
       </header>
 
       {/* המלצת גובה - פ"מ שנכנס לטבלת העמדה */}
