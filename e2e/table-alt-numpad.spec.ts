@@ -60,6 +60,8 @@ const savedAlt = async () => {
 
 test('גובה: לחיצה על התא פותחת מקלדת ספרות, והאישור שומר', async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1080 });
+  // סוכן עמדה שרץ על המחשב (5100) חוטף את ה-API של הדפדפן, כולל ההזדהות
+  await page.addInitScript(() => localStorage.setItem('skyking.stationAgent', 'http://127.0.0.1:9'));
   await loginToWorkstation(page, { preset: PRESET });
 
   const row = page.locator('tr', { hasText: CALLSIGN }).first();
@@ -80,9 +82,33 @@ test('גובה: לחיצה על התא פותחת מקלדת ספרות, והא�
   await expect(pad, 'ובמוד ספרות').toHaveAttribute('data-vk-mode', 'numeric');
   await expect(cell.locator('textarea, input'), 'ואין תיבת טקסט בתא').toHaveCount(0);
 
-  for (const d of ['1', '5', '0']) await pad.getByRole('button', { name: d, exact: true }).click();
-  await pad.getByRole('button', { name: '✓ אישור' }).click();
+  // הלוח נגרר מהכותרת - בעט/מגע, ולא נשאר תקוע מעל הטבלה
+  const before = (await pad.boundingBox())!;
+  const handle = (await page.getByTestId('vk-drag-handle').boundingBox())!;
+  // מהידית ⠿ (בקצה הימני ב-RTL) - בקצה השמאלי יושב ה-✕
+  await page.mouse.move(handle.x + handle.width - 12, handle.y + handle.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(handle.x - 180, handle.y - 200, { steps: 12 });
+  await page.mouse.up();
+  const after = (await pad.boundingBox())!;
+  expect(Math.abs(after.x - before.x) + Math.abs(after.y - before.y), 'הלוח זז').toBeGreaterThan(100);
 
-  await expect.poll(savedAlt, { message: 'הגובה נשמר על הפ"מ', timeout: 15000 }).toBe('150');
-  await expect(cell).toContainText('150');
+  // שני שדות: "מ" פעיל בפתיחה, נגיעה ב"עד" עוברת אליו
+  await expect(page.getByTestId('vk-range-from')).toHaveAttribute('data-active', 'true');
+  for (const d of ['1', '5', '0']) await pad.getByRole('button', { name: d, exact: true }).click();
+  await page.getByTestId('vk-range-to').dispatchEvent('pointerdown');
+  await expect(page.getByTestId('vk-range-to')).toHaveAttribute('data-active', 'true');
+  for (const d of ['1', '8', '0']) await pad.getByRole('button', { name: d, exact: true }).click();
+  await expect(page.getByTestId('vk-range-from')).toContainText('150');
+  await expect(page.getByTestId('vk-range-to')).toContainText('180');
+  await pad.screenshot({ path: 'test-results/alt-numpad-range.png' });
+  await pad.getByRole('button', { name: 'אישור', exact: true }).click();
+
+  await expect.poll(savedAlt, { message: 'הטווח נשמר על הפ"מ', timeout: 15000 }).toBe('150-180');
+  await expect(cell).toContainText('150-180');
+
+  // פתיחה מחדש מפרקת את הטווח לשני השדות
+  await cell.locator('div').first().evaluate(el => (el as HTMLElement).click());
+  await expect(page.getByTestId('vk-range-from')).toContainText('150');
+  await expect(page.getByTestId('vk-range-to')).toContainText('180');
 });

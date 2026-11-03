@@ -16295,7 +16295,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     // פיזית או קליק נוסף על הכפתור. הכפתור נשאר לצד הערך כסימן
                     // לפקח מה הלחיצה תפתח.
                     const openAltPad = () => openVK({
-                      value: s.alt || '', mode: 'numeric', label: tr('ctrl.altitude'),
+                      value: s.alt || '', mode: 'numeric', range: true, label: tr('ctrl.altitude'),
                       onConfirm: v => { void saveField(v); },
                     });
                     return (

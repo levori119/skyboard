@@ -537,6 +537,18 @@
     "typeHere": {
       "he": "הקלד...",
       "en": "Type..."
+    },
+    "rangeFrom": {
+      "he": "מ-",
+      "en": "From"
+    },
+    "rangeTo": {
+      "he": "עד",
+      "en": "To"
+    },
+    "dragToMove": {
+      "he": "גרור להזזה",
+      "en": "Drag to move"
     }
   }
 }

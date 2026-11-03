@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import { useDragPosition } from './hooks/useDragPosition';
+import { joinAltRange, splitAltRange } from './utils/altRangeInput';
 import { tr } from './i18n/tr';
 
 export type VKMode = 'numeric' | 'full';
@@ -7,6 +9,11 @@ interface VKConfig {
   value: string;
   mode: VKMode;
   label?: string;
+  /**
+   * מספרים בלבד: **טווח** - שני שדות, מ / עד. הערך נכנס ויוצא כ-`"100-140"`
+   * (ובלי "עד" - ערך בודד), אותו פורמט של שדה הגובה בפ"מ.
+   */
+  range?: boolean;
   onConfirm: (val: string) => void;
   onClose?: () => void;
 }
@@ -198,10 +205,18 @@ function FullKeyboard({ value, setValue, onEnter }: { value: string; setValue: (
 }
 
 function VirtualKeyboardPanel({ config, onClose }: { config: VKConfig; onClose: () => void }) {
-  const [value, setValue] = useState(config.value);
+  // מספרים: כרטיס קטן במרכז התחתית, לא פס לכל רוחב המסך - ונגרר מהכותרת
+  const numeric = config.mode === 'numeric';
+  const range = numeric && config.range === true;
+  const initial = range ? splitAltRange(config.value) : { from: config.value, to: '' };
+  const [value, setValue] = useState(initial.from);
+  const [toValue, setToValue] = useState(initial.to);
+  const [field, setField] = useState<'from' | 'to'>('from');
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const drag = useDragPosition(panelRef);
 
   const confirm = () => {
-    config.onConfirm(value);
+    config.onConfirm(range ? joinAltRange(value, toValue) : value);
     onClose();
   };
 
@@ -211,19 +226,33 @@ function VirtualKeyboardPanel({ config, onClose }: { config: VKConfig; onClose: 
   };
 
   const displayValue = value.replace(/\n/g, '↵ ');
-  // מספרים: כרטיס קטן במרכז התחתית, לא פס לכל רוחב המסך
-  const numeric = config.mode === 'numeric';
+  const activeValue = range && field === 'to' ? toValue : value;
+  const setActive = range && field === 'to' ? setToValue : setValue;
+
+  const displayBox = (text: string, active: boolean, placeholder: string): React.CSSProperties => ({
+    flex: 1, minWidth: 0, background: '#1e293b', border: `2px solid ${active ? '#3b82f6' : '#334155'}`,
+    borderRadius: '7px', padding: '6px 12px', fontSize: '18px', fontFamily: 'monospace',
+    fontWeight: 'bold', color: text ? '#7dd3fc' : '#334155', minHeight: '36px', display: 'flex',
+    alignItems: 'center', letterSpacing: '0.04em', direction: 'ltr', justifyContent: 'flex-end',
+    overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', cursor: 'pointer',
+    ...(placeholder ? {} : {}),
+  });
+  const caret = <span style={{ borderLeft: '2px solid #3b82f6', marginRight: '2px', height: '18px', animation: 'blink 1s step-end infinite' }} />;
 
   return (
     <div
+      ref={panelRef}
       // מזהה יציב לבדיקות קצה-לקצה - המקלדת מרונדרת בשורש ואין לה כותרת קבועה
       data-testid="virtual-keyboard"
       data-vk-mode={config.mode}
       style={{
-        position: 'fixed', bottom: numeric ? 12 : 0, zIndex: 99999,
+        position: 'fixed', zIndex: 99999,
         ...(numeric
-          ? { left: '50%', transform: 'translateX(-50%)', border: '2px solid #3b82f6', borderRadius: '10px', padding: '8px', width: 'max-content' }
-          : { left: 0, right: 0, borderTop: '2px solid #3b82f6', padding: '8px 14px 12px' }),
+          ? {
+            ...(drag.dragged ? { left: drag.pos!.x, top: drag.pos!.y } : { bottom: 12, left: '50%', transform: 'translateX(-50%)' }),
+            border: '2px solid #3b82f6', borderRadius: '10px', padding: '8px', width: 'max-content',
+          }
+          : { bottom: 0, left: 0, right: 0, borderTop: '2px solid #3b82f6', padding: '8px 14px 12px' }),
         background: '#0f172a',
         boxShadow: '0 -8px 32px rgba(0,0,0,0.6)',
         display: 'flex', flexDirection: 'column', gap: '8px',
@@ -231,48 +260,72 @@ function VirtualKeyboardPanel({ config, onClose }: { config: VKConfig; onClose: 
       }}
       onPointerDown={e => e.stopPropagation()}
     >
-      {/* Header */}
-      {numeric && config.label && (
-        <span style={{ fontSize: '12px', color: '#64748b' }}>{config.label}</span>
-      )}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        {!numeric && config.label && (
-          <span style={{ fontSize: '12px', color: '#64748b', flexShrink: 0 }}>{config.label}</span>
-        )}
-        <div style={{
-          flex: 1, minWidth: 0, background: '#1e293b', border: '2px solid #3b82f6',
-          borderRadius: '7px', padding: '6px 12px', fontSize: '18px', fontFamily: 'monospace',
-          fontWeight: 'bold', color: '#7dd3fc', minHeight: '36px', display: 'flex',
-          alignItems: 'center', letterSpacing: '0.04em', direction: 'ltr', justifyContent: 'flex-end',
-          overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-        }}>
-          {displayValue || <span style={{ color: '#334155', fontSize: '14px' }}>{tr('shared.typeHere')}</span>}
-          <span style={{ borderLeft: '2px solid #3b82f6', marginRight: '2px', height: '18px', animation: 'blink 1s step-end infinite' }} />
-        </div>
-        {!numeric && (
+      {/* Header - במספרים זו גם ידית הגרירה */}
+      {numeric && (
+        <div data-testid="vk-drag-handle" {...drag.handleProps} title={tr('shared.dragToMove')}
+          style={{ ...drag.handleProps.style, display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#64748b' }}>
+          <span aria-hidden style={{ letterSpacing: '-2px' }}>⠿</span>
+          <span style={{ flex: 1 }}>{config.label}</span>
           <button
-            onPointerDown={e => { e.preventDefault(); confirm(); }}
-            style={{
-              padding: '8px 18px', background: '#15803d', color: 'white',
-              border: 'none', borderRadius: '7px', cursor: 'pointer',
-              fontSize: '15px', fontWeight: 'bold', flexShrink: 0,
-            }}
-          >✓ {tr('shared.confirmShort')}</button>
-        )}
-        <button
-          onPointerDown={e => { e.preventDefault(); cancel(); }}
-          style={{
-            padding: '8px 12px', background: '#374151', color: '#9ca3af',
-            border: 'none', borderRadius: '7px', cursor: 'pointer',
-            fontSize: '15px', flexShrink: 0,
-          }}
-        >✕</button>
-      </div>
+            onPointerDown={e => { e.stopPropagation(); e.preventDefault(); cancel(); }}
+            title={tr('shared.cancel')}
+            style={{ padding: '2px 8px', background: '#374151', color: '#9ca3af', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}
+          >✕</button>
+        </div>
+      )}
+      {range ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {(['from', 'to'] as const).map(f => {
+            const v = f === 'from' ? value : toValue;
+            return (
+              <div key={f} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <span style={{ fontSize: '11px', color: field === f ? '#93c5fd' : '#64748b' }}>{tr(f === 'from' ? 'shared.rangeFrom' : 'shared.rangeTo')}</span>
+                <div data-testid={`vk-range-${f}`} data-active={field === f || undefined}
+                  onPointerDown={e => { e.preventDefault(); setField(f); }}
+                  style={{ ...displayBox(v, field === f, ''), width: 92 }}>
+                  {v || <span style={{ fontSize: '13px' }}>-</span>}
+                  {field === f && caret}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {!numeric && config.label && (
+            <span style={{ fontSize: '12px', color: '#64748b', flexShrink: 0 }}>{config.label}</span>
+          )}
+          <div style={displayBox(displayValue, true, '')}>
+            {displayValue || <span style={{ color: '#334155', fontSize: '14px' }}>{tr('shared.typeHere')}</span>}
+            {caret}
+          </div>
+          {!numeric && (
+            <button
+              onPointerDown={e => { e.preventDefault(); confirm(); }}
+              style={{
+                padding: '8px 18px', background: '#15803d', color: 'white',
+                border: 'none', borderRadius: '7px', cursor: 'pointer',
+                fontSize: '15px', fontWeight: 'bold', flexShrink: 0,
+              }}
+            >✓ {tr('shared.confirmShort')}</button>
+          )}
+          {!numeric && (
+            <button
+              onPointerDown={e => { e.preventDefault(); cancel(); }}
+              style={{
+                padding: '8px 12px', background: '#374151', color: '#9ca3af',
+                border: 'none', borderRadius: '7px', cursor: 'pointer',
+                fontSize: '15px', flexShrink: 0,
+              }}
+            >✕</button>
+          )}
+        </div>
+      )}
 
       {/* Keyboard */}
       <div style={{ display: 'flex', justifyContent: 'center' }}>
         {config.mode === 'numeric' ? (
-          <NumericKeyboard value={value} setValue={setValue} onConfirm={confirm} />
+          <NumericKeyboard value={activeValue} setValue={setActive} onConfirm={confirm} />
         ) : (
           <FullKeyboard value={value} setValue={setValue} onEnter={confirm} />
         )}
