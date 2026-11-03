@@ -3,6 +3,7 @@
 // כאן ממפים תפקידים לדגלי SKY-KING ומאחדים עם איש צוות קיים לפי personal_id
 // (כדי לשמור עמדות מאושרות והעדפות אישיות).
 import { Router } from 'express';
+import { withMirageName } from '../auth/mirageName.js';
 import pool from '../db/pool.js';
 import { signToken, DEFAULT_TTL_MS } from '../auth/token.js';
 import { isLocalDbMode } from '../db/localPool.js';
@@ -259,6 +260,19 @@ async function respondWithMirageSession(res, { auth, personalNumber, presetId = 
       // בכניסת מיראז' — מיראז' הוא המקור הבלעדי לעמדות: הגבלה = בדיוק היא;
       // אין הגבלה = כל העמדות (לא רשימת ה-crew_member_workstations של SKY-KING)
       crewMember = { ...result.rows[0], is_admin, is_team_lead, is_manpower, approved_workstations: mirageApproved || [] };
+      // מיראז' הוא מקור האמת לשם: שם ששונה שם מגיע לעמדה, ונשמר גם אצלנו
+      const named = withMirageName(crewMember, auth.user);
+      crewMember = named.member;
+      if (named.changed && crewMember.id != null) {
+        try {
+          await pool.query('UPDATE crew_members SET name = $1, first_name = $2, last_name = $3 WHERE id = $4',
+            [crewMember.name, crewMember.first_name || null, crewMember.last_name || null, crewMember.id]);
+        } catch (err) {
+          // name ייחודי בטבלה - התנגשות עם איש צוות אחר באותו שם לא מפילה כניסה;
+          // הסשן כבר נושא את השם ממיראז'
+          console.error('[mirage] crew name sync failed:', err.message);
+        }
+      }
     }
   } catch (err) {
     console.error('[mirage] crew lookup failed:', err.message);
