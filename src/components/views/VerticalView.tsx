@@ -1,5 +1,5 @@
 import { tr } from '../../i18n/tr';
-import { splitSpaceSet, separatedBySpace } from '../../utils/blockSpaces';
+import { splitSpaceSet, separatedBySpace, blockFitsSpace } from '../../utils/blockSpaces';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Strip from '../strips/Strip';
 import { computeBlockDeviation, getFormationDisplayName, normalizeAlt, parseAltToFeet } from '../../utils/strips';
@@ -407,8 +407,17 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
           .filter((bt: any) => String(bt.block_space_id) === bsId)
           .map((bt: any) => bt.id);
         const blocksPool = allBlocks.length > 0 ? allBlocks : relevantBlocks;
-        const segBlocks = blocksPool.filter((b: any) => bsTableIds.includes(b.block_table_id));
-        return { key: bsId, label: bs ? bs.name : bsId === '—' ? 'ללא מרחב' : bsId, placed: buildSegPlaced(list), segBlocks };
+        // טבלה שהמרחב הזה הוא אחד ממרחבי **החלוקה** שלה: הבלוקים של המרחב (או
+        // בלי מרחב - משרתים את כולם). בלעדיה מרחב חלוקה הוצג ריק מבלוקים.
+        const splitTableIds = new Set(blockTables
+          .filter((bt: any) => Array.isArray(bt.split_space_ids) && bt.split_space_ids.map(String).includes(bsId))
+          .map((bt: any) => Number(bt.id)));
+        const segBlocks = blocksPool.filter((b: any) => bsTableIds.includes(b.block_table_id)
+          || (splitTableIds.has(Number(b.block_table_id)) && blockFitsSpace(b, bsId)));
+        // מרחב שאין לו טבלת בלוקים משלו (או "ללא מרחב") - בלוקי העמדה עצמה,
+        // ולא תרשים ריק: אלה הבלוקים שהעמדה עובדת בהם
+        const shownBlocks = segBlocks.length ? segBlocks : relevantBlocks.filter((b: any) => blockFitsSpace(b, bsId === '—' ? null : bsId));
+        return { key: bsId, label: bs ? bs.name : bsId === '—' ? 'ללא מרחב' : bsId, placed: buildSegPlaced(list), segBlocks: shownBlocks };
       });
   } else {
     const field = groupBy as string;
