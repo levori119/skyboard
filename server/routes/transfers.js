@@ -440,6 +440,20 @@ export async function acceptTransferTx(client, transferId, receivingPresetId, fl
   const { strip_id, to_sector_id, to_workstation_id, target_x, target_y, to_preset_id } = t;
   const assignedPresetId = receivingPresetId || to_preset_id || to_workstation_id || null;
 
+  // הפ"מ עוזב את העמדה המוסרת: השיוך שלה לאזור ("עוזב אזור") יורד מהמפה שלה.
+  // בלי זה, בקבלה אוטומטית (נקודה פקטיבית, ETA) אף עמדה לא ניקתה את השיוך,
+  // והאייקון "↗ עוזב" נשאר על מפת המוסר אחרי שהפ"מ כבר עבר.
+  const fromPid = t.from_workstation_id ?? t.from_preset_id ?? null;
+  if (fromPid != null && Number(fromPid) !== Number(assignedPresetId)) {
+    const hasSza = (await client.query(`SELECT to_regclass('strip_zone_assignments') AS t`)).rows[0]?.t;
+    if (hasSza) {
+      await client.query(
+        `DELETE FROM strip_zone_assignments WHERE strip_id = $1 AND preset_id = $2 AND status = 'עוזב אזור'`,
+        [strip_id, fromPid],
+      );
+    }
+  }
+
   // לפני המיזוג: המיזוג מוחק את הפ"מ הנכנס
   await recordAcceptedFlow(client, t, assignedPresetId, { mode: flow.mode || 'manual', user: flow.user || null });
 
