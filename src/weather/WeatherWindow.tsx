@@ -110,10 +110,13 @@ export default function WeatherWindow({ anchor, prefs, onChange, themeMode, onCl
         ...(dock.docked ? { ...dock.rootStyle, insetInlineStart: 'auto' } : null),
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderBottom: `1px solid ${border}`, flexShrink: 0 }}>
-        <span {...drag.handleProps} onPointerDown={e => { dock.onHeaderPointerDown(e); drag.handleProps.onPointerDown(e); }} style={{ ...drag.handleProps.style, color: muted, cursor: 'grab', fontSize: 13 }}>⠿</span>
+      {/* כל הבאנר הוא ידית גרירה (ולא רק ⠿) - הכפתור ✕ עוצר את הגרירה אצלו */}
+      <div {...drag.handleProps} onPointerDown={e => { dock.onHeaderPointerDown(e); drag.handleProps.onPointerDown(e); }}
+        data-testid="weather-window-header"
+        style={{ ...drag.handleProps.style, display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderBottom: `1px solid ${border}`, flexShrink: 0 }}>
+        <span style={{ color: muted, fontSize: 13 }}>⠿</span>
         <b style={{ flex: 1, fontSize: 13 }}>{tr('weather.windowTitle')}</b>
-        <button onClick={onClose} title={tr('weather.close')}
+        <button onPointerDown={e => e.stopPropagation()} onClick={onClose} title={tr('weather.close')}
           style={{ background: 'none', border: 'none', color: muted, cursor: 'pointer', fontSize: 15, padding: 0 }}>✕</button>
       </div>
 

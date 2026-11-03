@@ -94,8 +94,8 @@ describe('windyEmbedUrl', () => {
     expect(paramsOf(windyEmbedUrl({ ...base, overlay: 'wind' })).level).toBe('surface');
   });
 
-  it('רק בחלון נפתחת טבלת הנקודה בלחיצה (detail), לא על השכבה המעוגנת', () => {
-    expect(paramsOf(windyEmbedUrl({ ...base, chrome: 'full' })).detail).toBe('true');
+  it('חלונית הפירוט (detail) כבויה תמיד - היא פורשת רצועה לבנה ריקה מתחת למפה', () => {
+    expect(paramsOf(windyEmbedUrl({ ...base, chrome: 'full' })).detail).toBe('');
     expect(paramsOf(windyEmbedUrl({ ...base, chrome: 'clean' })).detail).toBe('');
   });
 
