@@ -4,6 +4,8 @@
 //   · MissionDeskPresetConfig — בעורך העמדה: בחירת דסק + הגדרת שיתוף פר-שירות.
 // קובץ נפרד מ-managers.tsx (שכבר ענק) — ראה תכנית ARCH.
 import React, { useEffect, useState } from 'react';
+import MapCopyFromStation from './MapCopyFromStation';
+import { mapCopySources, type MapCopySource } from '../../utils/mapSettingsCopy';
 import { tr } from '../../i18n/tr';
 import { API_URL } from '../../config';
 import { customConfirm } from '../shared/ConfirmModal';
@@ -559,7 +561,9 @@ function StripsConfigEditor({ config, mapServices, onChange }: {
 // קבוצה אחת לכל חלון מפה בדסק - דסק יכול להחזיק כמה מפות, ולכל אחת הגדרות משלה.
 // הרכיב "טיפש": מקבל הגדרה ומחזיר הגדרה, ואינו יודע דבר על הטופס שמעליו.
 // ─────────────────────────────────────────────────────────────────────────────
-function MapWindowSettings({ settings, maps, sectors, boundStrips, onChange }: {
+function MapWindowSettings({ settings, maps, sectors, boundStrips, onChange, copySources = [] }: {
+  /** "זהה לעמדה": עמדות / חלונות דסק אחרים עם אותה מפה */
+  copySources?: MapCopySource[];
   settings: MDPresetMapSettings;
   maps: { id: number; name: string; parent_map_id?: number | null }[];
   sectors: { id: number; name: string }[];
@@ -588,6 +592,7 @@ function MapWindowSettings({ settings, maps, sectors, boundStrips, onChange }: {
         <option value="">{tr('missiondesk.mapSelectNone')}</option>
         {maps.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
       </select>
+      <MapCopyFromStation sources={copySources} onPick={src => onChange({ ...settings, ...src.settings })} />
 
       {/* חלונות הפ"ממים שקשורים לחלון הזה - כדי שיהיה ברור מה נגרר לאן */}
       {boundStrips.length > 0 && (
@@ -942,6 +947,7 @@ export function MissionDeskPresetConfig({ deskId, sharing, mapConfig, viewTables
                   badge={mapName || tr('missiondesk.mapSelectNone')}
                   attention={st.map_id == null}>
                   <MapWindowSettings
+                    copySources={mapCopySources(allPresets || [], st.map_id, { excludePresetId: currentPresetId ?? null, excludeWindowKey: String(svc.id) })}
                     settings={st}
                     maps={maps}
                     sectors={sectors}

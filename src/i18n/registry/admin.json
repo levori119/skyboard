@@ -4045,6 +4045,14 @@
     "tpStationFailed": {
       "he": "השינוי לא נשמר - נסה שוב",
       "en": "The change was not saved - try again"
+    },
+    "mapCopyFromStation": {
+      "he": "זהה לעמדה:",
+      "en": "Same as station:"
+    },
+    "mapCopyFromStationPick": {
+      "he": "בחר עמדה עם אותה מפה ({{count}})",
+      "en": "Pick a station with the same map ({{count}})"
     }
   }
 }

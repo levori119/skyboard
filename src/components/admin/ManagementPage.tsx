@@ -68,6 +68,8 @@ import { LandingPriorityEditor, runwayEndsOf } from './LandingPriorityEditor';
 import { nextRouteDirection, routeDirectionGlyph, routeDirectionArrows } from '../../utils/routeDirection';
 import { parseRoadRelevance, type RoadRelevance } from '../../../shared/elementRoadRelevance';
 import AltRulesEditor from './AltRulesEditor';
+import MapCopyFromStation from './MapCopyFromStation';
+import { mapCopySources, presetFieldsFromSource } from '../../utils/mapSettingsCopy';
 import TransferPointStationsEditor from './TransferPointStationsEditor';
 import { normalizeAltRules } from '../../utils/altRecommend';
 
@@ -1564,6 +1566,10 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                         <option key={m.id} value={m.id}>{m.name}</option>
                       ))}
                     </select>
+                    {/* "זהה לעמדה": הגדרות המפה של עמדה אחרת עם אותה מפה */}
+                    <MapCopyFromStation
+                      sources={mapCopySources(allPresets, presetForm.map_id ? Number(presetForm.map_id) : null, { excludePresetId: editingPreset?.id ?? null })}
+                      onPick={src => setPresetForm(p => ({ ...p, ...presetFieldsFromSource(src) } as any))} />
                     {/* עריכת המפה + מיקום קבוע לנקודות ההעברה — מכאן, בהקשר העמדה */}
                     {presetForm.map_id && (
                       <>
