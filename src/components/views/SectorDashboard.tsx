@@ -13177,12 +13177,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             );
           })()}
 
-          {show('theme') && <button
-            data-help="theme" className="bt-tb bt-tb-icon"
-            onClick={() => setThemeMode(m => m === 'dark' ? 'light' : m === 'light' ? 'ocean' : 'dark')}
-            title={themeMode === 'light' ? 'עבור למצב תכלת' : themeMode === 'ocean' ? 'עבור למצב לילה' : 'עבור למצב יום'}
-            style={{ background: themeMode === 'ocean' ? '#1e3a5c' : themeMode === 'light' ? '#334155' : '#1e293b', border: `1px solid ${themeMode === 'ocean' ? '#38bdf8' : 'transparent'}`, borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', fontSize: '15px', lineHeight: 1, display: 'flex', alignItems: 'center', gap: '3px' }}
-          >{themeMode === 'light' ? '🌊' : themeMode === 'ocean' ? '🌙' : '☀️'}</button>}
           {show('freeDesk') && <button data-help="notepad" className="bt-tb" onClick={() => setShowNotepad(v => !v)} style={{ background: showNotepad ? '#f59e0b' : '#334155', padding: '4px 9px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', fontWeight: showNotepad ? 'bold' : 'normal' }}>
             {tr('ctrl.freeDesk')}
           </button>}
@@ -13278,6 +13272,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </button>
             );
           })()}
+          {/* החלפת תמה - צמודה לשעון */}
+          {show('theme') && <button
+            data-help="theme" className="bt-tb bt-tb-icon"
+            onClick={() => setThemeMode(m => m === 'dark' ? 'light' : m === 'light' ? 'ocean' : 'dark')}
+            title={themeMode === 'light' ? 'עבור למצב תכלת' : themeMode === 'ocean' ? 'עבור למצב לילה' : 'עבור למצב יום'}
+            style={{ background: themeMode === 'ocean' ? '#1e3a5c' : themeMode === 'light' ? '#334155' : '#1e293b', border: `1px solid ${themeMode === 'ocean' ? '#38bdf8' : 'transparent'}`, borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', fontSize: '15px', lineHeight: 1, display: 'flex', alignItems: 'center', gap: '3px' }}
+          >{themeMode === 'light' ? '🌊' : themeMode === 'ocean' ? '🌙' : '☀️'}</button>}
           {/* Clock widget */}
           <span data-help="clock" style={{ display: 'flex' }}><ClockWidget lightMode={lightMode} /></span>
           {/* סימן היצרן — בקצה הסרגל, אחרי השעון: נוכח אך לא מתחרה במידע התפעולי */}
@@ -18743,7 +18744,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <div key={item.id} style={{ marginBottom: '4px', border: `1px solid ${T.border}`, borderRadius: '6px', overflow: 'hidden' }}>
                       <button onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); const k = `item-${item.id}`; s.has(k) ? s.delete(k) : s.add(k); return s; })}
                         style={{ ...sectionBar(themeMode), ...sectionTitle(themeMode), flex: undefined, width: '100%', border: 'none', textAlign: 'start' }}>
-                        <span style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', flexShrink: 0 }}>{item.type === 'image' ? '🖼' : '📄'}</span>
+                        <span style={{ fontSize: '13px', fontWeight: 400, flexShrink: 0 }}>{item.type === 'image' ? '🖼' : '📄'}</span>
                         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
                         <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{aidExpandedIds.has(`item-${item.id}`) ? '▼' : '▶'}</span>
                       </button>

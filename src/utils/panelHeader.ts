@@ -21,6 +21,9 @@ export const sectionBar = (theme: PanelTheme): CSSProperties => ({
 export const sectionTitle = (theme: PanelTheme): CSSProperties => ({
   flex: 1, minWidth: 0, textAlign: 'start', padding: '0 2px',
   fontSize: '13px', fontWeight: 800, lineHeight: 1.25, letterSpacing: '0.2px',
+  // כותרת שהיא <button> מקבלת מהדפדפן את גופן הכפתורים (Arial) ולא את גופן
+  // הממשק - ובו העברית נראית קטנה בבירור באותם 13px. inherit מיישר את כולן.
+  fontFamily: 'inherit',
   color: theme === 'light' ? '#020617' : '#f8fafc',
 });
 
