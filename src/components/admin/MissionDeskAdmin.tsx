@@ -638,6 +638,19 @@ function MapWindowSettings({ settings, maps, sectors, boundStrips, onChange, cop
       </div>
       <p style={{ margin: '6px 0 0', fontSize: 11, color: '#64748b' }}>{tr('missiondesk.mapStripsPanelHint')}</p>
 
+      {/* מפה עיוורת כברירת מחדל - כמו בעמדה רגילה, אבל פר-חלון */}
+      <label style={S.label}>🙈 {tr('missiondesk.mapBlindDefault')}</label>
+      <div style={{ display: 'flex', gap: 8, direction: 'rtl' }}>
+        {[{ val: true, label: '✅' }, { val: false, label: '⬜' }].map(opt => (
+          <button key={String(opt.val)} type="button" data-testid={opt.val ? 'md-blind-default-on' : 'md-blind-default-off'}
+            onClick={() => onChange({ ...settings, blind_map_default: opt.val })}
+            style={chip((settings.blind_map_default === true) === opt.val)}>
+            {opt.label}
+          </button>
+        ))}
+      </div>
+      <p style={{ margin: '6px 0 0', fontSize: 11, color: '#64748b' }}>{tr('missiondesk.mapBlindDefaultHint')}</p>
+
       {/* מצב אזורי טיסה + תצוגת הפ"מ - פר-חלון, כי בדסק כל מפה משמשת למשהו אחר */}
       <label style={S.label}>✈ {tr('missiondesk.mapFlightZones')}</label>
       <div style={{ display: 'flex', gap: 8, direction: 'rtl' }}>

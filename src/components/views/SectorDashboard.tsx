@@ -11550,6 +11550,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     })
     .filter((w): w is { svc: MissionDeskService; key: string; mapId: number; settings: MDPresetMapSettings } => w.mapId != null);
   const mdWindowsKey = mdMapWindows.map(w => `${w.key}:${w.mapId}`).join('|');
+  // מפה עיוורת כברירת מחדל - פר-חלון, פעם אחת לחלון+מפה (אחר כך זו בחירת הפקח)
+  const mdBlindSeededRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    for (const w of mdMapWindows) {
+      const k = `${w.key}:${w.mapId}`;
+      if (mdBlindSeededRef.current.has(k)) continue;
+      mdBlindSeededRef.current.add(k);
+      if (w.settings.blind_map_default === true) mdSetter(w.key, 'blind')(true);
+    }
+  }, [mdWindowsKey]); // eslint-disable-line react-hooks/exhaustive-deps
   // השיוכים של חלונות הדסק מתעדכנים כמו של המפה הראשית (פולינג 5ש') - אחרת
   // שינוי של עמדה אחרת, או של העמדה עצמה, לא מגיע לחלון עד טעינה מחדש
   const reloadMdAssignmentsRef = useRef(reloadMdAssignments);

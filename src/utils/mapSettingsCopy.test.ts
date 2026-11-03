@@ -28,6 +28,6 @@ describe('mapCopySources - "זהה לעמדה" לאותה מפה', () => {
 describe('presetFieldsFromSource', () => {
   it('נקודות העברה ומצב אזורים בשדות של טופס עמדה', () => {
     const src = mapCopySources(presets, 7)[0];
-    expect(presetFieldsFromSource(src)).toEqual({ relevant_sectors: [5, 6], flight_zones_mode: true, fz_pin_display: 'tag', sector_maps_enabled: true, sector_map_ids: [70] });
+    expect(presetFieldsFromSource(src)).toEqual({ relevant_sectors: [5, 6], flight_zones_mode: true, fz_pin_display: 'tag', sector_maps_enabled: true, sector_map_ids: [70], blind_map_default: false });
   });
 });

@@ -428,6 +428,7 @@ export function mdMapSettings(cfg: MDPresetMapConfig | undefined | null, service
     flight_zones_mode: raw.flight_zones_mode === true,
     strips_panel: raw.strips_panel !== false,
     fz_pin_display: normalizePinDisplay(raw.fz_pin_display, DEFAULT_PIN_DISPLAY),
+    blind_map_default: raw.blind_map_default === true,
   };
 }
 

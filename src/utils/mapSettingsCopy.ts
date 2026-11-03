@@ -41,6 +41,7 @@ export function mapCopySources(presets: any[], mapId: number | null | undefined,
           ...(p.fz_pin_display ? { fz_pin_display: p.fz_pin_display } : {}),
           sector_maps_enabled: p.sector_maps_enabled === true,
           sector_map_ids: nums(p.sector_map_ids),
+          blind_map_default: p.blind_map_default === true,
         },
       });
     }
@@ -67,6 +68,7 @@ export function mapCopySources(presets: any[], mapId: number | null | undefined,
           sector_maps_enabled: w.sector_maps_enabled === true,
           sector_map_ids: nums(w.sector_map_ids),
           ...(typeof w.strips_panel === 'boolean' ? { strips_panel: w.strips_panel } : {}),
+          blind_map_default: w.blind_map_default === true,
         },
       });
     }
@@ -83,5 +85,6 @@ export function presetFieldsFromSource(src: MapCopySource): Record<string, unkno
     ...(s.fz_pin_display ? { fz_pin_display: s.fz_pin_display } : {}),
     ...(s.sector_maps_enabled !== undefined ? { sector_maps_enabled: s.sector_maps_enabled } : {}),
     ...(s.sector_map_ids ? { sector_map_ids: s.sector_map_ids } : {}),
+    ...(s.blind_map_default !== undefined ? { blind_map_default: s.blind_map_default } : {}),
   };
 }

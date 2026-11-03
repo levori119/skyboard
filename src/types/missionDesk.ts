@@ -79,6 +79,8 @@ export interface MDPresetMapSettings {
   // עמודת הפ"ממים בתוך אזור המפה. ברירת מחדל: מוצגת - אלא אם הוגדר לדסק חלון
   // פ"ממים עצמאי המקושר למפה הזו, ואז אין טעם בשתיהן.
   strips_panel?: boolean;
+  // ברירת המחדל של החלון בעליית העמדה: מפה עיוורת (התמונה מוסתרת, השכבות נשארות)
+  blind_map_default?: boolean;
 }
 export type MDPresetMapConfig = Record<string, MDPresetMapSettings>;
 export const mdEmptyMapSettings = (): MDPresetMapSettings =>

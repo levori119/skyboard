@@ -2,246 +2,949 @@
   "_group": "דסק משימה כללי",
   "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
   "keys": {
-    "title": { "he": "דסק משימה כללי", "en": "General Mission Desk" },
-    "adminTab": { "he": "🗂 דסקי משימה", "en": "🗂 Mission desks" },
-    "serverError": { "he": "שגיאה בחיבור לשרת - אם השרת עודכן זה עתה, הפעל מחדש (npm run dev)", "en": "Server connection error - if the server was just updated, restart it (npm run dev)" },
-    "adminTitle": { "he": "דסקי משימה כלליים", "en": "General mission desks" },
-    "logout": { "he": "התנתק", "en": "Log out" },
-    "toggleTheme": { "he": "החלף תמה", "en": "Switch theme" },
-    "loading": { "he": "טוען דסק...", "en": "Loading desk..." },
-    "noDeskConfigured": { "he": "לא הוגדר דסק לעמדה זו - יש לבחור דסק במסך הניהול", "en": "No desk configured for this position - pick one in the management screen" },
-    "noLayoutConfigured": { "he": "לדסק אין פריסה - יש להגדיר פריסה במסך הניהול", "en": "This desk has no layout - define one in the management screen" },
-    "noServiceAssigned": { "he": "לא שויך שירות לאזור זה", "en": "No service assigned to this area" },
-    "unnamedService": { "he": "שירות ללא שם", "en": "Unnamed service" },
-
-    "svcButtons": { "he": "מסך ניהול אמצעים", "en": "Assets board" },
-    "svcFreetext": { "he": "טקסט חופשי", "en": "Free text" },
-    "svcTable": { "he": "טבלה חכמה", "en": "Smart table" },
-    "svcImage": { "he": "תמונה", "en": "Image" },
-    "svcLabel": { "he": "טקסט קבוע", "en": "Fixed text" },
-    "svcMap": { "he": "מפה", "en": "Map" },
-    "svcStrips": { "he": "פ\"ממים של מפה", "en": "Map strips" },
-    "addSvcMap": { "he": "מפה", "en": "Map" },
-    "addSvcStrips": { "he": "פ\"ממים", "en": "Strips" },
-    "svcViewTables": { "he": "טבלאות מתצוגה", "en": "View menu tables" },
-    "addSvcViewTables": { "he": "טבלאות מתצוגה", "en": "View tables" },
-    "viewTablesPickedPerStation": { "he": "אילו טבלאות ייפתחו במשבצת נקבע בהגדרת העמדה - אותו דסק משרת עמדות שונות", "en": "Which tables open in this area is set per station - the same desk serves different stations" },
-    "viewTablesPickHint": { "he": "סמן את הטבלאות מתפריט התצוגה שייפתחו במשבצת הזו", "en": "Tick the View menu tables that open in this area" },
-    "viewTablesTabsHint": { "he": "כמה טבלאות במשבצת אחת מוצגות כלשוניות", "en": "Several tables in one area are shown as tabs" },
-    "viewTablesNone": { "he": "לא נבחרו טבלאות", "en": "No tables picked" },
-    "viewTablesNeedBase": { "he": "טבלת האלמנטים נטענת לפי בסיס האב - יש לבחור בסיס אב לעמדה", "en": "The elements table loads by parent base - pick a parent base for the station" },
-    "viewTablesAirfield": { "he": "שדה תעופה לנסיעות ולנהגים", "en": "Airfield for trips and drivers" },
-    "viewTablesAirfieldNone": { "he": "בחר שדה תעופה", "en": "Pick an airfield" },
-    "viewTablesNeedAirfield": { "he": "בלי שדה תעופה טבלאות הנסיעות והנהגים יישארו ריקות", "en": "Without an airfield the trips and drivers tables stay empty" },
-    "viewTablesEmptySlot": { "he": "לא נבחרו טבלאות למשבצת זו - בוחרים אותן בהגדרת העמדה במסך הניהול", "en": "No tables picked for this area - pick them in the station settings" },
-    "viewTablesShownElsewhere": { "he": "מוצגת במשבצת אחרת בדסק", "en": "Shown in another area of the desk" },
-    "viewTablesNoBase": { "he": "לעמדה לא הוגדר בסיס אב - אין לפי מה לטעון אלמנטים", "en": "The station has no parent base - there is nothing to load elements by" },
-    "vtElements": { "he": "אלמנטים בבסיס", "en": "Base elements" },
-    "vtTrips": { "he": "ניהול נסיעות", "en": "Trips management" },
-    "vtDrivers": { "he": "ניהול נהגים", "en": "Drivers management" },
-    "vtQuantities": { "he": "כמויות (חלונות נתונים)", "en": "Quantities (data windows)" },
-    "vtMessages": { "he": "הודעות", "en": "Messages" },
-    "vtContainer": { "he": "קונטיינר חלונות", "en": "Window container" },
-    "viewTablesByStation": { "he": "לפי איזו עמדה", "en": "By station" },
-    "viewTablesThisStation": { "he": "העמדה הזו", "en": "This station" },
-    "viewTablesStationMissing": { "he": "העמדה שנבחרה נמחקה", "en": "The selected station was deleted" },
-    "viewTablesStationNoAirfield": { "he": "לעמדה שנבחרה לא הוגדר שדה תעופה - הטבלה תישאר ריקה", "en": "The selected station has no airfield - the table stays empty" },
-    "viewTablesStationNoBase": { "he": "לעמדה שנבחרה לא הוגדר בסיס אב - אין לפי מה לטעון אלמנטים", "en": "The selected station has no parent base - there is nothing to load elements by" },
-    "viewTablesByStationTitle": { "he": "לפי {{name}}", "en": "By {{name}}" },
-    "mapPickedPerStation": { "he": "איזו מפה תוצג נקבע בהגדרת העמדה - אותו דסק משרת עמדות עם מפות שונות", "en": "Which map is shown is set per station - the same desk serves stations with different maps" },
-    "stripsBindLabel": { "he": "חלון הפ\"ממים של", "en": "Strips window of" },
-    "stripsBindNone": { "he": "בחר חלון מפה", "en": "Pick a map window" },
-    "stripsBindHint": { "he": "החלון יציג את הפ\"ממים של המפה שנבחרה, וגרירה ממנו תניח אותם עליה", "en": "The window lists that map's strips; dragging from it places them on that map" },
-    "stripsNoMapWindows": { "he": "אין בדסק חלון מפה - הוסף מפה כדי לקשר אליה חלון פ\"ממים", "en": "This desk has no map window - add a map to link a strips window to" },
-    "mapGroupTitle": { "he": "קבוצת מפה", "en": "Map group" },
-    "generalGroupTitle": { "he": "כללי", "en": "General" },
-    "mapSelectLabel": { "he": "מפה", "en": "Map" },
-    "mapSelectNone": { "he": "לא נבחרה מפה", "en": "No map selected" },
-    "mapRequiredBadge": { "he": "חובה", "en": "Required" },
-    "mapMissingSave": { "he": "לא ניתן לשמור: יש לבחור מפה לכל חלון מפה בדסק", "en": "Cannot save: every map window in the desk needs a map" },
-    "mapTransferPoints": { "he": "נקודות העברה בחלון זה", "en": "Transfer points in this window" },
-    "mapTransferPointsHint": { "he": "הנקודות מוצגות בתוך חלון המפה הזה בלבד", "en": "These points appear inside this map window only" },
-    "mapSectorMaps": { "he": "מפות סקטור על המפה", "en": "Sector maps on this map" },
-    "mapSectorMapsHint": { "he": "מפות בת של המפה שנבחרה - קפיצה מהירה לגזרה", "en": "Child maps of the selected map - quick jump to a sector" },
-    "mapNoSectorMaps": { "he": "אין למפה זו מפות בת", "en": "This map has no child maps" },
-    "mapFlightZones": { "he": "מצב אזורי טיסה בחלון זה", "en": "Flight-zones mode in this window" },
-    "mapFlightZonesHint": { "he": "פותח את סרגל הכלים המלא של המפה - תצוגת פ\"מ, סינון אזורים ושידוך בלחיצה", "en": "Opens the map's full toolbar - strip display, zone filtering and click-to-pair" },
-    "mapPinDisplay": { "he": "איך מוצג הפ\"מ על המפה", "en": "How a strip is shown on the map" },
-    "mapPinDisplayHint": { "he": "ברירת המחדל של החלון; המפעיל יכול לשנות מסרגל הכלים", "en": "The window's default; the operator can change it from the toolbar" },
-    "mapStripsPanel": { "he": "עמודת פ\"ממים בתוך אזור המפה", "en": "Strips column inside the map region" },
-    "mapStripsPanelHint": { "he": "נכבית אוטומטית כשמקושר למפה חלון פ\"ממים עצמאי בפריסה, כדי שהרשימה לא תופיע פעמיים", "en": "Turned off automatically when a standalone strips window is linked, so the list is not shown twice" },
-    "mapNoWindowsInDesk": { "he": "אין בדסק חלונות מפה", "en": "This desk has no map windows" },
-    "mapConfigTitle": { "he": "חלונות המפה של הדסק", "en": "The desk's map windows" },
-    "mapWindowUnnamed": { "he": "חלון מפה", "en": "Map window" },
-    "stripsWindowFor": { "he": "פ\"ממים", "en": "Strips" },
-    "stripsUnlinked": { "he": "חלון הפ\"ממים לא מקושר לחלון מפה - הגדר קישור בהגדרת הדסק", "en": "This strips window is not linked to a map window - set the link in the desk definition" },
-    "mapWindowNoMap": { "he": "לא נבחרה מפה לחלון זה בהגדרת העמדה", "en": "No map was selected for this window in the station settings" },
-    "hostServiceNotInSetup": { "he": "התוכן מגיע מהעמדה - לא מוצג בהגדרת הדסק", "en": "Content comes from the station - not shown in the desk definition" },
-    "addSvcImage": { "he": "תמונה", "en": "Image" },
-    "addSvcLabel": { "he": "טקסט", "en": "Text" },
-    "imagePasteHint": { "he": "הדבק כאן צילום מסך (Ctrl+V) או גרור תמונה", "en": "Paste a screenshot here (Ctrl+V) or drop an image" },
-    "imageChooseFile": { "he": "בחר קובץ", "en": "Choose file" },
-    "imageBadFormat": { "he": "פורמט לא נתמך - תמונה בלבד (PNG/JPG/GIF/WEBP)", "en": "Unsupported format - image only (PNG/JPG/GIF/WEBP)" },
-    "imageFit": { "he": "התאמה", "en": "Fit" },
-    "imageFitContain": { "he": "התאם (שלם)", "en": "Contain (whole)" },
-    "imageFitCover": { "he": "מלא (חיתוך)", "en": "Cover (crop)" },
-    "imageRemove": { "he": "הסר תמונה", "en": "Remove image" },
-    "imageNotSet": { "he": "לא הוגדרה תמונה", "en": "No image set" },
-    "labelText": { "he": "טקסט", "en": "Text" },
-    "labelPlaceholder": { "he": "הטקסט הקבוע שיוצג בעמדה...", "en": "The fixed text shown at the station..." },
-    "labelPreview": { "he": "תצוגה מקדימה", "en": "Preview" },
-    "labelAlign": { "he": "יישור", "en": "Align" },
-    "labelColor": { "he": "צבע", "en": "Color" },
-    "labelNotSet": { "he": "כתוב כאן...", "en": "Type here..." },
-    "labelSelectHint": { "he": "סמן טקסט ← עצב:", "en": "Select text → style:" },
-    "applySize": { "he": "החל גודל על הבחירה", "en": "Apply size to selection" },
-    "unbold": { "he": "בטל הדגשה", "en": "Remove bold" },
-    "alignStart": { "he": "התחלה", "en": "Start" },
-    "alignCenter": { "he": "מרכז", "en": "Center" },
-    "alignEnd": { "he": "סוף", "en": "End" },
-
-    "newButtonText": { "he": "אמצעי חדש", "en": "New asset" },
-    "defaultStateOff": { "he": "לא פעיל", "en": "Inactive" },
-    "defaultStateOn": { "he": "פעיל", "en": "Active" },
-    "emptyBoardHint": { "he": "קליק ימני - צור כפתור", "en": "Right-click - create a button" },
-    "createButton": { "he": "צור כפתור", "en": "Create button" },
-    "editButton": { "he": "ערוך כפתור", "en": "Edit button" },
-    "deleteButton": { "he": "מחק כפתור", "en": "Delete button" },
-    "confirmDeleteButton": { "he": "למחוק את הכפתור?", "en": "Delete this button?" },
-    "buttonEditorTitle": { "he": "עריכת כפתור", "en": "Edit button" },
-    "buttonText": { "he": "טקסט הכפתור", "en": "Button text" },
-    "allowFreeText": { "he": "טקסט חופשי על הכפתור", "en": "Free text on button" },
-    "freeTextPlaceholder": { "he": "טקסט חופשי...", "en": "Free text..." },
-    "boldFont": { "he": "מודגש", "en": "Bold" },
-    "fontSize": { "he": "גודל", "en": "Size" },
-    "font": { "he": "פונט", "en": "Font" },
-    "fontDefault": { "he": "רגיל", "en": "Default" },
-    "statesTitle": { "he": "מצבים", "en": "States" },
-    "stateLabel": { "he": "שם מצב", "en": "State name" },
-    "addState": { "he": "הוסף מצב", "en": "Add state" },
-    "removeState": { "he": "הסר מצב", "en": "Remove state" },
-    "alertTargets": { "he": "התראה לעמדות", "en": "Alert positions" },
-    "cancel": { "he": "ביטול", "en": "Cancel" },
-    "save": { "he": "שמור", "en": "Save" },
-
-    "editMode": { "he": "עריכת כפתורים", "en": "Edit buttons" },
-    "sortByStatus": { "he": "סדר לפי סטטוס", "en": "Sort by status" },
-    "sortByStatusHint": { "he": "מקבץ כפתורים בעלי סטטוס זהה - שורה לכל סטטוס, ומסדר מחדש בכל שינוי", "en": "Groups buttons with the same status - one row per status, re-sorted on every change" },
-    "sortByStatusDesc": { "he": "סדר הפוך", "en": "Reverse order" },
-    "sortByStatusAscHint": { "he": "מסודר לפי סטטוס. לחיצה - סדר סטטוסים הפוך", "en": "Sorted by status. Click to reverse the status order" },
-    "sortByStatusDescHint": { "he": "מסודר לפי סטטוס בסדר הפוך. לחיצה - ביטול הסידור. גרירת כפתור גם מבטלת", "en": "Sorted by status, reversed. Click to stop sorting. Dragging a button also stops it" },
-    "snapOn": { "he": "מיושר", "en": "Aligned" },
-    "snapOff": { "he": "חופשי", "en": "Free" },
-    "snapOnHint": { "he": "גרירה נצמדת לשורה או לעמודה הקרובה. לחיצה - מעבר לגרירה חופשית", "en": "Dragging snaps to the nearest row or column. Click for free dragging" },
-    "snapOffHint": { "he": "גרירה חופשית. לחיצה - יישור לשורה או לעמודה הקרובה", "en": "Free dragging. Click to snap to the nearest row or column" },
-    "editModeHint":{ "he": "לחץ על כפתור כדי לערוך אותו", "en": "Tap a button to edit it" },
-    "adminButtonsHint": { "he": "כפתורים שנוצרים כאן הם אמצעים קבועים", "en": "Buttons created here are fixed assets" },
-    "buttonSize": { "he": "גודל הכפתור:", "en": "Button size:" },
-    "btnWidth": { "he": "רוחב", "en": "Width" },
-    "btnHeight": { "he": "גובה", "en": "Height" },
-    "sizeAuto": { "he": "אוטו", "en": "auto" },
-    "fixedBadge": { "he": "אמצעי קבוע", "en": "Fixed asset" },
-    "eraserTool": { "he": "מחק - מוחק במעבר הסמן", "en": "Eraser - erases under the cursor" },
-    "freetextNotInSetup": { "he": "הכתיבה נעשית בעמדה - שרבוטי עט לא מוצגים בהגדרה", "en": "Writing happens at the station - pen scribbles are not shown in setup" },
-    "resizeHandle": { "he": "גרור לשינוי גודל", "en": "Drag to resize" },
-    "resizeSplitter": { "he": "גרור לשינוי חלוקת האזורים", "en": "Drag to resize the areas" },
-    "switchCrew": { "he": "החלף", "en": "Switch" },
-    "switchCrewTitle": { "he": "החלפת בקר", "en": "Switch crew member" },
-    "noCrew": { "he": "ללא בקר", "en": "No crew member" },
-    "composeBtn": { "he": "הודעה לעמדה", "en": "Message a position" },
-    "composeTitle": { "he": "שליחת הודעה לעמדה", "en": "Send a message to a position" },
-    "composePlaceholder": { "he": "תוכן ההודעה...", "en": "Message text..." },
-    "composeSend": { "he": "שלח", "en": "Send" },
-    "untitledNote": { "he": "(ללא כותרת)", "en": "(untitled)" },
-    "formulaField": { "he": "בחר שדה", "en": "Pick a field" },
-    "formulaAddTerm": { "he": "הוסף שדה לנוסחה", "en": "Add a field to the formula" },
-    "formulaRemoveTerm": { "he": "הסר את השדה האחרון", "en": "Remove the last field" },
-    "formulaNeedNumeric": { "he": "אין עמודות מספריות - הוסף קודם עמודה מסוג מספר", "en": "No numeric columns - add a number column first" },
-    "configModeBadge": { "he": "מצב הגדרה", "en": "Setup mode" },
-    "closeConfig": { "he": "סיים הגדרה", "en": "Finish setup" },
-    "openConfigView": { "he": "פתח דסק להגדרה - אמצעים קבועים ונתוני טבלה", "en": "Open desk for setup - fixed assets and table data" },
-    "saveFirstHint": { "he": "שמור את העמדה קודם - ואז אפשר לפתוח את הדסק להגדרת אמצעים קבועים ונתונים", "en": "Save the position first - then open the desk to set fixed assets and data" },
-    "confirmClearInk": { "he": "למחוק את כל הכתוב בחלון זה?", "en": "Erase everything in this window?" },
-    "penColor": { "he": "צבע עט", "en": "Pen color" },
-    "penSize": { "he": "עובי עט", "en": "Pen width" },
-    "penThin": { "he": "דק", "en": "Thin" },
-    "penMedium": { "he": "בינוני", "en": "Medium" },
-    "penThick": { "he": "עבה", "en": "Thick" },
-    "undo": { "he": "בטל", "en": "Undo" },
-    "clearInk": { "he": "מחק הכל", "en": "Clear all" },
-
-    "addRow": { "he": "הוסף שורה", "en": "Add row" },
-    "deleteRow": { "he": "מחק שורה", "en": "Delete row" },
-    "confirmDeleteRow": { "he": "למחוק את השורה?", "en": "Delete this row?" },
-
-    "newDeskName": { "he": "שם דסק חדש...", "en": "New desk name..." },
-    "noDesksYet": { "he": "אין דסקים עדיין - צור דסק ראשון", "en": "No desks yet - create the first one" },
-    "confirmDeleteDesk": { "he": "למחוק את הדסק? עמדות שמצביעות עליו יישארו ללא דסק.", "en": "Delete this desk? Positions pointing to it will be left without a desk." },
-    "saveDesk": { "he": "שמור דסק", "en": "Save desk" },
-    "saved": { "he": "נשמר", "en": "Saved" },
-    "servicesTitle": { "he": "שירותים בדסק", "en": "Desk services" },
-    "addSvcButtons": { "he": "אמצעים", "en": "Assets" },
-    "addSvcFreetext": { "he": "טקסט חופשי", "en": "Free text" },
-    "addSvcTable": { "he": "טבלה", "en": "Table" },
-    "noServicesYet": { "he": "אין שירותים - הוסף שירות ראשון", "en": "No services - add the first one" },
-    "confirmDeleteService": { "he": "למחוק את השירות? המידע שנרשם בו בעמדות יימחק.", "en": "Delete this service? Its recorded data at positions will be removed." },
-    "configure": { "he": "הגדר", "en": "Configure" },
-    "saveConfig": { "he": "שמור הגדרות", "en": "Save settings" },
-    "buttonsCreatedAtStation": { "he": "💡 כפתורי האמצעים נוצרים בעמדה עצמה - קליק ימני על הלוח", "en": "💡 Asset buttons are created at the position itself - right-click the board" },
-    "layoutTitle": { "he": "פריסת הדסק", "en": "Desk layout" },
-    "startLayout": { "he": "התחל פריסה", "en": "Start layout" },
-    "layoutHint": { "he": "פצל אזורים וגרור שירות מהרשימה אל אזור", "en": "Split areas and drag a service from the list onto an area" },
-    "dropServiceHere": { "he": "גרור שירות לכאן", "en": "Drop a service here" },
-    "noService": { "he": "- ללא שירות -", "en": "- no service -" },
-    "splitH": { "he": "פצל אופקית", "en": "Split horizontally" },
-    "splitV": { "he": "פצל אנכית", "en": "Split vertically" },
-    "removeArea": { "he": "הסר אזור", "en": "Remove area" },
-
-    "cfgColumns": { "he": "עמודות", "en": "Columns" },
-    "colTitle": { "he": "כותרת", "en": "Title" },
-    "colTypeText": { "he": "טקסט", "en": "Text" },
-    "colTypeNumber": { "he": "מספר", "en": "Number" },
-    "colTypeCheck": { "he": "V/X", "en": "V/X" },
-    "colTypeSelect": { "he": "תפריט", "en": "Menu" },
-    "selectOptionsHint": { "he": "ערכים מופרדים בפסיק", "en": "Comma-separated values" },
-    "optionValue": { "he": "ערך", "en": "Value" },
-    "addOption": { "he": "הוסף ערך", "en": "Add value" },
-    "removeOption": { "he": "הסר ערך", "en": "Remove value" },
-    "entityColDefault": { "he": "ישות", "en": "Entity" },
-    "addColumn": { "he": "הוסף עמודה", "en": "Add column" },
-    "cfgComputed": { "he": "עמודות חישוב", "en": "Computed columns" },
-    "addComputed": { "he": "הוסף חישוב", "en": "Add computed" },
-    "formulaHint": { "he": "נוסחה: c1+c2", "en": "Formula: c1+c2" },
-    "formulaExplain": { "he": "בחר שדה, אופרטור (+ − × ÷) ושדה נוסף - ＋ מוסיף שדה, − מסיר את האחרון", "en": "Pick a field, an operator (+ − × ÷) and another field - ＋ adds a field, − removes the last" },
-    "cfgRules": { "he": "עיצוב מותנה (לפי שורה)", "en": "Conditional formatting (per row)" },
-    "addRule": { "he": "הוסף כלל", "en": "Add rule" },
-    "opContains": { "he": "מכיל", "en": "Contains" },
-    "opEmpty": { "he": "ריק", "en": "Empty" },
-    "opNotEmpty": { "he": "לא ריק", "en": "Not empty" },
-    "ruleValue": { "he": "ערך", "en": "Value" },
-    "ruleBg": { "he": "צבע רקע", "en": "Background" },
-    "ruleBlink": { "he": "הבהוב", "en": "Blink" },
-    "allowAddRows": { "he": "מותר להוסיף שורות בעמדה", "en": "Rows can be added at the position" },
-    "initialRows": { "he": "שורות התחלתיות", "en": "Initial rows" },
-    "cfgSummary": { "he": "סיכום", "en": "Summary" },
-    "countWhat": { "he": "מה נספר", "en": "What is counted" },
-    "countV": { "he": "נספר: ✔", "en": "Count: ✔" },
-    "countX": { "he": "נספר: ✘", "en": "Count: ✘" },
-    "summaryNone": { "he": "ללא סיכום", "en": "No summary" },
-    "summarySum": { "he": "סכום", "en": "Sum" },
-    "summaryCount": { "he": "כמות", "en": "Count" },
-    "summaryAvg": { "he": "ממוצע", "en": "Average" },
-    "summaryMin": { "he": "מינימום", "en": "Min" },
-    "summaryMax": { "he": "מקסימום", "en": "Max" },
-    "cfgTitle": { "he": "כותרת החלון", "en": "Window title" },
-    "cfgRuled": { "he": "שורות הפרדה", "en": "Ruled lines" },
-    "cfgLineGap": { "he": "רווח שורות", "en": "Line spacing" },
-
-    "presetDeskLabel": { "he": "דסק משימה כללי", "en": "General mission desk" },
-    "noDeskSelected": { "he": "- בחר דסק -", "en": "- pick a desk -" },
-    "sharingTitle": { "he": "שיתוף שירותים עם עמדות אחרות (שינוי אצלי מתעדכן גם אצלן)", "en": "Share services with other positions (my changes update them too)" },
-    "sharedWith": { "he": "משותף", "en": "shared" },
-    "sharingHint": { "he": "השיתוף דו-כיווני - יופיע אוטומטית גם אצל העמדה השנייה", "en": "Sharing is bidirectional - it appears automatically on the other position too" },
-    "noSharePartners": { "he": "אין עמדות דסק נוספות שבחרו את הדסק הזה - שיתוף אפשרי רק בין עמדות עם אותו דסק", "en": "No other desk positions use this desk - sharing is only possible between positions with the same desk" }
+    "title": {
+      "he": "דסק משימה כללי",
+      "en": "General Mission Desk"
+    },
+    "adminTab": {
+      "he": "🗂 דסקי משימה",
+      "en": "🗂 Mission desks"
+    },
+    "serverError": {
+      "he": "שגיאה בחיבור לשרת - אם השרת עודכן זה עתה, הפעל מחדש (npm run dev)",
+      "en": "Server connection error - if the server was just updated, restart it (npm run dev)"
+    },
+    "adminTitle": {
+      "he": "דסקי משימה כלליים",
+      "en": "General mission desks"
+    },
+    "logout": {
+      "he": "התנתק",
+      "en": "Log out"
+    },
+    "toggleTheme": {
+      "he": "החלף תמה",
+      "en": "Switch theme"
+    },
+    "loading": {
+      "he": "טוען דסק...",
+      "en": "Loading desk..."
+    },
+    "noDeskConfigured": {
+      "he": "לא הוגדר דסק לעמדה זו - יש לבחור דסק במסך הניהול",
+      "en": "No desk configured for this position - pick one in the management screen"
+    },
+    "noLayoutConfigured": {
+      "he": "לדסק אין פריסה - יש להגדיר פריסה במסך הניהול",
+      "en": "This desk has no layout - define one in the management screen"
+    },
+    "noServiceAssigned": {
+      "he": "לא שויך שירות לאזור זה",
+      "en": "No service assigned to this area"
+    },
+    "unnamedService": {
+      "he": "שירות ללא שם",
+      "en": "Unnamed service"
+    },
+    "svcButtons": {
+      "he": "מסך ניהול אמצעים",
+      "en": "Assets board"
+    },
+    "svcFreetext": {
+      "he": "טקסט חופשי",
+      "en": "Free text"
+    },
+    "svcTable": {
+      "he": "טבלה חכמה",
+      "en": "Smart table"
+    },
+    "svcImage": {
+      "he": "תמונה",
+      "en": "Image"
+    },
+    "svcLabel": {
+      "he": "טקסט קבוע",
+      "en": "Fixed text"
+    },
+    "svcMap": {
+      "he": "מפה",
+      "en": "Map"
+    },
+    "svcStrips": {
+      "he": "פ\"ממים של מפה",
+      "en": "Map strips"
+    },
+    "addSvcMap": {
+      "he": "מפה",
+      "en": "Map"
+    },
+    "addSvcStrips": {
+      "he": "פ\"ממים",
+      "en": "Strips"
+    },
+    "svcViewTables": {
+      "he": "טבלאות מתצוגה",
+      "en": "View menu tables"
+    },
+    "addSvcViewTables": {
+      "he": "טבלאות מתצוגה",
+      "en": "View tables"
+    },
+    "viewTablesPickedPerStation": {
+      "he": "אילו טבלאות ייפתחו במשבצת נקבע בהגדרת העמדה - אותו דסק משרת עמדות שונות",
+      "en": "Which tables open in this area is set per station - the same desk serves different stations"
+    },
+    "viewTablesPickHint": {
+      "he": "סמן את הטבלאות מתפריט התצוגה שייפתחו במשבצת הזו",
+      "en": "Tick the View menu tables that open in this area"
+    },
+    "viewTablesTabsHint": {
+      "he": "כמה טבלאות במשבצת אחת מוצגות כלשוניות",
+      "en": "Several tables in one area are shown as tabs"
+    },
+    "viewTablesNone": {
+      "he": "לא נבחרו טבלאות",
+      "en": "No tables picked"
+    },
+    "viewTablesNeedBase": {
+      "he": "טבלת האלמנטים נטענת לפי בסיס האב - יש לבחור בסיס אב לעמדה",
+      "en": "The elements table loads by parent base - pick a parent base for the station"
+    },
+    "viewTablesAirfield": {
+      "he": "שדה תעופה לנסיעות ולנהגים",
+      "en": "Airfield for trips and drivers"
+    },
+    "viewTablesAirfieldNone": {
+      "he": "בחר שדה תעופה",
+      "en": "Pick an airfield"
+    },
+    "viewTablesNeedAirfield": {
+      "he": "בלי שדה תעופה טבלאות הנסיעות והנהגים יישארו ריקות",
+      "en": "Without an airfield the trips and drivers tables stay empty"
+    },
+    "viewTablesEmptySlot": {
+      "he": "לא נבחרו טבלאות למשבצת זו - בוחרים אותן בהגדרת העמדה במסך הניהול",
+      "en": "No tables picked for this area - pick them in the station settings"
+    },
+    "viewTablesShownElsewhere": {
+      "he": "מוצגת במשבצת אחרת בדסק",
+      "en": "Shown in another area of the desk"
+    },
+    "viewTablesNoBase": {
+      "he": "לעמדה לא הוגדר בסיס אב - אין לפי מה לטעון אלמנטים",
+      "en": "The station has no parent base - there is nothing to load elements by"
+    },
+    "vtElements": {
+      "he": "אלמנטים בבסיס",
+      "en": "Base elements"
+    },
+    "vtTrips": {
+      "he": "ניהול נסיעות",
+      "en": "Trips management"
+    },
+    "vtDrivers": {
+      "he": "ניהול נהגים",
+      "en": "Drivers management"
+    },
+    "vtQuantities": {
+      "he": "כמויות (חלונות נתונים)",
+      "en": "Quantities (data windows)"
+    },
+    "vtMessages": {
+      "he": "הודעות",
+      "en": "Messages"
+    },
+    "vtContainer": {
+      "he": "קונטיינר חלונות",
+      "en": "Window container"
+    },
+    "viewTablesByStation": {
+      "he": "לפי איזו עמדה",
+      "en": "By station"
+    },
+    "viewTablesThisStation": {
+      "he": "העמדה הזו",
+      "en": "This station"
+    },
+    "viewTablesStationMissing": {
+      "he": "העמדה שנבחרה נמחקה",
+      "en": "The selected station was deleted"
+    },
+    "viewTablesStationNoAirfield": {
+      "he": "לעמדה שנבחרה לא הוגדר שדה תעופה - הטבלה תישאר ריקה",
+      "en": "The selected station has no airfield - the table stays empty"
+    },
+    "viewTablesStationNoBase": {
+      "he": "לעמדה שנבחרה לא הוגדר בסיס אב - אין לפי מה לטעון אלמנטים",
+      "en": "The selected station has no parent base - there is nothing to load elements by"
+    },
+    "viewTablesByStationTitle": {
+      "he": "לפי {{name}}",
+      "en": "By {{name}}"
+    },
+    "mapPickedPerStation": {
+      "he": "איזו מפה תוצג נקבע בהגדרת העמדה - אותו דסק משרת עמדות עם מפות שונות",
+      "en": "Which map is shown is set per station - the same desk serves stations with different maps"
+    },
+    "stripsBindLabel": {
+      "he": "חלון הפ\"ממים של",
+      "en": "Strips window of"
+    },
+    "stripsBindNone": {
+      "he": "בחר חלון מפה",
+      "en": "Pick a map window"
+    },
+    "stripsBindHint": {
+      "he": "החלון יציג את הפ\"ממים של המפה שנבחרה, וגרירה ממנו תניח אותם עליה",
+      "en": "The window lists that map's strips; dragging from it places them on that map"
+    },
+    "stripsNoMapWindows": {
+      "he": "אין בדסק חלון מפה - הוסף מפה כדי לקשר אליה חלון פ\"ממים",
+      "en": "This desk has no map window - add a map to link a strips window to"
+    },
+    "mapGroupTitle": {
+      "he": "קבוצת מפה",
+      "en": "Map group"
+    },
+    "generalGroupTitle": {
+      "he": "כללי",
+      "en": "General"
+    },
+    "mapSelectLabel": {
+      "he": "מפה",
+      "en": "Map"
+    },
+    "mapSelectNone": {
+      "he": "לא נבחרה מפה",
+      "en": "No map selected"
+    },
+    "mapRequiredBadge": {
+      "he": "חובה",
+      "en": "Required"
+    },
+    "mapMissingSave": {
+      "he": "לא ניתן לשמור: יש לבחור מפה לכל חלון מפה בדסק",
+      "en": "Cannot save: every map window in the desk needs a map"
+    },
+    "mapTransferPoints": {
+      "he": "נקודות העברה בחלון זה",
+      "en": "Transfer points in this window"
+    },
+    "mapTransferPointsHint": {
+      "he": "הנקודות מוצגות בתוך חלון המפה הזה בלבד",
+      "en": "These points appear inside this map window only"
+    },
+    "mapSectorMaps": {
+      "he": "מפות סקטור על המפה",
+      "en": "Sector maps on this map"
+    },
+    "mapSectorMapsHint": {
+      "he": "מפות בת של המפה שנבחרה - קפיצה מהירה לגזרה",
+      "en": "Child maps of the selected map - quick jump to a sector"
+    },
+    "mapNoSectorMaps": {
+      "he": "אין למפה זו מפות בת",
+      "en": "This map has no child maps"
+    },
+    "mapFlightZones": {
+      "he": "מצב אזורי טיסה בחלון זה",
+      "en": "Flight-zones mode in this window"
+    },
+    "mapFlightZonesHint": {
+      "he": "פותח את סרגל הכלים המלא של המפה - תצוגת פ\"מ, סינון אזורים ושידוך בלחיצה",
+      "en": "Opens the map's full toolbar - strip display, zone filtering and click-to-pair"
+    },
+    "mapPinDisplay": {
+      "he": "איך מוצג הפ\"מ על המפה",
+      "en": "How a strip is shown on the map"
+    },
+    "mapPinDisplayHint": {
+      "he": "ברירת המחדל של החלון; המפעיל יכול לשנות מסרגל הכלים",
+      "en": "The window's default; the operator can change it from the toolbar"
+    },
+    "mapStripsPanel": {
+      "he": "עמודת פ\"ממים בתוך אזור המפה",
+      "en": "Strips column inside the map region"
+    },
+    "mapStripsPanelHint": {
+      "he": "נכבית אוטומטית כשמקושר למפה חלון פ\"ממים עצמאי בפריסה, כדי שהרשימה לא תופיע פעמיים",
+      "en": "Turned off automatically when a standalone strips window is linked, so the list is not shown twice"
+    },
+    "mapNoWindowsInDesk": {
+      "he": "אין בדסק חלונות מפה",
+      "en": "This desk has no map windows"
+    },
+    "mapConfigTitle": {
+      "he": "חלונות המפה של הדסק",
+      "en": "The desk's map windows"
+    },
+    "mapWindowUnnamed": {
+      "he": "חלון מפה",
+      "en": "Map window"
+    },
+    "stripsWindowFor": {
+      "he": "פ\"ממים",
+      "en": "Strips"
+    },
+    "stripsUnlinked": {
+      "he": "חלון הפ\"ממים לא מקושר לחלון מפה - הגדר קישור בהגדרת הדסק",
+      "en": "This strips window is not linked to a map window - set the link in the desk definition"
+    },
+    "mapWindowNoMap": {
+      "he": "לא נבחרה מפה לחלון זה בהגדרת העמדה",
+      "en": "No map was selected for this window in the station settings"
+    },
+    "hostServiceNotInSetup": {
+      "he": "התוכן מגיע מהעמדה - לא מוצג בהגדרת הדסק",
+      "en": "Content comes from the station - not shown in the desk definition"
+    },
+    "addSvcImage": {
+      "he": "תמונה",
+      "en": "Image"
+    },
+    "addSvcLabel": {
+      "he": "טקסט",
+      "en": "Text"
+    },
+    "imagePasteHint": {
+      "he": "הדבק כאן צילום מסך (Ctrl+V) או גרור תמונה",
+      "en": "Paste a screenshot here (Ctrl+V) or drop an image"
+    },
+    "imageChooseFile": {
+      "he": "בחר קובץ",
+      "en": "Choose file"
+    },
+    "imageBadFormat": {
+      "he": "פורמט לא נתמך - תמונה בלבד (PNG/JPG/GIF/WEBP)",
+      "en": "Unsupported format - image only (PNG/JPG/GIF/WEBP)"
+    },
+    "imageFit": {
+      "he": "התאמה",
+      "en": "Fit"
+    },
+    "imageFitContain": {
+      "he": "התאם (שלם)",
+      "en": "Contain (whole)"
+    },
+    "imageFitCover": {
+      "he": "מלא (חיתוך)",
+      "en": "Cover (crop)"
+    },
+    "imageRemove": {
+      "he": "הסר תמונה",
+      "en": "Remove image"
+    },
+    "imageNotSet": {
+      "he": "לא הוגדרה תמונה",
+      "en": "No image set"
+    },
+    "labelText": {
+      "he": "טקסט",
+      "en": "Text"
+    },
+    "labelPlaceholder": {
+      "he": "הטקסט הקבוע שיוצג בעמדה...",
+      "en": "The fixed text shown at the station..."
+    },
+    "labelPreview": {
+      "he": "תצוגה מקדימה",
+      "en": "Preview"
+    },
+    "labelAlign": {
+      "he": "יישור",
+      "en": "Align"
+    },
+    "labelColor": {
+      "he": "צבע",
+      "en": "Color"
+    },
+    "labelNotSet": {
+      "he": "כתוב כאן...",
+      "en": "Type here..."
+    },
+    "labelSelectHint": {
+      "he": "סמן טקסט ← עצב:",
+      "en": "Select text → style:"
+    },
+    "applySize": {
+      "he": "החל גודל על הבחירה",
+      "en": "Apply size to selection"
+    },
+    "unbold": {
+      "he": "בטל הדגשה",
+      "en": "Remove bold"
+    },
+    "alignStart": {
+      "he": "התחלה",
+      "en": "Start"
+    },
+    "alignCenter": {
+      "he": "מרכז",
+      "en": "Center"
+    },
+    "alignEnd": {
+      "he": "סוף",
+      "en": "End"
+    },
+    "newButtonText": {
+      "he": "אמצעי חדש",
+      "en": "New asset"
+    },
+    "defaultStateOff": {
+      "he": "לא פעיל",
+      "en": "Inactive"
+    },
+    "defaultStateOn": {
+      "he": "פעיל",
+      "en": "Active"
+    },
+    "emptyBoardHint": {
+      "he": "קליק ימני - צור כפתור",
+      "en": "Right-click - create a button"
+    },
+    "createButton": {
+      "he": "צור כפתור",
+      "en": "Create button"
+    },
+    "editButton": {
+      "he": "ערוך כפתור",
+      "en": "Edit button"
+    },
+    "deleteButton": {
+      "he": "מחק כפתור",
+      "en": "Delete button"
+    },
+    "confirmDeleteButton": {
+      "he": "למחוק את הכפתור?",
+      "en": "Delete this button?"
+    },
+    "buttonEditorTitle": {
+      "he": "עריכת כפתור",
+      "en": "Edit button"
+    },
+    "buttonText": {
+      "he": "טקסט הכפתור",
+      "en": "Button text"
+    },
+    "allowFreeText": {
+      "he": "טקסט חופשי על הכפתור",
+      "en": "Free text on button"
+    },
+    "freeTextPlaceholder": {
+      "he": "טקסט חופשי...",
+      "en": "Free text..."
+    },
+    "boldFont": {
+      "he": "מודגש",
+      "en": "Bold"
+    },
+    "fontSize": {
+      "he": "גודל",
+      "en": "Size"
+    },
+    "font": {
+      "he": "פונט",
+      "en": "Font"
+    },
+    "fontDefault": {
+      "he": "רגיל",
+      "en": "Default"
+    },
+    "statesTitle": {
+      "he": "מצבים",
+      "en": "States"
+    },
+    "stateLabel": {
+      "he": "שם מצב",
+      "en": "State name"
+    },
+    "addState": {
+      "he": "הוסף מצב",
+      "en": "Add state"
+    },
+    "removeState": {
+      "he": "הסר מצב",
+      "en": "Remove state"
+    },
+    "alertTargets": {
+      "he": "התראה לעמדות",
+      "en": "Alert positions"
+    },
+    "cancel": {
+      "he": "ביטול",
+      "en": "Cancel"
+    },
+    "save": {
+      "he": "שמור",
+      "en": "Save"
+    },
+    "editMode": {
+      "he": "עריכת כפתורים",
+      "en": "Edit buttons"
+    },
+    "sortByStatus": {
+      "he": "סדר לפי סטטוס",
+      "en": "Sort by status"
+    },
+    "sortByStatusHint": {
+      "he": "מקבץ כפתורים בעלי סטטוס זהה - שורה לכל סטטוס, ומסדר מחדש בכל שינוי",
+      "en": "Groups buttons with the same status - one row per status, re-sorted on every change"
+    },
+    "sortByStatusDesc": {
+      "he": "סדר הפוך",
+      "en": "Reverse order"
+    },
+    "sortByStatusAscHint": {
+      "he": "מסודר לפי סטטוס. לחיצה - סדר סטטוסים הפוך",
+      "en": "Sorted by status. Click to reverse the status order"
+    },
+    "sortByStatusDescHint": {
+      "he": "מסודר לפי סטטוס בסדר הפוך. לחיצה - ביטול הסידור. גרירת כפתור גם מבטלת",
+      "en": "Sorted by status, reversed. Click to stop sorting. Dragging a button also stops it"
+    },
+    "snapOn": {
+      "he": "מיושר",
+      "en": "Aligned"
+    },
+    "snapOff": {
+      "he": "חופשי",
+      "en": "Free"
+    },
+    "snapOnHint": {
+      "he": "גרירה נצמדת לשורה או לעמודה הקרובה. לחיצה - מעבר לגרירה חופשית",
+      "en": "Dragging snaps to the nearest row or column. Click for free dragging"
+    },
+    "snapOffHint": {
+      "he": "גרירה חופשית. לחיצה - יישור לשורה או לעמודה הקרובה",
+      "en": "Free dragging. Click to snap to the nearest row or column"
+    },
+    "editModeHint": {
+      "he": "לחץ על כפתור כדי לערוך אותו",
+      "en": "Tap a button to edit it"
+    },
+    "adminButtonsHint": {
+      "he": "כפתורים שנוצרים כאן הם אמצעים קבועים",
+      "en": "Buttons created here are fixed assets"
+    },
+    "buttonSize": {
+      "he": "גודל הכפתור:",
+      "en": "Button size:"
+    },
+    "btnWidth": {
+      "he": "רוחב",
+      "en": "Width"
+    },
+    "btnHeight": {
+      "he": "גובה",
+      "en": "Height"
+    },
+    "sizeAuto": {
+      "he": "אוטו",
+      "en": "auto"
+    },
+    "fixedBadge": {
+      "he": "אמצעי קבוע",
+      "en": "Fixed asset"
+    },
+    "eraserTool": {
+      "he": "מחק - מוחק במעבר הסמן",
+      "en": "Eraser - erases under the cursor"
+    },
+    "freetextNotInSetup": {
+      "he": "הכתיבה נעשית בעמדה - שרבוטי עט לא מוצגים בהגדרה",
+      "en": "Writing happens at the station - pen scribbles are not shown in setup"
+    },
+    "resizeHandle": {
+      "he": "גרור לשינוי גודל",
+      "en": "Drag to resize"
+    },
+    "resizeSplitter": {
+      "he": "גרור לשינוי חלוקת האזורים",
+      "en": "Drag to resize the areas"
+    },
+    "switchCrew": {
+      "he": "החלף",
+      "en": "Switch"
+    },
+    "switchCrewTitle": {
+      "he": "החלפת בקר",
+      "en": "Switch crew member"
+    },
+    "noCrew": {
+      "he": "ללא בקר",
+      "en": "No crew member"
+    },
+    "composeBtn": {
+      "he": "הודעה לעמדה",
+      "en": "Message a position"
+    },
+    "composeTitle": {
+      "he": "שליחת הודעה לעמדה",
+      "en": "Send a message to a position"
+    },
+    "composePlaceholder": {
+      "he": "תוכן ההודעה...",
+      "en": "Message text..."
+    },
+    "composeSend": {
+      "he": "שלח",
+      "en": "Send"
+    },
+    "untitledNote": {
+      "he": "(ללא כותרת)",
+      "en": "(untitled)"
+    },
+    "formulaField": {
+      "he": "בחר שדה",
+      "en": "Pick a field"
+    },
+    "formulaAddTerm": {
+      "he": "הוסף שדה לנוסחה",
+      "en": "Add a field to the formula"
+    },
+    "formulaRemoveTerm": {
+      "he": "הסר את השדה האחרון",
+      "en": "Remove the last field"
+    },
+    "formulaNeedNumeric": {
+      "he": "אין עמודות מספריות - הוסף קודם עמודה מסוג מספר",
+      "en": "No numeric columns - add a number column first"
+    },
+    "configModeBadge": {
+      "he": "מצב הגדרה",
+      "en": "Setup mode"
+    },
+    "closeConfig": {
+      "he": "סיים הגדרה",
+      "en": "Finish setup"
+    },
+    "openConfigView": {
+      "he": "פתח דסק להגדרה - אמצעים קבועים ונתוני טבלה",
+      "en": "Open desk for setup - fixed assets and table data"
+    },
+    "saveFirstHint": {
+      "he": "שמור את העמדה קודם - ואז אפשר לפתוח את הדסק להגדרת אמצעים קבועים ונתונים",
+      "en": "Save the position first - then open the desk to set fixed assets and data"
+    },
+    "confirmClearInk": {
+      "he": "למחוק את כל הכתוב בחלון זה?",
+      "en": "Erase everything in this window?"
+    },
+    "penColor": {
+      "he": "צבע עט",
+      "en": "Pen color"
+    },
+    "penSize": {
+      "he": "עובי עט",
+      "en": "Pen width"
+    },
+    "penThin": {
+      "he": "דק",
+      "en": "Thin"
+    },
+    "penMedium": {
+      "he": "בינוני",
+      "en": "Medium"
+    },
+    "penThick": {
+      "he": "עבה",
+      "en": "Thick"
+    },
+    "undo": {
+      "he": "בטל",
+      "en": "Undo"
+    },
+    "clearInk": {
+      "he": "מחק הכל",
+      "en": "Clear all"
+    },
+    "addRow": {
+      "he": "הוסף שורה",
+      "en": "Add row"
+    },
+    "deleteRow": {
+      "he": "מחק שורה",
+      "en": "Delete row"
+    },
+    "confirmDeleteRow": {
+      "he": "למחוק את השורה?",
+      "en": "Delete this row?"
+    },
+    "newDeskName": {
+      "he": "שם דסק חדש...",
+      "en": "New desk name..."
+    },
+    "noDesksYet": {
+      "he": "אין דסקים עדיין - צור דסק ראשון",
+      "en": "No desks yet - create the first one"
+    },
+    "confirmDeleteDesk": {
+      "he": "למחוק את הדסק? עמדות שמצביעות עליו יישארו ללא דסק.",
+      "en": "Delete this desk? Positions pointing to it will be left without a desk."
+    },
+    "saveDesk": {
+      "he": "שמור דסק",
+      "en": "Save desk"
+    },
+    "saved": {
+      "he": "נשמר",
+      "en": "Saved"
+    },
+    "servicesTitle": {
+      "he": "שירותים בדסק",
+      "en": "Desk services"
+    },
+    "addSvcButtons": {
+      "he": "אמצעים",
+      "en": "Assets"
+    },
+    "addSvcFreetext": {
+      "he": "טקסט חופשי",
+      "en": "Free text"
+    },
+    "addSvcTable": {
+      "he": "טבלה",
+      "en": "Table"
+    },
+    "noServicesYet": {
+      "he": "אין שירותים - הוסף שירות ראשון",
+      "en": "No services - add the first one"
+    },
+    "confirmDeleteService": {
+      "he": "למחוק את השירות? המידע שנרשם בו בעמדות יימחק.",
+      "en": "Delete this service? Its recorded data at positions will be removed."
+    },
+    "configure": {
+      "he": "הגדר",
+      "en": "Configure"
+    },
+    "saveConfig": {
+      "he": "שמור הגדרות",
+      "en": "Save settings"
+    },
+    "buttonsCreatedAtStation": {
+      "he": "💡 כפתורי האמצעים נוצרים בעמדה עצמה - קליק ימני על הלוח",
+      "en": "💡 Asset buttons are created at the position itself - right-click the board"
+    },
+    "layoutTitle": {
+      "he": "פריסת הדסק",
+      "en": "Desk layout"
+    },
+    "startLayout": {
+      "he": "התחל פריסה",
+      "en": "Start layout"
+    },
+    "layoutHint": {
+      "he": "פצל אזורים וגרור שירות מהרשימה אל אזור",
+      "en": "Split areas and drag a service from the list onto an area"
+    },
+    "dropServiceHere": {
+      "he": "גרור שירות לכאן",
+      "en": "Drop a service here"
+    },
+    "noService": {
+      "he": "- ללא שירות -",
+      "en": "- no service -"
+    },
+    "splitH": {
+      "he": "פצל אופקית",
+      "en": "Split horizontally"
+    },
+    "splitV": {
+      "he": "פצל אנכית",
+      "en": "Split vertically"
+    },
+    "removeArea": {
+      "he": "הסר אזור",
+      "en": "Remove area"
+    },
+    "cfgColumns": {
+      "he": "עמודות",
+      "en": "Columns"
+    },
+    "colTitle": {
+      "he": "כותרת",
+      "en": "Title"
+    },
+    "colTypeText": {
+      "he": "טקסט",
+      "en": "Text"
+    },
+    "colTypeNumber": {
+      "he": "מספר",
+      "en": "Number"
+    },
+    "colTypeCheck": {
+      "he": "V/X",
+      "en": "V/X"
+    },
+    "colTypeSelect": {
+      "he": "תפריט",
+      "en": "Menu"
+    },
+    "selectOptionsHint": {
+      "he": "ערכים מופרדים בפסיק",
+      "en": "Comma-separated values"
+    },
+    "optionValue": {
+      "he": "ערך",
+      "en": "Value"
+    },
+    "addOption": {
+      "he": "הוסף ערך",
+      "en": "Add value"
+    },
+    "removeOption": {
+      "he": "הסר ערך",
+      "en": "Remove value"
+    },
+    "entityColDefault": {
+      "he": "ישות",
+      "en": "Entity"
+    },
+    "addColumn": {
+      "he": "הוסף עמודה",
+      "en": "Add column"
+    },
+    "cfgComputed": {
+      "he": "עמודות חישוב",
+      "en": "Computed columns"
+    },
+    "addComputed": {
+      "he": "הוסף חישוב",
+      "en": "Add computed"
+    },
+    "formulaHint": {
+      "he": "נוסחה: c1+c2",
+      "en": "Formula: c1+c2"
+    },
+    "formulaExplain": {
+      "he": "בחר שדה, אופרטור (+ − × ÷) ושדה נוסף - ＋ מוסיף שדה, − מסיר את האחרון",
+      "en": "Pick a field, an operator (+ − × ÷) and another field - ＋ adds a field, − removes the last"
+    },
+    "cfgRules": {
+      "he": "עיצוב מותנה (לפי שורה)",
+      "en": "Conditional formatting (per row)"
+    },
+    "addRule": {
+      "he": "הוסף כלל",
+      "en": "Add rule"
+    },
+    "opContains": {
+      "he": "מכיל",
+      "en": "Contains"
+    },
+    "opEmpty": {
+      "he": "ריק",
+      "en": "Empty"
+    },
+    "opNotEmpty": {
+      "he": "לא ריק",
+      "en": "Not empty"
+    },
+    "ruleValue": {
+      "he": "ערך",
+      "en": "Value"
+    },
+    "ruleBg": {
+      "he": "צבע רקע",
+      "en": "Background"
+    },
+    "ruleBlink": {
+      "he": "הבהוב",
+      "en": "Blink"
+    },
+    "allowAddRows": {
+      "he": "מותר להוסיף שורות בעמדה",
+      "en": "Rows can be added at the position"
+    },
+    "initialRows": {
+      "he": "שורות התחלתיות",
+      "en": "Initial rows"
+    },
+    "cfgSummary": {
+      "he": "סיכום",
+      "en": "Summary"
+    },
+    "countWhat": {
+      "he": "מה נספר",
+      "en": "What is counted"
+    },
+    "countV": {
+      "he": "נספר: ✔",
+      "en": "Count: ✔"
+    },
+    "countX": {
+      "he": "נספר: ✘",
+      "en": "Count: ✘"
+    },
+    "summaryNone": {
+      "he": "ללא סיכום",
+      "en": "No summary"
+    },
+    "summarySum": {
+      "he": "סכום",
+      "en": "Sum"
+    },
+    "summaryCount": {
+      "he": "כמות",
+      "en": "Count"
+    },
+    "summaryAvg": {
+      "he": "ממוצע",
+      "en": "Average"
+    },
+    "summaryMin": {
+      "he": "מינימום",
+      "en": "Min"
+    },
+    "summaryMax": {
+      "he": "מקסימום",
+      "en": "Max"
+    },
+    "cfgTitle": {
+      "he": "כותרת החלון",
+      "en": "Window title"
+    },
+    "cfgRuled": {
+      "he": "שורות הפרדה",
+      "en": "Ruled lines"
+    },
+    "cfgLineGap": {
+      "he": "רווח שורות",
+      "en": "Line spacing"
+    },
+    "presetDeskLabel": {
+      "he": "דסק משימה כללי",
+      "en": "General mission desk"
+    },
+    "noDeskSelected": {
+      "he": "- בחר דסק -",
+      "en": "- pick a desk -"
+    },
+    "sharingTitle": {
+      "he": "שיתוף שירותים עם עמדות אחרות (שינוי אצלי מתעדכן גם אצלן)",
+      "en": "Share services with other positions (my changes update them too)"
+    },
+    "sharedWith": {
+      "he": "משותף",
+      "en": "shared"
+    },
+    "sharingHint": {
+      "he": "השיתוף דו-כיווני - יופיע אוטומטית גם אצל העמדה השנייה",
+      "en": "Sharing is bidirectional - it appears automatically on the other position too"
+    },
+    "noSharePartners": {
+      "he": "אין עמדות דסק נוספות שבחרו את הדסק הזה - שיתוף אפשרי רק בין עמדות עם אותו דסק",
+      "en": "No other desk positions use this desk - sharing is only possible between positions with the same desk"
+    },
+    "mapBlindDefault": {
+      "he": "מפה עיוורת כברירת מחדל",
+      "en": "Blind map by default"
+    },
+    "mapBlindDefaultHint": {
+      "he": "בעליית העמדה החלון נפתח עם תמונת המפה מוסתרת (האזורים, הפ\"מים והנקודות מוצגים). הפקח יכול להחליף בכל רגע",
+      "en": "When the station opens, the window starts with the map image hidden (zones, strips and points are shown). The controller can switch at any time"
+    }
   }
 }

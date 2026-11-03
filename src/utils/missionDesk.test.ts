@@ -368,7 +368,7 @@ describe('חלונות מפה בדסק משימה', () => {
     const cfg: any = { '3': { map_id: '12', transfer_points: ['4', 5, 'לא-מספר'], sector_maps_enabled: true, sector_map_ids: ['8'] } };
     expect(mdMapSettings(cfg, 3)).toEqual({
       map_id: 12, transfer_points: [4, 5], sector_maps_enabled: true, sector_map_ids: [8],
-      flight_zones_mode: false, fz_pin_display: 'handwrite', strips_panel: true,
+      flight_zones_mode: false, fz_pin_display: 'handwrite', strips_panel: true, blind_map_default: false,
     });
   });
 
@@ -385,6 +385,11 @@ describe('חלונות מפה בדסק משימה', () => {
   it('מצב אזורי טיסה הוא פר-חלון, וברירת המחדל כבויה', () => {
     expect(mdMapSettings({ '3': { map_id: 1, transfer_points: [] } } as any, 3).flight_zones_mode).toBe(false);
     expect(mdMapSettings({ '3': { map_id: 1, transfer_points: [], flight_zones_mode: true } } as any, 3).flight_zones_mode).toBe(true);
+  });
+
+  it('מפה עיוורת כברירת מחדל היא פר-חלון, וכבויה אם לא הוגדרה', () => {
+    expect(mdMapSettings({ '3': { map_id: 1, transfer_points: [] } } as any, 3).blind_map_default).toBe(false);
+    expect(mdMapSettings({ '3': { map_id: 1, transfer_points: [], blind_map_default: true } } as any, 3).blind_map_default).toBe(true);
   });
 
   it('map_id אפס/שלילי נחשב "לא נבחרה מפה"', () => {
