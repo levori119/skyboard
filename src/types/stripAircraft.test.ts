@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   STRIP_AIRCRAFT_COLUMNS, STRIP_AIRCRAFT_TABLE_KEY,
-  toStripAircraftRow, toStripAircraftRows, aircraftRowWrite,
+  toStripAircraftRow, toStripAircraftRows, aircraftRowWrite, expectedAircraftIndices,
 } from './stripAircraft';
 import {
   STRIP_SUB_TABLES, getSubTable, isSubTableColumn, defaultSubTableColumns, subTableRows,
@@ -129,5 +129,33 @@ describe('טבלת המטוסים - שמירת תא', () => {
     expect(aircraftRowWrite(7, row, 'idx', '3')).toBeNull();
     expect(aircraftRowWrite(7, row, 'nope', 'x')).toBeNull();
     expect(aircraftRowWrite(7, toStripAircraftRow({}), 'pilot_name', 'רון')).toBeNull();
+  });
+});
+
+describe('טבלת המטוסים - שורה לכל מטוס גם בלי נתונים', () => {
+  // שורת strip_aircraft נוצרת רק למטוס שנגעו בו, ולכן פ"מ חדש של ארבעה הציג
+  // "0 שורות / אין מטוסים" - והפקח לא יכול היה להזין אף מטוס מהטבלה.
+  it('המס"מ קובע את מספר השורות, ושורה חסרה מתמלאת ריקה', () => {
+    const rows = toStripAircraftRows([{ idx: 2, tail_number: '077' }], expectedAircraftIndices({ numberOfFormation: '4' }));
+    expect(rows.map(r => r.idx)).toEqual(['1', '2', '3', '4']);
+    expect(rows[1].tail_number).toBe('077');
+    expect(rows[0].tail_number).toBe('');
+    expect(rows[0].has_fault).toBe(false);
+  });
+
+  it('פ"מ מפוצל - רק המטוסים שבו', () => {
+    expect(expectedAircraftIndices({ numberOfFormation: '4', aircraft_indices: [1, 3] })).toEqual([1, 3]);
+  });
+
+  it('מס"מ חסר או לא מספרי - אין שורות ריקות, ושורות קיימות נשארות', () => {
+    expect(expectedAircraftIndices({})).toEqual([]);
+    expect(expectedAircraftIndices({ number_of_formation: 'x' })).toEqual([]);
+    expect(expectedAircraftIndices({ number_of_formation: '2' })).toEqual([1, 2]);
+    expect(toStripAircraftRows([{ idx: 5 }], [1, 2]).map(r => r.idx)).toEqual(['1', '2', '5']);
+  });
+
+  it('דרך רישום טבלאות הבן - subTableRows מקבל את הפ"מ', () => {
+    const def = getSubTable(STRIP_AIRCRAFT_TABLE_KEY)!;
+    expect(subTableRows(def, { numberOfFormation: '3', aircraft: [] })).toHaveLength(3);
   });
 });

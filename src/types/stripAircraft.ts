@@ -150,12 +150,35 @@ export function toStripAircraftRow(raw: unknown): StripAircraftRow {
   };
 }
 
-/** `strip.aircraft` → טבלת המטוסים. עמיד לערך שאינו מערך, וממוין לפי מספר המטוס. */
-export function toStripAircraftRows(raw: unknown): StripAircraftRow[] {
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .map(toStripAircraftRow)
-    .sort((a, b) => (Number(a.idx) || 0) - (Number(b.idx) || 0));
+/** תקרה לשורות ריקות - מס"מ שגוי (למשל 400) לא יפרוס טבלה אינסופית */
+const MAX_FORMATION = 24;
+
+/**
+ * אילו מטוסים **אמורים** להופיע בטבלה: בפ"מ מפוצל - אלה שנמצאים בו
+ * (`aircraft_indices`), ואחרת 1..המס"מ. מס"מ חסר או לא מספרי → אין שורות ריקות.
+ */
+export function expectedAircraftIndices(strip: unknown): number[] {
+  const s = (strip && typeof strip === 'object') ? strip as Record<string, unknown> : {};
+  if (Array.isArray(s.aircraft_indices)) {
+    return (s.aircraft_indices as unknown[]).map(Number).filter(n => Number.isInteger(n) && n > 0);
+  }
+  const n = parseInt(String(s.numberOfFormation ?? s.number_of_formation ?? ''), 10);
+  if (!Number.isFinite(n) || n < 1) return [];
+  return Array.from({ length: Math.min(n, MAX_FORMATION) }, (_, i) => i + 1);
+}
+
+/**
+ * `strip.aircraft` → טבלת המטוסים. עמיד לערך שאינו מערך, וממוין לפי מספר המטוס.
+ *
+ * שורת `strip_aircraft` נוצרת רק למטוס שנגעו בו, ולכן כל מטוס ב-`expected`
+ * שאין לו שורה מקבל **שורה ריקה**: מבנה של ארבעה תמיד מציג ארבע שורות, והקלדה
+ * בשורה ריקה יוצרת אותה בשרת (ה-PUT הוא upsert).
+ */
+export function toStripAircraftRows(raw: unknown, expected: number[] = []): StripAircraftRow[] {
+  const rows = Array.isArray(raw) ? raw.map(toStripAircraftRow) : [];
+  const have = new Set(rows.map(r => Number(r.idx)));
+  for (const idx of expected) if (!have.has(idx)) rows.push(toStripAircraftRow({ idx }));
+  return rows.sort((a, b) => (Number(a.idx) || 0) - (Number(b.idx) || 0));
 }
 
 // ─── כתיבה מהטבלה ────────────────────────────────────────────────────────────

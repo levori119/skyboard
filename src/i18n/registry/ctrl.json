@@ -2705,6 +2705,10 @@
     "deskPenSize": {
       "he": "עובי",
       "en": "Thickness"
+    },
+    "deskHiddenContent": {
+      "he": "יש כאן תוכן שמוסתר במצב הנוכחי",
+      "en": "Has content hidden in the current mode"
     }
   }
 }

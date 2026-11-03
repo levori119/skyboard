@@ -13,9 +13,11 @@ import { padPaneOrder, splitAfterDrag, type PadLayout, type PadPane } from '../.
  *   העמדה היא מסך מגע, ואין לה מקלדת פיזית שתחכה לפוקוס.
  * - **ספליטר** בין המקלדת לכתב היד במצב "שניהם", **היפוך** ביניהם, ופריסה
  *   אחד מעל השני או זה לצד זה (`freeDeskLayout.ts`).
- * - **כתב היד הוא רסטר** (`data:image/png`) שנשמר בסוף כל משיכה. ה-canvas
- *   **רק גדל** ולא מתכווץ: הקטנת החלון חותכת את התצוגה, לא את הציור - אחרת
- *   השמירה הבאה הייתה מוחקת את מה שנחתך.
+ * - **כתב היד הוא רסטר** (`data:image/png`) שנשמר בסוף כל משיכה. ה-bitmap
+ *   **רק גדל** ולא מתכווץ (אחרת השמירה הבאה הייתה מוחקת את מה שנחתך), ובהקטנת
+ *   השטח (ספליטר, חלון) הציור **מצטמצם** בתצוגה כדי שייכנס כולו - לא נחתך.
+ * - **תוכן מוסתר**: מצב שמסתיר את הטקסט או את כתב היד כשיש בהם משהו מסמן "!"
+ *   על כפתור המצב שמציג אותם - אחרת מידע נעלם מהעין בלי שום רמז.
  *
  * רכיב **מבוקר**: הטקסט, הדיו והפריסה שייכים לבעלים (הדסק שומר ב-state
  * ובאחסון העמדה, הפתקית בשרת), והמשטח רק מציג ומדווח.
@@ -76,31 +78,74 @@ export default function FreeDeskPad({
   const setLayout = (patch: Partial<PadLayout>) => onLayoutChange({ ...layout, ...patch });
 
   // ── כתב יד ──────────────────────────────────────────────────────────────
-  /** מגדיל את ה-canvas (אף פעם לא מקטין) - הגדלה מוחקת אותו, ולכן מציירים מחדש */
+  /** הקצה הימני-תחתון של הדיו ב-bitmap (0 = ריק) - הבסיס לצמצום התצוגה */
+  const contentRef = useRef({ r: 0, b: 0 });
+
+  /** מגדיל את ה-bitmap (אף פעם לא מקטין) ושומר על מה שכבר צויר */
   const growCanvas = (w: number, h: number): boolean => {
     const c = canvasRef.current;
     if (!c) return false;
     const nw = Math.max(c.width, Math.ceil(w)), nh = Math.max(c.height, Math.ceil(h));
     if (nw === c.width && nh === c.height) return false;
+    const keep = document.createElement('canvas');
+    keep.width = c.width; keep.height = c.height;
+    keep.getContext('2d')?.drawImage(c, 0, 0);
     c.width = nw; c.height = nh;
-    c.style.width = `${nw}px`; c.style.height = `${nh}px`;
+    c.getContext('2d')?.drawImage(keep, 0, 0);
     return true;
   };
+
+  /** סורק את ה-bitmap ומוצא עד היכן מגיע הדיו */
+  const measureContent = () => {
+    const c = canvasRef.current;
+    const ctx = c?.getContext('2d');
+    if (!c || !ctx || c.width < 2) { contentRef.current = { r: 0, b: 0 }; return; }
+    const { data } = ctx.getImageData(0, 0, c.width, c.height);
+    let r = 0, b = 0;
+    for (let y = 0; y < c.height; y++) {
+      const row = y * c.width * 4;
+      for (let x = 0; x < c.width; x++) {
+        if (data[row + x * 4 + 3] > 8) { if (x + 1 > r) r = x + 1; b = y + 1; }
+      }
+    }
+    contentRef.current = { r, b };
+  };
+
+  /**
+   * מתאים את התצוגה לשטח: כשהדיו גדול מהשטח הוא **מצטמצם** (יחס אחד לשני
+   * הצירים, בלי עיוות) עד שנכנס כולו, ובשטח גדול חוזר לגודלו הטבעי. ה-bitmap
+   * מורחב כך שה-canvas תמיד מכסה את כל השטח - כדי שאפשר יהיה לכתוב בכולו.
+   */
+  const fitCanvas = () => {
+    const c = canvasRef.current, wrap = inkWrapRef.current;
+    if (!c || !wrap) return;
+    const W = wrap.clientWidth, H = wrap.clientHeight;
+    if (!(W > 0 && H > 0)) return;
+    const { r, b } = contentRef.current;
+    const PAD = 6;
+    const k = Math.min(1, r ? W / (r + PAD) : 1, b ? H / (b + PAD) : 1);
+    growCanvas(W / k, H / k);
+    c.style.width = `${c.width * k}px`;
+    c.style.height = `${c.height * k}px`;
+  };
+
   const paintInk = useCallback((dataUrl: string | null) => {
     const c = canvasRef.current;
     const ctx = c?.getContext('2d');
     if (!c || !ctx) return;
     shownInkRef.current = dataUrl;
-    if (!dataUrl) { ctx.clearRect(0, 0, c.width, c.height); return; }
+    if (!dataUrl) { ctx.clearRect(0, 0, c.width, c.height); contentRef.current = { r: 0, b: 0 }; fitCanvas(); return; }
     const img = new Image();
     img.onload = () => {
       if (shownInkRef.current !== dataUrl) return; // הגיע בינתיים דיו חדש יותר
       growCanvas(img.naturalWidth, img.naturalHeight);
       ctx.clearRect(0, 0, c.width, c.height);
       ctx.drawImage(img, 0, 0);
+      measureContent();
+      fitCanvas();
     };
     img.src = dataUrl;
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // דיו שהגיע מבחוץ (שחזור, עמדה אחרת שערכה את הפתקית). לא באמצע משיכה
   useEffect(() => {
@@ -112,8 +157,8 @@ export default function FreeDeskPad({
   const canvasCallbackRef = useCallback((el: HTMLCanvasElement | null) => {
     canvasRef.current = el;
     if (!el) return;
-    const wrap = inkWrapRef.current;
-    if (wrap) growCanvas(wrap.clientWidth, wrap.clientHeight);
+    contentRef.current = { r: 0, b: 0 };
+    fitCanvas();
     shownInkRef.current = null;
     paintInk(inkLatestRef.current);
   }, [paintInk]);
@@ -123,12 +168,10 @@ export default function FreeDeskPad({
   useEffect(() => {
     const wrap = inkWrapRef.current;
     if (!wrap || typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(() => {
-      if (growCanvas(wrap.clientWidth, wrap.clientHeight)) paintInk(shownInkRef.current);
-    });
+    const ro = new ResizeObserver(() => fitCanvas());
     ro.observe(wrap);
     return () => ro.disconnect();
-  }, [layout.mode, paintInk]);
+  }, [layout.mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveInk = () => {
     const c = canvasRef.current;
@@ -141,10 +184,12 @@ export default function FreeDeskPad({
     const c = canvasRef.current;
     c?.getContext('2d')?.clearRect(0, 0, c.width, c.height);
     shownInkRef.current = null;
+    contentRef.current = { r: 0, b: 0 };
+    fitCanvas();
     onInkChange(null);
   };
   const endStroke = () => {
-    if (drawingRef.current) saveInk();
+    if (drawingRef.current) { measureContent(); saveInk(); }
     drawingRef.current = false; lastRef.current = null; shapeStartRef.current = null; snapshotRef.current = null;
   };
   const canvasPoint = (e: React.PointerEvent) => {
@@ -197,6 +242,16 @@ export default function FreeDeskPad({
   const bg = layout.bg;
   const setBg = (patch: Partial<typeof bg>) => setLayout({ bg: normalizeDeskBackground({ ...bg, ...patch }) });
   const side = layout.orientation === 'side';
+  // תוכן שהמצב הנוכחי מסתיר - "!" על כפתור המצב שמציג אותו
+  const hiddenText = layout.mode === 'handwriting' && text.trim() !== '';
+  const hiddenInk = layout.mode === 'keyboard' && !!ink;
+  const hiddenBadge = (
+    <span aria-hidden style={{
+      position: 'absolute', top: -3, insetInlineEnd: -4, minWidth: 12, height: 12, borderRadius: 6,
+      background: '#dc2626', color: 'white', fontSize: '9px', fontWeight: 'bold', lineHeight: '12px', textAlign: 'center',
+      boxShadow: '0 0 0 1px white',
+    }}>!</span>
+  );
 
   const textPane = (
     <div key="text" style={{ flex: `${layout.mode === 'both' ? split : 1} 1 0`, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
@@ -302,9 +357,16 @@ export default function FreeDeskPad({
           {/* שורה אחת, אייקונים בלבד (השם ב-title). רקע הדף - בתפריט שנפתח מתחת */}
           <div data-testid="notepad-bg-bar" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '3px 6px', borderBottom: `1px solid ${LINE}`, background: 'rgba(15,23,42,0.04)', flexWrap: 'nowrap', overflow: 'hidden', flexShrink: 0, color: MUTED, fontSize: '11px' }}>
             <div style={{ display: 'flex', gap: '3px', flexShrink: 0 }}>
-              {([['keyboard', '⌨', 'ctrl.deskModeKeyboard'], ['handwriting', '✍', 'ctrl.deskModeInk'], ['both', '⌨+✍', 'ctrl.deskModeBoth']] as const).map(([m, icon, key]) => (
-                <button key={m} title={tr(key)} aria-label={tr(key)} onClick={() => setLayout({ mode: m })} style={seg(layout.mode === m)}>{icon}</button>
-              ))}
+              {([['keyboard', '⌨', 'ctrl.deskModeKeyboard'], ['handwriting', '✍', 'ctrl.deskModeInk'], ['both', '⌨+✍', 'ctrl.deskModeBoth']] as const).map(([m, icon, key]) => {
+                const hidden = (m === 'keyboard' && hiddenText) || (m === 'handwriting' && hiddenInk);
+                const label = hidden ? `${tr(key)} - ${tr('ctrl.deskHiddenContent')}` : tr(key);
+                return (
+                  <button key={m} title={label} aria-label={label} data-hidden-content={hidden || undefined}
+                    onClick={() => setLayout({ mode: m })} style={{ ...seg(layout.mode === m), position: 'relative' }}>
+                    {icon}{hidden && hiddenBadge}
+                  </button>
+                );
+              })}
             </div>
             {layout.mode === 'both' && (
               <div style={{ display: 'flex', gap: '3px', flexShrink: 0 }}>

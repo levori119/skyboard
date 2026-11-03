@@ -90,4 +90,50 @@ test.describe('משטח הדסק החופשי', () => {
     await bar(page).getByRole('button', { name: 'מקלדת וכתב יד', exact: true }).click();
     await expect.poll(inkPixels, { message: 'כתב היד שוחזר' }).toBeGreaterThan(drawn * 0.9);
   });
+
+  test('הקטנת שטח כתב היד בספליטר מצמצמת את הציור במקום לחתוך אותו', async ({ page }) => {
+    await openDeskInBothMode(page);
+    const canvas = page.getByTestId('notepad-canvas');
+    const wrapLoc = canvas.locator('..');
+    const wrap = (await wrapLoc.boundingBox())!;
+    // משיכה קרוב לתחתית שטח כתב היד - מה שהיה נחתך כשהשטח קטן
+    await dragTo(page, { x: wrap.x + wrap.width * 0.2, y: wrap.y + wrap.height * 0.88 }, { x: wrap.x + wrap.width * 0.6, y: wrap.y + wrap.height * 0.9 });
+    const scale = () => canvas.evaluate((c: HTMLCanvasElement) => parseFloat(c.style.height) / c.height);
+    expect(await scale(), 'בגודל טבעי לפני ההקטנה').toBeCloseTo(1, 2);
+
+    const sp = (await page.getByTestId('desk-pad-splitter').boundingBox())!;
+    await dragTo(page, center(sp), { x: center(sp).x, y: center(sp).y + wrap.height * 0.4 });
+    await expect.poll(scale, { message: 'הציור הצטמצם' }).toBeLessThan(0.9);
+    // הדיו (לא ה-canvas, שה-bitmap שלו רק גדל) נכנס כולו לגובה השטח
+    const inkBottom = await canvas.evaluate((c: HTMLCanvasElement) => {
+      const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
+      let b = 0;
+      for (let i = 3; i < d.length; i += 4) if (d[i] > 8) b = Math.floor((i >> 2) / c.width) + 1;
+      return b * parseFloat(c.style.height) / c.height;
+    });
+    const cb = (await canvas.boundingBox())!, wb = (await wrapLoc.boundingBox())!;
+    const zoom = wb.height / await wrapLoc.evaluate(el => (el as HTMLElement).clientHeight);
+    expect(inkBottom * zoom, 'הציור כולו בתוך השטח').toBeLessThanOrEqual(wb.height + 1);
+    // ה-canvas עדיין מכסה את כל רוחב השטח - אפשר לכתוב בכולו
+    expect(cb.width).toBeGreaterThanOrEqual(wb.width - 1);
+    await page.getByTestId('notepad-title-bar').locator('..').screenshot({ path: 'test-results/free-desk-ink-shrink.png' });
+  });
+
+  test('תוכן שהמצב מסתיר מסומן ב-"!" על כפתור המצב שמציג אותו', async ({ page }) => {
+    await openDeskInBothMode(page);
+    const wrap = (await page.getByTestId('notepad-canvas').locator('..').boundingBox())!;
+    await dragTo(page, { x: wrap.x + wrap.width * 0.2, y: wrap.y + wrap.height * 0.4 }, { x: wrap.x + wrap.width * 0.6, y: wrap.y + wrap.height * 0.5 });
+    await page.getByTestId('desk-pad-text').fill('הערה');
+    const hidden = bar(page).locator('[data-hidden-content]');
+    await expect(hidden, 'במצב "שניהם" אין מה להסתיר').toHaveCount(0);
+
+    await bar(page).getByRole('button', { name: 'מקלדת', exact: true }).click();
+    await expect(hidden).toHaveCount(1);
+    await expect(hidden).toHaveAttribute('aria-label', /^כתב יד - /);
+
+    await bar(page).getByRole('button', { name: /^כתב יד/ }).click();
+    await expect(hidden).toHaveCount(1);
+    await expect(hidden).toHaveAttribute('aria-label', /^מקלדת - /);
+    await bar(page).screenshot({ path: 'test-results/free-desk-hidden-badge.png' });
+  });
 });

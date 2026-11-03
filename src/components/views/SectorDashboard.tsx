@@ -1541,6 +1541,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [tableRowOrder, setTableRowOrder] = useState<string[]>([]);
   const [tableSortBySector, setTableSortBySector] = useState(false);
   const [tableFontSize, setTableFontSize] = useState(13);
+  // גודל פונט בתוך מוד הטבלה, יחסית לברירת המחדל (13). כפתורי A/A משנים את
+  // tableFontSize, וכל טקסט בטבלה - כולל טבלאות הבן, הכותרות והכפתורים בתאים -
+  // נגזר ממנו. גודל קבוע בפיקסלים היה נשאר כמו שהוא כשהפקח מגדיל.
+  const tfz = (px: number) => `${Math.round(px * tableFontSize / 13 * 10) / 10}px`;
   const [tableHandwritingId, setTableHandwritingId] = useState<string | null>(null);
   const [tableEditingCell, setTableEditingCell] = useState<string | null>(null); // "stripId__colKey"
   // מקלדת וירטואלית - נפתחת ישירות מתא הגובה (ספרות בלבד), לא רק מהכפתור
@@ -15923,7 +15927,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         display: 'inline-flex', alignItems: 'center', gap: '5px', cursor: 'pointer',
                         background: open ? (lightMode ? '#cffafe' : '#083344') : 'transparent',
                         border: `1px solid ${open ? SUB_ACC : (lightMode ? '#cbd5e1' : '#334155')}`,
-                        borderRadius: '4px', padding: '2px 8px', fontSize: '11px',
+                        borderRadius: '4px', padding: '2px 8px', fontSize: tfz(11),
                         color: rows.length ? (lightMode ? '#155e75' : '#67e8f9') : T.muted,
                       }}
                     >
@@ -15971,8 +15975,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     {isEditingThis && isImg ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <img src={customVal} alt={tr('shared.handwriting')} style={{ maxWidth: '100%', maxHeight: '36px', borderRadius: '4px', border: '1px solid #334155' }} />
-                        <button onMouseDown={e => e.preventDefault()} onClick={() => { saveCustom(''); setTableEditingCell(null); }} style={{ fontSize: '10px', padding: '2px 6px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr('shared.delete3')}</button>
-                        <button onMouseDown={e => e.preventDefault()} onClick={() => setTableEditingCell(null)} style={{ fontSize: '10px', padding: '2px 6px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '3px', cursor: 'pointer' }}>{tr('shared.close')}</button>
+                        <button onMouseDown={e => e.preventDefault()} onClick={() => { saveCustom(''); setTableEditingCell(null); }} style={{ fontSize: tfz(10), padding: '2px 6px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr('shared.delete3')}</button>
+                        <button onMouseDown={e => e.preventDefault()} onClick={() => setTableEditingCell(null)} style={{ fontSize: tfz(10), padding: '2px 6px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '3px', cursor: 'pointer' }}>{tr('shared.close')}</button>
                       </div>
                     ) : isEditingThis ? (
                       <div style={{ display: 'flex', gap: '4px', alignItems: 'flex-start' }}>
@@ -15988,13 +15992,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               }}
                               placeholder={col.label || '...'}
                               rows={2}
-                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: tfz(12), resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
                             {customVal && (
                               <button
                                 onMouseDown={e => e.preventDefault()}
                                 onClick={() => { saveCustom(''); setTableEditingCell(null); }}
-                                style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', alignSelf: 'flex-start' }}
+                                style={{ fontSize: tfz(11), padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', alignSelf: 'flex-start' }}
                               >{tr('shared.clear3')}</button>
                             )}
                           </div>
@@ -16033,16 +16037,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             <textarea onKeyDown={e => handleCellEditKeyDown(e, false)} autoFocus defaultValue={s.callSign || ''} rows={1}
                               onBlur={async e => { if (e.target.value !== (s.callSign || '')) await saveField(e.target.value); setTableEditingCell(null); }}
-                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '13px', fontWeight: 'bold', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: tfz(13), fontWeight: 'bold', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
                             <div style={{ display: 'flex', gap: '4px' }}>
                               
                             </div>
                           </div>
                         ) : (
-                          <div onClick={() => canEdit && setTableEditingCell(csCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '14px', fontWeight: 'bold', color: lightMode ? '#1e293b' : 'white', display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none', ...editableCellUnderline(T.muted, canEdit) }}>
+                          <div onClick={() => canEdit && setTableEditingCell(csCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: tfz(14), fontWeight: 'bold', color: lightMode ? '#1e293b' : 'white', display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none', ...editableCellUnderline(T.muted, canEdit) }}>
                             <span style={{ flex: 1, ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 6px', display: 'inline-block' } : {}) }}>{getFormationDisplayName(s)}{!(Array.isArray(s.aircraft_indices) && s.aircraft_indices.length > 0) && s.numberOfFormation ? `/${s.numberOfFormation}` : ''}</span>
-                            {sectorFormationSummaries[String(s.id)]?.hasShakadia && <span title={tr('shared.shkadiaServiceable')} style={{ fontSize: '11px', flexShrink: 0 }}>🌰</span>}
+                            {sectorFormationSummaries[String(s.id)]?.hasShakadia && <span title={tr('shared.shkadiaServiceable')} style={{ fontSize: tfz(11), flexShrink: 0 }}>🌰</span>}
                             {/* התג צמוד לאו"ק ולא רק בעמודת "תקלות": העמודה
                                 מוצגת רק אם הוגדרה בעמדה, והתקלה חייבת להיראות
                                 בכל תצורת טבלה */}
@@ -16055,10 +16059,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     );
                   }
                   return (
-                    <td key={col.key} style={{ padding: '10px 12px', fontWeight: 'bold', fontSize: '14px', verticalAlign: 'top' }}>
+                    <td key={col.key} style={{ padding: '10px 12px', fontWeight: 'bold', fontSize: tfz(14), verticalAlign: 'top' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <span style={{ color: lightMode ? '#1e293b' : 'white', ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '2px 8px', display: 'inline-block' } : {}) }}>{getFormationDisplayName(s)}{!(Array.isArray(s.aircraft_indices) && s.aircraft_indices.length > 0) && s.numberOfFormation ? `/${s.numberOfFormation}` : ''}</span>
-                        {sectorFormationSummaries[String(s.id)]?.hasShakadia && <span title={tr('shared.shkadiaServiceable')} style={{ fontSize: '11px' }}>🌰</span>}
+                        {sectorFormationSummaries[String(s.id)]?.hasShakadia && <span title={tr('shared.shkadiaServiceable')} style={{ fontSize: tfz(11) }}>🌰</span>}
                         <FaultBadge faults={s.aircraft_faults} lightMode={lightMode} size={10} />
                       </div>
                     </td>
@@ -16070,7 +16074,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <td key={col.key} style={{ padding: '10px 12px', verticalAlign: 'middle', textAlign: 'center' }}>
                         <button
                           onClick={() => handleToggleAirborne(s.id, !s.airborne)}
-                          style={{ padding: '4px 10px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', background: s.airborne ? '#16a34a' : '#334155', color: s.airborne ? 'white' : '#94a3b8', transition: 'all 0.15s' }}
+                          style={{ padding: '4px 10px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: tfz(11), fontWeight: 'bold', background: s.airborne ? '#16a34a' : '#334155', color: s.airborne ? 'white' : '#94a3b8', transition: 'all 0.15s' }}
                         >{s.airborne ? '✈ מאוויר' : '○ קרקע'}</button>
                       </td>
                     );
@@ -16096,10 +16100,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             <textarea onKeyDown={e => handleCellEditKeyDown(e, false)} autoFocus defaultValue={currentSq} rows={1}
                               onBlur={async e => { if (e.target.value !== currentSq) await saveField(e.target.value); setTableEditingCell(null); }}
-                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: tfz(12), resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
                             <div style={{ display: 'flex', gap: '4px' }}>
-                              {currentSq && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveField(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr('shared.clear3')}</button>}
+                              {currentSq && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveField(''); setTableEditingCell(null); }} style={{ fontSize: tfz(11), padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr('shared.clear3')}</button>}
                               
                             </div>
                           </div>
@@ -16137,14 +16141,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             <textarea onKeyDown={e => handleCellEditKeyDown(e, false)} autoFocus defaultValue={current} rows={1}
                               onBlur={async e => { if (e.target.value !== current) await saveField(e.target.value); setTableEditingCell(null); }}
-                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: tfz(12), resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
                             <div style={{ display: 'flex', gap: '4px' }}>
-                              {current && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveField(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr('shared.clear3')}</button>}
+                              {current && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveField(''); setTableEditingCell(null); }} style={{ fontSize: tfz(11), padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr('shared.clear3')}</button>}
                             </div>
                           </div>
                         ) : (
-                          <div onClick={() => setTableEditingCell(nofCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '12px', color: current ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), userSelect: 'none', ...editableCellUnderline(T.muted) }}>
+                          <div onClick={() => setTableEditingCell(nofCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: tfz(12), color: current ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), userSelect: 'none', ...editableCellUnderline(T.muted) }}>
                             {current || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>—</span>}
                           </div>
                         )}
@@ -16152,7 +16156,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     );
                   }
                   return (
-                    <td key={col.key} style={{ padding: '10px 12px', color: T.text, verticalAlign: 'top', fontSize: '13px' }}>
+                    <td key={col.key} style={{ padding: '10px 12px', color: T.text, verticalAlign: 'top', fontSize: tfz(13) }}>
                       {s.numberOfFormation || '—'}
                     </td>
                   );
@@ -16161,7 +16165,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   if ((s as any)._transferredOut) {
                     return (
                       <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'middle' }}>
-                        <span style={{ display: 'inline-block', background: 'rgba(34,197,94,0.15)', color: '#22c55e', fontWeight: 'bold', fontSize: '11px', padding: '2px 8px', borderRadius: '4px', border: '1px solid #22c55e55', whiteSpace: 'nowrap', direction: dir }}>{tr('ctrl.formationTransferred')}</span>
+                        <span style={{ display: 'inline-block', background: 'rgba(34,197,94,0.15)', color: '#22c55e', fontWeight: 'bold', fontSize: tfz(11), padding: '2px 8px', borderRadius: '4px', border: '1px solid #22c55e55', whiteSpace: 'nowrap', direction: dir }}>{tr('ctrl.formationTransferred')}</span>
                       </td>
                     );
                   }
@@ -16211,9 +16215,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             <textarea onKeyDown={e => handleCellEditKeyDown(e, true)} autoFocus defaultValue={weaponsText} rows={Math.min(TABLE_CELL_MAX_LINES, Math.max(2, weapons.length + 1))} placeholder={'שם חימוש ×כמות\nשורה לכל חימוש'}
                               onBlur={async e => { if (e.target.value !== weaponsText) await saveWeapons(e.target.value); setTableEditingCell(null); }}
-                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: '#fbbf24', padding: '5px 7px', fontSize: '11px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: '#fbbf24', padding: '5px 7px', fontSize: tfz(11), resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
-                            {weapons.length > 0 && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveWeapons(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', alignSelf: 'flex-start' }}>{tr('shared.clear3')}</button>}
+                            {weapons.length > 0 && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveWeapons(''); setTableEditingCell(null); }} style={{ fontSize: tfz(11), padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', alignSelf: 'flex-start' }}>{tr('shared.clear3')}</button>}
                           </div>
                         ) : (
                           <div onClick={() => canEdit && setTableEditingCell(wpCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, userSelect: 'none', ...tableCellScroll(), ...editableCellUnderline(T.muted, canEdit) }}>
@@ -16258,9 +16262,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             <textarea onKeyDown={e => handleCellEditKeyDown(e, true)} autoFocus defaultValue={targetsText} rows={Math.min(TABLE_CELL_MAX_LINES, Math.max(2, targets.length + 1))} placeholder={'שם מטרה / נקודת כוון\nשורה לכל מטרה'}
                               onBlur={async e => { if (e.target.value !== targetsText) await saveTargets(e.target.value); setTableEditingCell(null); }}
-                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: '#f87171', padding: '5px 7px', fontSize: '11px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: '#f87171', padding: '5px 7px', fontSize: tfz(11), resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
-                            {targets.length > 0 && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveTargets(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', alignSelf: 'flex-start' }}>{tr('shared.clear3')}</button>}
+                            {targets.length > 0 && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveTargets(''); setTableEditingCell(null); }} style={{ fontSize: tfz(11), padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', alignSelf: 'flex-start' }}>{tr('shared.clear3')}</button>}
                           </div>
                         ) : (
                           <div onClick={() => canEdit && setTableEditingCell(tgCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, userSelect: 'none', ...tableCellScroll(), ...editableCellUnderline(T.muted, canEdit) }}>
@@ -16300,10 +16304,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             <textarea onKeyDown={e => handleCellEditKeyDown(e, false)} autoFocus defaultValue={s.shkadia || ''} rows={1}
                               onBlur={async e => { if (e.target.value !== (s.shkadia || '')) await saveField(e.target.value); setTableEditingCell(null); }}
-                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: tfz(12), resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
                             <div style={{ display: 'flex', gap: '4px' }}>
-                              {s.shkadia && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveField(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr('shared.clear3')}</button>}
+                              {s.shkadia && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveField(''); setTableEditingCell(null); }} style={{ fontSize: tfz(11), padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr('shared.clear3')}</button>}
                               
                             </div>
                           </div>
@@ -16329,7 +16333,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             setStrips(prev => prev.map(st => st.id === s.id ? { ...st, sectorId: newSectorId } : st));
                             await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sectorId: newSectorId }) });
                           }}
-                          style={{ background: '#0f172a', color: tableSortBySector ? '#38bdf8' : '#94a3b8', border: '1px solid #334155', borderRadius: '4px', padding: '4px 6px', fontSize: '11px', cursor: 'pointer', width: '100%', direction: dir }}
+                          style={{ background: '#0f172a', color: tableSortBySector ? '#38bdf8' : '#94a3b8', border: '1px solid #334155', borderRadius: '4px', padding: '4px 6px', fontSize: tfz(11), cursor: 'pointer', width: '100%', direction: dir }}
                         >
                           <option value="">{tr('shared.none')}</option>
                           {allSectors.map(sec => (
@@ -16373,17 +16377,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             <textarea onKeyDown={e => handleCellEditKeyDown(e, true)} autoFocus defaultValue={noteParsed.text} rows={2}
                               onBlur={async e => { if (e.target.value !== noteParsed.text) await saveNoteText(e.target.value); setTableEditingCell(null); }}
-                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: tfz(12), resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
                             {noteParsed.hw && <img src={noteParsed.hw} alt={tr('shared.handwriting')} style={{ maxWidth: '100%', maxHeight: '32px', borderRadius: '4px', border: '1px solid #334155' }} />}
                             <div style={{ display: 'flex', gap: '4px' }}>
-                              {noteParsed.text && <button onMouseDown={e => e.preventDefault()} onClick={() => { clearNoteText(); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr('shared.clear3')}</button>}
+                              {noteParsed.text && <button onMouseDown={e => e.preventDefault()} onClick={() => { clearNoteText(); setTableEditingCell(null); }} style={{ fontSize: tfz(11), padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr('shared.clear3')}</button>}
                               
                             </div>
                           </div>
                         ) : (
-                          <div onClick={() => canEdit && setTableEditingCell(notesCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '12px', userSelect: 'none', display: 'flex', flexDirection: 'column', gap: '3px', ...tableCellScroll(), ...editableCellUnderline(T.muted, canEdit) }}>
-                            {noteParsed.text && <div style={{ color: T.text, background: lightMode ? '#e2e8f0' : '#1e293b', borderRadius: '3px', padding: '2px 5px', fontSize: '11px' }}>{noteParsed.text}</div>}
+                          <div onClick={() => canEdit && setTableEditingCell(notesCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: tfz(12), userSelect: 'none', display: 'flex', flexDirection: 'column', gap: '3px', ...tableCellScroll(), ...editableCellUnderline(T.muted, canEdit) }}>
+                            {noteParsed.text && <div style={{ color: T.text, background: lightMode ? '#e2e8f0' : '#1e293b', borderRadius: '3px', padding: '2px 5px', fontSize: tfz(11) }}>{noteParsed.text}</div>}
                             {noteParsed.hw && <img src={noteParsed.hw} alt={tr('shared.handwriting')} style={{ maxWidth: '100%', maxHeight: '34px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />}
                             {!hasAnyNote && <span style={{ opacity: 0.5, fontStyle: 'italic', color: lightMode ? '#94a3b8' : '#64748b' }}>{tr('shared.note2')}</span>}
                             
@@ -16397,7 +16401,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <td key={colKey} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', minHeight: '24px' }}>
                           {noteParsed.hw && <img src={noteParsed.hw} alt={tr('shared.handwriting')} style={{ maxWidth: '100%', maxHeight: '34px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />}
-                          {!hasAnyNote && <span style={{ color: T.muted, fontSize: '12px' }}>—</span>}
+                          {!hasAnyNote && <span style={{ color: T.muted, fontSize: tfz(12) }}>—</span>}
                         </div>
                       </td>
                     );
@@ -16406,11 +16410,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <td key={colKey} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
                       {hasAnyNote ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                          {noteParsed.text && <div style={{ direction: dir, fontSize: '11px', color: T.text, background: lightMode ? '#e2e8f0' : '#1e293b', borderRadius: '4px', padding: '3px 6px' }}>{noteParsed.text}</div>}
+                          {noteParsed.text && <div style={{ direction: dir, fontSize: tfz(11), color: T.text, background: lightMode ? '#e2e8f0' : '#1e293b', borderRadius: '4px', padding: '3px 6px' }}>{noteParsed.text}</div>}
                           {noteParsed.hw && <img src={noteParsed.hw} alt={tr('shared.handwriting')} style={{ maxWidth: '100%', maxHeight: '34px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />}
                         </div>
                       ) : (
-                        <span style={{ color: T.muted, fontSize: '12px' }}>—</span>
+                        <span style={{ color: T.muted, fontSize: tfz(12) }}>—</span>
                       )}
                     </td>
                   );
@@ -16425,7 +16429,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   const snEditing = tableEditingCell === snCellKey;
                   if (col.editable !== 'keyboard' && col.editable !== 'both') {
                     return (
-                      <td key={colKey} style={{ padding: '6px 8px', color: T.text, verticalAlign: 'top', direction: dir, fontSize: '12px' }}>
+                      <td key={colKey} style={{ padding: '6px 8px', color: T.text, verticalAlign: 'top', direction: dir, fontSize: tfz(12) }}>
                         {myNote || <span style={{ color: T.muted }}>—</span>}
                       </td>
                     );
@@ -16436,21 +16440,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                           <textarea onKeyDown={e => handleCellEditKeyDown(e, true)} autoFocus defaultValue={myNote} rows={2}
                             onBlur={async e => { if (e.target.value !== myNote) await handleUpdateStationNote(s.id, e.target.value); setTableEditingCell(null); }}
-                            style={{ width: '100%', background: T.input, border: '1px solid #6d28d9', borderRadius: '4px', color: T.text, padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                            style={{ width: '100%', background: T.input, border: '1px solid #6d28d9', borderRadius: '4px', color: T.text, padding: '5px 7px', fontSize: tfz(12), resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                           />
                           {myNote && (
                             <button onMouseDown={e => e.preventDefault()} onClick={() => { handleUpdateStationNote(s.id, ''); setTableEditingCell(null); }}
-                              style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', alignSelf: 'flex-start' }}>{tr('shared.clear3')}</button>
+                              style={{ fontSize: tfz(11), padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', alignSelf: 'flex-start' }}>{tr('shared.clear3')}</button>
                           )}
                         </div>
                       ) : (
                         <div
                           onClick={() => canEdit && setTableEditingCell(snCellKey)}
                           title={tr('ctrl.stationNotePrivate')}
-                          style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '12px', userSelect: 'none', ...tableCellScroll(), ...editableCellUnderline(T.muted, canEdit) }}
+                          style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: tfz(12), userSelect: 'none', ...tableCellScroll(), ...editableCellUnderline(T.muted, canEdit) }}
                         >
                           {myNote ? (
-                            <div style={{ color: T.text, background: T.surface2, border: `1px solid ${T.border}`, borderRadius: '3px', padding: '2px 5px', fontSize: '11px' }}>{myNote}</div>
+                            <div style={{ color: T.text, background: T.surface2, border: `1px solid ${T.border}`, borderRadius: '3px', padding: '2px 5px', fontSize: tfz(11) }}>{myNote}</div>
                           ) : (
                             <span style={{ fontStyle: 'italic', color: T.muted }}>{tr('shared.note2')}</span>
                           )}
@@ -16474,10 +16478,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top', minWidth: '180px' }}>
                         <div style={{ background: T.bgAlt, borderRadius: '6px', padding: '8px', border: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}` }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                            <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8' }}>{tr('ctrl.serials')}</span>
-                            <button onClick={() => setTableEditingCell(null)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '14px', lineHeight: 1 }}>✕</button>
+                            <span style={{ fontSize: tfz(11), fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8' }}>{tr('ctrl.serials')}</span>
+                            <button onClick={() => setTableEditingCell(null)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: tfz(14), lineHeight: 1 }}>✕</button>
                           </div>
-                          {allStations.length === 0 && <div style={{ fontSize: '11px', color: '#64748b' }}>{tr('ctrl.noSerials')}</div>}
+                          {allStations.length === 0 && <div style={{ fontSize: tfz(11), color: '#64748b' }}>{tr('ctrl.noSerials')}</div>}
                           {allStations.map((station: string) => {
                             const latestSerial = [...relevantSerials].filter((sr: any) => sr.control_station === station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
                             const mySelection = mySelections.find((sel: any) => sel.control_station === station);
@@ -16492,14 +16496,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               return dSerial && (!mySerial || dSerial.serial_number > mySerial.serial_number);
                             });
                             return (
-                              <div key={station} style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px', fontSize: '11px' }}>
+                              <div key={station} style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px', fontSize: tfz(11) }}>
                                 <span style={{ color: T.muted, minWidth: '60px', flexShrink: 0 }}>{station}:</span>
                                 <span style={{ color: isOutdated ? '#dc2626' : hasDismissalWarning ? '#f97316' : (lightMode ? '#374151' : '#e2e8f0'), fontWeight: (isOutdated || hasDismissalWarning) ? 'bold' : 'normal', flex: 1 }}>
                                   {mySerial ? `#${mySerial.serial_number}${isOutdated ? ` ⚠️→#${latestSerial.serial_number}` : hasDismissalWarning ? ' 🚫' : ''}` : (hasDismissalWarning ? '🚫 לא רלוונטי' : '—')}
                                 </span>
                                 <button
                                   onClick={e => { e.stopPropagation(); const ex = stripSerialSelections.find((se: any) => se.strip_id === s.id && se.control_station === station); const knownUntilId = (!ex?.dismissed && ex?.serial_id) ? String(ex.serial_id) : null; const stationSrIds = new Set((relevantSerials as any[]).filter(sr => sr.control_station === station).map(sr => sr.id)); const initDismissals = (stripSerialDismissals as any[]).filter(d => String(d.strip_id) === String(s.id) && stationSrIds.has(d.serial_id)).map(d => String(d.serial_id)); setSerialPopupKnownUntilId(knownUntilId); setSerialPopupNotRelevantIds(initDismissals); setSerialPopupInitialNotRelevantIds(initDismissals); setSerialPopupWasDismissedId(null); setTableSerialViewPopup({ x: e.clientX, y: e.clientY, station, stripId: s.id }); }}
-                                  style={{ background: '#0f172a', color: '#93c5fd', border: '1px solid #1d4ed8', borderRadius: '3px', padding: '2px 5px', cursor: 'pointer', fontSize: '10px', flexShrink: 0 }}
+                                  style={{ background: '#0f172a', color: '#93c5fd', border: '1px solid #1d4ed8', borderRadius: '3px', padding: '2px 5px', cursor: 'pointer', fontSize: tfz(10), flexShrink: 0 }}
                                   title={tr('ctrl.openSerialView')}
                                 >📋</button>
                               </div>
@@ -16547,20 +16551,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               <div key={sel.control_station}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
                                   <span className={isOutdated ? 'serial-flash' : ''}
-                                    style={{ fontSize: '10px', background: lightMode ? '#dbeafe' : '#1e3a5f', color: lightMode ? '#1e40af' : '#93c5fd', borderRadius: '4px', padding: '2px 5px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                                    style={{ fontSize: tfz(10), background: lightMode ? '#dbeafe' : '#1e3a5f', color: lightMode ? '#1e40af' : '#93c5fd', borderRadius: '4px', padding: '2px 5px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
                                     {sel.control_station} {tr('ctrl.serial2')}{displayNum}
                                   </span>
                                   <button
                                     onClick={e => { e.stopPropagation(); const knownUntilId = (!sel.dismissed && sel.serial_id) ? String(sel.serial_id) : null; const initDismissals = stationDismissals.map(d => String(d.serial_id)); setSerialPopupKnownUntilId(knownUntilId); setSerialPopupNotRelevantIds(initDismissals); setSerialPopupInitialNotRelevantIds(initDismissals); setSerialPopupWasDismissedId(null); setTableSerialViewPopup({ x: e.clientX, y: e.clientY, station: sel.control_station, stripId: s.id }); }}
-                                    style={{ background: 'none', border: 'none', color: '#93c5fd', cursor: 'pointer', fontSize: '11px', padding: '0 2px', lineHeight: 1, flexShrink: 0 }}
+                                    style={{ background: 'none', border: 'none', color: '#93c5fd', cursor: 'pointer', fontSize: tfz(11), padding: '0 2px', lineHeight: 1, flexShrink: 0 }}
                                     title={tr('ctrl.openSerialView')}
                                   >📋</button>
                                 </div>
                                 {isOutdated && (
-                                  <div style={{ fontSize: '9px', color: '#f97316', marginTop: '1px' }}>{tr('ctrl.newerSerialsExistThat')}</div>
+                                  <div style={{ fontSize: tfz(9), color: '#f97316', marginTop: '1px' }}>{tr('ctrl.newerSerialsExistThat')}</div>
                                 )}
                                 {!isOutdated && hasNewerDismissals && (
-                                  <div style={{ fontSize: '9px', color: '#f97316', marginTop: '1px' }}>{tr('ctrl.newerSerialsExistThat2')}</div>
+                                  <div style={{ fontSize: tfz(9), color: '#f97316', marginTop: '1px' }}>{tr('ctrl.newerSerialsExistThat2')}</div>
                                 )}
                               </div>
                             );
@@ -16575,7 +16579,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 <span
                                   className="serial-flash"
                                   onClick={e => { e.stopPropagation(); setSerialPopupKnownUntilId(null); setSerialPopupNotRelevantIds(initDismissals); setSerialPopupInitialNotRelevantIds(initDismissals); setSerialPopupWasDismissedId(null); setTableSerialViewPopup({ x: e.clientX, y: e.clientY, station, stripId: s.id }); }}
-                                  style={{ fontSize: '10px', background: '#7f1d1d', color: '#fca5a5', borderRadius: '4px', padding: '2px 5px', fontWeight: 'bold', whiteSpace: 'nowrap', cursor: 'pointer' }}
+                                  style={{ fontSize: tfz(10), background: '#7f1d1d', color: '#fca5a5', borderRadius: '4px', padding: '2px 5px', fontWeight: 'bold', whiteSpace: 'nowrap', cursor: 'pointer' }}
                                   title={tr('ctrl.clickToOpenSerial')}
                                 >
                                   {station} – ⚠️{latestForSt ? ` #${latestForSt.serial_number}` : ''} חסר
@@ -16587,7 +16591,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       ) : (
                         <span
                           onClick={() => setTableEditingCell(serialCellKey)}
-                          style={{ fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569', fontStyle: 'italic', cursor: 'pointer' }}
+                          style={{ fontSize: tfz(10), color: lightMode ? '#94a3b8' : '#475569', fontStyle: 'italic', cursor: 'pointer' }}
                         >
                           {relevantSerials.length > 0 ? '+ הוסף' : '—'}
                         </span>
@@ -16615,7 +16619,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   if (isAlreadyPending) {
                     return (
                       <td key={col.key} style={{ padding: '8px', verticalAlign: 'top' }}>
-                        <span style={{ fontSize: '11px', color: '#9ca3af', fontStyle: 'italic' }}>{tr('ctrl.pending')}</span>
+                        <span style={{ fontSize: tfz(11), color: '#9ca3af', fontStyle: 'italic' }}>{tr('ctrl.pending')}</span>
                       </td>
                     );
                   }
@@ -16628,7 +16632,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           if (secId) await handleTransfer(s.id, secId);
                           setTableTransferOpen(null);
                         }}
-                        style={{ background: '#334155', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 6px', fontSize: '11px', cursor: 'pointer', width: '100%', direction: dir }}
+                        style={{ background: '#334155', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 6px', fontSize: tfz(11), cursor: 'pointer', width: '100%', direction: dir }}
                       >
                         <option value="">{tr('ctrl.select')}</option>
                         {allSectors.map(sec => (
@@ -16647,28 +16651,28 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <div style={{ display: 'flex', alignItems: 'center', gap: '3px', direction: dir }}>
                         <button
                           onClick={() => setTransferToDropOpen(prev => prev === String(s.id) ? null : String(s.id))}
-                          style={{ flex: 1, textAlign: 'start', background: toVal ? '#0c2a40' : '#1e293b', border: `1px solid ${toVal ? '#3b82f6' : '#334155'}`, borderRadius: '4px', color: toVal ? '#7dd3fc' : '#64748b', padding: '4px 7px', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px', minWidth: 0 }}
+                          style={{ flex: 1, textAlign: 'start', background: toVal ? '#0c2a40' : '#1e293b', border: `1px solid ${toVal ? '#3b82f6' : '#334155'}`, borderRadius: '4px', color: toVal ? '#7dd3fc' : '#64748b', padding: '4px 7px', fontSize: tfz(11), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px', minWidth: 0 }}
                         >
                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'start' }}>{toVal || 'העבר אל...'}</span>
-                          <span style={{ flexShrink: 0, fontSize: '10px', color: toVal ? '#60a5fa' : '#475569', lineHeight: 1 }}>▽</span>
+                          <span style={{ flexShrink: 0, fontSize: tfz(10), color: toVal ? '#60a5fa' : '#475569', lineHeight: 1 }}>▽</span>
                         </button>
                         {toVal && (
-                          <button onClick={() => setStripTransferTo(prev => { const n = { ...prev }; delete n[String(s.id)]; return n; })} style={{ background: 'transparent', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '12px', padding: '2px 3px', flexShrink: 0, lineHeight: 1 }} title={tr('shared.clear')}>✕</button>
+                          <button onClick={() => setStripTransferTo(prev => { const n = { ...prev }; delete n[String(s.id)]; return n; })} style={{ background: 'transparent', border: 'none', color: '#475569', cursor: 'pointer', fontSize: tfz(12), padding: '2px 3px', flexShrink: 0, lineHeight: 1 }} title={tr('shared.clear')}>✕</button>
                         )}
                       </div>
                       {isOpen && (
                         <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 9999, background: '#0f172a', border: '1px solid #3b82f6', borderRadius: '6px', minWidth: '220px', maxHeight: '240px', overflowY: 'auto', direction: dir, boxShadow: '0 4px 20px rgba(0,0,0,0.7)', padding: '4px' }}>
                           {mmiConnectedPresets.length === 0
-                            ? <div style={{ padding: '10px 12px', color: '#64748b', fontSize: '11px', textAlign: 'center', fontStyle: 'italic' }}>{tr('ctrl.noInterfacingWorkstations')}</div>
+                            ? <div style={{ padding: '10px 12px', color: '#64748b', fontSize: tfz(11), textAlign: 'center', fontStyle: 'italic' }}>{tr('ctrl.noInterfacingWorkstations')}</div>
                             : mmiConnectedPresets.map(p => (
                               <button key={p.id}
                                 onClick={() => { const text = p.freqs ? `${p.name} | ${p.freqs}` : p.name; setStripTransferTo(prev => ({ ...prev, [String(s.id)]: text })); setTransferToDropOpen(null); }}
-                                style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#e2e8f0', border: 'none', padding: '8px 12px', cursor: 'pointer', fontSize: '12px', borderRadius: '4px' }}
+                                style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#e2e8f0', border: 'none', padding: '8px 12px', cursor: 'pointer', fontSize: tfz(12), borderRadius: '4px' }}
                                 onMouseEnter={e => (e.currentTarget.style.background = '#1e3a5f')}
                                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                               >
                                 <div style={{ fontWeight: 'bold', color: '#7dd3fc' }}>{p.name}</div>
-                                {p.freqs && <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>{p.freqs}</div>}
+                                {p.freqs && <div style={{ fontSize: tfz(10), color: '#94a3b8', marginTop: '2px' }}>{p.freqs}</div>}
                               </button>
                             ))
                           }
@@ -16683,7 +16687,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   const faultsText = formatFaultsText(s.aircraft_faults);
                   return (
                     <td key={colKey} title={faultsText ? formatFaultsHint(s.aircraft_faults) : undefined}
-                      style={{ padding: '6px 8px', verticalAlign: 'top', direction: dir, fontSize: '12px', fontWeight: faultsText ? 'bold' : 'normal', color: faultsText ? faultRedFor(lightMode) : T.muted }}>
+                      style={{ padding: '6px 8px', verticalAlign: 'top', direction: dir, fontSize: tfz(12), fontWeight: faultsText ? 'bold' : 'normal', color: faultsText ? faultRedFor(lightMode) : T.muted }}>
                       {faultsText ? `⚠ ${faultsText}` : '—'}
                     </td>
                   );
@@ -16722,22 +16726,22 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             <input type="time" autoFocus defaultValue={timeVal} onKeyDown={e => handleCellEditKeyDown(e, false)}
                               onBlur={async e => { await saveTakeoffTime(e.target.value); setTableEditingCell(null); }}
-                              style={{ background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '13px', fontFamily: 'monospace', direction: 'ltr', width: '100%', boxSizing: 'border-box' }}
+                              style={{ background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: tfz(13), fontFamily: 'monospace', direction: 'ltr', width: '100%', boxSizing: 'border-box' }}
                             />
                             {timeVal && (
                               <button onMouseDown={e => e.preventDefault()} onClick={() => { saveTakeoffTime(''); setTableEditingCell(null); }}
-                                style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', alignSelf: 'flex-start' }}>{tr('shared.clear3')}</button>
+                                style={{ fontSize: tfz(11), padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', alignSelf: 'flex-start' }}>{tr('shared.clear3')}</button>
                             )}
                           </div>
                         ) : (
-                          <div onClick={() => setTableEditingCell(toCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', fontSize: '13px', fontFamily: 'monospace', color: display !== '—' ? (T.muted) : (lightMode ? '#94a3b8' : '#64748b'), userSelect: 'none', ...editableCellUnderline(T.muted) }}>
-                            {display !== '—' ? display : <span style={{ opacity: 0.5, fontStyle: 'italic', fontSize: '11px' }}>HH:MM</span>}
+                          <div onClick={() => setTableEditingCell(toCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', fontSize: tfz(13), fontFamily: 'monospace', color: display !== '—' ? (T.muted) : (lightMode ? '#94a3b8' : '#64748b'), userSelect: 'none', ...editableCellUnderline(T.muted) }}>
+                            {display !== '—' ? display : <span style={{ opacity: 0.5, fontStyle: 'italic', fontSize: tfz(11) }}>HH:MM</span>}
                           </div>
                         )}
                       </td>
                     );
                   }
-                  return <td key={col.key} style={{ padding: '10px 12px', color: T.muted, verticalAlign: 'top', fontSize: '12px', fontFamily: 'monospace' }}>{display}</td>;
+                  return <td key={col.key} style={{ padding: '10px 12px', color: T.muted, verticalAlign: 'top', fontSize: tfz(12), fontFamily: 'monospace' }}>{display}</td>;
                 }
                 case 'systems': {
                   const sysCellKey = s.id + '__systems';
@@ -16757,18 +16761,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             <textarea onKeyDown={e => handleCellEditKeyDown(e, true)} autoFocus defaultValue={sysText} rows={2}
                               onBlur={async e => { if (e.target.value !== sysText) await saveSystems(e.target.value); setTableEditingCell(null); }}
                               placeholder={tr('ctrl.oneSystemPerLine')}
-                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: tfz(12), resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
                           </div>
                         ) : (
-                          <div onClick={() => setTableEditingCell(sysCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '12px', color: sysText ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), userSelect: 'none', ...tableCellScroll(), ...editableCellUnderline(T.muted) }}>
+                          <div onClick={() => setTableEditingCell(sysCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: tfz(12), color: sysText ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), userSelect: 'none', ...tableCellScroll(), ...editableCellUnderline(T.muted) }}>
                             {sysText || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>—</span>}
                           </div>
                         )}
                       </td>
                     );
                   }
-                  return <td key={col.key} style={{ padding: '10px 12px', color: T.muted, verticalAlign: 'top', fontSize: '12px' }}>{sysArr.map((x: any) => typeof x === 'string' ? x : (x.name || x.type || '')).join(', ') || '—'}</td>;
+                  return <td key={col.key} style={{ padding: '10px 12px', color: T.muted, verticalAlign: 'top', fontSize: tfz(12) }}>{sysArr.map((x: any) => typeof x === 'string' ? x : (x.name || x.type || '')).join(', ') || '—'}</td>;
                 }
                 // ── טבלת נקודות מכוון ──────────────────────────────────────
                 // התא המצרפי: מציג את כל נ"צי התקיפה של הפ"מ, ובעריכה פותח את
@@ -16782,12 +16786,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
                       <div
                         onClick={() => canOpen && setAimPointsEditor({ stripId: s.id, title: getFormationDisplayName(s) })}
-                        style={{ cursor: canOpen ? 'pointer' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '11px', userSelect: 'none' }}
+                        style={{ cursor: canOpen ? 'pointer' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: tfz(11), userSelect: 'none' }}
                         title={canOpen ? tr('strips.openAimPointsEditor') : undefined}
                       >
                         <AimPointsSummary value={aimRows} themeMode={themeMode} max={4} />
                         {canOpen && (
-                          <span style={{ color: frameColor('edit', themeMode), fontSize: '10px', display: 'inline-block', marginBlockStart: '2px' }}>
+                          <span style={{ color: frameColor('edit', themeMode), fontSize: tfz(10), display: 'inline-block', marginBlockStart: '2px' }}>
                             {tr('strips.openAimPointsEditor')}
                           </span>
                         )}
@@ -16804,7 +16808,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     const vals = toAimPoints(s.targets).map(p => String(p[aimCol.key] || '').trim());
                     const hasAny = vals.some(Boolean);
                     return (
-                      <td key={col.key} style={{ padding: '10px 12px', verticalAlign: 'top', fontSize: '12px', direction: dir }}>
+                      <td key={col.key} style={{ padding: '10px 12px', verticalAlign: 'top', fontSize: tfz(12), direction: dir }}>
                         {!hasAny
                           ? <span style={{ color: T.muted }}>—</span>
                           : <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
@@ -16830,7 +16834,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         </td>
                       );
                     }
-                    return <td key={col.key} style={{ padding: '10px 12px', color: T.muted, verticalAlign: 'top', fontSize: '12px' }}>{currentBsName}</td>;
+                    return <td key={col.key} style={{ padding: '10px 12px', color: T.muted, verticalAlign: 'top', fontSize: tfz(12) }}>{currentBsName}</td>;
                   }
                   if (colKey in EDITABLE_TEXT_FIELDS) {
                     const cellKey = s.id + '__' + colKey;
@@ -16847,15 +16851,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                               <textarea onKeyDown={e => handleCellEditKeyDown(e, false)} autoFocus defaultValue={current} rows={1}
                                 onBlur={async e => { if (e.target.value !== current) await saveField(e.target.value); setTableEditingCell(null); }}
-                                style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                                style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: tfz(12), resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                               />
                               <div style={{ display: 'flex', gap: '4px' }}>
-                                {current && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveField(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr('shared.clear3')}</button>}
+                                {current && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveField(''); setTableEditingCell(null); }} style={{ fontSize: tfz(11), padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr('shared.clear3')}</button>}
                                 
                               </div>
                             </div>
                           ) : (
-                            <div onClick={() => setTableEditingCell(cellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '12px', color: current ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none', ...editableCellUnderline(T.muted) }}>
+                            <div onClick={() => setTableEditingCell(cellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: tfz(12), color: current ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none', ...editableCellUnderline(T.muted) }}>
                               <span style={{ flex: 1 }}>{current || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{EDITABLE_TEXT_FIELDS[colKey]}</span>}</span>
                               
                             </div>
@@ -16911,10 +16915,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 if (!write) return;
                 // עדכון אופטימי: השרת מחזיר את השורה, אבל הפ"מ נטען
                 // בסקר הבא - בלי זה התא היה קופץ חזרה לערך הישן
-                setStrips(prev => prev.map(st => st.id === s.id
-                  ? { ...st, aircraft: (Array.isArray((st as any).aircraft) ? (st as any).aircraft : []).map((a: any) =>
-                      Number(a?.idx) === Number(rows[rowIdx].idx) ? { ...a, ...write.body } : a) }
-                  : st));
+                // שורה ריקה (מטוס שעוד לא נגעו בו) אינה במערך - מוסיפים אותה,
+                // כמו שה-PUT יוצר אותה בשרת
+                const acIdx = Number(rows[rowIdx].idx);
+                setStrips(prev => prev.map(st => {
+                  if (st.id !== s.id) return st;
+                  const list: any[] = Array.isArray((st as any).aircraft) ? (st as any).aircraft : [];
+                  const exists = list.some((a: any) => Number(a?.idx) === acIdx);
+                  return { ...st, aircraft: exists
+                    ? list.map((a: any) => Number(a?.idx) === acIdx ? { ...a, ...write.body } : a)
+                    : [...list, { idx: acIdx, ...write.body }] };
+                }));
                 try {
                   await fetch(`${API_URL}${write.path}`, {
                     method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -16956,23 +16967,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       style={{
                         width: '16px', height: '16px', lineHeight: 1, padding: 0, flexShrink: 0,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', borderRadius: '3px',
+                        fontSize: tfz(13), fontWeight: 'bold', cursor: 'pointer', borderRadius: '3px',
                         background: rowsOpen ? SUB_ACC : 'transparent',
                         color: rowsOpen ? '#062c38' : SUB_ACC,
                         border: `1px solid ${SUB_ACC}`,
                       }}
                     >{rowsOpen ? '−' : '+'}</button>}
-                    <span style={{ fontSize: '11px', fontWeight: 'bold', color: SUB_ACC }}>
+                    <span style={{ fontSize: tfz(11), fontWeight: 'bold', color: SUB_ACC }}>
                       {col.label || tr(subDef.labelKey)}
                     </span>
-                    <span style={{ fontSize: '10px', color: T.muted }}>
+                    <span style={{ fontSize: tfz(10), color: T.muted }}>
                       {tr('ctrl.subTableRowCount', { count: rows.length })}
                     </span>
                     {/* שיוך מפורש לפ"מ - השורה רחבה, והכותרת עלולה
                         להיקרא כשייכת לפ"מ שמעליה או שמתחתיה. במוד הטבלאי
                         האו"ק ענק בצד הטבלה, ולכן החזרה כאן רק מרעישה. */}
                     {opts.showStripName !== false && (
-                      <span style={{ fontSize: '10px', color: T.muted }}>
+                      <span style={{ fontSize: tfz(10), color: T.muted }}>
                         {tr('ctrl.subTableOfStrip', { name: getFormationDisplayName(s) })}
                       </span>
                     )}
@@ -16980,13 +16991,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     {subDef.key === AIM_POINTS_FIELD_KEY && (
                       <button
                         onClick={() => setAimPointsEditor({ stripId: s.id, title: getFormationDisplayName(s) })}
-                        style={{ background: 'transparent', border: 'none', color: frameColor('edit', themeMode), fontSize: '10px', cursor: 'pointer', padding: 0, marginInlineStart: 'auto' }}
+                        style={{ background: 'transparent', border: 'none', color: frameColor('edit', themeMode), fontSize: tfz(10), cursor: 'pointer', padding: 0, marginInlineStart: 'auto' }}
                       >{tr('strips.openAimPointsEditor')}</button>
                     )}
                   </div>
 
                   {!rowsOpen ? null : rows.length === 0 || subCols.length === 0 ? (
-                    <span style={{ fontSize: '11px', color: T.muted, fontStyle: 'italic' }}>
+                    <span style={{ fontSize: tfz(11), color: T.muted, fontStyle: 'italic' }}>
                       {subCols.length === 0 ? tr('ctrl.subTableNoColumns') : tr(subDef.emptyKey)}
                     </span>
                   ) : (() => {
@@ -17009,12 +17020,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     };
                     return (
                     <div style={{ overflowX: 'auto', maxWidth: '100%', overscrollBehaviorX: 'contain' }}>
-                      <table style={{ borderCollapse: 'collapse', fontSize: '12px', minWidth: 'max-content' }}>
+                      <table style={{ borderCollapse: 'collapse', fontSize: tfz(12), minWidth: 'max-content' }}>
                         <thead>
                           <tr>
-                            <th style={{ padding: '2px 6px', width: LEAD_W, color: T.muted, fontSize: '10px', fontWeight: 'normal', borderBottom: `1px solid ${lightMode ? '#bae6fd' : '#164e63'}`, ...(frozen > 0 ? { position: 'sticky', insetInlineStart: 0, zIndex: 2, background: subBg } : {}) }}>#</th>
+                            <th style={{ padding: '2px 6px', width: LEAD_W, color: T.muted, fontSize: tfz(10), fontWeight: 'normal', borderBottom: `1px solid ${lightMode ? '#bae6fd' : '#164e63'}`, ...(frozen > 0 ? { position: 'sticky', insetInlineStart: 0, zIndex: 2, background: subBg } : {}) }}>#</th>
                             {subCols.map((sc, sci) => (
-                              <th key={sc.key} style={{ padding: '2px 8px', textAlign: 'start', fontWeight: 'bold', color: T.muted, fontSize: '10px', borderBottom: `1px solid ${lightMode ? '#bae6fd' : '#164e63'}`, whiteSpace: 'nowrap', ...frozenCell(sci) }}>
+                              <th key={sc.key} style={{ padding: '2px 8px', textAlign: 'start', fontWeight: 'bold', color: T.muted, fontSize: tfz(10), borderBottom: `1px solid ${lightMode ? '#bae6fd' : '#164e63'}`, whiteSpace: 'nowrap', ...frozenCell(sci) }}>
                                 {sc.label || tr(subDef.columns.find(c => c.key === sc.key)?.labelKey || sc.key)}
                               </th>
                             ))}
@@ -17023,7 +17034,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         <tbody>
                           {rows.map((row, rowIdx) => (
                             <tr key={rowIdx} style={{ background: row.abort_attack ? (lightMode ? '#fee2e2' : '#450a0a') : undefined }}>
-                              <td style={{ padding: '2px 6px', color: T.muted, fontSize: '10px', textAlign: 'center', ...(frozen > 0 ? { position: 'sticky', insetInlineStart: 0, zIndex: 2, background: subBg } : {}) }}>{rowIdx + 1}</td>
+                              <td style={{ padding: '2px 6px', color: T.muted, fontSize: tfz(10), textAlign: 'center', ...(frozen > 0 ? { position: 'sticky', insetInlineStart: 0, zIndex: 2, background: subBg } : {}) }}>{rowIdx + 1}</td>
                               {subCols.map((sc, sci) => {
                                 const scDef = subDef.columns.find(c => c.key === sc.key);
                                 const isFlag = (scDef?.editableOptions || []).includes('toggle');
@@ -17081,7 +17092,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                           setTableEditingCell(null);
                                         }}
                                         onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setTableEditingCell(null); }}
-                                        style={{ width: `${Math.max(COORD_PLACEHOLDER.length, text.length + 3)}ch`, background: lightMode ? '#ffffff' : '#0f172a', border: '1px solid #6d28d9', borderRadius: '3px', color: lightMode ? '#1e293b' : 'white', padding: '1px 4px', fontSize: '12px', fontFamily: 'inherit', direction: dir }}
+                                        style={{ width: `${Math.max(COORD_PLACEHOLDER.length, text.length + 3)}ch`, background: lightMode ? '#ffffff' : '#0f172a', border: '1px solid #6d28d9', borderRadius: '3px', color: lightMode ? '#1e293b' : 'white', padding: '1px 4px', fontSize: tfz(12), fontFamily: 'inherit', direction: dir }}
                                       />
                                       </>
                                     ) : (
@@ -17213,7 +17224,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               >
                 <thead>
                   <tr style={{ background: lightMode ? '#e2e8f0' : '#1e293b' }}>
-                    <th style={{ padding: '4px 6px', position: 'sticky', top: 0, insetInlineStart: tableStickyOffsets[0] ?? 0, zIndex: hasFrozen ? 15 : 10, background: lightMode ? '#e2e8f0' : '#1e293b', borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, fontSize: '11px', whiteSpace: 'nowrap' }}>
+                    <th style={{ padding: '4px 6px', position: 'sticky', top: 0, insetInlineStart: tableStickyOffsets[0] ?? 0, zIndex: hasFrozen ? 15 : 10, background: lightMode ? '#e2e8f0' : '#1e293b', borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, fontSize: tfz(11), whiteSpace: 'nowrap' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
                         <button onClick={() => setTableFontSize(s => Math.min(22, s + 1))} title={tr('ctrl.increaseTextSize')} style={{ background: lightMode ? '#f1f5f9' : '#334155', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, color: lightMode ? '#1e293b' : '#e2e8f0', borderRadius: '3px', cursor: 'pointer', padding: '0px 5px', fontSize: '15px', fontWeight: 'bold', lineHeight: 1.4, minWidth: '22px' }}>A</button>
                         <button onClick={() => setTableFontSize(s => Math.max(9, s - 1))} title={tr('ctrl.decreaseTextSize')} style={{ background: lightMode ? '#f1f5f9' : '#334155', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, color: lightMode ? '#1e293b' : '#e2e8f0', borderRadius: '3px', cursor: 'pointer', padding: '0px 5px', fontSize: '11px', fontWeight: 'bold', lineHeight: 1.4, minWidth: '20px' }}>A</button>
@@ -17224,7 +17235,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       className={hasFrozen ? 'frozen-col' : undefined}
                       style={{
                         padding: '8px 6px', width: '28px', color: T.muted, borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`,
-                        position: 'sticky', top: 0, zIndex: hasFrozen ? 15 : 10, fontSize: '11px',
+                        position: 'sticky', top: 0, zIndex: hasFrozen ? 15 : 10, fontSize: tfz(11),
                         ...(stickyLead ? { insetInlineStart: tableStickyOffsets[1] ?? 0, background: lightMode ? '#e2e8f0' : '#1e293b' } : {})
                       }}
                       title={tr('ctrl.dragToReorder')}
@@ -17238,7 +17249,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       const isLastFrozen = isFrozen && colIdx === frozenCount - 1;
                       const frozenRight = isFrozen ? (tableStickyOffsets[colIdx + 2] ?? undefined) : undefined;
                       return (
-                        <th key={colKey} className={isFrozen ? (isLastFrozen ? 'frozen-col-last' : 'frozen-col') : undefined} style={{ padding: '8px 12px', textAlign: 'start', color: isGrouped ? '#a78bfa' : isSorted ? '#38bdf8' : (T.muted), borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, minWidth: '80px', userSelect: 'none', zIndex: isFrozen ? 12 : 10, fontSize: '11px', background: 'inherit', ...(isFrozen ? { insetInlineStart: frozenRight, background: lightMode ? '#e2e8f0' : '#1e293b', borderInlineEnd: isLastFrozen ? '2px solid #7c3aed' : undefined } : {}) }}>
+                        <th key={colKey} className={isFrozen ? (isLastFrozen ? 'frozen-col-last' : 'frozen-col') : undefined} style={{ padding: '8px 12px', textAlign: 'start', color: isGrouped ? '#a78bfa' : isSorted ? '#38bdf8' : (T.muted), borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, minWidth: '80px', userSelect: 'none', zIndex: isFrozen ? 12 : 10, fontSize: tfz(11), background: 'inherit', ...(isFrozen ? { insetInlineStart: frozenRight, background: lightMode ? '#e2e8f0' : '#1e293b', borderInlineEnd: isLastFrozen ? '2px solid #7c3aed' : undefined } : {}) }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-start' }}>
                             {hasSecondLine(col) ? (
                               // שתי שורות בכותרת, באותו סדר של התא: השדה הראשי
@@ -17254,15 +17265,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                       <button
                                         onClick={e => { e.stopPropagation(); setTableEditableCols(prev => { const n = new Set(prev); n.has(k2) ? n.delete(k2) : n.add(k2); return n; }); }}
                                         title={on ? tr('tableDisplay.lockSecond') : tr('tableDisplay.unlockSecond')}
-                                        style={{ background: on ? '#d97706' : 'transparent', border: on ? '1px solid #f59e0b' : '1px solid transparent', color: on ? '#fef3c7' : T.muted, cursor: 'pointer', padding: '0 3px', borderRadius: '3px', fontSize: '10px', lineHeight: 1 }}
+                                        style={{ background: on ? '#d97706' : 'transparent', border: on ? '1px solid #f59e0b' : '1px solid transparent', color: on ? '#fef3c7' : T.muted, cursor: 'pointer', padding: '0 3px', borderRadius: '3px', fontSize: tfz(10), lineHeight: 1 }}
                                       >✏️</button>
                                     );
                                   })()}
                                 </span>
                               </span>
                             ) : <span>{col.label}</span>}
-                            {isGrouped && <span style={{ fontSize: '9px', background: '#4c1d95', color: '#c4b5fd', padding: '1px 4px', borderRadius: '3px' }}>⊞</span>}
-                            {isSorted && <span style={{ fontSize: '11px' }}>{tableSortDir === 'asc' ? '↑' : '↓'}</span>}
+                            {isGrouped && <span style={{ fontSize: tfz(9), background: '#4c1d95', color: '#c4b5fd', padding: '1px 4px', borderRadius: '3px' }}>⊞</span>}
+                            {isSorted && <span style={{ fontSize: tfz(11) }}>{tableSortDir === 'asc' ? '↑' : '↓'}</span>}
                             {/* נעילת הכתיבה היא של עמודת פ"מ רגילה בלבד. עמודת
                                 טבלת בן **אינה** נעולה: ההגדרה בניהול קובעת אילו
                                 שדות פתוחים, וכפתור כאן היה מתג שאינו שולט בכלום. */}
@@ -17270,12 +17281,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               <button
                                 onClick={e => { e.stopPropagation(); setTableEditableCols(prev => { const n = new Set(prev); n.has(colKey) ? n.delete(colKey) : n.add(colKey); return n; }); setTableHeaderMenuKey(null); }}
                                 title={tableEditableCols.has(colKey) ? 'כתיבה פעילה — לחץ לנעילה' : 'לחץ לאפשר עריכה'}
-                                style={{ background: tableEditableCols.has(colKey) ? '#d97706' : 'transparent', border: tableEditableCols.has(colKey) ? '1px solid #f59e0b' : '1px solid transparent', color: tableEditableCols.has(colKey) ? '#fef3c7' : (lightMode ? '#94a3b8' : '#64748b'), cursor: 'pointer', padding: '1px 4px', borderRadius: '3px', fontSize: '11px', lineHeight: 1, flexShrink: 0 }}
+                                style={{ background: tableEditableCols.has(colKey) ? '#d97706' : 'transparent', border: tableEditableCols.has(colKey) ? '1px solid #f59e0b' : '1px solid transparent', color: tableEditableCols.has(colKey) ? '#fef3c7' : (lightMode ? '#94a3b8' : '#64748b'), cursor: 'pointer', padding: '1px 4px', borderRadius: '3px', fontSize: tfz(11), lineHeight: 1, flexShrink: 0 }}
                               >✏️</button>
                             )}
                             <button
                               onClick={e => { e.stopPropagation(); setTableHeaderMenuKey(prev => prev === colKey ? null : colKey); }}
-                              style={{ background: isMenuOpen ? (T.border) : 'transparent', border: 'none', color: lightMode ? '#334155' : '#94a3b8', cursor: 'pointer', padding: '1px 3px', borderRadius: '3px', fontSize: '10px', lineHeight: 1, flexShrink: 0 }}
+                              style={{ background: isMenuOpen ? (T.border) : 'transparent', border: 'none', color: lightMode ? '#334155' : '#94a3b8', cursor: 'pointer', padding: '1px 3px', borderRadius: '3px', fontSize: tfz(10), lineHeight: 1, flexShrink: 0 }}
                             >▾</button>
                           </div>
                           {isMenuOpen && (
@@ -17298,20 +17309,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                   }
                                   setTableHeaderMenuKey(null);
                                 }}
-                                style={{ display: 'block', width: '100%', textAlign: 'start', background: isGrouped ? (lightMode ? '#ede9fe' : '#2d1b69') : 'transparent', color: isGrouped ? (lightMode ? '#5b21b6' : '#c4b5fd') : (T.text), border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
+                                style={{ display: 'block', width: '100%', textAlign: 'start', background: isGrouped ? (lightMode ? '#ede9fe' : '#2d1b69') : 'transparent', color: isGrouped ? (lightMode ? '#5b21b6' : '#c4b5fd') : (T.text), border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: tfz(12) }}
                               >{isGrouped ? '✕ הסר קיבוץ' : '⊞ קבץ לפי'}</button>
                               <button
                                 onClick={() => { setTableSortKey(colKey); setTableSortDir('asc'); setTableHeaderMenuKey(null); }}
-                                style={{ display: 'block', width: '100%', textAlign: 'start', background: isSorted && tableSortDir === 'asc' ? (lightMode ? '#dbeafe' : '#1e3a5f') : 'transparent', color: T.text, border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
+                                style={{ display: 'block', width: '100%', textAlign: 'start', background: isSorted && tableSortDir === 'asc' ? (lightMode ? '#dbeafe' : '#1e3a5f') : 'transparent', color: T.text, border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: tfz(12) }}
                               >{tr('ctrl.sortAscending')}</button>
                               <button
                                 onClick={() => { setTableSortKey(colKey); setTableSortDir('desc'); setTableHeaderMenuKey(null); }}
-                                style={{ display: 'block', width: '100%', textAlign: 'start', background: isSorted && tableSortDir === 'desc' ? (lightMode ? '#dbeafe' : '#1e3a5f') : 'transparent', color: T.text, border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
+                                style={{ display: 'block', width: '100%', textAlign: 'start', background: isSorted && tableSortDir === 'desc' ? (lightMode ? '#dbeafe' : '#1e3a5f') : 'transparent', color: T.text, border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: tfz(12) }}
                               >{tr('ctrl.sortDescending')}</button>
                               {isSorted && (
                                 <button
                                   onClick={() => { setTableSortKey(null); setTableHeaderMenuKey(null); }}
-                                  style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: T.muted, border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
+                                  style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: T.muted, border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: tfz(12) }}
                                 >{tr('ctrl.clearSorting')}</button>
                               )}
                             </div>
@@ -17321,15 +17332,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     })}
                     {/* מוד טבלאי - שתי הכותרות שמחליפות את עמודות הפ"מ */}
                     {isTabular && (<>
-                      <th style={{ padding: '8px 12px', textAlign: 'start', color: T.muted, borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, insetInlineStart: tabularIdentityLeft, zIndex: 15, background: lightMode ? '#e2e8f0' : '#1e293b', fontSize: '11px', whiteSpace: 'nowrap', minWidth: '120px' }}>
+                      <th style={{ padding: '8px 12px', textAlign: 'start', color: T.muted, borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, insetInlineStart: tabularIdentityLeft, zIndex: 15, background: lightMode ? '#e2e8f0' : '#1e293b', fontSize: tfz(11), whiteSpace: 'nowrap', minWidth: '120px' }}>
                         {tr('ctrl.tabularIdentity')}
                       </th>
-                      <th style={{ padding: '8px 12px', textAlign: 'start', color: SUB_ACC, borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, zIndex: 10, background: 'inherit', fontSize: '11px', whiteSpace: 'nowrap', width: '100%' }}>
+                      <th style={{ padding: '8px 12px', textAlign: 'start', color: SUB_ACC, borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, zIndex: 10, background: 'inherit', fontSize: tfz(11), whiteSpace: 'nowrap', width: '100%' }}>
                         {tabularCol.label || tr(getSubTable(tabularCol.tableKey)?.labelKey || tabularCol.tableKey)}
                       </th>
                     </>)}
                     {showFullPicture && (
-                      <th style={{ padding: '8px 10px', textAlign: 'start', color: T.muted, borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, zIndex: 10, background: 'inherit', fontSize: '11px', whiteSpace: 'nowrap', minWidth: '120px' }}>
+                      <th style={{ padding: '8px 10px', textAlign: 'start', color: T.muted, borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, zIndex: 10, background: 'inherit', fontSize: tfz(11), whiteSpace: 'nowrap', minWidth: '120px' }}>
                         {tr('ctrl.whoseDesk')}
                       </th>
                     )}
@@ -17380,10 +17391,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           {/* +1 על totalColSpan - גם התא האפסי שבקצה (משולש ההעברה) */}
                           <td colSpan={totalColSpan + 1} style={{ padding: '0', direction: dir }}>
                             <div style={{ position: 'sticky', right: 0, display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '5px 12px' }}>
-                              <span data-drag-handle style={{ color: (themeMode === 'light' || themeMode === 'ocean') ? 'rgba(255,255,255,0.7)' : T.muted, fontSize: '14px', cursor: 'grab', flexShrink: 0 }}>⠿</span>
-                              <span style={{ fontSize: '11px', color: (themeMode === 'light' || themeMode === 'ocean') ? 'rgba(255,255,255,0.9)' : '#a78bfa', transition: 'transform 0.15s', transform: item.collapsed ? 'rotate(-90deg)' : 'rotate(0deg)', flexShrink: 0 }}>▾</span>
-                              <span style={{ background: 'rgba(255,255,255,0.18)', color: '#fff', fontWeight: 'bold', fontSize: '13px', padding: '3px 12px', borderRadius: '5px', letterSpacing: '0.02em', border: '1px solid rgba(255,255,255,0.3)', boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }}>{item.groupKey}</span>
-                              <span style={{ background: 'rgba(255,255,255,0.22)', color: '#fff', fontWeight: 'bold', fontSize: '12px', padding: '2px 8px', borderRadius: '4px', flexShrink: 0 }}>{item.count}</span>
+                              <span data-drag-handle style={{ color: (themeMode === 'light' || themeMode === 'ocean') ? 'rgba(255,255,255,0.7)' : T.muted, fontSize: tfz(14), cursor: 'grab', flexShrink: 0 }}>⠿</span>
+                              <span style={{ fontSize: tfz(11), color: (themeMode === 'light' || themeMode === 'ocean') ? 'rgba(255,255,255,0.9)' : '#a78bfa', transition: 'transform 0.15s', transform: item.collapsed ? 'rotate(-90deg)' : 'rotate(0deg)', flexShrink: 0 }}>▾</span>
+                              <span style={{ background: 'rgba(255,255,255,0.18)', color: '#fff', fontWeight: 'bold', fontSize: tfz(13), padding: '3px 12px', borderRadius: '5px', letterSpacing: '0.02em', border: '1px solid rgba(255,255,255,0.3)', boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }}>{item.groupKey}</span>
+                              <span style={{ background: 'rgba(255,255,255,0.22)', color: '#fff', fontWeight: 'bold', fontSize: tfz(12), padding: '2px 8px', borderRadius: '4px', flexShrink: 0 }}>{item.count}</span>
                             </div>
                           </td>
                         </tr>
@@ -17435,7 +17446,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           שורת הרווח מעליו, הפ"מ הראשון היה מאבד את גג המסגרת שלו.
                           אינרטי לחלוטין (pointerEvents) כדי שלא ייבלע בו drop של גרירת שורה. */}
                       <tr className="sk-strip-gap" aria-hidden style={{ background: 'transparent', pointerEvents: 'none' }}>
-                        <td colSpan={totalColSpan} style={{ height: `${STRIP_GAP_PX}px`, padding: 0, border: 'none', background: 'transparent', lineHeight: 0, fontSize: 0 }} />
+                        <td colSpan={totalColSpan} style={{ height: `${STRIP_GAP_PX}px`, padding: 0, border: 'none', background: 'transparent', lineHeight: 0, fontSize: tfz(0) }} />
                       </tr>
                       <tr
                         data-strip-id={s.id}
@@ -17511,19 +17522,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 const existing = tableConflictResolutions.get(String(s.id));
                                 setTableConflictDialog({ stripId: String(s.id), conflictingStrips, note: existing?.note || '', selectedIds: existing?.resolvedWith ? new Set(existing.resolvedWith) : new Set(conflictingIds.map(String)) });
                               }}
-                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '50%', background: isRowConflictPartial ? '#f97316' : isRowAltConflict ? '#ef4444' : isRowConflictResolved ? '#22c55e' : 'transparent', color: (isRowAltConflict || isRowConflictResolved || isRowConflictPartial) ? 'white' : 'transparent', fontSize: '10px', fontWeight: 'bold', flexShrink: 0, lineHeight: 1, userSelect: 'none', cursor: tableConflictPairsMap.has(String(s.id)) ? 'pointer' : 'default' }}
+                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '50%', background: isRowConflictPartial ? '#f97316' : isRowAltConflict ? '#ef4444' : isRowConflictResolved ? '#22c55e' : 'transparent', color: (isRowAltConflict || isRowConflictResolved || isRowConflictPartial) ? 'white' : 'transparent', fontSize: tfz(10), fontWeight: 'bold', flexShrink: 0, lineHeight: 1, userSelect: 'none', cursor: tableConflictPairsMap.has(String(s.id)) ? 'pointer' : 'default' }}
                             >{tr('ctrl.k')}</span>
                             {isRowDeviation && !isRowDeviationAck ? (
                               <span
                                 onClick={async e => { e.stopPropagation(); try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: true }) }); } catch {} setStrips(prev => prev.map((x: any) => String(x.id) === String(s.id) ? { ...x, block_deviation: true } : x)); }}
                                 title={tr('ctrl.blockDeviationClickTo')}
-                                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '50%', background: '#ef4444', color: 'white', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}
+                                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '50%', background: '#ef4444', color: 'white', fontSize: tfz(10), fontWeight: 'bold', cursor: 'pointer', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}
                               >{tr('ctrl.in')}</span>
                             ) : isRowDeviationAck ? (
                               <span
                                 onClick={async e => { e.stopPropagation(); try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: false }) }); } catch {} setStrips(prev => prev.map((x: any) => String(x.id) === String(s.id) ? { ...x, block_deviation: false } : x)); }}
                                 title={tr('ctrl.deviationApprovedClickTo')}
-                                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '50%', background: '#22c55e', color: 'white', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}
+                                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '50%', background: '#22c55e', color: 'white', fontSize: tfz(10), fontWeight: 'bold', cursor: 'pointer', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}
                               >{tr('ctrl.in')}</span>
                             ) : (
                               <span style={{ display: 'inline-flex', width: '16px', height: '16px', flexShrink: 0 }} />
@@ -17532,7 +17543,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         </td>
                         <td
                           className={hasFrozen ? 'frozen-col' : undefined}
-                          style={{ padding: '6px 4px', color: '#475569', textAlign: 'center', cursor: (tableSortBySector || tableSortKey) ? 'default' : 'grab', fontSize: '16px', verticalAlign: 'middle', touchAction: 'none', ...(stickyLead ? { position: 'sticky' as const, insetInlineStart: tableStickyOffsets[1] ?? 0, background: rowBg ?? 'inherit', zIndex: 3 } : {}) }}
+                          style={{ padding: '6px 4px', color: '#475569', textAlign: 'center', cursor: (tableSortBySector || tableSortKey) ? 'default' : 'grab', fontSize: tfz(16), verticalAlign: 'middle', touchAction: 'none', ...(stickyLead ? { position: 'sticky' as const, insetInlineStart: tableStickyOffsets[1] ?? 0, background: rowBg ?? 'inherit', zIndex: 3 } : {}) }}
                           onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setTableRowCtxMenu({ stripId: s.id, x: e.clientX, y: e.clientY }); }}
                           onPointerDown={e => {
                             if (tableSortBySector || tableSortKey) return;
@@ -17565,13 +17576,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               style={{
                                 minWidth: '18px', height: '18px', lineHeight: 1, padding: 0,
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', borderRadius: '3px',
+                                fontSize: tfz(13), fontWeight: 'bold', cursor: 'pointer', borderRadius: '3px',
                                 background: 'transparent',
                                 color: lightMode ? '#475569' : '#94a3b8',
                                 border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`,
                               }}
                             >⋮</button>
-                            <span style={{ fontSize: '16px', lineHeight: 1 }}>⠿</span>
+                            <span style={{ fontSize: tfz(16), lineHeight: 1 }}>⠿</span>
                             {/* פורס את טבלאות הבן של הפ"מ. יושב **בראש השורה**,
                                 צמוד לפ"מ עצמו, ולא תלוי במקום שבו הוצבה עמודת
                                 הטבלה בהגדרת המוד. */}
@@ -17599,13 +17610,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                   style={{
                                     minWidth: '16px', height: '16px', lineHeight: 1, padding: '0 2px',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px',
-                                    fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', borderRadius: '3px',
+                                    fontSize: tfz(11), fontWeight: 'bold', cursor: 'pointer', borderRadius: '3px',
                                     background: anyOpen ? SUB_ACC : 'transparent',
                                     color: anyOpen ? '#062c38' : (total ? SUB_ACC : (lightMode ? '#94a3b8' : '#475569')),
                                     border: `1px solid ${anyOpen ? SUB_ACC : (lightMode ? '#cbd5e1' : '#334155')}`,
                                   }}
                                 >
-                                  <span style={{ fontSize: '13px' }}>{anyOpen ? '−' : '+'}</span>
+                                  <span style={{ fontSize: tfz(13) }}>{anyOpen ? '−' : '+'}</span>
                                   {/* כמה שורות מסתתרות מאחורי הכפתור - המספר
                                       לבדו, כי הכפתור צמוד לידית ואין בו מקום */}
                                   {!anyOpen && total > 0 && <span>{total}</span>}
@@ -17613,7 +17624,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               );
                             })()}
                             {isPendingTransfer && (
-                              <span title={tr('ctrl.awaitingAcceptanceByThe')} style={{ gridColumn: '1 / -1', fontSize: '9px', background: '#374151', color: '#9ca3af', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap', lineHeight: 1.3 }}>{tr('ctrl.pending')}</span>
+                              <span title={tr('ctrl.awaitingAcceptanceByThe')} style={{ gridColumn: '1 / -1', fontSize: tfz(9), background: '#374151', color: '#9ca3af', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap', lineHeight: 1.3 }}>{tr('ctrl.pending')}</span>
                             )}
                             {(() => {
                               const rowCount = parseInt(s.numberOfFormation ?? s.number_of_formation ?? '1') || 1;
@@ -17625,11 +17636,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 <>
                                   {rowCount > 1 && (
                                     <button onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); setSectorSplitSelected([]); setSectorSplitModal({ strip: s }); }}
-                                      title={tr('ctrl.splitFormation')} style={{ fontSize: '9px', padding: '1px 3px', background: '#4c1d95', color: '#c4b5fd', border: '1px solid #7c3aed', borderRadius: '2px', cursor: 'pointer', lineHeight: 1 }}>✂</button>
+                                      title={tr('ctrl.splitFormation')} style={{ fontSize: tfz(9), padding: '1px 3px', background: '#4c1d95', color: '#c4b5fd', border: '1px solid #7c3aed', borderRadius: '2px', cursor: 'pointer', lineHeight: 1 }}>✂</button>
                                   )}
                                   {rowSiblings.length > 0 && (
                                     <button onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); if (rowSiblings.length === 1) { setSectorMergeConfirm({ targetId: String(rowSiblings[0].id), sourceId: String(s.id), targetName: rowSiblings[0].callSign || String(rowSiblings[0].id), sourceName: s.callSign || String(s.id) }); } else { setSectorMergeModal({ strip: s, siblings: rowSiblings }); } }}
-                                      title={tr('ctrl.mergeFormation')} style={{ fontSize: '9px', padding: '1px 3px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #1d4ed8', borderRadius: '2px', cursor: 'pointer', lineHeight: 1 }}>⊕</button>
+                                      title={tr('ctrl.mergeFormation')} style={{ fontSize: tfz(9), padding: '1px 3px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #1d4ed8', borderRadius: '2px', cursor: 'pointer', lineHeight: 1 }}>⊕</button>
                                   )}
                                 </>
                               );
@@ -17687,9 +17698,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             <td style={{ padding: '5px 10px', verticalAlign: 'middle' }}>
                               <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
                                 {deskPresets.length === 0
-                                  ? <span style={{ color: T.muted, fontSize: '10px' }}>—</span>
+                                  ? <span style={{ color: T.muted, fontSize: tfz(10) }}>—</span>
                                   : deskPresets.map((name: string) => (
-                                    <span key={name} style={{ fontSize: '10px', padding: '1px 7px', borderRadius: '10px', background: name === myPresetName ? (lightMode ? '#dbeafe' : '#1e3a5f') : (lightMode ? '#f1f5f9' : '#1e293b'), color: name === myPresetName ? '#3b82f6' : T.muted, fontWeight: name === myPresetName ? 'bold' : 'normal', whiteSpace: 'nowrap' }}>
+                                    <span key={name} style={{ fontSize: tfz(10), padding: '1px 7px', borderRadius: '10px', background: name === myPresetName ? (lightMode ? '#dbeafe' : '#1e3a5f') : (lightMode ? '#f1f5f9' : '#1e293b'), color: name === myPresetName ? '#3b82f6' : T.muted, fontWeight: name === myPresetName ? 'bold' : 'normal', whiteSpace: 'nowrap' }}>
                                       {name === myPresetName ? '⭐ ' : ''}{name}
                                     </span>
                                   ))
@@ -17747,8 +17758,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   })}
                   {myTableStrips.length === 0 && (
                     <tr><td colSpan={totalColSpan} style={{ padding: '60px 40px', textAlign: 'center', color: '#475569' }}>
-                      <div style={{ fontSize: '32px', marginBottom: '12px' }}>⟵</div>
-                      <div style={{ fontSize: '15px', color: '#64748b' }}>{tr('ctrl.dragFormationsFromThe')}</div>
+                      <div style={{ fontSize: tfz(32), marginBottom: '12px' }}>⟵</div>
+                      <div style={{ fontSize: tfz(15), color: '#64748b' }}>{tr('ctrl.dragFormationsFromThe')}</div>
                     </td></tr>
                   )}
                 </tbody>

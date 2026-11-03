@@ -28,7 +28,7 @@
 import { AIM_POINT_COLUMNS, AIM_POINTS_FIELD_KEY, AIM_POINTS_FIELD_LABEL, toAimPoints, type AimPointColumn } from './aimPoints';
 import {
   STRIP_AIRCRAFT_COLUMNS, STRIP_AIRCRAFT_TABLE_KEY, STRIP_AIRCRAFT_TABLE_LABEL,
-  toStripAircraftRows, type StripAircraftColumn,
+  toStripAircraftRows, expectedAircraftIndices, type StripAircraftColumn,
 } from './stripAircraft';
 
 /** עמודה בתוך טבלת בן, כפי שהיא מופיעה בבוחר השדות שלה */
@@ -66,8 +66,8 @@ export interface SubTableDef {
   rowWrite: 'strip-field' | 'aircraft-row';
   /** מפתח i18n להודעה כשאין שורות */
   emptyKey: string;
-  /** מנרמל את הערך הגולמי שעל הפ"מ לשורות מוכנות לתצוגה */
-  toRows: (raw: unknown) => Record<string, unknown>[];
+  /** מנרמל את הערך הגולמי שעל הפ"מ לשורות מוכנות לתצוגה. `strip` - הפ"מ כולו, למי שהשורות נגזרות גם ממנו (מס"מ) */
+  toRows: (raw: unknown, strip?: unknown) => Record<string, unknown>[];
   /**
    * כמה עמודות מובילות מקובעות כשאין קונפיגורציה משלה - למשל בחלון העריכה
    * הצף, שמציג את **כל** העמודות ולכן תמיד נגלל. אלה עמודות הזיהוי: בלעדיהן
@@ -128,14 +128,15 @@ export const STRIP_SUB_TABLES: SubTableDef[] = [
     // מספר המטוס במבנה ומספר הזנב - שני אלה מזהים את השורה
     defaultFrozen: 2,
     emptyKey: 'strips.noAircraftRows',
-    toRows: raw => toStripAircraftRows(raw) as unknown as Record<string, unknown>[],
+    // שורה לכל מטוס במבנה, גם בלי נתונים - ראה expectedAircraftIndices
+    toRows: (raw, strip) => toStripAircraftRows(raw, expectedAircraftIndices(strip)) as unknown as Record<string, unknown>[],
   },
 ];
 
 /** שורות טבלת הבן של פ"מ מסוים, מנורמלות לתצוגה */
 export function subTableRows(def: SubTableDef, strip: unknown): Record<string, unknown>[] {
   const s = (strip && typeof strip === 'object') ? strip as Record<string, unknown> : {};
-  return def.toRows(s[def.stripField]);
+  return def.toRows(s[def.stripField], s);
 }
 
 export const SUB_TABLE_BY_KEY: Record<string, SubTableDef> =
