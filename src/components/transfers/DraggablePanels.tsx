@@ -1737,6 +1737,7 @@ export const TableHandwritingCanvas = ({ existing, onConfirm, onCancel, showText
               >{tr('shared.virtualKeyboard')}</button>
             </div>
             <textarea
+              data-no-osk=""
               ref={textareaRef}
               value={textValue}
               onChange={e => setTextValue(e.target.value)}

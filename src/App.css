@@ -906,3 +906,15 @@ body.light-mode tr.sk-row-b .frozen-col-last { background: #dde8f0 !important; }
   padding: 0 !important;
   font-size: 15px !important;
 }
+
+/* ── מוד טבלה עם קיבוץ: תיבת הקבוצה ─────────────────────────────────────────
+   כל השורות שתחת כותרת קבוצה (רווח, פ"מ, טבלאות בן) מקבלות רקע בגוון הקבוצה,
+   פס בשני הצדדים ורצפה מתחת לשורה האחרונה - כך הקבוצה נקראת כיחידה אחת.
+   background-image ולא background-color: הגוון מונח **מעל** צבע השורה (זברה,
+   קונפליקט, תאים מקובעים) ולא מחליף אותו. הצבעים מגיעים מ---sk-grp על הטבלה. */
+#map-area table tbody tr.sk-grp > td {
+  background-image: linear-gradient(var(--sk-grp-tint), var(--sk-grp-tint)) !important;
+}
+#map-area table tbody tr.sk-grp > td:first-child { border-inline-start: 5px solid var(--sk-grp) !important; }
+#map-area table tbody tr.sk-grp > td:last-child { border-inline-end: 5px solid var(--sk-grp) !important; }
+#map-area table tbody tr.sk-grp-last > td { border-bottom: 4px solid var(--sk-grp) !important; }

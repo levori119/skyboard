@@ -257,6 +257,7 @@ export default function FreeDeskPad({
     <div key="text" style={{ flex: `${layout.mode === 'both' ? split : 1} 1 0`, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       <textarea
         data-testid="desk-pad-text"
+        data-no-osk=""
         ref={textareaRef}
         value={text}
         readOnly={readOnly}

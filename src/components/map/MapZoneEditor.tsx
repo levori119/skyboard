@@ -1524,6 +1524,19 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
                           if (res.ok) { const row = await res.json(); setAltRanges(prev => [...prev, row]); setNewAltRange({ name: '', alt_min: '', alt_max: '' }); }
                         }} style={{ background: '#0ea5e9', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '11px', whiteSpace: 'nowrap' }}>+</button>
                       </div>
+                      {/* החל על הכל: אותם בלוקים לכל האזורים במפה (לפי שם הבלוק) */}
+                      {altRanges.length > 0 && zones.length > 1 && (
+                        <button data-testid="alt-ranges-apply-all"
+                          onClick={async () => {
+                            if (!window.confirm(tr('map.applyAltRangesAllConfirm', { count: zones.length - 1 }))) return;
+                            const res = await fetch(`${API_URL}/zone-altitude-ranges/apply-to-map`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source_zone_id: editingZone.id }) });
+                            const j = await res.json().catch(() => ({}));
+                            window.alert(res.ok ? tr('map.applyAltRangesAllDone', { count: j.zones ?? 0 }) + (j.keptInUse ? ` ${tr('map.applyAltRangesKept', { count: j.keptInUse })}` : '') : tr('map.applyAltRangesAllFailed'));
+                          }}
+                          style={{ marginTop: '8px', width: '100%', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '4px', padding: '5px 8px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                          {tr('map.applyAltRangesAll')}
+                        </button>
+                      )}
                     </>
                   )}
                 </div>

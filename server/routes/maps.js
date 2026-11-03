@@ -493,6 +493,57 @@ router.post('/api/zone-altitude-ranges', async (req, res) => {
     res.json(r.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
+// "החל על הכל": בלוקי הגובה של אזור אחד מוחלים על **כל** האזורים של אותה מפה.
+// לפי **שם הבלוק**: בלוק בשם קיים מתעדכן (גבהים וסדר), חסר נוסף. בלוק שקיים
+// רק אצל היעד נמחק - אלא אם פ"מ משויך אליו כרגע, כדי ששיוך חי לא יאבד את הבלוק.
+router.post('/api/zone-altitude-ranges/apply-to-map', async (req, res) => {
+  const sourceZoneId = parseInt(req.body?.source_zone_id, 10);
+  if (!Number.isFinite(sourceZoneId)) return res.status(400).json({ error: 'source_zone_id required' });
+  const client = await pool.connect();
+  const touched = [];
+  let kept = 0;
+  try {
+    await client.query('BEGIN');
+    const src = (await client.query('SELECT map_id FROM map_zones WHERE id = $1', [sourceZoneId])).rows[0];
+    if (!src) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Zone not found' }); }
+    const ranges = (await client.query('SELECT name, alt_min, alt_max, sort_order FROM zone_altitude_ranges WHERE zone_id = $1 ORDER BY sort_order, id', [sourceZoneId])).rows;
+    const targets = (await client.query('SELECT id FROM map_zones WHERE map_id = $1 AND id <> $2', [src.map_id, sourceZoneId])).rows.map(r => r.id);
+    const used = new Set((await client.query(
+      `SELECT DISTINCT x::int AS id FROM strip_zone_assignments sza,
+         LATERAL (SELECT sza.altitude_range_id AS x UNION SELECT (jsonb_array_elements_text(COALESCE(sza.altitude_range_ids, '[]'::jsonb)))::int) u
+       WHERE x IS NOT NULL`,
+    )).rows.map(r => Number(r.id)));
+    for (const zid of targets) {
+      const cur = (await client.query('SELECT id, name FROM zone_altitude_ranges WHERE zone_id = $1', [zid])).rows;
+      const byName = new Map(cur.map(r => [String(r.name || '').trim(), r]));
+      const wanted = new Set();
+      for (const r of ranges) {
+        const key = String(r.name || '').trim();
+        wanted.add(key);
+        const ex = byName.get(key);
+        if (ex) await client.query('UPDATE zone_altitude_ranges SET alt_min=$1, alt_max=$2, sort_order=$3 WHERE id=$4', [r.alt_min, r.alt_max, r.sort_order ?? 0, ex.id]);
+        else await client.query('INSERT INTO zone_altitude_ranges (zone_id, name, alt_min, alt_max, sort_order) VALUES ($1,$2,$3,$4,$5)', [zid, r.name || '', r.alt_min, r.alt_max, r.sort_order ?? 0]);
+      }
+      for (const r of cur) {
+        if (wanted.has(String(r.name || '').trim())) continue;
+        if (used.has(Number(r.id))) { kept++; continue; }
+        await client.query('DELETE FROM zone_altitude_ranges WHERE id = $1', [r.id]);
+      }
+      touched.push(zid);
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch { /* ignore */ }
+    console.error('[apply-to-map]', err);
+    return res.status(500).json({ error: 'Failed' });
+  } finally {
+    client.release();
+  }
+  // הורשה לתת-המפות - אחרי השחרור (pool.query, חיבור יחיד במאגר המקומי)
+  for (const zid of touched) { try { await inheritAltRanges(pool, zid); } catch { /* best effort */ } }
+  res.json({ success: true, zones: touched.length, keptInUse: kept });
+});
+
 router.put('/api/zone-altitude-ranges/:id', async (req, res) => {
   try {
     const { name, alt_min, alt_max, sort_order } = req.body;

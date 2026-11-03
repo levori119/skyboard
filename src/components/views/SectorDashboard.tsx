@@ -84,7 +84,7 @@ import { useZoneWatch, type ZoneWatchMap as ZoneWatchMapInput, type ZoneWatchOff
 import { blockAltFeet, type WatchZone as ZoneWatchZone, type WatchAssignment as ZoneWatchAssignment } from '../../airPicture/zoneWatch';
 /** הפניה קבועה - מערך ריק חדש בכל רינדור היה מפיל memo של צרכני ההדגשה. */
 const EMPTY_ZW_OFFENDERS: ZoneWatchOffender[] = [];
-import polygonClipping from 'polygon-clipping';
+import { unionZones } from '../../utils/zoneUnion';
 import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
 import { useDragPosition } from '../../hooks/useDragPosition';
 import usePinchZoom from '../../hooks/usePinchZoom';
@@ -5404,7 +5404,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             return tableSortDir === 'asc' ? cmp : -cmp;
           });
         }
-        grpStrips.forEach(s => items.push({ ...s, _type: 'strip' }));
+        // _grp / _grpLast - לתחימת הקבוצה (רקע, פס בצד ורצפה) סביב כל השורות שלה
+        grpStrips.forEach((s, gi) => items.push({ ...s, _type: 'strip', _grp: gk, _grpLast: gi === grpStrips.length - 1 }));
       }
     });
     return items;
@@ -10360,21 +10361,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 const f = r[0], l = r[r.length - 1];
                 return (f[0] === l[0] && f[1] === l[1]) ? r : [...r, f];
               };
-              // הרחבה רדיאלית קטנה ממרכז האזור — גישור פערים זעירים בין אזורים "מחוברים" שאינם נוגעים בדיוק,
-              // כדי שהאיחוד ייתן פוליגון אחד ולא אזורים נפרדים. מופעל רק כשהאיחוד הגולמי יצא מפוצל.
-              const dilateRing = (ring: [number, number][], eps: number): [number, number][] => {
-                const pts = ring.slice(0, ring.length - 1);
-                const n = pts.length;
-                if (n < 3) return ring;
-                const cx = pts.reduce((s, p) => s + p[0], 0) / n;
-                const cy = pts.reduce((s, p) => s + p[1], 0) / n;
-                const out = pts.map(([x, y]) => {
-                  const dx = x - cx, dy = y - cy, d = Math.hypot(dx, dy) || 1;
-                  return [x + (dx / d) * eps, y + (dy / d) * eps] as [number, number];
-                });
-                out.push(out[0]);
-                return out;
-              };
               return (
                 <svg data-zone-layer="" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 3, overflow: 'visible' }}>
                   {multi.map((a: StripZoneAssignment, i: number) => {
@@ -10384,55 +10370,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     if (a.status === 'עוזב אזור') return null;
                     const ids = [...(a.zone_id != null ? [a.zone_id] : []), ...((a.extra_zones || []) as any[]).map((e: any) => e.zone_id)];
                     const color = HULL_PALETTE[i % HULL_PALETTE.length];
-                    // נ"צ של כל האזורים המחוברים — לצורך הצמדה מדויקת (snap) של המתאר
-                    const zoneVerts: [number, number][] = [];
-                    ids.forEach(zid => { const zr = zoneRing(mapZones.find(mz => mz.id === zid)); if (zr) zr.slice(0, -1).forEach(v => zoneVerts.push(v)); });
-                    // צלעות האזורים המחוברים — לצורך הצמדת המתאר בדיוק על הגבול (הטלה על קטע, לא רק קודקודים)
-                    const zoneEdges: [[number, number], [number, number]][] = [];
-                    ids.forEach(zid => { const zr = zoneRing(mapZones.find(mz => mz.id === zid)); if (zr) { for (let k = 0; k < zr.length - 1; k++) zoneEdges.push([zr[k], zr[k + 1]]); } });
                     // טבעת לתצוגה/עריכה: פוליגון מותאם-ידנית אם קיים, אחרת איחוד אוטומטי מהאזורים
                     const custom = (Array.isArray(a.group_polygon) && a.group_polygon.length >= 3) ? (a.group_polygon as [number, number][]) : null;
                     let ring: [number, number][] | null = custom;
                     if (!ring) {
-                      const polys: [number, number][][][] = [];
-                      zoneVerts.length && ids.forEach(zid => { const zr = zoneRing(mapZones.find(mz => mz.id === zid)); if (zr) polys.push([zr]); });
-                      if (polys.length === 0) return null;
-                      const tryUnion = (eps: number): [number, number][][][] | null => {
-                        const ps = eps <= 0 ? polys : polys.map(p => [dilateRing(p[0], eps)]);
-                        try { return (polygonClipping as any).union(...ps); } catch { return null; }
-                      };
-                      // מטרה: פוליגון אחד סגור. איחוד מדויק תחילה; אם יצא מפוצל — מעלים הרחבה עד פוליגון יחיד
-                      let merged = tryUnion(0);
-                      if (!merged || merged.length !== 1) {
-                        for (const eps of [0.6, 1.2, 2, 3, 4.5, 6, 8]) {
-                          const m = tryUnion(eps);
-                          if (m && m.length === 1) { merged = m; break; }
-                          if (m && (!merged || m.length < merged.length)) merged = m;
-                        }
-                      }
-                      if (!merged || !merged.length) return null;
-                      // הטבעת החיצונית של הפוליגון הגדול ביותר (סגור, בלי חורים)
-                      let best = merged[0][0], bestA = -1;
-                      for (const poly of merged) { const rr = poly[0]; let ar = 0; for (let k = 0; k < rr.length; k++) { const [x1, y1] = rr[k], [x2, y2] = rr[(k + 1) % rr.length]; ar += x1 * y2 - x2 * y1; } ar = Math.abs(ar); if (ar > bestA) { bestA = ar; best = rr; } }
-                      // הצמדת כל קודקוד לנקודה הקרובה על צלע של אזור-מקור (הטלה על קטע) — מושך את המתאר
-                      // בחזרה בדיוק על גבולות האזורים, כך שסטיית ההרחבה (dilation) לא מגדילה את הפוליגון.
-                      const MAXD2 = 10 * 10;
-                      const snapped: [number, number][] = [];
-                      for (const [x, y] of best) {
-                        let nx = x, ny = y, bd = MAXD2;
-                        for (const e of zoneEdges) {
-                          const ax = e[0][0], ay = e[0][1], bx = e[1][0], by = e[1][1];
-                          const abx = bx - ax, aby = by - ay;
-                          const t = Math.max(0, Math.min(1, ((x - ax) * abx + (y - ay) * aby) / ((abx * abx + aby * aby) || 1)));
-                          const qx = ax + t * abx, qy = ay + t * aby;
-                          const dd = (qx - x) * (qx - x) + (qy - y) * (qy - y);
-                          if (dd < bd) { bd = dd; nx = qx; ny = qy; }
-                        }
-                        const prev = snapped[snapped.length - 1];
-                        if (!prev || Math.hypot(prev[0] - nx, prev[1] - ny) > 0.05) snapped.push([nx, ny]);
-                      }
-                      ring = snapped.length >= 3 ? snapped : best.slice();
-                      if (ring.length > 1) { const f = ring[0], l = ring[ring.length - 1]; if (f[0] === l[0] && f[1] === l[1]) ring = ring.slice(0, -1); }
+                      // איחוד תקין: חלקים נוגעים מתאחדים, ובין חלקים שיש ביניהם פער נבנה
+                      // גשר קמור בין הצלעות הקרובות - בלי ניפוח והצמדה שחתכו את הקו בעצמו
+                      const rings = ids.map(zid => zoneRing(mapZones.find(mz => mz.id === zid))).filter(Boolean) as [number, number][][];
+                      ring = rings.length ? unionZones(rings) : null;
                     }
                     if (fzGroupDrag && fzGroupDrag.stripId === a.strip_id) ring = fzGroupDrag.ring; // בזמן גרירה — הטבעת החיה
                     if (!ring || ring.length < 3) return null;
@@ -17421,7 +17366,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <>
               <table
                 ref={setTableElRef}
-                style={{ width: hasFrozen ? 'max-content' : '100%', minWidth: '100%', borderCollapse: 'collapse', fontSize: `${tableFontSize}px`, direction: dir }}
+                style={{ width: hasFrozen ? 'max-content' : '100%', minWidth: '100%', borderCollapse: 'collapse', fontSize: `${tableFontSize}px`, direction: dir,
+                  // צבע תיבת הקבוצה - אותו גוון של כותרת הקבוצה (ראה .sk-grp ב-App.css)
+                  ['--sk-grp' as any]: themeMode === 'light' ? '#7c3aed' : themeMode === 'ocean' ? '#0ea5e9' : '#6d28d9',
+                  ['--sk-grp-tint' as any]: themeMode === 'light' ? 'rgba(124,58,237,0.07)' : themeMode === 'ocean' ? 'rgba(14,165,233,0.09)' : 'rgba(124,58,237,0.12)' }}
                 onDragOver={e => e.preventDefault()}
                 onClick={() => tableHeaderMenuKey && setTableHeaderMenuKey(null)}
               >
@@ -17642,18 +17590,22 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       : (isRowDeviation && !isRowDeviationAck) ? undefined
                       : isPendingTransfer ? (isEven ? (lightMode ? '#dde6f5' : '#2d3344') : (lightMode ? '#d4dde8' : '#252b3a'))
                       : (isEven ? (T.surface) : (lightMode ? '#f1f5f9' : '#000000'));
+                    // קיבוץ: כל השורות של הפ"מ (רווח, הפ"מ, טבלאות הבן) נכנסות לתיבת הקבוצה,
+                    // והרצפה שלה יושבת על השורה האחרונה של הפ"מ האחרון בקבוצה
+                    const grpCls = (s as any)._grp != null ? 'sk-grp' : '';
+                    const grpLastMain = (s as any)._grpLast && !hasOpenSubTable;
                     return (
                       <React.Fragment key={s.id}>
                       {/* הרווח שמעל הפ"מ. **לפני** השורה ולא אחריה, כי ב-border-collapse
                           גבול של תא (הגבול התחתון של הכותרת) גובר על גבול של שורה - ובלי
                           שורת הרווח מעליו, הפ"מ הראשון היה מאבד את גג המסגרת שלו.
                           אינרטי לחלוטין (pointerEvents) כדי שלא ייבלע בו drop של גרירת שורה. */}
-                      <tr className="sk-strip-gap" aria-hidden style={{ background: 'transparent', pointerEvents: 'none' }}>
+                      <tr className={['sk-strip-gap', grpCls].filter(Boolean).join(' ')} aria-hidden style={{ background: 'transparent', pointerEvents: 'none' }}>
                         <td colSpan={totalColSpan} style={{ height: `${STRIP_GAP_PX}px`, padding: 0, border: 'none', background: 'transparent', lineHeight: 0, fontSize: tfz(0) }} />
                       </tr>
                       <tr
                         data-strip-id={s.id}
-                        className={[isRowConflictFlashing ? 'alt-conflict-flash' : (isRowDeviation && !isRowDeviationAck ? 'block-deviation-flash' : ''), acceptFlashIds.includes(String(s.id)) ? 'accept-green-flash' : '', (s as any)._transferredOut ? 'transfer-out-flash' : '', isPlainRow ? (isEven ? 'sk-row-a' : 'sk-row-b') : '', hasFrameFloor ? 'sk-frame-floor' : ''].filter(Boolean).join(' ') || undefined}
+                        className={[isRowConflictFlashing ? 'alt-conflict-flash' : (isRowDeviation && !isRowDeviationAck ? 'block-deviation-flash' : ''), acceptFlashIds.includes(String(s.id)) ? 'accept-green-flash' : '', (s as any)._transferredOut ? 'transfer-out-flash' : '', isPlainRow ? (isEven ? 'sk-row-a' : 'sk-row-b') : '', hasFrameFloor ? 'sk-frame-floor' : '', grpCls, grpLastMain ? 'sk-grp-last' : ''].filter(Boolean).join(' ') || undefined}
                         draggable
                         onDragStart={e => { e.dataTransfer.setData('text/strip-id-for-transfer', s.id); setTableDragRow(s.id); }}
                         onDragOver={e => {
@@ -17935,7 +17887,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           ? Math.max(160, tableViewportWidth - subBlockAnchor) : 0;
 
                         return (
-                          <tr key={k} data-sub-table-of={s.id} className={isLastOpen && !frameFloorState ? 'sk-frame-floor' : undefined} style={{
+                          <tr key={k} data-sub-table-of={s.id} className={[isLastOpen && !frameFloorState ? 'sk-frame-floor' : '', grpCls, isLastOpen && (s as any)._grp != null && (s as any)._grpLast ? 'sk-grp-last' : ''].filter(Boolean).join(' ') || undefined} style={{
                             background: lightMode ? '#eef7fa' : '#07222c',
                             // רצפת המסגרת - רק אחרי הטבלה האחרונה שנפרסה. צבע מצב
                             // (גרירה/קונפליקט) יורד לכאן, כי כאן רצפת היחידה כולה.

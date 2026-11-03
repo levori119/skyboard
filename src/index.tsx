@@ -1,4 +1,5 @@
 import React from 'react'
+import TouchKeyboard from './components/shared/TouchKeyboard';
 import ReactDOM from 'react-dom/client'
 import './App.css'
 import './i18n' // אתחול i18next (עברית ברירת מחדל) — חייב לפני רינדור
@@ -73,5 +74,7 @@ loadTranslationOverrides(API_URL)
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <App />
+    {/* מקלדת שעל המסך לכל שדה טקסט - במגע/עט בלבד */}
+    <TouchKeyboard />
   </React.StrictMode>
 )

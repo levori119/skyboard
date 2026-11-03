@@ -493,6 +493,26 @@
     "runwayUseLanding": {
       "he": "נחיתה {{rwy}}",
       "en": "Landing {{rwy}}"
+    },
+    "applyAltRangesAll": {
+      "he": "החל על כל האזורים במפה",
+      "en": "Apply to all zones on the map"
+    },
+    "applyAltRangesAllConfirm": {
+      "he": "להחיל את בלוקי הגובה של האזור הזה על {{count}} האזורים האחרים במפה? בלוק באותו שם יתעדכן, חסר יתווסף, ובלוק שאינו כאן יימחק (אם אין פ\"מ משויך אליו).",
+      "en": "Apply this zone's altitude blocks to the other {{count}} zones on the map? A block with the same name is updated, a missing one is added, and a block not here is removed (unless a strip is assigned to it)."
+    },
+    "applyAltRangesAllDone": {
+      "he": "בלוקי הגובה הוחלו על {{count}} אזורים.",
+      "en": "Altitude blocks applied to {{count}} zones."
+    },
+    "applyAltRangesKept": {
+      "he": "{{count}} בלוקים נשמרו כי יש בהם פ\"מ משויך.",
+      "en": "{{count}} blocks were kept because strips are assigned to them."
+    },
+    "applyAltRangesAllFailed": {
+      "he": "ההחלה נכשלה - נסה שוב",
+      "en": "Applying failed - try again"
     }
   }
 }
