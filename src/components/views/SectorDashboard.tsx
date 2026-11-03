@@ -374,6 +374,10 @@ const MapToolbarShell = ({ cols, onCols, style, children, ...rest }: {
 } & React.HTMLAttributes<HTMLDivElement>) => {
   const ref = useRef<HTMLDivElement | null>(null);
   const [maxH, setMaxH] = useState<number | null>(null);
+  // הקטנת הסרגל כולו כשהוא לא נכנס בגובה (ספליטר, חלון נמוך). transform ולא
+  // zoom: transform אינו משנה את offsetHeight, ולכן המדידה למטה נשארת טבעית
+  // ואין לולאה בין ההקטנה למדידה שלה.
+  const [fit, setFit] = useState(1);
   const measureRef = useRef<() => void>(() => {});
 
   useLayoutEffect(() => {
@@ -401,7 +405,12 @@ const MapToolbarShell = ({ cols, onCols, style, children, ...rest }: {
       }
       if (!n || avail <= 0) return;
       content += MAP_TOOLBAR_ITEM_GAP * (n - 1);
-      const two = content > avail;
+      // קודם מקטינים בעמודה אחת (עד 60%) - הסרגל נשאר צר ולא מכסה את המפה.
+      // רק כשגם זה לא מספיק - שתי עמודות, ומקטינים גם אותן עד שנכנסות.
+      const MIN_ONE_COL = 0.6;
+      if (content <= avail) { onCols(1); setMaxH(null); setFit(1); return; }
+      if (avail / content >= MIN_ONE_COL) { onCols(1); setMaxH(null); setFit(Math.floor((avail / content) * 100) / 100); return; }
+      const two = true;
       onCols(two ? 2 : 1);
       // תקציב הגובה לעמודה. `flex-wrap` ממלא **בחמדנות**: הוא סוגר עמודה ברגע
       // שהפריט הבא לא נכנס בתקציב, ולכן תקציב של בדיוק חצי מהתוכן משאיר שארית
@@ -409,7 +418,9 @@ const MapToolbarShell = ({ cols, onCols, style, children, ...rest }: {
       // חצי מהתוכן ועוד גובה הפריט הגבוה ביותר סוגר את הפער ומבטיח שתיים.
       // מול זה, `avail` לבדו ממלא את העמודה הראשונה עד סוף החלון, וזה עדיף
       // כשהוא הגדול מהשניים: הסרגל לא גולש מתחת למפה בלי צורך.
-      setMaxH(two ? Math.max(avail, Math.ceil(content / 2) + tallest) : null);
+      const colH = Math.ceil(content / 2) + tallest;
+      setMaxH(two ? Math.max(avail, colH) : null);
+      setFit(Math.max(0.35, Math.min(1, Math.floor((avail / colH) * 100) / 100)));
     };
     measureRef.current = measure;
     measure();
@@ -445,6 +456,7 @@ const MapToolbarShell = ({ cols, onCols, style, children, ...rest }: {
         alignContent: 'flex-start',
         maxHeight: cols === 2 && maxH ? maxH : undefined,
         width: cols === 2 ? MAP_TOOLBAR_W2 : MAP_TOOLBAR_W,
+        ...(fit < 1 ? { transform: `scale(${fit})`, transformOrigin: 'top left' } : {}),
       }}
     >
       {children}
