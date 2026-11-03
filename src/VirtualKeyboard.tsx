@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
+import { tr } from './i18n/tr';
 
 export type VKMode = 'numeric' | 'full';
 
@@ -40,57 +41,52 @@ const ENG_ROWS: string[][] = [
 const NUM_ROW = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
 const SYMBOLS = ['.', '-', '(', ')', ':', '"', ',', '!', '?'];
 
-function NumericKeyboard({ value, setValue }: { value: string; setValue: (v: string) => void }) {
+/**
+ * לוח מספרים קומפקטי: ארבע עמודות, ו**האישור צמוד למחק** - שתי הלחיצות
+ * האחרונות של כל הקלדה, אחת ליד השנייה ולא בקצה השני של המסך.
+ *
+ *   7 8 9 ⌫
+ *   4 5 6 ✓
+ *   1 2 3 ✓
+ *   . 0 C ✓
+ *
+ * הסדר תמיד LTR (כמו כל מקלדת נומרית), גם כשהממשק בעברית.
+ */
+function NumericKeyboard({ value, setValue, onConfirm }: { value: string; setValue: (v: string) => void; onConfirm: () => void }) {
   const append = (ch: string) => setValue(value + ch);
   const backspace = () => setValue(value.slice(0, -1));
   const clear = () => setValue('');
+  const cell = sc(48);
 
-  const btnStyle: React.CSSProperties = {
-    width: `${sc(60)}px`, height: `${sc(52)}px`, fontSize: `${sc(21)}px`, fontWeight: 'bold',
-    border: '1px solid #334155', borderRadius: '8px', cursor: 'pointer',
-    background: '#1e293b', color: '#e2e8f0', display: 'flex',
-    alignItems: 'center', justifyContent: 'center', transition: 'background 0.1s',
-    userSelect: 'none',
-  };
-
-  const Btn = ({ label, onClick, wide, danger, success }: { label: React.ReactNode; onClick: () => void; wide?: boolean; danger?: boolean; success?: boolean }) => (
+  const Btn = ({ label, onClick, tone, area, title }: {
+    label: React.ReactNode; onClick: () => void; tone?: 'danger' | 'success' | 'muted'; area?: string; title?: string;
+  }) => (
     <button
+      title={title}
+      aria-label={title}
       onPointerDown={e => { e.preventDefault(); onClick(); }}
       style={{
-        ...btnStyle,
-        width: wide ? '128px' : '60px',
-        background: danger ? '#7f1d1d' : success ? '#14532d' : '#1e293b',
-        color: danger ? '#fca5a5' : success ? '#86efac' : '#e2e8f0',
-        fontSize: wide ? '14px' : '21px',
+        gridArea: area, minWidth: cell, minHeight: cell, fontSize: `${sc(tone === 'success' ? 15 : 19)}px`, fontWeight: 'bold',
+        border: `1px solid ${tone === 'success' ? '#16a34a' : '#334155'}`, borderRadius: '7px', cursor: 'pointer',
+        background: tone === 'danger' ? '#7f1d1d' : tone === 'success' ? '#15803d' : tone === 'muted' ? '#334155' : '#1e293b',
+        color: tone === 'danger' ? '#fca5a5' : tone === 'success' ? 'white' : '#e2e8f0',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', userSelect: 'none', touchAction: 'manipulation',
       }}
     >{label}</button>
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '7px', alignItems: 'center' }}>
-      <div style={{ display: 'flex', gap: '7px' }}>
-        <Btn label="7" onClick={() => append('7')} />
-        <Btn label="8" onClick={() => append('8')} />
-        <Btn label="9" onClick={() => append('9')} />
-      </div>
-      <div style={{ display: 'flex', gap: '7px' }}>
-        <Btn label="4" onClick={() => append('4')} />
-        <Btn label="5" onClick={() => append('5')} />
-        <Btn label="6" onClick={() => append('6')} />
-      </div>
-      <div style={{ display: 'flex', gap: '7px' }}>
-        <Btn label="1" onClick={() => append('1')} />
-        <Btn label="2" onClick={() => append('2')} />
-        <Btn label="3" onClick={() => append('3')} />
-      </div>
-      <div style={{ display: 'flex', gap: '7px' }}>
-        <Btn label="." onClick={() => append('.')} />
-        <Btn label="0" onClick={() => append('0')} />
-        <Btn label="⌫" onClick={backspace} danger />
-      </div>
-      <div style={{ display: 'flex', gap: '7px' }}>
-        <Btn label="נקה" onClick={clear} wide danger />
-      </div>
+    <div data-testid="vk-numpad" style={{
+      display: 'grid', gap: '6px', direction: 'ltr',
+      gridTemplateColumns: `repeat(4, ${cell}px)`, gridAutoRows: `${cell}px`,
+      gridTemplateAreas: '"k7 k8 k9 bs" "k4 k5 k6 ok" "k1 k2 k3 ok" "dot k0 clr ok"',
+    }}>
+      {['7', '8', '9', '4', '5', '6', '1', '2', '3', '0'].map(d => <Btn key={d} label={d} area={`k${d}`} onClick={() => append(d)} />)}
+      <Btn label="." area="dot" onClick={() => append('.')} />
+      <Btn label="C" area="clr" tone="muted" title={tr('shared.clear3')} onClick={clear} />
+      <Btn label="⌫" area="bs" tone="danger" title={tr('shared.backspace')} onClick={backspace} />
+      <Btn label={<span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1.2 }}>✓<span>{tr('shared.confirmShort')}</span></span>}
+        area="ok" tone="success" title={tr('shared.confirmShort')} onClick={onConfirm} />
     </div>
   );
 }
@@ -215,6 +211,8 @@ function VirtualKeyboardPanel({ config, onClose }: { config: VKConfig; onClose: 
   };
 
   const displayValue = value.replace(/\n/g, '↵ ');
+  // מספרים: כרטיס קטן במרכז התחתית, לא פס לכל רוחב המסך
+  const numeric = config.mode === 'numeric';
 
   return (
     <div
@@ -222,9 +220,11 @@ function VirtualKeyboardPanel({ config, onClose }: { config: VKConfig; onClose: 
       data-testid="virtual-keyboard"
       data-vk-mode={config.mode}
       style={{
-        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 99999,
-        background: '#0f172a', borderTop: '2px solid #3b82f6',
-        padding: '8px 14px 12px',
+        position: 'fixed', bottom: numeric ? 12 : 0, zIndex: 99999,
+        ...(numeric
+          ? { left: '50%', transform: 'translateX(-50%)', border: '2px solid #3b82f6', borderRadius: '10px', padding: '8px', width: 'max-content' }
+          : { left: 0, right: 0, borderTop: '2px solid #3b82f6', padding: '8px 14px 12px' }),
+        background: '#0f172a',
         boxShadow: '0 -8px 32px rgba(0,0,0,0.6)',
         display: 'flex', flexDirection: 'column', gap: '8px',
         direction: 'rtl',
@@ -232,28 +232,33 @@ function VirtualKeyboardPanel({ config, onClose }: { config: VKConfig; onClose: 
       onPointerDown={e => e.stopPropagation()}
     >
       {/* Header */}
+      {numeric && config.label && (
+        <span style={{ fontSize: '12px', color: '#64748b' }}>{config.label}</span>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        {config.label && (
+        {!numeric && config.label && (
           <span style={{ fontSize: '12px', color: '#64748b', flexShrink: 0 }}>{config.label}</span>
         )}
         <div style={{
-          flex: 1, background: '#1e293b', border: '2px solid #3b82f6',
+          flex: 1, minWidth: 0, background: '#1e293b', border: '2px solid #3b82f6',
           borderRadius: '7px', padding: '6px 12px', fontSize: '18px', fontFamily: 'monospace',
           fontWeight: 'bold', color: '#7dd3fc', minHeight: '36px', display: 'flex',
           alignItems: 'center', letterSpacing: '0.04em', direction: 'ltr', justifyContent: 'flex-end',
           overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
         }}>
-          {displayValue || <span style={{ color: '#334155', fontSize: '14px' }}>הקלד...</span>}
+          {displayValue || <span style={{ color: '#334155', fontSize: '14px' }}>{tr('shared.typeHere')}</span>}
           <span style={{ borderLeft: '2px solid #3b82f6', marginRight: '2px', height: '18px', animation: 'blink 1s step-end infinite' }} />
         </div>
-        <button
-          onPointerDown={e => { e.preventDefault(); confirm(); }}
-          style={{
-            padding: '8px 18px', background: '#15803d', color: 'white',
-            border: 'none', borderRadius: '7px', cursor: 'pointer',
-            fontSize: '15px', fontWeight: 'bold', flexShrink: 0,
-          }}
-        >✓ אישור</button>
+        {!numeric && (
+          <button
+            onPointerDown={e => { e.preventDefault(); confirm(); }}
+            style={{
+              padding: '8px 18px', background: '#15803d', color: 'white',
+              border: 'none', borderRadius: '7px', cursor: 'pointer',
+              fontSize: '15px', fontWeight: 'bold', flexShrink: 0,
+            }}
+          >✓ {tr('shared.confirmShort')}</button>
+        )}
         <button
           onPointerDown={e => { e.preventDefault(); cancel(); }}
           style={{
@@ -267,7 +272,7 @@ function VirtualKeyboardPanel({ config, onClose }: { config: VKConfig; onClose: 
       {/* Keyboard */}
       <div style={{ display: 'flex', justifyContent: 'center' }}>
         {config.mode === 'numeric' ? (
-          <NumericKeyboard value={value} setValue={setValue} />
+          <NumericKeyboard value={value} setValue={setValue} onConfirm={confirm} />
         ) : (
           <FullKeyboard value={value} setValue={setValue} onEnter={confirm} />
         )}

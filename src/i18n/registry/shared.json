@@ -525,6 +525,18 @@
     "saving": {
       "he": "שומר...",
       "en": "Saving..."
+    },
+    "confirmShort": {
+      "he": "אישור",
+      "en": "OK"
+    },
+    "backspace": {
+      "he": "מחק תו",
+      "en": "Backspace"
+    },
+    "typeHere": {
+      "he": "הקלד...",
+      "en": "Type..."
     }
   }
 }
