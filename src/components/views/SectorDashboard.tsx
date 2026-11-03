@@ -44,7 +44,7 @@ import { listAtsimMaps, loadAtsimMapImage, atsimAnchor, revokeAtsimMapImage, typ
 import { computeTransferEta, stripSavedGeo, stripPinGeo, transferPointGeo, closestGeoOnPolygon, haversineNm, type GeoPoint, type AutoEta } from '../../utils/eta';
 import { zoneAtPoint, zoneAtPointOrEdge, zoneAtEdgeOnly, pointInPolygon } from '../../utils/zoneHit';
 import { DEFAULT_ZONE_LINE_WIDTH, DEFAULT_ZONE_NAME_BRIGHTNESS, ZONE_STATUS_STYLE, estimateTextWidth, interiorLabelPoint, isZoneLineWidth, isZoneNameBrightness, lightenHex, nextZoneLineWidth, nextZoneNameBrightness, zoneLineWidthFactor, zoneNameFill, type ZoneLineWidth, type ZoneNameBrightness } from '../../utils/zoneLabel';
-import { assignmentRestriction, bandRestricted, bandRestrictionKind, bandLabel, closedForAllBands, openBands, restrictedBandIds, zoneRestrictionOf, zoneMenuSeed, hasLegacyActiveAlt, isRestricted, restrictionCoversAllAltitudes, restrictionRangeLabel, type ZoneRestriction } from '../../utils/zoneRestriction';
+import { assignmentRestriction, dropClosedSelection, bandRestricted, bandRestrictionKind, bandLabel, closedForAllBands, openBands, restrictedBandIds, zoneRestrictionOf, zoneMenuSeed, hasLegacyActiveAlt, isRestricted, restrictionCoversAllAltitudes, restrictionRangeLabel, type ZoneRestriction } from '../../utils/zoneRestriction';
 // `numericStripId` מיובא בשם אחר: בקובץ יש כמה `const numericStripId` מקומיים
 // (הקצאת אזור), והצללה שלהם הייתה הופכת קריאה לפונקציה לקריאה למספר.
 import { isSameFormation, insertAfter, splitPinPosition, numericStripId as stripNumId } from '../../utils/formationSplit';
@@ -847,8 +847,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const setFzDialog = (v: React.SetStateAction<FzDialogState | null>) =>
     setFzDialogRaw(prev => {
       const next = typeof v === 'function' ? (v as (p: FzDialogState | null) => FzDialogState | null)(prev) : v;
-      return next && !next.airChecked ? withAirHintRef.current({ ...next, airChecked: true }) : next;
+      return next && !next.airChecked ? dropClosedBlocksRef.current(withAirHintRef.current({ ...next, airChecked: true })) : next;
     });
+  // בלוק **סגור** אינו נבחר: בפתיחת החלון הוא יוצא מהבחירה, ואם לא נשאר כלום -
+  // נבחר הבלוק הפתוח הראשון. בלי זה ברירת המחדל (הבלוק הראשון) יכלה להיות סגורה,
+  // להישאר בבחירה בלי שרואים (הכפתור מציג "סגור" ולא "נבחר") - והשמירה נדחתה.
+  const dropClosedBlocksRef = useRef<(d: FzDialogState) => FzDialogState>(d => d);
   const [fzConflictDialog, setFzConflictDialog] = useState<{ pending: { stripId: number; zoneId: number; altRangeIds: number[]; posX?: number; posY?: number; requestedZoneIds: number[] } | null; conflicts: StripZoneAssignment[]; coordNote: string } | null>(null);
   const [fzCoordMenuDialog, setFzCoordMenuDialog] = useState<{ assignment: StripZoneAssignment; strip: any; conflicts: StripZoneAssignment[]; selectedIds: Set<number>; coordNote: string } | null>(null);
   const [fzPinZonePicker, setFzPinZonePicker] = useState<{ stripId: number; posX: number; posY: number; dragLabel: string | null; existing: StripZoneAssignment | undefined } | null>(null);
@@ -3041,6 +3045,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
    * שבתוכו, ובכלל לא היה אפשר לגרור אותו החוצה בשלב שני. אותה בדיקה גם מונעת
    * מהתראה שסולקה לחזור בכל גרירה קטנה.
    */
+  dropClosedBlocksRef.current = (d) => {
+    const dz = findZoneWithAnchor(d.zoneId)?.zone ?? null;
+    const selectedAltIds = dropClosedSelection(dz, d.altRanges, d.selectedAltIds);
+    return selectedAltIds === d.selectedAltIds ? d : { ...d, selectedAltIds };
+  };
   const evaluateZoneAssignment = (zoneId: number | null, stripId: number, blockIds: number[]): { kind: ZoneRestriction; isNew: boolean } => {
     if (zoneId == null) return { kind: '', isNew: false };
     const zone = findZoneWithAnchor(zoneId)?.zone ?? null;

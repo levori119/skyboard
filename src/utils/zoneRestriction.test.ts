@@ -3,7 +3,7 @@ import {
   zoneRestrictionOf, isRestricted, altRangesOverlap, restrictionCoversAllAltitudes,
   bandRestricted, altitudeRestricted, assignmentRestriction, closedForAllBands, restrictionRangeLabel,
   restrictedBandIds, bandRestrictionKind, bandLabel, openBands,
-  hasLegacyActiveAlt, zoneMenuSeed,
+  hasLegacyActiveAlt, zoneMenuSeed, dropClosedSelection,
   type RestrictableZone,
 } from './zoneRestriction';
 
@@ -374,5 +374,23 @@ describe('הגבלת גובה ישנה - active_alt_range_ids', () => {
   it('כל הבלוקים פעילים, או בלוקים שכבר נמחקו - אין מה להגביל', () => {
     expect(zoneMenuSeed(zone({ active_alt_range_ids: [1, 2, 3] }), BLOCKS)).toEqual({ restriction: '', rangeIds: [] });
     expect(zoneMenuSeed(zone({ active_alt_range_ids: [9] }), [])).toEqual({ restriction: '', rangeIds: [] });
+  });
+});
+
+describe('dropClosedSelection - בלוק סגור אינו נשאר בבחירה', () => {
+  const ranges = [{ id: 1, alt_min: 140, alt_max: 200 }, { id: 2, alt_min: 110, alt_max: 130 }];
+  const closedHigh = zone({ restriction: 'closed', restriction_range_ids: [1] } as any);
+  it('כמו בתקלה: ברירת המחדל הייתה הבלוק הסגור (גבוה) - יוצא, ונבחר הפתוח', () => {
+    expect(dropClosedSelection(closedHigh, ranges, [1])).toEqual([2]);
+  });
+  it('בחירה מעורבת - נשאר רק הפתוח', () => {
+    expect(dropClosedSelection(closedHigh, ranges, [1, 2])).toEqual([2]);
+  });
+  it('אזור פתוח או מוגבל - לא נוגעים בבחירה', () => {
+    expect(dropClosedSelection(zone({ restriction: '' }), ranges, [1])).toEqual([1]);
+    expect(dropClosedSelection(zone({ restriction: 'restricted', restriction_range_ids: [1] } as any), ranges, [1])).toEqual([1]);
+  });
+  it('כל הבלוקים סגורים - בחירה ריקה', () => {
+    expect(dropClosedSelection(zone({ restriction: 'closed', restriction_range_ids: [1, 2] } as any), ranges, [1])).toEqual([]);
   });
 });

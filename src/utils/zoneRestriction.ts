@@ -266,3 +266,26 @@ export function openBands<B extends AltBand & { name?: string }>(
 ): B[] {
   return bands.filter(b => !bandRestricted(zone, b));
 }
+
+/**
+ * הבחירה בטופס הקצאת אזור, בלי בלוקים **סגורים**.
+ *
+ * בלוק סגור אינו ניתן לבחירה (הכפתור שלו מנוטרל ומציג "סגור"), ולכן גם לא
+ * יכול להישאר בחירת ברירת מחדל: אחרת הוא נשאר בבחירה בלי שרואים, והשמירה נדחית
+ * ("האזור סגור") למרות שהפקח בחר בלוק פתוח. לא נשאר כלום - הבלוק הפתוח הראשון.
+ */
+export function dropClosedSelection(
+  zone: RestrictableZone | null | undefined,
+  ranges: { id: number; alt_min: number | null; alt_max: number | null }[],
+  selectedIds: number[],
+): number[] {
+  if (zoneRestrictionOf(zone) !== 'closed') return selectedIds;
+  const bandOf = (r: { id: number; alt_min: number | null; alt_max: number | null }): AltBand => {
+    const lo = r.alt_min != null && r.alt_max != null ? Math.min(r.alt_min, r.alt_max) : (r.alt_min ?? r.alt_max);
+    const hi = r.alt_min != null && r.alt_max != null ? Math.max(r.alt_min, r.alt_max) : (r.alt_max ?? r.alt_min);
+    return { id: r.id, lo: lo ?? null, hi: hi ?? null };
+  };
+  const open = ranges.filter(r => !bandRestricted(zone, bandOf(r)));
+  const keep = selectedIds.filter(id => open.some(o => o.id === id));
+  return keep.length ? keep : (open[0] ? [open[0].id] : []);
+}
