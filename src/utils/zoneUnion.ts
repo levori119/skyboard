@@ -6,9 +6,12 @@ import polygonClipping from 'polygon-clipping';
  *
  * איך:
  * 1. איחוד מדויק של האזורים (`polygon-clipping`). אזורים שנוגעים - נגמר כאן.
- * 2. אזורים **שאינם נוגעים** (פער ביניהם): מחברים כל פעם את שני החלקים הקרובים
- *    ב"גשר" - המעטפת הקמורה של שתי הצלעות הקרובות ביותר - ומאחדים שוב, עד חלק
- *    אחד. הגשר קמור והאיחוד של `polygon-clipping` תקין תמיד, ולכן התוצאה תקינה.
+ * 2. אזורים **שאינם נוגעים** (פער ביניהם): **סגירה מורפולוגית** - מרחיבים את
+ *    האזורים ברדיוס r, מאחדים, ומכווצים חזרה באותו r. המתאר חוזר בדיוק לגבולות
+ *    האזורים, ורק פערים צרים מ-2r מתמלאים - בגשר צר ומעוגל ולא במשולש רחב.
+ *    הרדיוס הוא הקטן ביותר שמחבר את כל החלקים.
+ * 3. רק אם גם הרדיוס הגדול לא חיבר (אזורים רחוקים מאוד) - גשר קמור בין הצלעות
+ *    הקרובות, כמו בגרסה הקודמת.
  *
  * הגרסה הקודמת ניפחה את האזורים ממרכזם עד שנגעו, ואז "הצמידה" כל קודקוד חזרה
  * לצלע הקרובה - וההצמדה היא שהצליבה צלעות (הקו "חתך את עצמו" בין אזורים רחוקים).
@@ -73,11 +76,79 @@ function bridge(a: Ring, b: Ring): Ring | null {
 
 const outerRings = (mp: Pt[][][]): Ring[] => mp.map(poly => open(poly[0] as Ring)).filter(r => r.length >= 3);
 
+// ── סגירה מורפולוגית ─────────────────────────────────────────────────────────
+// polygon-clipping נשבר (SweepLine) על הרבה מקטעים כמעט-חופפים - בדיוק מה
+// שעיבוי צלעות מייצר. לכן כל קואורדינטה מיושרת לרשת של 1/1000 אחוז, והחיבור
+// והחיסור נעשים בהדרגה, חלק אחרי חלק.
+const GRID = 1000;
+const snapPt = ([x, y]: Pt): Pt => [Math.round(x * GRID) / GRID, Math.round(y * GRID) / GRID];
+const snapMP = (mp: Pt[][][]): Pt[][][] => mp.map(poly => poly.map(r => r.map(snapPt)));
+const closedSnap = (r: Pt[]): Ring => { const s2 = r.map(snapPt); return close(s2); };
+
+/** "עיבוי" של קווי המתאר ברדיוס r: מלבן סביב כל צלע ומצולע עגול סביב כל קודקוד */
+function thickenRings(ringsList: Ring[], r: number): Pt[][][] {
+  const out: Pt[][][] = [];
+  const DISK = 8;
+  for (const ring of ringsList) {
+    const rr = open(ring);
+    for (let i = 0; i < rr.length; i++) {
+      const a = rr[i], b = rr[(i + 1) % rr.length];
+      const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy);
+      if (len > 1e-6) {
+        const nx = (-dy / len) * r, ny = (dx / len) * r;
+        out.push([closedSnap([[a[0] + nx, a[1] + ny], [b[0] + nx, b[1] + ny], [b[0] - nx, b[1] - ny], [a[0] - nx, a[1] - ny]])]);
+      }
+      const disk: Pt[] = [];
+      for (let k = 0; k < DISK; k++) { const t = ((k + 0.5) / DISK) * Math.PI * 2; disk.push([a[0] + Math.cos(t) * r, a[1] + Math.sin(t) * r]); }
+      out.push([closedSnap(disk)]);
+    }
+  }
+  return out;
+}
+const allRings = (mp: Pt[][][]): Ring[] => mp.flatMap(poly => poly.map(r => r as Ring));
+
+/** סגירה: הרחבה ב-r ואז כיווץ ב-r. מחזיר את המצולע המרובה, או null בכשל */
+function closing(polys: Pt[][][], r: number): Pt[][][] | null {
+  try {
+    let dil: Pt[][][] = snapMP(polys);
+    for (const piece of thickenRings(polys.map(p => p[0] as Ring), r)) dil = snapMP(polygonClipping.union(dil as any, piece as any) as Pt[][][]);
+    // כיווץ = מה שנשאר אחרי שמורידים את עיבוי הגבול של התוצאה (כולל חורים)
+    let acc = dil;
+    for (const piece of thickenRings(allRings(dil), r)) acc = snapMP(polygonClipping.difference(acc as any, piece as any) as Pt[][][]);
+    return acc;
+  } catch { return null; }
+}
+
+// המתאר נבנה בכל ציור של המפה (פולינג, פאן, זום), והסגירה יקרה - ולכן מטמון
+// לפי הצורות עצמן. אותם אזורים = אותו מתאר, בלי לחשב שוב.
+const CACHE_MAX = 300;
+const cache = new Map<string, Ring | null>();
+
 export function unionZones(rings: Ring[]): Ring | null {
+  const key = rings.map(r => open(r).map(p => `${p[0].toFixed(3)},${p[1].toFixed(3)}`).join(' ')).sort().join('|');
+  if (cache.has(key)) return cache.get(key)!;
+  const res = unionZonesRaw(rings);
+  if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value as string);
+  cache.set(key, res);
+  return res;
+}
+
+function unionZonesRaw(rings: Ring[]): Ring | null {
   const polys = rings.map(open).filter(r => r.length >= 3).map(r => [close(r)]);
   if (!polys.length) return null;
   let merged: Pt[][][];
   try { merged = polygonClipping.union(polys[0] as any, ...(polys.slice(1) as any)) as Pt[][][]; } catch { return null; }
+  if (merged.length > 1) {
+    // הרדיוס הקטן ביותר שמחבר הכל לחלק אחד (באחוזי תמונה). החלק הגדול בתוצאה
+    // חייב לכסות את כל האזורים - אחרת הכיווץ "ניתק" אחד מהם
+    const totalArea = polys.reduce((sum, p) => sum + area(open(p[0] as Ring)), 0);
+    for (const r of [0.4, 0.8, 1.2, 1.8, 2.6, 3.6, 5, 7]) {
+      const c = closing(polys, r);
+      if (!c) break;
+      const outs = outerRings(c);
+      if (outs.length === 1 && area(outs[0]) >= totalArea * 0.98) { merged = c; break; }
+    }
+  }
   // מחברים את החלקים הקרובים זה לזה עד שנשאר אחד (תקרה: מספר האזורים)
   for (let guard = 0; merged.length > 1 && guard < rings.length + 2; guard++) {
     const parts = outerRings(merged);

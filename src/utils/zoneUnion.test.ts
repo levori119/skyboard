@@ -44,3 +44,23 @@ describe('isSimpleRing / convexHull', () => {
     expect(convexHull([[0, 0], [4, 0], [4, 4], [0, 4], [2, 2]])).toHaveLength(4);
   });
 });
+
+describe('unionZones - סגירה: גשר צר וצמוד, לא משולש רחב', () => {
+  it('שני ריבועים עם פער של 2 - השטח הנוסף בערך פער×אורך הצלע הנגדית, לא יותר', () => {
+    const r = unionZones([sq(0, 0, 10, 10), sq(12, 0, 10, 10)])!;
+    expect(isSimpleRing(r)).toBe(true);
+    // גשר מלא לאורך הצלע: 2×10 = 20. הסגירה ממלאת עד זה (ועוד עיגול זעיר בקצוות)
+    expect(area(r)).toBeGreaterThan(200);
+    expect(area(r)).toBeLessThan(200 + 20 + 3);
+  });
+  it('אזורים באלכסון (כמו 705/709/710) - תקין, ושטח קטן משל הגשר הקמור הישן', () => {
+    const z705: Pt[] = [[20, 10], [30, 5], [35, 30], [5, 35]];
+    const z710: Pt[] = [[37, 33], [55, 30], [70, 50], [40, 55]];
+    const z709: Pt[] = [[0, 38], [25, 36], [28, 60], [5, 65]];
+    const r = unionZones([z705, z710, z709])!;
+    expect(isSimpleRing(r)).toBe(true);
+    const sum = area(z705) + area(z710) + area(z709);
+    expect(area(r)).toBeGreaterThanOrEqual(sum * 0.98);
+    expect(area(r)).toBeLessThan(sum * 1.25);
+  });
+});
