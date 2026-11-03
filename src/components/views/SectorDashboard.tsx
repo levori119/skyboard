@@ -91,6 +91,7 @@ import usePinchZoom from '../../hooks/usePinchZoom';
 import { localStep, pinchZoomPan, type ZoomPanView } from '../../utils/pinchZoom';
 import { windowFrame, frameColor } from '../../utils/windowFrame';
 import { thinScroll } from '../../utils/thinScroll';
+import { splitSpaceSet, separatedBySpace, blockFitsSpace } from '../../utils/blockSpaces';
 import { recommendAltitude, stripArmaments, normalizeAltRules, type AltRecommendation, type RecBlock } from '../../utils/altRecommend';
 import { loadPadLayout, savePadLayout, type PadLayout } from '../../utils/freeDeskLayout';
 import FreeDeskPad from '../shared/FreeDeskPad';
@@ -4872,6 +4873,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))
     );
     const hasMultipleTables = new Set(relBlocks.map((b: any) => Number(b.block_table_id))).size > 1;
+    // מרחבי החלוקה של טבלאות הבלוקים של העמדה - פ"מים במרחבים שונים אינם בקונפליקט
+    const splitSpaces = splitSpaceSet(dashboardBlockTables, new Set([...btIds, ...relBlocks.map((b: any) => Number(b.block_table_id))]));
 
     const parseAltVal = (alt: string | null | undefined): number | null => {
       if (!alt) return null;
@@ -4882,6 +4885,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     // For a strip+altitude, find { tableId, blockId } using erka→table-name match first,
     // then falling back to altitude-range search within the single active table.
     const resolveBlock = (strip: any, fl: number): { tableId: number; blockId: number } | null => {
+      // רק בלוקים של המרחב של הפ"מ (או בלי מרחב) - אותו גובה במרחב אחר הוא בלוק אחר
+      const rbSpace = relBlocks.filter((b: any) => blockFitsSpace(b, strip.block_space_id));
       const erka = (strip.erka || '').trim();
       if (erka && hasMultipleTables) {
         // Match erka text to a block-table name
@@ -4890,7 +4895,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         );
         if (matchedTable) {
           const mtId = Number(matchedTable.id);
-          const blk = relBlocks.find((b: any) =>
+          const blk = rbSpace.find((b: any) =>
             Number(b.block_table_id) === mtId &&
             fl >= Number(b.alt_from) && fl <= Number(b.alt_to)
           );
@@ -4900,14 +4905,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             : { tableId: mtId, blockId: -1 }; // in table but outside any block range
         }
       }
-      // Single table or no erka match: search across all relBlocks
+      // Single table or no erka match: search across all rbSpace
       const inlineBtId: number | null = activeBlockTableId ?? (
-        new Set(relBlocks.map((b: any) => Number(b.block_table_id))).size === 1
-          ? Number(relBlocks[0]?.block_table_id)
+        new Set(rbSpace.map((b: any) => Number(b.block_table_id))).size === 1
+          ? Number(rbSpace[0]?.block_table_id)
           : null
       );
       if (inlineBtId === null) return null; // multiple tables, no erka match → can't resolve
-      const blk = relBlocks.find((b: any) =>
+      const blk = rbSpace.find((b: any) =>
         Number(b.block_table_id) === inlineBtId &&
         fl >= Number(b.alt_from) && fl <= Number(b.alt_to)
       );
@@ -4937,6 +4942,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           const valB = String((b as any)[field] || '').trim();
           if (valA && valB && valA !== valB) continue;
         }
+        if (separatedBySpace(a, b, splitSpaces)) continue; // מרחבי חלוקה שונים
 
         // Rule 2 & 3: block-table / block resolution
         if (relBlocks.length > 0) {
@@ -4981,24 +4987,28 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))
     );
     const hasMultipleTables = new Set(relBlocks.map((b: any) => Number(b.block_table_id))).size > 1;
+    // מרחבי החלוקה של טבלאות הבלוקים של העמדה - פ"מים במרחבים שונים אינם בקונפליקט
+    const splitSpaces = splitSpaceSet(dashboardBlockTables, new Set([...btIds, ...relBlocks.map((b: any) => Number(b.block_table_id))]));
     // a block (alt_from..alt_to) is relevant to a strip if the strip's whole
     // altitude RANGE overlaps it (was: a single point — missed multi-altitude blocks)
     const resolveBlock = (strip: any, range: [number, number]): { tableId: number; blockId: number } | null => {
+      // רק בלוקים של המרחב של הפ"מ (או בלי מרחב) - אותו גובה במרחב אחר הוא בלוק אחר
+      const rbSpace = relBlocks.filter((b: any) => blockFitsSpace(b, strip.block_space_id));
       const overlaps = (b: any) => range[0] <= Number(b.alt_to) && range[1] >= Number(b.alt_from);
       const erka = (strip.erka || '').trim();
       if (erka && hasMultipleTables) {
         const matchedTable = dashboardBlockTables.find((bt: any) => (bt.name || '').trim() === erka);
         if (matchedTable) {
           const mtId = Number(matchedTable.id);
-          const blk = relBlocks.find((b: any) => Number(b.block_table_id) === mtId && overlaps(b));
+          const blk = rbSpace.find((b: any) => Number(b.block_table_id) === mtId && overlaps(b));
           return blk ? { tableId: mtId, blockId: Number(blk.id) } : { tableId: mtId, blockId: -1 };
         }
       }
       const inlineBtId: number | null = activeBlockTableId ?? (
-        new Set(relBlocks.map((b: any) => Number(b.block_table_id))).size === 1 ? Number(relBlocks[0]?.block_table_id) : null
+        new Set(rbSpace.map((b: any) => Number(b.block_table_id))).size === 1 ? Number(rbSpace[0]?.block_table_id) : null
       );
       if (inlineBtId === null) return null;
-      const blk = relBlocks.find((b: any) => Number(b.block_table_id) === inlineBtId && overlaps(b));
+      const blk = rbSpace.find((b: any) => Number(b.block_table_id) === inlineBtId && overlaps(b));
       return blk ? { tableId: inlineBtId, blockId: Number(blk.id) } : null;
     };
     const pendingOutgoingStripIdsP = new Set(outgoingTransfers.map((t: any) => String(t.strip_id)));
@@ -5020,6 +5030,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           const valB = String((b as any)[field] || '').trim();
           if (valA && valB && valA !== valB) continue;
         }
+        if (separatedBySpace(a, b, splitSpaces)) continue; // מרחבי חלוקה שונים
         if (relBlocks.length > 0) {
           const infoA = resolveBlock(a, rangeA);
           const infoB = resolveBlock(b, rangeB);
@@ -5100,16 +5111,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return dashboardBlocks
       .filter((b: any) => btIds.includes(Number(b.block_table_id)) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid)))
       .filter((b: any) => !effectiveBlockTableId || Number(b.block_table_id) === Number(effectiveBlockTableId))
-      .map((b: any) => ({ id: Number(b.id), alt_from: Number(b.alt_from), alt_to: Number(b.alt_to), mission: b.mission || null }));
+      .map((b: any) => ({ id: Number(b.id), alt_from: Number(b.alt_from), alt_to: Number(b.alt_to), mission: b.mission || null, space_id: b.space_id ?? null, block_table_id: Number(b.block_table_id) }));
   };
   const computeAltRec = (stripId: string) => {
     const strip: any = strips.find(st => String(st.id) === stripId);
     if (!strip) return null;
-    const blocks = altRecBlocks();
+    // מרחבי חלוקה: רק בלוקים של המרחב של הפ"מ, ופ"מ במרחב אחר אינו תופס בלוק
+    const allBlocks = altRecBlocks();
+    const split = splitSpaceSet(dashboardBlockTables, new Set(allBlocks.map((b: any) => b.block_table_id)));
+    const blocks = allBlocks.filter(b => blockFitsSpace(b, strip.block_space_id));
     if (!blocks.length) return null;
     const formation = parseInt(String(strip.numberOfFormation ?? strip.number_of_formation ?? '1'), 10) || 1;
     const others = myTableStrips
-      .filter((o: any) => String(o.id) !== stripId && o.alt)
+      .filter((o: any) => String(o.id) !== stripId && o.alt && !separatedBySpace(strip, o, split))
       .map((o: any) => ({ id: String(o.id), label: o.callSign || String(o.id), alt: String(o.alt) }));
     const rec = recommendAltitude({
       blocks, formation, armaments: stripArmaments(strip),

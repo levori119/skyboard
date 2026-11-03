@@ -188,12 +188,12 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
   const [allBlockSpaces, setBlockSpaces] = useState<any[]>([]);
   const [allBlockTables, setBlockTables] = useState<any[]>([]);
   const [editingBlockTable, setEditingBlockTable] = useState<any | null>(null);
-  const [blockTableForm, setBlockTableForm] = useState({ name: '', block_space_id: '' as string | number, note: '', category: '', parent_base_id: '' as string | number });
+  const [blockTableForm, setBlockTableForm] = useState({ name: '', block_space_id: '' as string | number, note: '', category: '', parent_base_id: '' as string | number, split_space_ids: [] as number[] });
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [blockSpaceForm, setBlockSpaceForm] = useState({ name: '', parent_base_id: '' as string | number });
   const [editingBlockSpace, setEditingBlockSpace] = useState<any | null>(null);
   const [editingBlock, setEditingBlock] = useState<any | null>(null);
-  const [blockForm, setBlockForm] = useState({ alt_from: '', alt_to: '', mission: '', color: '#3b82f6', workstations: [] as number[], platforms: [] as string[], note: '' });
+  const [blockForm, setBlockForm] = useState({ alt_from: '', alt_to: '', mission: '', color: '#3b82f6', workstations: [] as number[], platforms: [] as string[], note: '', space_id: '' as string | number });
   const [blockTableForBlock, setBlockTableForBlock] = useState<number | null>(null);
 
   // Sector editing
@@ -4162,7 +4162,7 @@ CHARLIE,1,301,`}
               return out.sort((a, b) => a === '' ? 1 : b === '' ? -1 : a.localeCompare(b, 'he'));
             };
 
-            const emptyBlockForm = { alt_from: '', alt_to: '', mission: '', color: '#3b82f6', workstations: [] as number[], platforms: [] as string[], note: '' };
+            const emptyBlockForm = { alt_from: '', alt_to: '', mission: '', color: '#3b82f6', workstations: [] as number[], platforms: [] as string[], note: '', space_id: '' as string | number };
             return (
             <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
               {/* Left: Block Spaces */}
@@ -4260,12 +4260,12 @@ CHARLIE,1,301,`}
                     if (!blockTableForm.name.trim()) return;
                     const payload = { name: blockTableForm.name, block_space_id: blockTableForm.block_space_id || null, note: blockTableForm.note || null, category: blockTableForm.category || null, parent_base_id: blockTableForm.parent_base_id || null };
                     await fetch(`${API_URL}/block-tables`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                    setBlockTableForm({ name: '', block_space_id: '', note: '', category: '', parent_base_id: '' }); loadData();
+                    setBlockTableForm({ name: '', block_space_id: '', note: '', category: '', parent_base_id: '', split_space_ids: [] }); loadData();
                   }} style={{ background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '6px', padding: '7px 16px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>{tr('shared.add')}</button>
                 </div>
                 {/* Block table edit modal */}
                 {editingBlockTable && (
-                  <SettingsModal title={`עריכת טבלה: ${editingBlockTable.name}`} onClose={() => { setEditingBlockTable(null); setBlockTableForm({ name: '', block_space_id: '', note: '', category: '', parent_base_id: '' }); }}>
+                  <SettingsModal title={`עריכת טבלה: ${editingBlockTable.name}`} onClose={() => { setEditingBlockTable(null); setBlockTableForm({ name: '', block_space_id: '', note: '', category: '', parent_base_id: '', split_space_ids: [] }); }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                         <div style={{ flex: 1, minWidth: '140px' }}>
@@ -4287,6 +4287,24 @@ CHARLIE,1,301,`}
                           {blockSpaces.map((bs: any) => <option key={bs.id} value={bs.id}>{bs.name}</option>)}
                         </select>
                       </div>
+                      {/* מרחבי חלוקה: הטבלה מתחלקת לכמה מרחבים - פ"מים באותו גובה במרחבים שונים אינם בקונפליקט */}
+                      <div data-testid="block-table-split-spaces">
+                        <label style={{ display: 'block', marginBottom: '4px', color: '#94a3b8', fontSize: '13px' }}>{tr('admin.splitSpaces')}</label>
+                        <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '6px' }}>{tr('admin.splitSpacesHint')}</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                          {blockSpaces.map((bs: any) => {
+                            const on = blockTableForm.split_space_ids.includes(Number(bs.id));
+                            return (
+                              <button key={bs.id} type="button"
+                                onClick={() => setBlockTableForm(f => ({ ...f, split_space_ids: on ? f.split_space_ids.filter(x => x !== Number(bs.id)) : [...f.split_space_ids, Number(bs.id)] }))}
+                                style={{ padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', border: `1px solid ${on ? '#3b82f6' : '#334155'}`, background: on ? '#1e3a5f' : '#1e293b', color: on ? '#93c5fd' : '#cbd5e1' }}>
+                                {on ? '✓ ' : ''}{bs.name}
+                              </button>
+                            );
+                          })}
+                          {blockSpaces.length === 0 && <span style={{ fontSize: '12px', color: '#64748b' }}>{tr('admin.splitSpacesNone')}</span>}
+                        </div>
+                      </div>
                       {assignableBases.length > 0 && (
                         <div>
                           <label style={{ display: 'block', marginBottom: '6px', color: '#94a3b8', fontSize: '13px' }}>{tr('admin.bsysAb')}</label>
@@ -4303,11 +4321,11 @@ CHARLIE,1,301,`}
                       <div style={{ display: 'flex', gap: '10px' }}>
                         <button onClick={async () => {
                           if (!blockTableForm.name.trim()) return;
-                          const payload = { name: blockTableForm.name, block_space_id: blockTableForm.block_space_id || null, note: blockTableForm.note || null, category: blockTableForm.category || null, parent_base_id: blockTableForm.parent_base_id || null };
+                          const payload = { name: blockTableForm.name, block_space_id: blockTableForm.block_space_id || null, note: blockTableForm.note || null, category: blockTableForm.category || null, parent_base_id: blockTableForm.parent_base_id || null, split_space_ids: blockTableForm.split_space_ids };
                           await fetch(`${API_URL}/block-tables/${editingBlockTable.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                          setBlockTableForm({ name: '', block_space_id: '', note: '', category: '', parent_base_id: '' }); setEditingBlockTable(null); loadData();
+                          setBlockTableForm({ name: '', block_space_id: '', note: '', category: '', parent_base_id: '', split_space_ids: [] }); setEditingBlockTable(null); loadData();
                         }} style={{ flex: 1, background: '#059669', color: 'white', border: 'none', borderRadius: '7px', padding: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>{tr('admin.shmvrShynvyym')}</button>
-                        <button onClick={() => { setEditingBlockTable(null); setBlockTableForm({ name: '', block_space_id: '', note: '', category: '', parent_base_id: '' }); }} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '7px', padding: '10px 16px', cursor: 'pointer', fontSize: '14px' }}>{tr('shared.cancel')}</button>
+                        <button onClick={() => { setEditingBlockTable(null); setBlockTableForm({ name: '', block_space_id: '', note: '', category: '', parent_base_id: '', split_space_ids: [] }); }} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '7px', padding: '10px 16px', cursor: 'pointer', fontSize: '14px' }}>{tr('shared.cancel')}</button>
                       </div>
                     </div>
                   </SettingsModal>
@@ -4349,7 +4367,7 @@ CHARLIE,1,301,`}
                                       {bt.note && <div style={{ color: '#94a3b8', fontSize: '11px', marginTop: '4px', fontStyle: 'italic' }}>{bt.note}</div>}
                                     </div>
                                     <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                                      <button onClick={() => { setEditingBlockTable(bt); setBlockTableForm({ name: bt.name, block_space_id: bt.block_space_id || '', note: bt.note || '', category: bt.category || '', parent_base_id: bt.parent_base_id ?? '' }); }} style={{ background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>{tr('admin.arvk3')}</button>
+                                      <button onClick={() => { setEditingBlockTable(bt); setBlockTableForm({ name: bt.name, block_space_id: bt.block_space_id || '', note: bt.note || '', category: bt.category || '', parent_base_id: bt.parent_base_id ?? '', split_space_ids: Array.isArray(bt.split_space_ids) ? bt.split_space_ids.map(Number) : [] }); }} style={{ background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>{tr('admin.arvk3')}</button>
                                       <button title={tr('admin.shkplTblhAmKl')} onClick={async () => { const res = await fetch(`${API_URL}/block-tables/${bt.id}/duplicate`, { method: 'POST' }); const newBt = await res.json(); await loadData(); setTimeout(() => { const el = document.getElementById(`block-table-${newBt.id}`); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.style.outline = '2px solid #4ade80'; el.style.outlineOffset = '2px'; setTimeout(() => { el.style.outline = ''; el.style.outlineOffset = ''; }, 2000); } }, 300); }} style={{ background: '#1a3a1a', color: '#4ade80', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>{tr('admin.shkpl4')}</button>
                                       <button onClick={async () => { if (!await customConfirm('למחוק טבלה זו?')) return; await fetch(`${API_URL}/block-tables/${bt.id}`, { method: 'DELETE' }); loadData(); }} style={{ background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>{tr('admin.mchk2')}</button>
                                     </div>
@@ -4368,8 +4386,8 @@ CHARLIE,1,301,`}
                                                 <span style={{ color: '#cbd5e1', fontSize: '12px', flex: 1 }}>{blk.mission || '—'}</span>
                                                 {blk.workstations?.length > 0 && <span style={{ color: '#64748b', fontSize: '10px' }}>({blk.workstations.length} {tr('shared.workstations2')}</span>}
                                                 {blk.updated_at && <span style={{ color: '#334155', fontSize: '9px', whiteSpace: 'nowrap' }}>{fmtDate(blk.updated_at)}</span>}
-                                                <button onClick={() => { setEditingBlock(blk); setBlockForm({ alt_from: String(blk.alt_from), alt_to: String(blk.alt_to), mission: blk.mission || '', color: blk.color || '#3b82f6', workstations: Array.isArray(blk.workstations) ? blk.workstations : [], platforms: Array.isArray(blk.platforms) ? blk.platforms : [], note: blk.note || '' }); }} style={{ background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '3px', padding: '3px 7px', cursor: 'pointer', fontSize: '10px' }}>✏️</button>
-                                                <button title={tr('admin.shkplBlvk')} onClick={async () => { await fetch(`${API_URL}/blocks`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_table_id: bt.id, alt_from: blk.alt_from, alt_to: blk.alt_to, mission: blk.mission, color: blk.color, workstations: blk.workstations, platforms: blk.platforms, note: blk.note }) }); loadData(); }} style={{ background: '#1a3a1a', color: '#4ade80', border: 'none', borderRadius: '3px', padding: '3px 7px', cursor: 'pointer', fontSize: '10px' }}>⧉</button>
+                                                <button onClick={() => { setEditingBlock(blk); setBlockForm({ alt_from: String(blk.alt_from), alt_to: String(blk.alt_to), mission: blk.mission || '', color: blk.color || '#3b82f6', workstations: Array.isArray(blk.workstations) ? blk.workstations : [], platforms: Array.isArray(blk.platforms) ? blk.platforms : [], note: blk.note || '', space_id: blk.space_id ?? '' }); }} style={{ background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '3px', padding: '3px 7px', cursor: 'pointer', fontSize: '10px' }}>✏️</button>
+                                                <button title={tr('admin.shkplBlvk')} onClick={async () => { await fetch(`${API_URL}/blocks`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_table_id: bt.id, alt_from: blk.alt_from, alt_to: blk.alt_to, mission: blk.mission, color: blk.color, workstations: blk.workstations, platforms: blk.platforms, note: blk.note, space_id: blk.space_id ?? null }) }); loadData(); }} style={{ background: '#1a3a1a', color: '#4ade80', border: 'none', borderRadius: '3px', padding: '3px 7px', cursor: 'pointer', fontSize: '10px' }}>⧉</button>
                                                 <button onClick={async () => { await fetch(`${API_URL}/blocks/${blk.id}`, { method: 'DELETE' }); loadData(); }} style={{ background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '3px', padding: '3px 7px', cursor: 'pointer', fontSize: '10px' }}>🗑️</button>
                                               </div>
                                               {blk.note && <div style={{ color: '#64748b', fontSize: '10px', paddingRight: '20px', fontStyle: 'italic' }}>{blk.note}</div>}
@@ -4398,6 +4416,20 @@ CHARLIE,1,301,`}
                                               <input type="color" value={blockForm.color} onChange={e => setBlockForm(f => ({ ...f, color: e.target.value }))} style={{ width: '40px', height: '28px', padding: '2px', background: 'none', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }} />
                                             </div>
                                           </div>
+                                          {(() => {
+                  const _split: number[] = Array.isArray((bt)?.split_space_ids) ? (bt).split_space_ids.map(Number) : [];
+                  if (!_split.length) return null;
+                  return (
+                    <div style={{ marginBottom: '6px' }}>
+                      <label style={{ color: '#64748b', fontSize: '10px', display: 'block', marginBottom: '4px' }}>{tr('admin.blockSpace')}</label>
+                      <select data-testid="block-space-select" value={blockForm.space_id} onChange={e => setBlockForm(f => ({ ...f, space_id: e.target.value }))}
+                        style={{ width: '100%', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px' }}>
+                        <option value="">{tr('admin.blockSpaceAll')}</option>
+                        {blockSpaces.filter((bs: any) => _split.includes(Number(bs.id))).map((bs: any) => <option key={bs.id} value={bs.id}>{bs.name}</option>)}
+                      </select>
+                    </div>
+                  );
+                })()}
                                           <div style={{ marginBottom: '6px' }}>
                                             <label style={{ color: '#64748b', fontSize: '10px', display: 'block', marginBottom: '4px' }}>{tr('shared.note')}</label>
                                             <textarea value={blockForm.note} onChange={e => setBlockForm(f => ({ ...f, note: e.target.value }))} rows={2}
@@ -4421,7 +4453,7 @@ CHARLIE,1,301,`}
                                           <div style={{ display: 'flex', gap: '6px' }}>
                                             <button onClick={async () => {
                                               if (!blockForm.alt_from || !blockForm.alt_to) return;
-                                              await fetch(`${API_URL}/blocks`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_table_id: bt.id, alt_from: Number(blockForm.alt_from), alt_to: Number(blockForm.alt_to), mission: blockForm.mission, color: blockForm.color, workstations: blockForm.workstations, platforms: blockForm.platforms, note: blockForm.note }) });
+                                              await fetch(`${API_URL}/blocks`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_table_id: bt.id, alt_from: Number(blockForm.alt_from), alt_to: Number(blockForm.alt_to), mission: blockForm.mission, color: blockForm.color, workstations: blockForm.workstations, platforms: blockForm.platforms, note: blockForm.note , space_id: blockForm.space_id || null }) });
                                               setBlockForm({ ...emptyBlockForm }); setBlockTableForBlock(null); loadData();
                                             }} style={{ background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', padding: '5px 12px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>{tr('admin.hvsfBlvk')}</button>
                                             <button onClick={() => { setBlockTableForBlock(null); setBlockForm({ ...emptyBlockForm }); }} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '12px' }}>{tr('shared.cancel')}</button>
@@ -5026,13 +5058,27 @@ CHARLIE,1,301,`}
                     ))}
                   </div>
                 </div>
+                {(() => {
+                  const _split: number[] = Array.isArray((blockTables.find((t: any) => Number(t.id) === Number(editingBlock?.block_table_id)))?.split_space_ids) ? (blockTables.find((t: any) => Number(t.id) === Number(editingBlock?.block_table_id))).split_space_ids.map(Number) : [];
+                  if (!_split.length) return null;
+                  return (
+                    <div style={{ marginBottom: '6px' }}>
+                      <label style={{ display: 'block', marginBottom: '6px', color: '#94a3b8', fontSize: '13px' }}>{tr('admin.blockSpace')}</label>
+                      <select data-testid="block-space-select" value={blockForm.space_id} onChange={e => setBlockForm(f => ({ ...f, space_id: e.target.value }))}
+                        style={{ width: '100%', padding: '8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '13px' }}>
+                        <option value="">{tr('admin.blockSpaceAll')}</option>
+                        {blockSpaces.filter((bs: any) => _split.includes(Number(bs.id))).map((bs: any) => <option key={bs.id} value={bs.id}>{bs.name}</option>)}
+                      </select>
+                    </div>
+                  );
+                })()}
                 <div>
                   <label style={{ display: 'block', marginBottom: '6px', color: '#94a3b8', fontSize: '13px' }}>{tr('admin.pltpvrmvtMvprdvtBpsyk')}</label>
                   <input value={(blockForm.platforms as string[]).join(',')} onChange={e => setBlockForm(f => ({ ...f, platforms: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))} placeholder={tr('admin.lmshlF16F')} style={{ width: '100%', padding: '8px', background: '#1e293b', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box' }} />
                 </div>
                 <div style={{ display: 'flex', gap: '10px', paddingTop: '4px' }}>
                   <button onClick={async () => {
-                    await fetch(`${API_URL}/blocks/${editingBlock.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt_from: Number(blockForm.alt_from), alt_to: Number(blockForm.alt_to), mission: blockForm.mission, color: blockForm.color, workstations: blockForm.workstations, platforms: blockForm.platforms, note: blockForm.note }) });
+                    await fetch(`${API_URL}/blocks/${editingBlock.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt_from: Number(blockForm.alt_from), alt_to: Number(blockForm.alt_to), mission: blockForm.mission, color: blockForm.color, workstations: blockForm.workstations, platforms: blockForm.platforms, note: blockForm.note, space_id: blockForm.space_id || null }) });
                     setEditingBlock(null); loadData();
                   }} style={{ flex: 1, background: '#059669', color: 'white', border: 'none', borderRadius: '7px', padding: '11px', cursor: 'pointer', fontSize: '15px', fontWeight: 'bold' }}>{tr('admin.shmvrShynvyym')}</button>
                   <button onClick={() => setEditingBlock(null)} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '7px', padding: '11px 18px', cursor: 'pointer', fontSize: '14px' }}>{tr('shared.cancel')}</button>

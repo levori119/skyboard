@@ -538,6 +538,11 @@ async function applySchemaOnce() {
   await sq(`ALTER TABLE block_tables ADD COLUMN IF NOT EXISTS category VARCHAR(100)`);
   await sq(`ALTER TABLE block_tables ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`);
   await sq(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS note TEXT`);
+  // מרחבי חלוקה: טבלת בלוקים מתחלקת לכמה מרחבים (block_spaces), ובלוק יכול
+  // להשתייך לאחד מהם. שני פ"מים באותו גובה במרחבים שונים - אין קונפליקט.
+  // space_id ריק = הבלוק משרת את כל המרחבים. ראה src/utils/blockSpaces.ts
+  await sq(`ALTER TABLE block_tables ADD COLUMN IF NOT EXISTS split_space_ids JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS space_id INTEGER`);
   await sq(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`);
 
   // ── BDH documents ─────────────────────────────────────────────────────────

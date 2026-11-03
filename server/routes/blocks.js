@@ -45,10 +45,10 @@ router.get('/api/block-tables', async (req, res) => {
 
 router.post('/api/block-tables', async (req, res) => {
   try {
-    const { name, block_space_id, note, category, parent_base_id } = req.body;
+    const { name, block_space_id, note, category, parent_base_id, split_space_ids } = req.body;
     const result = await pool.query(
-      'INSERT INTO block_tables (name, block_space_id, note, category, parent_base_id, updated_at) VALUES ($1,$2,$3,$4,$5,NOW()) RETURNING *',
-      [name, block_space_id || null, note || null, category || null, parent_base_id || null]
+      'INSERT INTO block_tables (name, block_space_id, note, category, parent_base_id, split_space_ids, updated_at) VALUES ($1,$2,$3,$4,$5,$6,NOW()) RETURNING *',
+      [name, block_space_id || null, note || null, category || null, parent_base_id || null, JSON.stringify(Array.isArray(split_space_ids) ? split_space_ids.map(Number).filter(Number.isFinite) : [])]
     );
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to create block table' }); }
@@ -56,10 +56,10 @@ router.post('/api/block-tables', async (req, res) => {
 
 router.put('/api/block-tables/:id', async (req, res) => {
   try {
-    const { name, block_space_id, note, category, parent_base_id } = req.body;
+    const { name, block_space_id, note, category, parent_base_id, split_space_ids } = req.body;
     const result = await pool.query(
-      'UPDATE block_tables SET name=$1, block_space_id=$2, note=$3, category=$4, parent_base_id=$6, updated_at=NOW() WHERE id=$5 RETURNING *',
-      [name, block_space_id || null, note || null, category || null, req.params.id, parent_base_id || null]
+      'UPDATE block_tables SET name=$1, block_space_id=$2, note=$3, category=$4, parent_base_id=$6, split_space_ids=CASE WHEN $8 THEN $7::jsonb ELSE split_space_ids END, updated_at=NOW() WHERE id=$5 RETURNING *',
+      [name, block_space_id || null, note || null, category || null, req.params.id, parent_base_id || null, JSON.stringify(Array.isArray(split_space_ids) ? split_space_ids.map(Number).filter(Number.isFinite) : []), 'split_space_ids' in req.body]
     );
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to update block table' }); }
@@ -79,15 +79,15 @@ router.post('/api/block-tables/:id/duplicate', async (req, res) => {
     if (src.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     const orig = src.rows[0];
     const newTable = await pool.query(
-      'INSERT INTO block_tables (name, block_space_id, note, category, parent_base_id, updated_at) VALUES ($1, $2, $3, $4, $5, NOW()) RETURNING *',
-      [orig.name + ' (עותק)', orig.block_space_id, orig.note, orig.category, orig.parent_base_id ?? null]
+      'INSERT INTO block_tables (name, block_space_id, note, category, parent_base_id, split_space_ids, updated_at) VALUES ($1, $2, $3, $4, $5, $6, NOW()) RETURNING *',
+      [orig.name + ' (עותק)', orig.block_space_id, orig.note, orig.category, orig.parent_base_id ?? null, JSON.stringify(orig.split_space_ids || [])]
     );
     const newId = newTable.rows[0].id;
     const blocks = await pool.query('SELECT * FROM blocks WHERE block_table_id=$1 ORDER BY sort_order', [srcId]);
     for (const blk of blocks.rows) {
       await pool.query(
-        'INSERT INTO blocks (block_table_id, alt_from, alt_to, mission, color, workstations, platforms, sort_order, note, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())',
-        [newId, blk.alt_from, blk.alt_to, blk.mission, blk.color, JSON.stringify(blk.workstations || []), JSON.stringify(blk.platforms || []), blk.sort_order, blk.note]
+        'INSERT INTO blocks (block_table_id, alt_from, alt_to, mission, color, workstations, platforms, sort_order, note, space_id, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())',
+        [newId, blk.alt_from, blk.alt_to, blk.mission, blk.color, JSON.stringify(blk.workstations || []), JSON.stringify(blk.platforms || []), blk.sort_order, blk.note, blk.space_id ?? null]
       );
     }
     res.json(newTable.rows[0]);
@@ -107,10 +107,10 @@ router.get('/api/blocks', async (req, res) => {
 
 router.post('/api/blocks', async (req, res) => {
   try {
-    const { block_table_id, alt_from, alt_to, mission, color, workstations, platforms, sort_order, note } = req.body;
+    const { block_table_id, alt_from, alt_to, mission, color, workstations, platforms, sort_order, note, space_id } = req.body;
     const result = await pool.query(
-      'INSERT INTO blocks (block_table_id, alt_from, alt_to, mission, color, workstations, platforms, sort_order, note, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW()) RETURNING *',
-      [block_table_id, alt_from, alt_to, mission || null, color || '#3b82f6', JSON.stringify(workstations || []), JSON.stringify(platforms || []), sort_order || 0, note || null]
+      'INSERT INTO blocks (block_table_id, alt_from, alt_to, mission, color, workstations, platforms, sort_order, note, space_id, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW()) RETURNING *',
+      [block_table_id, alt_from, alt_to, mission || null, color || '#3b82f6', JSON.stringify(workstations || []), JSON.stringify(platforms || []), sort_order || 0, note || null, space_id ? Number(space_id) : null]
     );
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to create block' }); }
@@ -118,10 +118,11 @@ router.post('/api/blocks', async (req, res) => {
 
 router.put('/api/blocks/:id', async (req, res) => {
   try {
-    const { alt_from, alt_to, mission, color, workstations, platforms, sort_order, note } = req.body;
+    const { alt_from, alt_to, mission, color, workstations, platforms, sort_order, note, space_id } = req.body;
     const result = await pool.query(
-      'UPDATE blocks SET alt_from=$1, alt_to=$2, mission=$3, color=$4, workstations=$5, platforms=$6, sort_order=$7, note=$8, updated_at=NOW() WHERE id=$9 RETURNING *',
-      [alt_from, alt_to, mission || null, color || '#3b82f6', JSON.stringify(workstations || []), JSON.stringify(platforms || []), sort_order || 0, note || null, req.params.id]
+      'UPDATE blocks SET alt_from=$1, alt_to=$2, mission=$3, color=$4, workstations=$5, platforms=$6, sort_order=$7, note=$8, space_id=CASE WHEN $11 THEN $10 ELSE space_id END, updated_at=NOW() WHERE id=$9 RETURNING *',
+      // space_id נכתב רק כשנשלח - עורך ישן ששומר בלוק בלי השדה לא מאפס את המרחב שלו
+      [alt_from, alt_to, mission || null, color || '#3b82f6', JSON.stringify(workstations || []), JSON.stringify(platforms || []), sort_order || 0, note || null, req.params.id, space_id ? Number(space_id) : null, 'space_id' in req.body]
     );
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to update block' }); }

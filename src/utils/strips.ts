@@ -1,3 +1,4 @@
+import { blockFitsSpace } from './blockSpaces';
 // Strip / formation display + altitude helpers (extracted from App.tsx)
 
 // Computed display name from callsign + aircraft_indices (e.g. "חנית/1+2")
@@ -90,7 +91,8 @@ export const computeBlockDeviation = (
 
   const myBlocks = tableBlocks.filter((b: any) => {
     const ws = Array.isArray(b.workstations) ? b.workstations.map(Number) : [];
-    return ws.length === 0 || ws.includes(presetId);
+    // בלוק של מרחב אחר אינו "הבלוק שלו" - גם אם הגובה זהה
+    return (ws.length === 0 || ws.includes(presetId)) && blockFitsSpace(b, s.block_space_id);
   });
   if (myBlocks.length === 0) return false;
 

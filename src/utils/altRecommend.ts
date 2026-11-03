@@ -22,6 +22,9 @@ export interface RecBlock {
   alt_from: number;
   alt_to: number;
   mission?: string | null;
+  /** מרחב החלוקה של הבלוק (ריק = כל המרחבים) */
+  space_id?: number | null;
+  block_table_id?: number;
 }
 
 export type AltRuleBand = 'low' | 'mid' | 'high';

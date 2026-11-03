@@ -3993,6 +3993,26 @@
     "altRulesAdd": {
       "he": "חוק",
       "en": "Rule"
+    },
+    "splitSpaces": {
+      "he": "מרחבי חלוקה",
+      "en": "Split spaces"
+    },
+    "splitSpacesHint": {
+      "he": "הטבלה מתחלקת למרחבים האלה. לכל בלוק אפשר לשייך מרחב, ופ\"מים באותו גובה במרחבים שונים אינם בקונפליקט.",
+      "en": "The table is split into these spaces. Each block can belong to one, and strips at the same altitude in different spaces are not in conflict."
+    },
+    "splitSpacesNone": {
+      "he": "אין מרחבי בלוקים - הוסף מרחב בלשונית המרחבים",
+      "en": "No block spaces - add one in the spaces tab"
+    },
+    "blockSpace": {
+      "he": "מרחב",
+      "en": "Space"
+    },
+    "blockSpaceAll": {
+      "he": "כל המרחבים",
+      "en": "All spaces"
     }
   }
 }

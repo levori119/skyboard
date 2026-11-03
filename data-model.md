@@ -3519,3 +3519,14 @@ REFACTOR_LOG #045.
 | עמודה | סוג | תיאור |
 |---|---|---|
 | `alt_armament_rules` | JSONB DEFAULT `'[]'` | **חוקי המלצת הגובה** של העמדה, לפי סדר עדיפות: `[{armament, kind, band?, alt_ft?, min_ft?, max_ft?}]`. `kind` = `band` (`low`/`mid`/`high` = שליש מבלוקי העמדה) / `alt` (גובה פיזי ברגל) / `range` (טווח ברגל). פעיל רק כש-`suggest_alt_range` דולק. מנורמל ב-`normalizeAltRules` (חוק בלי חימוש או בלי ערך נזרק). ראה [ALT_RECOMMEND_SPEC.md](ALT_RECOMMEND_SPEC.md) |
+
+---
+
+## מרחבי חלוקה של טבלת בלוקים — `block_tables.split_space_ids` + `blocks.space_id`
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `block_tables.split_space_ids` | JSONB DEFAULT `'[]'` | **מרחבי החלוקה** של הטבלה - מזהי `block_spaces`. פ"מים באותו גובה במרחבים **שונים** מתוך החלוקה (לפי `strips.block_space_id`) **אינם בקונפליקט** |
+| `blocks.space_id` | INTEGER NULL | המרחב שהבלוק משרת. ריק = כל המרחבים. פ"מ "נמצא" רק בבלוק של המרחב שלו - לחישוב סטייה מבלוק, קונפליקט והמלצת הגובה |
+
+> שני השדות נכתבים ב-PUT **רק כשהם נשלחים** - צייר הבלוקים ששומר גובה בלבד לא מאפס את המרחב. הלוגיקה: [`src/utils/blockSpaces.ts`](src/utils/blockSpaces.ts).

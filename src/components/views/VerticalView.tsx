@@ -1,4 +1,5 @@
 import { tr } from '../../i18n/tr';
+import { splitSpaceSet, separatedBySpace } from '../../utils/blockSpaces';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Strip from '../strips/Strip';
 import { computeBlockDeviation, getFormationDisplayName, normalizeAlt, parseAltToFeet } from '../../utils/strips';
@@ -209,6 +210,8 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
   // Build segments based on groupBy
   type Placed = typeof candidates[0] & { _x: number; _y: number; _hasConflict: boolean; _isRange: boolean };
 
+  // מרחבי חלוקה של טבלאות הבלוקים: פ"מים במרחבים שונים אינם בקונפליקט
+  const splitSpaces = splitSpaceSet(blockTables, new Set(relevantBlocks.map((b: any) => Number(b.block_table_id))));
   const buildPlaced = (list: typeof candidates): Placed[] => {
     const p: Placed[] = list.map(s => ({
       ...s,
@@ -224,7 +227,7 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
         if (!xOvlp) continue;
         if (!externalConflictIds) {
           const altGap = Math.max(a._altLo, b._altLo) - Math.min(a._altHi, b._altHi);
-          if (altGap !== 0 && altGap < conflictAltDelta) { p[i]._hasConflict = true; p[j]._hasConflict = true; }
+          if (altGap !== 0 && altGap < conflictAltDelta && !separatedBySpace(a, b, splitSpaces)) { p[i]._hasConflict = true; p[j]._hasConflict = true; }
         }
         if (!a._isRange && !b._isRange) {
           const yDiff = Math.abs(a._y - b._y);
@@ -252,7 +255,7 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
         for (let j = i + 1; j < list.length; j++) {
           const a = list[i], b = list[j];
           const altGap = Math.max(a._altLo, b._altLo) - Math.min(a._altHi, b._altHi);
-          if (altGap !== 0 && altGap < conflictAltDelta) {
+          if (altGap !== 0 && altGap < conflictAltDelta && !separatedBySpace(a, b, splitSpaces)) {
             conflictSet.add(String(a.id));
             conflictSet.add(String(b.id));
           }
