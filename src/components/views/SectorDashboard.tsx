@@ -90,6 +90,7 @@ import { useDragPosition } from '../../hooks/useDragPosition';
 import usePinchZoom from '../../hooks/usePinchZoom';
 import { localStep, pinchZoomPan, type ZoomPanView } from '../../utils/pinchZoom';
 import { windowFrame, frameColor } from '../../utils/windowFrame';
+import { thinScroll } from '../../utils/thinScroll';
 import { recommendAltitude, stripArmaments, normalizeAltRules, type AltRecommendation, type RecBlock } from '../../utils/altRecommend';
 import { loadPadLayout, savePadLayout, type PadLayout } from '../../utils/freeDeskLayout';
 import FreeDeskPad from '../shared/FreeDeskPad';
@@ -17133,7 +17134,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       };
                     };
                     return (
-                    <div style={{ overflowX: 'auto', maxWidth: '100%', overscrollBehaviorX: 'contain' }}>
+                    <div style={{ overflowX: 'auto', maxWidth: '100%', overscrollBehaviorX: 'contain', ...thinScroll(themeMode) }}>
                       <table style={{ borderCollapse: 'collapse', fontSize: tfz(12), minWidth: 'max-content' }}>
                         <thead>
                           <tr>
