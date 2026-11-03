@@ -2797,6 +2797,14 @@
     "takeoffSoon": {
       "he": "ממריא בעוד 10 דקות או פחות",
       "en": "Takes off within 10 minutes"
+    },
+    "fzAirHint": {
+      "he": "לפי תמונ\"א: {{cs}} בגובה {{alt}} רגל - {{zone}} · {{block}}",
+      "en": "From the air picture: {{cs}} at {{alt}} ft - {{zone}} · {{block}}"
+    },
+    "fzAirHintNoBlock": {
+      "he": "אין בלוק מתאים",
+      "en": "no matching block"
     }
   }
 }

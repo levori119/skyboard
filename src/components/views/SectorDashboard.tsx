@@ -79,7 +79,8 @@ import WeatherMenu from '../../weather/WeatherMenu';
 import WeatherWindow from '../../weather/WeatherWindow';
 import { loadPrefs as loadWeatherPrefs, savePrefs as saveWeatherPrefs, type WeatherPrefs } from '../../weather/prefs';
 import { airPictureStore } from '../../airPicture/store';
-import { ageSec as airPictureAge } from '../../airPicture/track';
+import { ageSec as airPictureAge, prepare as prepareAirTracks, filtersOf as airFiltersOf } from '../../airPicture/track';
+import { trackAtMapPoint, blockForAltitude } from '../../airPicture/dropHit';
 import { useZoneWatch, type ZoneWatchMap as ZoneWatchMapInput, type ZoneWatchOffender } from '../../airPicture/useZoneWatch';
 import { blockAltFeet, type WatchZone as ZoneWatchZone, type WatchAssignment as ZoneWatchAssignment } from '../../airPicture/zoneWatch';
 /** הפניה קבועה - מערך ריק חדש בכל רינדור היה מפיל memo של צרכני ההדגשה. */
@@ -834,7 +835,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const fzGetZoneAtPointRef = useRef<(px: number, py: number) => any>((_px: number, _py: number) => null);
   const zoneAltRangesRef = useRef<Record<number, any[]>>({});
   const offerAltRecRef = useRef<(stripId: string) => void>(() => {});
-  const [fzDialog, setFzDialog] = useState<{ stripId: number; zoneName: string; zoneId: number; altRanges: ZoneAltRange[]; selectedAltIds: number[]; selectedStatus: string; note: string; displayLabel?: string; posX?: number; posY?: number; requestedZoneIds: number[]; mapId?: number | null; prevZoneId?: number | null } | null>(null);
+  type FzDialogState = { stripId: number; zoneName: string; zoneId: number; altRanges: ZoneAltRange[]; selectedAltIds: number[]; selectedStatus: string; note: string; displayLabel?: string; posX?: number; posY?: number; requestedZoneIds: number[]; mapId?: number | null; prevZoneId?: number | null;
+    /** נבדק מול התמונ"א (פעם אחת, בפתיחה) - עדכון של הדיאלוג אינו בודק שוב ואינו דורס בחירה */
+    airChecked?: boolean;
+    /** הפ"מ שוחרר על אייקון תמונ"א: המטוס, גובהו והבלוק שנבחר לפיו */
+    airInfo?: { cs: string; altFt: number; blockName: string | null } | null };
+  const [fzDialog, setFzDialogRaw] = useState<FzDialogState | null>(null);
+  // פתיחת דיאלוג חדש עוברת דרך withAirHint: שחרור על אייקון תמונ"א בוחר מראש
+  // את בלוק הגובה של המטוס. כל מסלולי הגרירה פותחים כאן, ולכן הכלל אחד.
+  const withAirHintRef = useRef<(d: FzDialogState) => FzDialogState>(d => d);
+  const setFzDialog = (v: React.SetStateAction<FzDialogState | null>) =>
+    setFzDialogRaw(prev => {
+      const next = typeof v === 'function' ? (v as (p: FzDialogState | null) => FzDialogState | null)(prev) : v;
+      return next && !next.airChecked ? withAirHintRef.current({ ...next, airChecked: true }) : next;
+    });
   const [fzConflictDialog, setFzConflictDialog] = useState<{ pending: { stripId: number; zoneId: number; altRangeIds: number[]; posX?: number; posY?: number; requestedZoneIds: number[] } | null; conflicts: StripZoneAssignment[]; coordNote: string } | null>(null);
   const [fzCoordMenuDialog, setFzCoordMenuDialog] = useState<{ assignment: StripZoneAssignment; strip: any; conflicts: StripZoneAssignment[]; selectedIds: Set<number>; coordNote: string } | null>(null);
   const [fzPinZonePicker, setFzPinZonePicker] = useState<{ stripId: number; posX: number; posY: number; dragLabel: string | null; existing: StripZoneAssignment | undefined } | null>(null);
@@ -2152,6 +2166,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return () => { alive = false; };
   }, [airPictureOn]);
   const airPictureActive = airPictureOn && !!airPictureCfg?.enabled;
+  // ── פ"מ שנגרר על אייקון תמונ"א: הבלוק לפי גובה המטוס ─────────────────────
+  // (src/airPicture/dropHit.ts). המטוסים ממוקמים מחדש לרגע השחרור, באותם
+  // מסננים של השכבה המצוירת - מטוס שלא רואים אינו יכול "להיתפס".
+  withAirHintRef.current = (d) => {
+    if (!airPictureActive || d.posX == null || d.posY == null) return d;
+    const mdW = isMissionDeskMode ? mdMapWindows.find(w => Number(w.mapId) === Number(d.mapId)) : null;
+    const slot = mdW ? (mdSlots[mdW.key] || MD_MAP_SLOT_INIT) : null;
+    const anchor = slot ? slot.geoAnchor : mapGeoAnchor;
+    const ib = slot ? slot.imgBounds : mapImgBounds;
+    if (!anchor || !ib?.width) return d;
+    const snap = airPictureStore.getSnapshot();
+    const placed = prepareAirTracks(snap.tracks, anchor, Math.max(0, (Date.now() - snap.receivedAt) / 1000), airFiltersOf(airPicturePrefs));
+    const hit = trackAtMapPoint(placed, d.posX, d.posY, ib.width, ib.height, 18);
+    if (!hit) return d;
+    const block = blockForAltitude(d.altRanges, hit.alt);
+    return { ...d, selectedAltIds: block ? [block.id] : d.selectedAltIds, airInfo: { cs: hit.cs, altFt: hit.alt, blockName: block?.name ?? null } };
+  };
   const airPictureSnap = useSyncExternalStore(airPictureStore.subscribe, airPictureStore.getSnapshot);
   /**
    * למה התמונ"א לא מציגה. השכבה מרונדרת רק כשיש עוגן מפה, ובלעדיה ה-poller
@@ -21648,6 +21679,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           onClick={e => { if (e.target === e.currentTarget) setFzDialog(null); }}>
           <div style={{ background: '#1e293b', border: '1px solid #1e3a5f', borderRadius: '12px', padding: '24px', width: '380px', direction: dir, boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}>
             <div style={{ color: '#7dd3fc', fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>📍 הקצאת אזור — {fzDialog.zoneName}{fzDialog.displayLabel ? ` (${fzDialog.displayLabel})` : ''}</div>
+            {fzDialog.airInfo && (
+              <div data-testid="fz-air-hint" style={{ margin: '-8px 0 12px', padding: '6px 10px', borderRadius: '6px', background: 'rgba(14,165,233,0.12)', border: '1px solid #0ea5e9', color: '#7dd3fc', fontSize: '13px' }}>
+                📡 {tr('ctrl.fzAirHint', { cs: fzDialog.airInfo.cs, alt: Math.round(fzDialog.airInfo.altFt).toLocaleString(), zone: fzDialog.zoneName, block: fzDialog.airInfo.blockName || tr('ctrl.fzAirHintNoBlock') })}
+              </div>
+            )}
             
             <div style={{ marginBottom: '14px' }}>
               <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>{tr('ctrl.relevantBlocks')}</label>
