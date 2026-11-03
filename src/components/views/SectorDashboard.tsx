@@ -91,6 +91,7 @@ import usePinchZoom from '../../hooks/usePinchZoom';
 import { localStep, pinchZoomPan, type ZoomPanView } from '../../utils/pinchZoom';
 import { windowFrame, frameColor } from '../../utils/windowFrame';
 import { thinScroll } from '../../utils/thinScroll';
+import { TakeoffBadge, FormationCountBadge } from '../strips/StripCardBadges';
 import { splitSpaceSet, separatedBySpace, blockFitsSpace } from '../../utils/blockSpaces';
 import { recommendAltitude, stripArmaments, normalizeAltRules, type AltRecommendation, type RecBlock } from '../../utils/altRecommend';
 import { loadPadLayout, savePadLayout, type PadLayout } from '../../utils/freeDeskLayout';
@@ -4689,10 +4690,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const spaceIds = new Set(
       dashboardBlockTables
         .filter((bt: any) => presetBtIds.has(Number(bt.id)))
-        .map((bt: any) => Number(bt.block_space_id))
+        .flatMap((bt: any) => [Number(bt.block_space_id), ...(Array.isArray(bt.split_space_ids) ? bt.split_space_ids.map(Number) : [])])
     );
     return dashboardBlockSpaces.filter((bs: any) => spaceIds.has(Number(bs.id)));
   }, [myPresetConfig, dashboardBlockTables, dashboardBlockSpaces]);
+  // מרחבי החלוקה של טבלאות הבלוקים של העמדה - כשיש כאלה, המרחב של הפ"מ הוא
+  // **שדה בחירה** בעמדה (בטבלה ובחלון המלצת הגובה): הוא שקובע אם יש קונפליקט
+  const stationSplitSpaces = React.useMemo(() => {
+    const pid = session.presetId ? Number(session.presetId) : null;
+    const btIds = new Set<number>([
+      ...(Array.isArray(myPresetConfig?.block_table_ids) ? myPresetConfig.block_table_ids.map(Number) : []),
+      ...dashboardBlocks.filter((b: any) => pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid)).map((b: any) => Number(b.block_table_id)),
+    ]);
+    const ids = splitSpaceSet(dashboardBlockTables, btIds);
+    return dashboardBlockSpaces.filter((bs: any) => ids.has(Number(bs.id)));
+  }, [myPresetConfig, dashboardBlockTables, dashboardBlockSpaces, dashboardBlocks, session.presetId]);
+  const setStripSpaceLocal = (stripId: string, blockSpaceId: number | null) =>
+    setStrips(prev => prev.map(st => String(st.id) === String(stripId) ? { ...st, block_space_id: blockSpaceId } : st));
   // If the preset defines relevant control stations, filter serials to those only
   const relevantControlStations: string[] | null = (myPresetConfig?.relevant_control_stations && myPresetConfig.relevant_control_stations.length > 0)
     ? myPresetConfig.relevant_control_stations
@@ -5113,9 +5127,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       .filter((b: any) => !effectiveBlockTableId || Number(b.block_table_id) === Number(effectiveBlockTableId))
       .map((b: any) => ({ id: Number(b.id), alt_from: Number(b.alt_from), alt_to: Number(b.alt_to), mission: b.mission || null, space_id: b.space_id ?? null, block_table_id: Number(b.block_table_id) }));
   };
-  const computeAltRec = (stripId: string) => {
-    const strip: any = strips.find(st => String(st.id) === stripId);
-    if (!strip) return null;
+  const computeAltRec = (stripId: string, spaceOverride?: number | null) => {
+    const found: any = strips.find(st => String(st.id) === stripId);
+    if (!found) return null;
+    const strip: any = spaceOverride === undefined ? found : { ...found, block_space_id: spaceOverride };
     // מרחבי חלוקה: רק בלוקים של המרחב של הפ"מ, ופ"מ במרחב אחר אינו תופס בלוק
     const allBlocks = altRecBlocks();
     const split = splitSpaceSet(dashboardBlockTables, new Set(allBlocks.map((b: any) => b.block_table_id)));
@@ -9261,17 +9276,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           {getFormationDisplayName(s)}
                         </span>
                         {(s.sq || s.squadron) && <span style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', flexShrink: 0 }}>{s.sq || s.squadron}</span>}
+                        <FormationCountBadge strip={s} lightMode={lightMode} textColor={T.text} />
                       </div>
                       <span style={{ fontSize: '10px', color: T.muted, whiteSpace: 'nowrap', flexShrink: 0 }}>{s.task}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '3px' }}>
                       <div>
-                        {tkLabel && (
-                          <span style={{ fontSize: '10px', color: tkPast ? 'white' : (lightMode ? '#475569' : '#64748b'), background: tkPast ? '#ef4444' : (lightMode ? '#e2e8f0' : '#0f172a'), padding: '1px 5px', borderRadius: '3px', fontWeight: tkPast ? 'bold' : 'normal', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                            {tkPast && <span style={{ width: '5px', height: '5px', background: 'white', borderRadius: '50%', display: 'inline-block' }} />}
-                            🕐 {tkLabel}
-                          </span>
-                        )}
+                        <TakeoffBadge takeoff={s.takeoff_time} airborne={!!s.airborne} label={tkLabel} lightMode={lightMode} />
                       </div>
                       <StripCardLocation info={stripCardLocation(isFlightZonesMode ? stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === parseInt(String(s.id).replace(/^s/, ''), 10)) : null, s.alt)} text={T.text} muted={T.muted} border={lightMode ? '#cbd5e1' : '#334155'} bgAlt={T.bgAlt} />
                     </div>
@@ -13366,6 +13377,26 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               {ar.rec.needed > 1 ? tr('ctrl.altRecAdjacent', { count: ar.formation, blocks: ar.rec.needed }) : tr('ctrl.altRecSingle', { count: ar.formation })}
               {rule ? ` · ${tr('ctrl.altRecRule', { armament: rule.armament, target: ruleText })}` : ar.rec.reason === 'nearest' ? ` · ${tr('ctrl.altRecNearest')}` : ar.rec.reason === 'lowest' ? ` · ${tr('ctrl.altRecLowest')}` : ''}
             </div>
+            {stationSplitSpaces.length > 0 && (() => {
+              const cur = strips.find(st => String(st.id) === ar.stripId)?.block_space_id;
+              return (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', marginBottom: '8px' }}>
+                  <span style={{ color: T.muted }}>{tr('ctrl.altRecSpace')}</span>
+                  <select data-testid="alt-rec-space" value={cur ? String(cur) : ''}
+                    onChange={async e => {
+                      const id = e.target.value ? Number(e.target.value) : null;
+                      setStripSpaceLocal(ar.stripId, id);
+                      const r = computeAltRec(ar.stripId, id);
+                      if (r) setAltRec({ ...r, selected: r.rec.blockIds, moved: false });
+                      try { await fetch(`${API_URL}/strips/${ar.stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_space_id: id }) }); } catch (err) { console.error(err); }
+                    }}
+                    style={{ flex: 1, background: T.bg, color: T.text, border: `1px solid ${T.border}`, borderRadius: '5px', padding: '4px 6px', fontSize: '12px', fontFamily: 'inherit' }}>
+                    <option value="">{tr('ctrl.altRecSpaceNone')}</option>
+                    {stationSplitSpaces.map((bs: any) => <option key={bs.id} value={String(bs.id)}>{bs.name}</option>)}
+                  </select>
+                </label>
+              );
+            })()}
             {ar.rec.blockIds.length === 0 && (
               <div data-testid="alt-rec-none" style={{ fontSize: '12px', color: '#f87171', marginBottom: '8px' }}>⛔ {tr('ctrl.altRecNoFree', { blocks: ar.rec.needed })}</div>
             )}
@@ -16956,10 +16987,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   if (colKey === 'block_space') {
                     const currentBsId = s.block_space_id ? String(s.block_space_id) : '';
                     const currentBsName = dashboardBlockSpaces.find((bs: any) => String(bs.id) === currentBsId)?.name || '—';
-                    if (col.editable === 'dropdown') {
+                    if (col.editable === 'dropdown' || stationSplitSpaces.length > 0) {
                       return (
                         <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
-                          <BlockSpaceCellTable strip={s} blockSpaces={presetBlockSpaces} lightMode={lightMode} />
+                          <BlockSpaceCellTable strip={s} blockSpaces={stationSplitSpaces.length > 0 ? stationSplitSpaces : presetBlockSpaces} lightMode={lightMode}
+                            onSaved={id => setStripSpaceLocal(String(s.id), id)} />
                         </td>
                       );
                     }
@@ -18488,17 +18520,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           {getFormationDisplayName(s)}
                         </span>
                         {(s.sq || s.squadron) && <span style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', flexShrink: 0 }}>{s.sq || s.squadron}</span>}
+                        <FormationCountBadge strip={s} lightMode={lightMode} textColor={T.text} />
                       </div>
                       <span style={{ fontSize: '10px', color: T.muted, whiteSpace: 'nowrap', flexShrink: 0 }}>{s.task}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '3px' }}>
                       <div>
-                        {tkLabel && (
-                          <span style={{ fontSize: '10px', color: tkPast ? 'white' : (lightMode ? '#475569' : '#64748b'), background: tkPast ? '#ef4444' : (lightMode ? '#e2e8f0' : '#0f172a'), padding: '1px 5px', borderRadius: '3px', fontWeight: tkPast ? 'bold' : 'normal', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                            {tkPast && <span style={{ width: '5px', height: '5px', background: 'white', borderRadius: '50%', display: 'inline-block' }} />}
-                            🕐 {tkLabel}
-                          </span>
-                        )}
+                        <TakeoffBadge takeoff={s.takeoff_time} airborne={!!s.airborne} label={tkLabel} lightMode={lightMode} />
                       </div>
                       <StripCardLocation info={stripCardLocation(isFlightZonesMode ? stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === parseInt(String(s.id).replace(/^s/, ''), 10)) : null, s.alt)} text={T.text} muted={T.muted} border={lightMode ? '#cbd5e1' : '#334155'} bgAlt={T.bgAlt} />
                     </div>

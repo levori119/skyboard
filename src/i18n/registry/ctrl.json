@@ -2777,6 +2777,26 @@
     "altRecSkip": {
       "he": "דלג",
       "en": "Skip"
+    },
+    "altRecSpace": {
+      "he": "מרחב:",
+      "en": "Space:"
+    },
+    "altRecSpaceNone": {
+      "he": "ללא מרחב (כל הבלוקים)",
+      "en": "No space (all blocks)"
+    },
+    "aircraftCount": {
+      "he": "{{count}} מטוסים",
+      "en": "{{count}} aircraft"
+    },
+    "takeoffNow": {
+      "he": "זמן ההמראה הגיע - עדיין לא באוויר",
+      "en": "Takeoff time reached - not airborne yet"
+    },
+    "takeoffSoon": {
+      "he": "ממריא בעוד 10 דקות או פחות",
+      "en": "Takes off within 10 minutes"
     }
   }
 }
