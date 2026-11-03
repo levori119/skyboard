@@ -2813,6 +2813,14 @@
     "mdWindowNotFz": {
       "he": "חלון המפה הזה אינו במצב אזורי טיסה - הפ\"מ לא שובץ. הפעל \"מצב אזורי טיסה\" לחלון בהגדרות העמדה",
       "en": "This map window is not in flight-zones mode - the strip was not placed. Enable \"flight zones mode\" for the window in the station settings"
+    },
+    "pinFitZone": {
+      "he": "התאם תצוגת פ\"מ לגודל אזור",
+      "en": "Fit strip label to zone size"
+    },
+    "pinFitZoneHint": {
+      "he": "הכתב של פ\"מ על המפה נגזר מגודל האזור שלו - לא חורג מהאזור ולא קטן מדי",
+      "en": "A strip label on the map is sized by its zone - it neither overflows the zone nor gets too small"
     }
   }
 }

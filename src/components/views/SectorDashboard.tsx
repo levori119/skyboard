@@ -86,6 +86,7 @@ import { blockAltFeet, type WatchZone as ZoneWatchZone, type WatchAssignment as 
 /** הפניה קבועה - מערך ריק חדש בכל רינדור היה מפיל memo של צרכני ההדגשה. */
 const EMPTY_ZW_OFFENDERS: ZoneWatchOffender[] = [];
 import { unionZones } from '../../utils/zoneUnion';
+import { pinFontForZone } from '../../utils/pinFitZone';
 import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
 import { useDragPosition } from '../../hooks/useDragPosition';
 import usePinchZoom from '../../hooks/usePinchZoom';
@@ -1577,6 +1578,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [tableRowOrder, setTableRowOrder] = useState<string[]>([]);
   const [tableSortBySector, setTableSortBySector] = useState(false);
   const [tableFontSize, setTableFontSize] = useState(13);
+  // "התאם תצוגת פ"מ לגודל אזור" - הכתב של פין נגזר מגודל האזור שלו (pinFitZone.ts)
+  const [pinFitZone, setPinFitZoneState] = useState<boolean>(() => {
+    try { return localStorage.getItem(`skyking.pinFitZone_${session.presetId ?? 'none'}`) === '1'; } catch { return false; }
+  });
+  const setPinFitZone = (v: boolean) => {
+    setPinFitZoneState(v);
+    try { localStorage.setItem(`skyking.pinFitZone_${session.presetId ?? 'none'}`, v ? '1' : '0'); } catch { /* מצב פרטי */ }
+  };
   // סרגל פקדי האזורים בתחתית המפה - ממוזער/פתוח, נשמר פר-עמדה
   const [mapBarCollapsed, setMapBarCollapsedState] = useState<boolean>(() => {
     try { return localStorage.getItem(`skyking.mapBottomBar.collapsed_${session.presetId ?? 'none'}`) === '1'; } catch { return false; }
@@ -9636,6 +9645,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const setFzPinFontSize = _isMdPanel
               ? (fn: (n: number) => number) => setMdLayerPrefs(prev => ({ ...prev, [_panKey]: { ...prev[_panKey], pinFont: fn(prev[_panKey]?.pinFont ?? fzPinFontSizeMain) } }))
               : setFzPinFontSizeMain;
+            const fzPinFontSizePanel = fzPinFontSize;
             const updateAirPicturePrefs = _isMdPanel
               ? (p: AirPicturePrefs) => setMdLayerPrefs(prev => ({ ...prev, [_panKey]: { ...prev[_panKey], air: p } }))
               : updateAirPicturePrefsMain;
@@ -11013,6 +11023,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
               // Fallback to zone polygon centroid when pos not yet set (skip if no zone)
               const zoneData = a.zone_id != null ? mapZones.find((z: any) => z.id === a.zone_id) : null;
+              // מצב "התאם לגודל אזור": הכתב של הפין הזה לפי גודל האזור שלו על המסך
+              const _fitPx = pinFitZone && zoneData
+                ? pinFontForZone(zoneData.polygon, mapImgBounds.width, mapImgBounds.height, mapZoom,
+                    String((strip as any)?.callSign || '').length + String((strip as any)?.sq || (strip as any)?.squadron || '').length + 4)
+                : null;
+              const fzPinFontSize = _fitPx ?? fzPinFontSizePanel;
               const poly = zoneData?.polygon || [];
               const cx50 = poly.length > 0 ? poly.reduce((s: number, p: any) => s + p.x, 0) / poly.length : 50;
               const cy50 = poly.length > 0 ? poly.reduce((s: number, p: any) => s + p.y, 0) / poly.length : 50;
@@ -12938,6 +12954,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <span style={{ fontSize: '10px', color: menuMuted }}>{airfieldElements.filter((e: any) => e.camera_url).length} {tr('shared.cameras')}</span>
                     </div>
                   )}
+                  {/* התאם תצוגת פ"מ לגודל אזור - רק בעמדה שיש בה מפה */}
+                  {(!!currentMapId || mdMapWindows.length > 0) && <div
+                    data-testid="view-menu-pin-fit-zone"
+                    onClick={() => { setPinFitZone(!pinFitZone); setShowViewMenu(false); }}
+                    title={tr('ctrl.pinFitZoneHint')}
+                    style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: pinFitZone ? '#93c5fd' : '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #1e3a5f' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
+                    onMouseLeave={e => (e.currentTarget.style.background = '')}
+                  >
+                    <span>📐 {tr('ctrl.pinFitZone')}</span>
+                    <span style={{ fontSize: '10px', color: pinFitZone ? '#60a5fa' : '#94a3b8' }}>{pinFitZone ? '✓' : ''}</span>
+                  </div>}
                   {/* FLOW פ"מים - בכל עמדה */}
                   {show('stripFlow') && <div
                     data-testid="view-menu-strip-flow"
