@@ -1565,6 +1565,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [tableRowOrder, setTableRowOrder] = useState<string[]>([]);
   const [tableSortBySector, setTableSortBySector] = useState(false);
   const [tableFontSize, setTableFontSize] = useState(13);
+  // סרגל פקדי האזורים בתחתית המפה - ממוזער/פתוח, נשמר פר-עמדה
+  const [mapBarCollapsed, setMapBarCollapsedState] = useState<boolean>(() => {
+    try { return localStorage.getItem(`skyking.mapBottomBar.collapsed_${session.presetId ?? 'none'}`) === '1'; } catch { return false; }
+  });
+  const setMapBarCollapsed = (v: boolean) => {
+    setMapBarCollapsedState(v);
+    try { localStorage.setItem(`skyking.mapBottomBar.collapsed_${session.presetId ?? 'none'}`, v ? '1' : '0'); } catch { /* מצב פרטי */ }
+  };
   // גודל פונט בתוך מוד הטבלה, יחסית לברירת המחדל (13). כפתורי A/A משנים את
   // tableFontSize, וכל טקסט בטבלה - כולל טבלאות הבן, הכותרות והכפתורים בתאים -
   // נגזר ממנו. גודל קבוע בפיקסלים היה נשאר כמו שהוא כשהפקח מגדיל.
@@ -9428,6 +9436,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // המיקום זהה למה שהיה.
   const renderMapBottomBar = (cfg: MapPanelCfg) => {
     if (!cfg.fzMode) return null;
+    // ממוזער: נשאר רק המונה ומשולש לפתיחה - הסרגל לא מכסה את תחתית המפה
+    if (mapBarCollapsed) return (
+      <button data-map-bottom-bar="" data-collapsed="1" onClick={() => setMapBarCollapsed(false)} title={tr('ctrl.expandPanel')} aria-label={tr('ctrl.expandPanel')}
+        style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', background: 'rgba(15,23,42,0.92)', border: '1px solid #1e3a5f', borderRadius: '8px', padding: '2px 10px', zIndex: 510, fontSize: '11px', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'inherit' }}>
+        <span>▲</span>
+        <span>✈️ {cfg.assignments.length} / {myTableStrips.filter((s: any) => s.status !== 'pending_transfer').length}</span>
+      </button>
+    );
     const mapZones = cfg.zones;
     const stripZoneAssignments = cfg.assignments;
     const fzShowZones = cfg.view.showZones, setFzShowZones = cfg.view.setShowZones;
@@ -9440,6 +9456,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const fzZoneColorPanel = cfg.view.zoneColorPanel, setFzZoneColorPanel = cfg.view.setZoneColorPanel;
     return (
             <div data-map-bottom-bar="" style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', background: 'rgba(15,23,42,0.92)', border: '1px solid #1e3a5f', borderRadius: '8px', padding: '4px 14px', zIndex: 510, fontSize: '11px', color: '#64748b', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px 10px', flexWrap: 'wrap', maxWidth: 'calc(100% - 16px)', boxShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>
+              <button onClick={() => setMapBarCollapsed(true)} title={tr('ctrl.collapsePanel')} aria-label={tr('ctrl.collapsePanel')} data-testid="map-bar-collapse"
+                style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '0 2px', fontSize: '11px', lineHeight: 1 }}>▼</button>
               <span>✈️ {stripZoneAssignments.length} / {myTableStrips.filter((s: any) => s.status !== 'pending_transfer').length}</span>
               {/* הסרגל מחזיק **רק** פקדי אזורים. האזורים מוצגים תמיד (אין עוד מתג
                   הצג/הסתר), ופקדי הפ"מ - צבע, קווים, הבהוב, מצב אזורי מפה - ירדו

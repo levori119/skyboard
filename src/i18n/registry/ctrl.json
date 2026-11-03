@@ -2805,6 +2805,10 @@
     "fzAirHintNoBlock": {
       "he": "אין בלוק מתאים",
       "en": "no matching block"
+    },
+    "expandPanel": {
+      "he": "פתח",
+      "en": "Expand"
     }
   }
 }
