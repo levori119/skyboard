@@ -3912,6 +3912,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       }
     }
     const _ctx = dmContextAtPoint(e.clientX, e.clientY); // resolve which map the pointer is over
+    if (mdBlockNonFzDrop(_ctx.panKey)) return;
     const rect = _ctx.rect || (e.currentTarget as HTMLDivElement).getBoundingClientRect();
     const dropX = e.clientX - rect.left;
     const dropY = e.clientY - rect.top;
@@ -5714,6 +5715,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     if (isMissionDeskMode) {
       setMdSlots(prev => Object.fromEntries(Object.entries(prev).map(([k, sl]) => [k, sl.assignments?.length ? { ...sl, assignments: f(sl.assignments) } : sl])) as typeof prev);
     }
+  };
+  /**
+   * דסק משימה: שחרור פ"מ על חלון מפה שאינו במצב אזורי טיסה. השיוך היה נשמר
+   * (האזורים מזוהים גם שם), אבל חלון כזה לא מצייר פינים - והפ"מ "נעלם" משני
+   * החלונות. עדיף לעצור ולהגיד למה. מחזיר true כשנחסם.
+   */
+  const mdBlockNonFzDrop = (panKey: string | null | undefined): boolean => {
+    if (!isMissionDeskMode || !panKey) return false;
+    const w = mdMapWindows.find(x => x.key === panKey);
+    if (!w || w.settings.flight_zones_mode) return false;
+    flashFz(tr('ctrl.mdWindowNotFz'));
+    return true;
   };
   const fzAssignmentsAll = (): StripZoneAssignment[] =>
     isMissionDeskMode ? Object.values(mdSlots).flatMap(sl => sl.assignments || []) : stripZoneAssignments;
@@ -7638,7 +7651,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const fzPairApplyOnMap = (clientX: number, clientY: number) => {
     const sel = fzPairSelRef.current;
     if (!sel) return;
+    setFzPairSel(null);
+    fzPlaceAtClient(sel, clientX, clientY);
+  };
+  /**
+   * הצבת פ"מ במפה בנקודת מסך: האזור שתחת הנקודה (גם בקו), ובלי אזור - פין
+   * בלי אזור. משותף לשידוך בלחיצה ולקבלת העברה בגרירה למפה במצב אזורי טיסה.
+   */
+  const fzPlaceAtClient = (sel: { id: number; isPin: boolean; label: string | null }, clientX: number, clientY: number) => {
     const ctx = dmContextAtPoint(clientX, clientY);
+    if (mdBlockNonFzDrop(ctx.panKey)) return;
     const rect = ctx.rect;
     if (!rect || !ctx.mapId) return;
     const cx = rect.width / 2, cy = rect.height / 2;
@@ -7650,9 +7672,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     if (ib && (px < 0 || px > 100 || py < 0 || py > 100)) return; // מחוץ לתמונת המפה - מתעלמים, הבחירה נשמרת
     // בלחיצה (בשונה מגרירה) גם פגיעה **בקו** של הפוליגון נחשבת לאזור
     const zone = zoneAtPointOrEdge(px, py, ctx.zones);
-    const existing = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === sel.id);
+    const existing = fzAssignmentsAll().find((a: StripZoneAssignment) => a.strip_id === sel.id);
     const label = sel.label || fzStripLabel(sel.id);
-    setFzPairSel(null);
     if (!zone) {
       // אין אזור בנקודה - זהה לגרירה: פין קיים נשאר במקומו, פ"מ מהסרגל מוצב בלי אזור
       if (sel.isPin) { flashFz(`${tr('ctrl.pairNoZone')} ${label}`); return; }
@@ -8523,8 +8544,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
   };
 
-  const handleAcceptToMap = async (transferId: string, x: number, y: number) => {
+  const handleAcceptToMap = async (transferId: string, x: number, y: number, clientX?: number, clientY?: number) => {
     const t = incomingTransfers.find((x: any) => String(x.id) === String(transferId));
+    // מצב אזורי טיסה (במפה הראשית או בחלון הדסק שתחת השחרור): פ"מ מוצג במפה רק
+    // דרך שיוך לאזור. "קבל למפה" הישן הציב אותו בקואורדינטות חופשיות שאינן
+    // מוצגות - הפ"מ "נעלם". כאן: קבלה רגילה לעמדה, ואז שיבוץ באזור שבנקודה.
+    if (clientX != null && clientY != null && t?.strip_id) {
+      const ctx = dmContextAtPoint(clientX, clientY);
+      const fzHere = isMissionDeskMode
+        ? !!mdMapWindows.find(w => w.key === ctx.panKey)?.settings.flight_zones_mode
+        : isFlightZonesMode;
+      if (fzHere && ctx.rect) {
+        const acceptedId = await handleAcceptTransfer(transferId);
+        const sid = Number(String(acceptedId ?? t.strip_id).replace(/^s/, ''));
+        if (Number.isFinite(sid)) fzPlaceAtClient({ id: sid, isPin: false, label: t.callsign || t.callSign || null }, clientX, clientY);
+        return;
+      }
+    }
     let geoCoords: { map_lat: number; map_lon: number } | Record<string, never> = {};
     const ib = mapImgBoundsRef.current;
     if (mapGeoAnchor && ib) {
@@ -9317,6 +9353,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     }
                     // בדסק: חלון המפה שמתחת למצביע (יכולים להיות כמה), לא המפה הראשית
                     const _dropCtx = isMissionDeskMode ? dmContextAtPoint(e.clientX, e.clientY) : null;
+                    if (_dropCtx && mdBlockNonFzDrop(_dropCtx.panKey)) return;
                     const overlayEl = _dropCtx ? null : fzOverlayRef.current;
                     if (_dropCtx ? (!_dropCtx.rect || _dropCtx.mapId == null) : (!overlayEl || !currentMapId)) return;
                     const rect = _dropCtx ? _dropCtx.rect! : overlayEl!.getBoundingClientRect();
@@ -9540,6 +9577,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   /** באיזו מפה פתוח כל פאנל של כלי משותף - ראה utils/mapToolFlyout. */
   const [mapFlyoutOwners, setMapFlyoutOwners] = useState<MapFlyoutOwners>({});
 
+  // ── דסק משימה: שכבות המפה פר-חלון ─────────────────────────────────────
+  // בדסק עם כמה מפות, מז"א ותמונ"א נדלקים ונכבים **לכל חלון לחוד**: כל מפה
+  // משמשת למשהו אחר, ושכבה שנדלקה במפה אחת לא אמורה לכסות את השנייה. חלון
+  // מתחיל מההגדרה הכללית של העמדה ומשם מתנהל בעצמו. בעמדה רגילה - כמו קודם.
+  const weatherPrefsMain = weatherPrefs, updateWeatherPrefsMain = updateWeatherPrefs;
+  const airPicturePrefsMain = airPicturePrefs, updateAirPicturePrefsMain = updateAirPicturePrefs;
+  const fzPinModeOverrideMain = fzPinModeOverride, setFzPinModeOverrideMain = setFzPinModeOverride;
+  const fzPinFontSizeMain = fzPinFontSize, setFzPinFontSizeMain = setFzPinFontSize;
   const renderMapPanel = (cfg: MapPanelCfg) => {
             const dmMap1Region = cfg.region;
             const toolbarSlot: 'main' | 'secondary' = cfg.secondary ? 'secondary' : 'main';
@@ -9576,6 +9621,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const canvasRef = cfg.canvasRef;
             // חלון מפה בדסק: מרחב התוכן של הצורות הוא הקנבס של החלון ולא #map-area
             const _isMdPanel = _panKey.startsWith('md-');
+            const _layers = _isMdPanel ? mdLayerPrefs[_panKey] : undefined;
+            const weatherPrefs = _layers?.weather ?? weatherPrefsMain;
+            const updateWeatherPrefs = _isMdPanel
+              ? (p: WeatherPrefs) => setMdLayerPrefs(prev => ({ ...prev, [_panKey]: { ...prev[_panKey], weather: p } }))
+              : updateWeatherPrefsMain;
+            const airPicturePrefs = _layers?.air ?? airPicturePrefsMain;
+            // תצוגת הפ"מ וגודל הכתב - גם הם של החלון בדסק
+            const fzPinModeOverride = _isMdPanel ? (_layers?.pin ?? null) : fzPinModeOverrideMain;
+            const setFzPinModeOverride = _isMdPanel
+              ? (v: string | null) => setMdLayerPrefs(prev => ({ ...prev, [_panKey]: { ...prev[_panKey], pin: v } }))
+              : setFzPinModeOverrideMain;
+            const fzPinFontSize = _isMdPanel ? (_layers?.pinFont ?? fzPinFontSizeMain) : fzPinFontSizeMain;
+            const setFzPinFontSize = _isMdPanel
+              ? (fn: (n: number) => number) => setMdLayerPrefs(prev => ({ ...prev, [_panKey]: { ...prev[_panKey], pinFont: fn(prev[_panKey]?.pinFont ?? fzPinFontSizeMain) } }))
+              : setFzPinFontSizeMain;
+            const updateAirPicturePrefs = _isMdPanel
+              ? (p: AirPicturePrefs) => setMdLayerPrefs(prev => ({ ...prev, [_panKey]: { ...prev[_panKey], air: p } }))
+              : updateAirPicturePrefsMain;
             const mapAreaSize = _isMdPanel ? (mdCanvasSize[_panKey] || { w: 0, h: 0 }) : mainMapAreaSize;
             // המחק על צורה (עיגול / מלבן / פוליגון) מוחק אותה **כולה** - צורה היא
             // אובייקט ולא פיקסלים. הנקודה מומרת למרחב **התוכן**, שבו חיות הצורות,
@@ -9877,7 +9940,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 data-weather-toggle=""
                 data-weather-on={weatherPrefs.on ? '1' : '0'}
                 onClick={() => updateWeatherPrefs({ ...weatherPrefs, on: !weatherPrefs.on })}
-                title={tr('weather.showWeather')}
+                // שכבת המז"א נשענת על עיגון המפה: בלי עיגון היא לא תוצג, ולכן הכפתור אומר למה
+                title={mapGeoAnchor ? tr('weather.showWeather') : tr('weather.noAnchor')}
                 style={{ position: 'relative', width: MAP_TOOL_BTN, height: 32, background: weatherPrefs.on ? '#075985' : '#334155', color: weatherPrefs.on ? '#e0f2fe' : '#7dd3fc', border: 'none', borderRadius: '3px 3px 0 0', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: 0 }}>
                 🌦
                 {weatherPrefs.on && (
@@ -9997,7 +10061,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <div style={{ position: 'absolute', left: MAP_TOOL_CELL_W + 6, top: 0, zIndex: 300, background: 'rgba(15,23,42,0.98)', border: '1px solid #334155', borderRadius: '8px', padding: '8px', boxShadow: '0 6px 24px rgba(0,0,0,0.7)', direction: dir, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', width: 'max-content' }}>
                       <div style={{ gridColumn: '1 / -1', fontSize: '10px', color: '#94a3b8', fontWeight: 'bold' }}>{tr('ctrl.formationDisplay')}</div>
                       {tiles.map(t => {
-                        const active = fzPinDisplay === t.mode;
+                        const active = (_isMdPanel ? _basePin : fzPinDisplay) === t.mode;
                         return (
                           <button key={t.mode} onClick={() => setFzPinModeOverride(t.mode)} title={t.label}
                             style={{ width: 84, height: 66, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', padding: '4px', borderRadius: '6px', border: `2px solid ${active ? '#60a5fa' : '#334155'}`, background: active ? '#0c2340' : '#1e293b', cursor: 'pointer', touchAction: 'manipulation' }}>
@@ -11479,6 +11543,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // המפתח הוא מזהה **השירות** ולא מזהה המפה: שני חלונות בדסק יכולים להציג את
   // אותה מפה, ואז הזום, ההזזה והסקטור הנבחר חייבים להיות נפרדים לכל חלון.
   const [mdSlots, setMdSlots] = useState<Record<string, MDMapSlotState>>({});
+  /** שכבות פר-חלון בדסק (מז"א, תמונ"א) - ראה renderMapPanel. חסר = ההגדרה הכללית */
+  const [mdLayerPrefs, setMdLayerPrefs] = useState<Record<string, { weather?: WeatherPrefs; air?: AirPicturePrefs; pin?: string | null; pinFont?: number }>>({});
   const [mdFixedTPoints, setMdFixedTPoints] = useState<Record<string, any[]>>({});
   const mdRegionObservers = useRef<Record<string, ResizeObserver>>({});
   useEffect(() => () => { Object.values(mdRegionObservers.current).forEach(o => o.disconnect()); }, []);
@@ -11732,7 +11798,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       transferSectors: mdSectorPool.filter((s: any) => w.settings.transfer_points.includes(Number(s.id))),
       inMapTransfers: true,
       fzMode: w.settings.flight_zones_mode === true,
-      pinDisplay: fzPinModeOverride ?? (w.settings.fz_pin_display || 'handwrite'),
+      pinDisplay: (mdLayerPrefs[w.key]?.pin ?? null) ?? (w.settings.fz_pin_display || 'handwrite'),
       view: mdViewFor(w.key),
       sectors: sectorsForMap(w.mapId, w.settings.sector_maps_enabled === true, w.settings.sector_map_ids),
     };

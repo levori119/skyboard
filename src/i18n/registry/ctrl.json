@@ -2809,6 +2809,10 @@
     "expandPanel": {
       "he": "פתח",
       "en": "Expand"
+    },
+    "mdWindowNotFz": {
+      "he": "חלון המפה הזה אינו במצב אזורי טיסה - הפ\"מ לא שובץ. הפעל \"מצב אזורי טיסה\" לחלון בהגדרות העמדה",
+      "en": "This map window is not in flight-zones mode - the strip was not placed. Enable \"flight zones mode\" for the window in the station settings"
     }
   }
 }

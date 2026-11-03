@@ -54,7 +54,8 @@ export const DraggableNeighborPanel = ({
   onRejectTransfer: (id: string, note: string) => void;
   onAcknowledgeTransfer?: (id: string) => void;
   onDismissTransfer?: (id: string) => void;
-  onAcceptToMap: (id: string, x: number, y: number) => void;
+  /** clientX/Y - נקודת השחרור במסך, כדי שהעמדה תדע על איזה חלון מפה ואזור שוחרר */
+  onAcceptToMap: (id: string, x: number, y: number, clientX?: number, clientY?: number) => void;
   dragStripId?: string | null;
   // aircraftIdx מגיע רק כשגוררים מטוס בודד (עמדת שדה); פ"מ שלם → undefined
   onStripDrop?: (stripId: string, sectorId: number, aircraftIdx?: number) => void;
@@ -646,7 +647,8 @@ export const DraggableIncomingTransferMini = ({
   transfer: any;
   onAccept: (id: string) => void;
   onReject: (id: string) => void;
-  onAcceptToMap: (id: string, x: number, y: number) => void;
+  /** clientX/Y - נקודת השחרור במסך, כדי שהעמדה תדע על איזה חלון מפה ואזור שוחרר */
+  onAcceptToMap: (id: string, x: number, y: number, clientX?: number, clientY?: number) => void;
   isConflict?: boolean;
   isAltViolation?: boolean;
   onUpdateStripField?: (stripId: string, field: string, value: string) => void;
@@ -717,7 +719,7 @@ export const DraggableIncomingTransferMini = ({
           const { rawX, rawY } = screenToMapCoords(clientX, clientY, rect);
           const x = Math.max(100, Math.min(rect.width - 100, rawX));
           const y = Math.max(40, Math.min(rect.height - 50, rawY));
-          onAcceptToMap(transfer.id, x, y);
+          onAcceptToMap(transfer.id, x, y, clientX, clientY);
         }
       }
     };
@@ -1492,7 +1494,8 @@ export const DraggableIncomingTransfer = ({ transfer, onAccept, onReject, onAcce
   transfer: any; 
   onAccept: (id: string) => void; 
   onReject: (id: string) => void;
-  onAcceptToMap: (id: string, x: number, y: number) => void;
+  /** clientX/Y - נקודת השחרור במסך, כדי שהעמדה תדע על איזה חלון מפה ואזור שוחרר */
+  onAcceptToMap: (id: string, x: number, y: number, clientX?: number, clientY?: number) => void;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
@@ -1540,7 +1543,7 @@ export const DraggableIncomingTransfer = ({ transfer, onAccept, onReject, onAcce
             dropY >= mapRect.top && dropY <= mapRect.bottom) {
           const x = dropX - mapRect.left;
           const y = dropY - mapRect.top;
-          onAcceptToMap(transfer.id, x, y);
+          onAcceptToMap(transfer.id, x, y, dropX, dropY);
         }
       }
     };
