@@ -2,6 +2,46 @@
   "_group": "ניהול מערכת",
   "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
   "keys": {
+    "autoSpaceTitle": {
+      "he": "חלוקה למרחבי בלוקים לפי מיקום המטרה",
+      "en": "Split into block spaces by target location"
+    },
+    "autoSpaceOn": {
+      "he": "פעיל - שיוך אוטומטי לפי המטרה",
+      "en": "On - assign by target"
+    },
+    "autoSpaceOff": {
+      "he": "כבוי",
+      "en": "Off"
+    },
+    "autoSpaceHint": {
+      "he": "במוד טבלה: פ\"מ בלי מרחב משויך למרחב שמרכזו הכי קרוב לנ\"צ המטרה הראשונה לביצוע, והלוח מקובץ לפי מרחב. שיוך ידני לא נדרס. דורש מרחבים עם מיקום על המפה.",
+      "en": "Table mode: a strip without a space is assigned to the space whose center is nearest the first-to-execute target, and the board is grouped by space. Manual choices are kept. Requires spaces located on the map."
+    },
+    "bsMapZones": {
+      "he": "מיקום על המפה (לחלוקה לפי מטרה)",
+      "en": "Location on map (for target-based split)"
+    },
+    "bsMapSelect": {
+      "he": "בחר מפה מעוגנת",
+      "en": "Select an anchored map"
+    },
+    "bsNoAnchoredMaps": {
+      "he": "אין מפות מעוגנות",
+      "en": "No anchored maps"
+    },
+    "bsZoneNoGeo": {
+      "he": "בלי נ\"צ",
+      "en": "no coordinates"
+    },
+    "bsZonesHint": {
+      "he": "מרכז האזורים שנבחרו הוא מרכז המרחב. בעמדה, הפ\"מ משויך למרחב שמרכזו הכי קרוב למטרה.",
+      "en": "The center of the selected zones is the space center. At the station, a strip goes to the space whose center is nearest its target."
+    },
+    "bsHasLocation": {
+      "he": "למרחב יש מיקום על המפה",
+      "en": "Space has a map location"
+    },
     "seizePerm": {
       "he": "הלאמת אזור זמני",
       "en": "Temporary zone seizure"

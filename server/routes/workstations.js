@@ -120,6 +120,16 @@ router.get('/api/workstation-presets/:id/config', async (req, res) => {
   }
 });
 
+// "חלוקה למרחבי בלוקים לפי מיקום המטרה" - נשמר בעדכון נפרד, רק כשהשדה נשלח,
+// כדי לא להוסיף עוד פרמטר מיקומי לשאילתא של 73 פרמטרים
+async function saveAutoBlockSpace(row, body) {
+  if (!row || body?.auto_block_space_by_target === undefined) return row;
+  const r = await pool.query(
+    'UPDATE workstation_presets SET auto_block_space_by_target = $1 WHERE id = $2 RETURNING *',
+    [body.auto_block_space_by_target === true, row.id]);
+  return r.rows[0] || row;
+}
+
 router.post('/api/workstation-presets', async (req, res) => {
   try {
     const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, conflict_alt_rules, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role, parent_base_id, can_update_pressure, datk_show_minutes, show_dashboard, can_update_mazaa, civilian_columns, use_map_zones, civilian_board_bg, dual_map_mode, map2_id, dual_map_layout, dual_map_split, suggest_alt_range, show_full_picture, blind_map_default, can_update_atis, can_update_notam, mazaa_update_base_id, fz_pin_display, mission_desk_id, mission_desk_sharing, mission_desk_map_config, mission_desk_view_tables, sector_maps_enabled, sector_map_ids, map2_sector_maps_enabled, map2_sector_map_ids, data_windows, show_data_windows, show_window_container, window_container_position, can_seize_zone, can_add_vehicle, air_picture_enabled, air_picture_defaults, zone_watch_settings, civilian_strip_table_id, load_relevant, alt_armament_rules } = req.body;
@@ -133,7 +143,8 @@ router.post('/api/workstation-presets', async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63, $64, $65) RETURNING *`,
       [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, JSON.stringify(conflict_alt_rules || []), relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, vertical_time_based !== false, display_mode || 'complex', classic_strip_table_id || null, classic_strip_table_id_night || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || []), preset_type || 'standard', airfield_id || null, JSON.stringify(legacyUnion), JSON.stringify(incomingIds || []), JSON.stringify(outgoingIds || []), show_serials !== false, allow_view_switching !== false, show_base_statuses === true, JSON.stringify(base_status_ids || []), preset_role || null, parent_base_id || null, can_update_pressure === true, datk_show_minutes != null ? parseInt(datk_show_minutes) : null, show_dashboard === true, can_update_mazaa === true, JSON.stringify(civilian_columns || []), use_map_zones === true, civilian_board_bg || '', dual_map_mode === true, map2_id || null, dual_map_layout || 'side-by-side', dual_map_split ?? 50, suggest_alt_range === true, show_full_picture === true, blind_map_default === true, can_update_atis === true, can_update_notam === true, mazaa_update_base_id || null, fz_pin_display || 'handwrite', mission_desk_id ? Number(mission_desk_id) : null, JSON.stringify(mission_desk_sharing || {}), sector_maps_enabled === true, JSON.stringify(sector_map_ids || []), map2_sector_maps_enabled === true, JSON.stringify(map2_sector_map_ids || []), JSON.stringify(Array.isArray(data_windows) ? data_windows : []), can_add_vehicle === true, air_picture_enabled === true, JSON.stringify(air_picture_defaults && typeof air_picture_defaults === 'object' ? air_picture_defaults : {}), show_data_windows === true, civilian_strip_table_id || null, JSON.stringify(zone_watch_settings && typeof zone_watch_settings === 'object' ? zone_watch_settings : {}), JSON.stringify(mission_desk_map_config && typeof mission_desk_map_config === 'object' ? mission_desk_map_config : {}), show_window_container === true, can_seize_zone === true, window_container_position || 'beforeAids', JSON.stringify(mission_desk_view_tables && typeof mission_desk_view_tables === 'object' ? mission_desk_view_tables : {}), load_relevant !== false, JSON.stringify(Array.isArray(alt_armament_rules) ? alt_armament_rules : [])]
     );
-    const row = result.rows[0];
+    let row = result.rows[0];
+    row = await saveAutoBlockSpace(row, req.body);
     await mirrorClassicPartnerLinks(row.id, incomingIds, outgoingIds);
     await mirrorMissionDeskSharing(row.id, mission_desk_sharing);
     res.json({ ...row, relevant_sectors: Array.isArray(row.relevant_sectors) ? row.relevant_sectors : JSON.parse(row.relevant_sectors || '[]') });
@@ -156,7 +167,8 @@ router.put('/api/workstation-presets/:id', async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Preset not found' });
     }
-    const row = result.rows[0];
+    let row = result.rows[0];
+    row = await saveAutoBlockSpace(row, req.body);
     await mirrorClassicPartnerLinks(row.id, incomingIds, outgoingIds);
     await mirrorMissionDeskSharing(row.id, mission_desk_sharing);
     res.json({ ...row, relevant_sectors: Array.isArray(row.relevant_sectors) ? row.relevant_sectors : JSON.parse(row.relevant_sectors || '[]') });

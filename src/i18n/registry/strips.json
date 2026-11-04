@@ -2,6 +2,10 @@
   "_group": "פ\"מ / סטריפים",
   "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
   "keys": {
+    "aimFirstExec": {
+      "he": "ראשונה לביצוע",
+      "en": "First to execute"
+    },
     "acceptLatestSerial": {
       "he": "✅ קבל ספרור עדכני",
       "en": "✅ Accept latest serial"

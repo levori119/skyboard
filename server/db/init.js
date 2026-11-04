@@ -1078,6 +1078,10 @@ async function applySchemaOnce() {
   await sq(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS parent_base_id INTEGER`);
   await sq(`ALTER TABLE aid_groups ADD COLUMN IF NOT EXISTS parent_base_id INTEGER`);
   await sq(`ALTER TABLE block_spaces ADD COLUMN IF NOT EXISTS parent_base_id INTEGER`);
+  // מיקום המרחב על מפה מעוגנת: קישור לאזורים קיימים. מרכזם = מרכז המרחב, וממנו
+  // נבחר המרחב הקרוב למטרה בחלוקה האוטומטית (shared/blockSpaceGeo.js)
+  await sq(`ALTER TABLE block_spaces ADD COLUMN IF NOT EXISTS map_id INTEGER`);
+  await sq(`ALTER TABLE block_spaces ADD COLUMN IF NOT EXISTS zone_ids JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE block_tables ADD COLUMN IF NOT EXISTS parent_base_id INTEGER`);
 
   await sq(`ALTER TABLE base_statuses ADD COLUMN IF NOT EXISTS pressure_inhg FLOAT`);
@@ -1313,6 +1317,8 @@ async function applySchemaOnce() {
   // dual-map: transfer-point sectors shown on map 2 (map 1 uses relevant_sectors)
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS map2_transfer_points JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS suggest_alt_range BOOLEAN DEFAULT false`);
+  // מוד טבלה: פ"מ בלי מרחב משויך אוטומטית למרחב הבלוקים הקרוב למטרה שלו
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS auto_block_space_by_target BOOLEAN DEFAULT false`);
   // חוקי גובה לפי חימוש - בסיס להמלצת הגובה בכניסת פ"מ לעמדה (src/utils/altRecommend.ts).
   // [{armament, kind:'band'|'alt'|'range', band, alt_ft, min_ft, max_ft}], לפי סדר עדיפות
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS alt_armament_rules JSONB DEFAULT '[]'`);

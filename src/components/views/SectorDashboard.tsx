@@ -1,3 +1,4 @@
+import { recommendBlockSpaceId } from '../../utils/blockSpaceAuto';
 import { GROUP_HEADER_COLORS, groupHeaderStyle, loadGroupHeaderColor, saveGroupHeaderColor, type GroupHeaderColor } from '../../utils/groupHeaderPalette';
 import React, { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
@@ -5470,6 +5471,38 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         setSaveFailToast(tr('ctrl.saveFailedReverted', { callsign: target?.callSign || target?.callsign || '' }));
       });
   };
+
+  // ── חלוקה אוטומטית למרחבי בלוקים לפי מיקום המטרה (דגל עמדה) ─────────────────
+  // פ"מ על לוח הטבלה בלי מרחב → המרחב שמרכזו הכי קרוב למטרה "הראשונה לביצוע".
+  // פעם אחת לכל פ"מ: מרחב שהפקח שינה או ניקה ידנית לא נדרס. פ"מ בלי נ"צ מטרה
+  // נשאר ממתין, ומשויך ברגע שמוזן לו נ"צ.
+  const autoSpaceDoneRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!tableMode || myPresetConfig?.auto_block_space_by_target !== true) return;
+    const cands = (stationSplitSpaces.length > 0 ? stationSplitSpaces : presetBlockSpaces)
+      .filter((bs: any) => bs.center_lat != null && bs.center_lon != null);
+    if (!cands.length) return;
+    for (const s of myTableStrips) {
+      const k = String(s.id);
+      if (!tableOnBoard.has(s.id) || s.block_space_id || autoSpaceDoneRef.current.has(k)) continue;
+      const rec = recommendBlockSpaceId(s.targets, cands);
+      if (rec == null) continue;
+      autoSpaceDoneRef.current.add(k);
+      optimisticStripPut(k, { block_space_id: rec });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tableMode, myPresetConfig?.auto_block_space_by_target, myTableStrips, tableOnBoard, stationSplitSpaces, presetBlockSpaces]);
+  // ...והלוח מחולק למרחבים: קיבוץ לפי מרחב, פעם אחת כשהמנגנון פעיל ואין קיבוץ אחר
+  const autoSpaceGroupedRef = useRef(false);
+  useEffect(() => {
+    if (!tableMode || myPresetConfig?.auto_block_space_by_target !== true || autoSpaceGroupedRef.current) return;
+    autoSpaceGroupedRef.current = true;
+    if (tableGroupByKey) return;
+    setTableGroupByKey('block_space');
+    setTableGroupOrder([]);
+    setTableCollapsedGroups(new Set());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tableMode, myPresetConfig?.auto_block_space_by_target]);
 
   const putStripAlt = async (stripId: string, alt: string) => {
     const target = strips.find(st => String(st.id) === stripId);
@@ -17611,7 +17644,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   // בקריאה בלבד (העריכה בעורך המשותף).
                   const aimCol = AIM_POINT_COLUMN_BY_FIELD[colKey];
                   if (aimCol) {
-                    const vals = toAimPoints(s.targets).map(p => String(p[aimCol.key] || '').trim());
+                    const vals = toAimPoints(s.targets).map(p => aimFieldText(p, aimCol.key).trim());
                     const hasAny = vals.some(Boolean);
                     return (
                       <td key={col.key} style={{ padding: '10px 12px', verticalAlign: 'top', fontSize: tfz(12), direction: dir }}>
@@ -18224,6 +18257,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                     onClick={e => { e.stopPropagation(); setGrpPaletteOpen(v => !v); }}
                                     style={{ background: 'transparent', border: `1px solid ${gs.fg}55`, color: gs.fg, borderRadius: '4px', cursor: 'pointer', padding: '0 5px', fontSize: tfz(12), lineHeight: 1.4 }}
                                   >🎨</button>
+                                  <button
+                                    data-testid="grp-ungroup"
+                                    title={tr('ctrl.grpUngroup')}
+                                    onClick={e => { e.stopPropagation(); setTableGroupByKey(null); setTableGroupOrder([]); setTableCollapsedGroups(new Set()); }}
+                                    style={{ background: 'transparent', border: `1px solid ${gs.fg}55`, color: gs.fg, borderRadius: '4px', cursor: 'pointer', padding: '0 5px', fontSize: tfz(12), lineHeight: 1.4 }}
+                                  >✕</button>
                                   {grpPaletteOpen && GROUP_HEADER_COLORS.map(c => {
                                     const cs = groupHeaderStyle(c, themeMode);
                                     return (

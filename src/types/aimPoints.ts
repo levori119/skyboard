@@ -58,12 +58,18 @@ export interface AimPoint {
   abort_attack: boolean;
   /** מאומת קרקעי */
   ground_verified: boolean;
+
+  /**
+   * **ראשונה לביצוע** - המטרה שקובעת את מרחב הבלוקים בחלוקה האוטומטית
+   * (`utils/blockSpaceAuto.ts`). שורה אחת לכל היותר בפ"מ; בלי סימון - העליונה.
+   */
+  first_exec: boolean;
 }
 
 export type AimPointKind = 'text' | 'coord' | 'number' | 'armament' | 'flag';
 
 /** מפתחות הדגלים - הערך שלהם בוליאני ולא מחרוזת */
-export type AimPointFlagKey = 'air_verified' | 'cleared_heading' | 'abort_attack' | 'ground_verified';
+export type AimPointFlagKey = 'air_verified' | 'cleared_heading' | 'abort_attack' | 'ground_verified' | 'first_exec';
 
 export interface AimPointColumn {
   /** המפתח בתוך שורת ה-JSONB */
@@ -106,6 +112,8 @@ export const AIM_POINT_COLUMNS: AimPointColumn[] = [
   { key: 'cleared_heading', labelKey: 'strips.aimClearedHeading', label: 'רשאי לצאת כיוון', fieldKey: 'aim_cleared_heading', kind: 'flag', width: 88 },
   { key: 'abort_attack',    labelKey: 'strips.aimAbortAttack',    label: 'עצור תקיפה',      fieldKey: 'aim_abort_attack',    kind: 'flag', width: 76 },
   { key: 'ground_verified', labelKey: 'strips.aimGroundVerified', label: 'מאומת קרקעי',     fieldKey: 'aim_ground_verified', kind: 'flag', width: 72 },
+  // לא דגל אישור: קובע איזו מטרה מחלקת את הפ"מ למרחב בלוקים. שורה אחת בלבד
+  { key: 'first_exec',      labelKey: 'strips.aimFirstExec',      label: 'ראשונה לביצוע',   fieldKey: 'aim_first_exec',      kind: 'flag', width: 80 },
 ];
 
 /** מפתחות הדגלים, נגזרים מהקטלוג - אין רשימה שנייה שיכולה להתיישן */
@@ -127,6 +135,7 @@ export const EMPTY_AIM_POINT: AimPoint = {
   name: '', aim_point: '', coord: '', alt_ft: '', hd: '',
   an: '', an_min: '', fuze: '', note: '', armament: '', bombs: '',
   air_verified: false, cleared_heading: false, abort_attack: false, ground_verified: false,
+  first_exec: false,
 };
 
 /**
@@ -157,6 +166,7 @@ export function toAimPoint(raw: unknown): AimPoint {
     fuze: str(r.fuze), note: str(r.note), armament: str(r.armament), bombs: str(r.bombs),
     air_verified: toAimFlag(r.air_verified), cleared_heading: toAimFlag(r.cleared_heading),
     abort_attack: toAimFlag(r.abort_attack), ground_verified: toAimFlag(r.ground_verified),
+    first_exec: toAimFlag(r.first_exec),
   };
 }
 

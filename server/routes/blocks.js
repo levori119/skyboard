@@ -1,12 +1,45 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
+import { spaceCenter } from '../../shared/blockSpaceGeo.js';
+import { anchorFrom, pctToLatLon } from '../../shared/tripTracking.js';
 const router = new Router();
 
 // --- Block Spaces API ---
+const jsonArr = v => {
+  if (Array.isArray(v)) return v;
+  try { const p = JSON.parse(v || '[]'); return Array.isArray(p) ? p : []; } catch { return []; }
+};
+
+/**
+ * מרכז כל מרחב מהאזורים שקושרו אליו (center_lat/center_lon, null כשאין).
+ * הנ"צ של האזור מ-polygon_geo; אזור שנשמר רק באחוזי תמונה מומר דרך עוגן המפה.
+ */
+async function withCenters(spaces) {
+  const ids = [...new Set(spaces.flatMap(s => jsonArr(s.zone_ids).map(Number)).filter(Number.isFinite))];
+  if (!ids.length) return spaces.map(s => ({ ...s, center_lat: null, center_lon: null }));
+  const { rows } = await pool.query(
+    `SELECT z.id, z.polygon, z.polygon_geo, m.anchor1_x_img, m.anchor1_y_img, m.anchor1_lat, m.anchor1_lon,
+            m.anchor2_x_img, m.anchor2_y_img, m.anchor2_lat, m.anchor2_lon
+       FROM map_zones z LEFT JOIN maps m ON m.id = z.map_id
+      WHERE z.id = ANY($1::int[])`, [ids]);
+  const poly = new Map(rows.map(z => {
+    let geo = jsonArr(z.polygon_geo);
+    if (!geo.length) {
+      const a = anchorFrom(z);
+      geo = a ? jsonArr(z.polygon).map(p => pctToLatLon(Number(p.x), Number(p.y), a)).filter(Boolean) : [];
+    }
+    return [Number(z.id), geo];
+  }));
+  return spaces.map(s => {
+    const c = spaceCenter(jsonArr(s.zone_ids).map(id => poly.get(Number(id))).filter(Boolean));
+    return { ...s, center_lat: c?.lat ?? null, center_lon: c?.lon ?? null };
+  });
+}
+
 router.get('/api/block-spaces', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM block_spaces ORDER BY name');
-    res.json(result.rows);
+    res.json(await withCenters(result.rows));
   } catch (err) { res.status(500).json({ error: 'Failed to fetch block spaces' }); }
 });
 
@@ -20,8 +53,15 @@ router.post('/api/block-spaces', async (req, res) => {
 
 router.put('/api/block-spaces/:id', async (req, res) => {
   try {
-    const { name, parent_base_id } = req.body;
+    const { name, parent_base_id, map_id, zone_ids } = req.body;
     const result = await pool.query('UPDATE block_spaces SET name=$1, parent_base_id=$3 WHERE id=$2 RETURNING *', [name, req.params.id, parent_base_id || null]);
+    // המיקום על המפה - רק כשנשלח, כדי שעריכת שם בלבד לא תמחק אותו
+    if (zone_ids !== undefined || map_id !== undefined) {
+      const ids = (Array.isArray(zone_ids) ? zone_ids : []).map(Number).filter(Number.isFinite);
+      const r2 = await pool.query('UPDATE block_spaces SET map_id=$1, zone_ids=$2 WHERE id=$3 RETURNING *',
+        [map_id ? Number(map_id) : null, JSON.stringify(map_id ? ids : []), req.params.id]);
+      return res.json((await withCenters(r2.rows))[0]);
+    }
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to update block space' }); }
 });

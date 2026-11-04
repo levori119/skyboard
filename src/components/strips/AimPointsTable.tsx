@@ -212,7 +212,9 @@ export const AimPointsTable = ({ value, onChange, onCommit, themeMode = 'dark', 
     onChange(rows.map((r, i) => i === idx ? { ...r, [key]: val } : r));
   };
   const commitCell = (idx: number, key: keyof AimPoint, val: string | boolean) => {
-    const next = rows.map((r, i) => i === idx ? { ...r, [key]: val } : r);
+    // "ראשונה לביצוע" - שורה אחת בלבד: סימון שורה מבטל את הקודמת
+    const next = rows.map((r, i) => i === idx ? { ...r, [key]: val }
+      : (key === 'first_exec' && val === true && r.first_exec) ? { ...r, first_exec: false } : r);
     onChange(next);
     onCommit?.(next);
   };
