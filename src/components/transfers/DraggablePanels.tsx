@@ -111,12 +111,14 @@ export const DraggableNeighborPanel = ({
     if (!onUpdateTransferPointConfig) return;
     setAltSaving(true); setAltSaveError(false);
     const finalRanges = altEditRanges.map(r => ({ preset_id: r.preset_id !== '' ? Number(r.preset_id) : null, alt_min: r.alt_min !== '' ? Number(r.alt_min) : null, alt_max: r.alt_max !== '' ? Number(r.alt_max) : null, parity: r.parity }));
+    // עדכון מיידי: העורך נסגר והכללים בכותרת מיד; השמירה ברקע
+    setShowAltEdit(false);
     try {
       await onUpdateTransferPointConfig(Number(neighbor.id), finalRanges);
-      setShowAltEdit(false);
       setPartnerRangesTick(t => t + 1);
     } catch {
-      // השמירה נכשלה - העורך נשאר פתוח עם מה שנבחר, ולא נסגר כאילו נשמר
+      // השמירה נכשלה - העורך נפתח שוב עם מה שנבחר ושגיאה, ולא נשאר סגור כאילו נשמר
+      setShowAltEdit(true);
       setAltSaveError(true);
     } finally { setAltSaving(false); }
   };

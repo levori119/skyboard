@@ -15452,13 +15452,22 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     onUpdateNote={handleUpdateTransferNote}
                     transferPointConfig={(myPresetConfig?.classic_transfer_points || []).find((p: any) => Number(p.sector_id) === Number(n.id)) ?? null}
                     onUpdateTransferPointConfig={session.presetId ? async (sectorId, ranges) => {
+                      // מיד על המסך: הכללים בכותרת הנקודה לפני תשובת השרת; כישלון מחזיר
+                      const _prevCfg = livePresetConfig;
+                      setLivePresetConfig((prev: any) => {
+                        if (!prev) return prev;
+                        const pts = (prev.classic_transfer_points || []).filter((p: any) => Number(p.sector_id) !== Number(sectorId));
+                        const old = (prev.classic_transfer_points || []).find((p: any) => Number(p.sector_id) === Number(sectorId)) || {};
+                        const mine = ranges.map(r => ({ ...r, preset_id: r.preset_id ?? Number(session.presetId) }));
+                        return { ...prev, classic_transfer_points: ranges.length ? [...pts, { ...old, sector_id: Number(sectorId), ranges: mine }] : pts };
+                      });
                       const res = await fetch(`${API_URL}/workstation-presets/${session.presetId}/transfer-point`, {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ sector_id: sectorId, ranges }),
                       });
-                      // כישלון נזרק - העורך נשאר פתוח ומציג שגיאה, ולא נסגר כאילו נשמר
-                      if (!res.ok) throw new Error(`transfer-point ${res.status}`);
+                      // כישלון (כולל 403 - כלל של עמדה אחרת): הכללים חוזרים, והעורך נפתח שוב עם שגיאה
+                      if (!res.ok) { setLivePresetConfig(_prevCfg); throw new Error(`transfer-point ${res.status}`); }
                       const data = await res.json();
                       setLivePresetConfig((prev: any) => prev ? { ...prev, classic_transfer_points: data.classic_transfer_points } : prev);
                     } : undefined}
