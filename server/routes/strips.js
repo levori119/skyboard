@@ -1,3 +1,4 @@
+import { resetButtonsState, sharedServiceIds } from '../../shared/missionDeskReset.js';
 import { Router } from 'express';
 import pool from '../db/pool.js';
 import { captureChange, bodyTouchesOperational, SORTIE_OP_FIELDS } from '../gapi/hooks.js';
@@ -400,6 +401,19 @@ router.post('/api/strips/reset-placement-preset', async (req, res) => {
       [presetId]
     );
     const ids = [...new Set([...zoneIds, ...restRes.rows.map(r => r.id)])];
+    // ── כניסה לעמדה מאופסת: גם הגבהים ────────────────────────────────────────
+    // רק של פ"מ שהעמדה מחזיקה (או שאין לו בעלים) - גובה של פ"מ שעמדה אחרת מחזיקה
+    // נשאר. נבחר **לפני** איפוס הבעלות למטה, אחרת כל הפ"מים כבר "בלי בעלים".
+    let alts = 0;
+    if (req.body?.resetAlts === true && ids.length) {
+      const ar = await client.query(
+        `UPDATE strips SET alt = '', block_deviation = FALSE
+          WHERE id = ANY($1::int[]) AND (workstation_preset_id IS NULL OR workstation_preset_id = $2)
+            AND COALESCE(alt, '') <> ''`,
+        [ids, presetId]
+      );
+      alts = ar.rowCount ?? 0;
+    }
     // הקצאות טבלה של העמדה הזו בלבד
     const ta = await client.query('DELETE FROM strip_table_assignments WHERE preset_id = $1', [presetId]);
     // הקצאות התצוגה האזרחית של העמדה - גם הן "הקצאות של עמדה", ועד כה שרדו את הניקוי
@@ -476,12 +490,30 @@ router.post('/api/strips/reset-placement-preset', async (req, res) => {
       );
       restrictions = rz.rowCount ?? 0;
     }
+    // ── כניסה לעמדה מאופסת: כפתורי האמצעים בדסק חוזרים למצב הראשון ─────────
+    // רק של העמדה, ולא שירות שהיא משתפת עם עמדות אחרות (shared/missionDeskReset.js)
+    let deskButtons = 0;
+    if (req.body?.resetDeskButtons === true) {
+      const pr = await client.query('SELECT mission_desk_sharing FROM workstation_presets WHERE id = $1', [presetId]);
+      const shared = sharedServiceIds(pr.rows[0]?.mission_desk_sharing);
+      const st = await client.query('SELECT service_id, state FROM mission_desk_service_state WHERE preset_id = $1', [presetId]);
+      for (const row of st.rows) {
+        if (shared.has(Number(row.service_id))) continue;
+        const next = resetButtonsState(row.state);
+        if (next === row.state) continue;
+        await client.query(
+          'UPDATE mission_desk_service_state SET state = $1, updated_at = NOW() WHERE service_id = $2 AND preset_id = $3',
+          [JSON.stringify(next), row.service_id, presetId]
+        );
+        deskButtons++;
+      }
+    }
     await client.query('COMMIT');
     res.json({
       ok: true, strips: ids.length,
       zoneAssignments: za.rowCount ?? 0, tableAssignments: ta.rowCount ?? 0,
       civilianAssignments: ca.rowCount ?? 0, transfers: tr.rowCount ?? 0,
-      seizures, restrictions,
+      seizures, restrictions, alts, deskButtons,
     });
   } catch (e) {
     await client.query('ROLLBACK');

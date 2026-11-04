@@ -34,7 +34,6 @@ import StationPicker from './components/shared/StationPicker';
 import StartupModeBanner from './components/shared/StartupModeBanner';
 import ExitAppButton from './components/shared/ExitAppButton';
 import { openStationSession } from './utils/stationSession';
-import { markResetOnEntry } from './utils/stationResetOnEntry';
 import ManpowerPage from './components/manpower/ManpowerPage';
 import { LeoLogo } from './components/shared/LeoLogo';
 import MapsManager from './components/map/MapsManager';
@@ -197,7 +196,7 @@ const WorkstationLogin = ({ onLogin, onManagement, initialCrewMember }: { onLogi
     setShowManpower(true);
   };
 
-  const handlePresetLogin = async (preset: any) => {
+  const handlePresetLogin = async (preset: any, opts?: { resetStation?: boolean }) => {
     if (!selectedCrewMember) {
       setError(t('login.errorSelectCrew'));
       return;
@@ -247,6 +246,21 @@ const WorkstationLogin = ({ onLogin, onManagement, initialCrewMember }: { onLogi
           parentBase
         };
         saveSession(session);
+        // ── כניסה לעמדה מאופסת ───────────────────────────────────────────────
+        // בזמן מסך הטעינה ולפני שהעמדה עולה - כך היא נפתחת כבר מאופסת, בלי רגע
+        // שבו הלוח הישן מוצג ו"נעלם". אותו ניקוי כמו "נקה הקצאות עמדה", ובנוסף
+        // גבהים וכפתורי אמצעים. רק מה ששייך לעמדה. כשל לא חוסם כניסה.
+        if (opts?.resetStation) {
+          const mapIds = [preset.map_id, preset.map2_id,
+            ...Object.values((preset.mission_desk_map_config && typeof preset.mission_desk_map_config === 'object') ? preset.mission_desk_map_config : {}).map((w: any) => w?.map_id)]
+            .map(Number).filter(n => Number.isFinite(n) && n > 0);
+          try {
+            await fetch(`${API_URL}/strips/reset-placement-preset`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ presetId: Number(preset.id), mapIds: [...new Set(mapIds)], resetAlts: true, resetDeskButtons: true }),
+            });
+          } catch { /* עמדה נכנסת גם כשהאיפוס נכשל */ }
+        }
         // פתיחת משמרת העמדה — זמן הכניסה נרשם תמיד, גם אם לא ייווצר תחקיר
         void openStationSession({
           presetId: Number(preset.id),
@@ -684,8 +698,8 @@ const WorkstationLogin = ({ onLogin, onManagement, initialCrewMember }: { onLogi
           // עדיין בתוך ה-gesture של הלחיצה — השמירה שאחריה היא await שעלול
           // לצרוך את חלון ההרשאה של Fullscreen API
           onSubmitGesture={() => { void enterKioskFullscreen(); }}
-          onDone={(_roles, opts) => { const preset = pendingLoginPreset; if (opts?.resetStation) markResetOnEntry(preset.id); setPendingLoginPreset(null); handlePresetLogin(preset); }}
-          onSkip={(opts) => { const preset = pendingLoginPreset; if (opts?.resetStation) markResetOnEntry(preset.id); setPendingLoginPreset(null); handlePresetLogin(preset); }}
+          onDone={(_roles, opts) => { const preset = pendingLoginPreset; setPendingLoginPreset(null); handlePresetLogin(preset, { resetStation: !!opts?.resetStation }); }}
+          onSkip={(opts) => { const preset = pendingLoginPreset; setPendingLoginPreset(null); handlePresetLogin(preset, { resetStation: !!opts?.resetStation }); }}
         />
       )}
 

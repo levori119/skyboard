@@ -176,7 +176,6 @@ import type { MissionDeskService, MDPresetMapConfig, MDPresetMapSettings, MDNode
 import { mdMapServices, mdMapSettings, mdStripsMapServiceId, MD_VIEW_TABLES, mdViewTablesSettings, mdViewTableOwners, mdViewTableSource } from '../../utils/missionDesk';
 import { resolveMirroredSettings } from '../../utils/mapSettingsCopy';
 import { applyPendingAssignments, type PendingAssignment } from '../../utils/assignmentPending';
-import { consumeResetOnEntry } from '../../utils/stationResetOnEntry';
 import ViewTablesSlot from '../missiondesk/ViewTablesSlot';
 import MyScriptTestPanel from '../shared/MyScriptTestPanel';
 import { MapDrawToolbar, MapShapeSvg, PolyDraftSvg, EraserCursorSvg, polySnapTol, usePolyDraft } from '../map/MapDrawLayer';
@@ -9567,38 +9566,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const stripZoneAssignmentsMain = stripZoneAssignments;
   const mapZonesMain = mapZones;
   const fzOverlayRefMain = fzOverlayRef;
-  // ── כניסה לעמדה מאופסת (טופס חברי העמדה) ───────────────────────────────
-  // משחרר את כל מה ששייך לעמדה, בלי שאלות: פ"מים מהמפה ומהלוח, שיוכים
-  // לאזורים, גבהים - ובדסק גם את כפתורי האמצעים (MissionDeskBody). רק פ"מים
-  // שהעמדה מחזיקה: פ"מ של עמדה אחרת, או פ"מ בהעברה, לא נוגעים.
-  const [resetOnEntry] = useState(() => consumeResetOnEntry(session?.presetId));
-  const resetDoneRef = useRef(false);
-  useEffect(() => {
-    if (!resetOnEntry || resetDoneRef.current || !initialDataLoaded || !session?.presetId) return;
-    resetDoneRef.current = true;
-    const pid = Number(session.presetId);
-    const mine = strips.filter((s: any) => Number(s.workstation_preset_id) === pid && s.status !== 'pending_transfer');
-    for (const s of mine) {
-      const numId = parseInt(String(s.id).replace(/^s/, ''), 10);
-      optimisticStripPut(String(s.id), { onMap: false, x: 0, y: 0, map_pin_x: null, map_pin_y: null, map_zone_name: '', map_zone_alts: '', map_lat: null, map_lon: null, alt: '', block_deviation: false });
-      if (Number.isFinite(numId)) {
-        fetch(`${API_URL}/strip-zone-assignments/${numId}`, { method: 'DELETE' }).catch(() => {});
-        fetch(`${API_URL}/strip-zone-extra-zones/by-strip/${numId}`, { method: 'DELETE' }).catch(() => {});
-        fetch(`${API_URL}/strip-table-assignments/${numId}/${pid}`, { method: 'DELETE' }).catch(() => {});
-      }
-    }
-    const mineKeys = new Set(mine.map((s: any) => String(s.id)));
-    setTableOnBoard(prev => new Set([...prev].filter(k => !mineKeys.has(String(k)))));
-    // השיוכים יורדים גם מהמסך מיד, לא רק בפולינג הבא
-    const mineNums = new Set(mine.map((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10)));
-    const dropMine = (list: StripZoneAssignment[]) => list.filter(a => !mineNums.has(Number(a.strip_id)));
-    setStripZoneAssignments(prev => dropMine(prev));
-    setMap2Assignments(prev => dropMine(prev));
-    if (isMissionDeskMode) setMdSlots(prev => Object.fromEntries(Object.entries(prev).map(([k, sl]) => [k, { ...sl, assignments: dropMine(sl.assignments || []) }])) as typeof prev);
-    logActivity('station_reset_on_entry', { details: { strips: mine.length } });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resetOnEntry, initialDataLoaded]);
-
   // איפוס גבהים לרשימת הפ"מים הזמינים: לחיצה ראשונה מבקשת אישור, שנייה (תוך 4 שניות) מבצעת
   const [altResetArmed, setAltResetArmed] = useState(false);
   useEffect(() => {
@@ -16559,8 +16526,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {/* דסק משימה כללי — קנבס הדסק (אותו רכיב כמו במצב ההגדרה בניהול) */}
           {isMissionDeskMode && (
             <MissionDeskBody
-              resetButtonsOnLoad={resetOnEntry}
-              sharedServiceIds={Object.entries((myPresetConfig as any)?.mission_desk_sharing || {}).filter(([, v]) => Array.isArray(v) && v.length > 0).map(([k]) => Number(k))}
               presetId={Number(session.presetId)}
               deskId={myPresetConfig?.mission_desk_id ? Number(myPresetConfig.mission_desk_id) : null}
               presetName={myPresetConfig?.name || session.workstationName}
