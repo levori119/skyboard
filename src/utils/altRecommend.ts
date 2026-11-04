@@ -45,12 +45,14 @@ export function stationRecBlocks(
       const inTable = tableIds.includes(Number(b.block_table_id));
       const mine = presetId !== null && ws.includes(presetId);
       if (!inTable && !mine) return false;
-      if (ws.length > 0 && !mine) return false; // בלוק של עמדה אחרת
-      return !activeTableId || Number(b.block_table_id) === Number(activeTableId);
+      return !(ws.length > 0 && !mine); // בלוק של עמדה אחרת
     })
+    // לעמדה יש בלוקים משויכים - הם, מכל טבלה (הטבלה המוצגת אינה משנה, כמו
+    // ב-computeBlockDeviation). אחרת - הלא-משויכים של הטבלה הפעילה
     .filter((b, _i, all) => {
       const anyMine = presetId !== null && all.some(x => wsOf(x).includes(presetId));
-      return !anyMine || wsOf(b).includes(presetId as number);
+      if (anyMine) return wsOf(b).includes(presetId as number);
+      return !activeTableId || Number(b.block_table_id) === Number(activeTableId);
     })
     .map(b => ({
       id: Number(b.id), alt_from: Number(b.alt_from), alt_to: Number(b.alt_to),

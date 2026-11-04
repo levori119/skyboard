@@ -153,6 +153,17 @@ describe('computeBlockDeviation - טווח גבהים ועמדה צופה', () =
     expect(computeBlockDeviation({ alt: '290' }, real, [], T, 26)).toBe(true);
     expect(computeBlockDeviation({ alt: '340' }, real, [], T, 26)).toBe(false);
   });
+  it('כמו בתקלה (שקד 300 בבת"ק אריק): הבלוקים של העמדה מכל טבלה, לא של הטבלה המוצגת', () => {
+    const real = [
+      { block_table_id: 9, alt_from: 330, alt_to: 380, workstations: [21, 26] },
+      { block_table_id: 9, alt_from: 120, alt_to: 240, workstations: [21, 26] },
+      { block_table_id: 11, alt_from: 280, alt_to: 310, workstations: {} },
+    ];
+    expect(computeBlockDeviation({ alt: '300' }, real, [], 11, 26)).toBe(true);
+    expect(computeBlockDeviation({ alt: '340' }, real, [], 11, 26)).toBe(false);
+    // גם בלי טבלה פעילה בכלל
+    expect(computeBlockDeviation({ alt: '300' }, real, [], null, 26)).toBe(true);
+  });
   it('לעמדה אין אף בלוק משויך בטבלה - אין התראה', () => {
     expect(computeBlockDeviation({ alt: '290' }, [{ block_table_id: T, alt_from: 280, alt_to: 310, workstations: [] }], [], T, 26)).toBe(false);
   });
@@ -178,8 +189,8 @@ describe('computeBlockDeviation - טווח גבהים ועמדה צופה', () =
     const tables = [{ id: T, split_space_ids: [7, 9] }, { id: 11, split_space_ids: [] }];
     expect(computeBlockDeviation({ alt: '303-358', block_space_id: 9 }, blocks, tables, null, 26)).toBe(true);
     expect(computeBlockDeviation({ alt: '330-360', block_space_id: 7 }, blocks, tables, null, 26)).toBe(false);
-    // פ"מ בלי מרחב - אין דרך לדעת איזו טבלה, נשאר בלי התראה עד שבוחרים טבלה
-    expect(computeBlockDeviation({ alt: '303-358' }, blocks, tables, null, 26)).toBe(false);
+    // פ"מ בלי מרחב - העמדה משויכת לבלוקים, ולכן נמדד מולם גם בלי טבלה פעילה
+    expect(computeBlockDeviation({ alt: '303-358' }, blocks, tables, null, 26)).toBe(true);
   });
 });
 

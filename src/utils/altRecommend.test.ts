@@ -150,8 +150,11 @@ describe('stationRecBlocks - רק בלוקים שהעמדה רשאית להמל�
   it('לעמדה יש בלוקים משויכים - רק הם; בלוק בלי עמדות ובלוק של אחרת יוצאים', () => {
     expect(stationRecBlocks(blocks, [9], 26).map(b => b.id)).toEqual([1, 4]);
   });
-  it('טבלה פעילה מצמצמת לטבלה אחת', () => {
-    expect(stationRecBlocks(blocks, [9, 4], 26, 4).map(b => b.id)).toEqual([4]);
+  it('הבלוקים של העמדה מכל טבלה, גם כשמוצגת טבלה אחרת', () => {
+    expect(stationRecBlocks(blocks, [9, 4], 26, 4).map(b => b.id)).toEqual([1, 4]);
+  });
+  it('עמדה בלי בלוקים משויכים - טבלה פעילה מצמצמת לטבלה אחת', () => {
+    expect(stationRecBlocks(blocks, [9, 4], 99, 4).map(b => b.id)).toEqual([5]);
   });
   it('לעמדה אין אף בלוק משויך - הבלוקים שלא שויכו לאף עמדה', () => {
     expect(stationRecBlocks(blocks, [9, 4], 99).map(b => b.id)).toEqual([2, 5]);

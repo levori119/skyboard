@@ -88,14 +88,6 @@ export const computeBlockDeviation = (
   activeBlockTableId?: number | null, viewerPresetId?: number | null,
 ): boolean => {
   if (!s.alt) return false;
-  // בלי טבלה פעילה (לעמדה כמה טבלאות): הטבלה שהמרחב של הפ"מ הוא אחד ממרחבי
-  // החלוקה שלה - זו הטבלה שהעמודה שלו בתצוגה האנכית מציגה. קודם: אין התראה בכלל
-  if (!activeBlockTableId && s.block_space_id != null && s.block_space_id !== '') {
-    const bySpace = (Array.isArray(_blockTables) ? _blockTables : []).filter((bt: any) =>
-      Array.isArray(bt?.split_space_ids) && bt.split_space_ids.map(Number).includes(Number(s.block_space_id)));
-    if (bySpace.length === 1) activeBlockTableId = Number(bySpace[0].id);
-  }
-  if (!activeBlockTableId) return false;
   const presetId = viewerPresetId ? Number(viewerPresetId) : (s.workstation_preset_id ? Number(s.workstation_preset_id) : null);
   if (!presetId) return false;
 
@@ -104,17 +96,36 @@ export const computeBlockDeviation = (
   // גובה ברגל (33000) מול בלוקים ביחידות FL
   const [lo, hi] = r.map(v => (v >= 1000 ? Math.round(v / 100) : v));
 
-  const tableBlocks = allBlocks.filter((b: any) => b.block_table_id === activeBlockTableId && blockFitsSpace(b, s.block_space_id));
-  if (tableBlocks.length === 0) return false;
   const wsOf = (b: any): number[] => (Array.isArray(b.workstations) ? b.workstations.map(Number) : []);
-  // בלוק של מרחב אחר אינו "הבלוק שלו" - גם אם הגובה זהה (סונן למעלה).
-  // "שלי" = בלוק שהעמדה **משויכת** אליו. בלוק בלי עמדות אינו של אף אחד: קודם
-  // הוא נחשב פתוח לכולם, ופ"מ שישב בו (שקד 290 בכטממ) לא סומן כחריגה
-  // טבלה שאיש לא שויך בה לבלוקים - כל הבלוקים הלא-משויכים הם "שלי" (טבלה כללית)
-  const assigned = tableBlocks.some((b: any) => wsOf(b).includes(presetId));
-  const isMine = (b: any) => (assigned ? wsOf(b).includes(presetId) : wsOf(b).length === 0);
-  const myBlocks = tableBlocks.filter(isMine);
-  if (myBlocks.length === 0) return false; // לעמדה אין בלוקים בטבלה - אין מול מה להתריע
+  // בלוק של מרחב אחר אינו "הבלוק שלו" - גם אם הגובה זהה
+  const fits = (b: any) => blockFitsSpace(b, s.block_space_id);
+
+  // ── 1. לעמדה יש בלוקים משויכים: הם הבלוקים שלה, **מכל טבלה** ────────────
+  // הטבלה שמוצגת כרגע אינה משנה את ההכרעה. שקד 300 יושב ב"בת"ק אריק" של טבלה
+  // אחת, אבל בטבלה של העמדה (בלוקי הקרב) הוא מחוץ לבלוקים - ולכן חריגה.
+  // בלוק בלי עמדות אינו של אף אחד (קודם נחשב פתוח לכולם)
+  const mineAll = allBlocks.filter((b: any) => fits(b) && wsOf(b).includes(presetId));
+  let myBlocks: any[];
+  let othersBlocks: any[];
+  if (mineAll.length) {
+    myBlocks = mineAll;
+    const myTables = new Set(mineAll.map((b: any) => Number(b.block_table_id)));
+    othersBlocks = allBlocks.filter((b: any) => fits(b) && myTables.has(Number(b.block_table_id)) && wsOf(b).length > 0 && !wsOf(b).includes(presetId));
+  } else {
+    // ── 2. העמדה לא שויכה לאף בלוק: טבלה כללית - הבלוקים הלא-משויכים של הטבלה
+    // הפעילה. בלי טבלה פעילה (לעמדה כמה טבלאות): הטבלה שהמרחב של הפ"מ הוא אחד
+    // ממרחבי החלוקה שלה
+    if (!activeBlockTableId && s.block_space_id != null && s.block_space_id !== '') {
+      const bySpace = (Array.isArray(_blockTables) ? _blockTables : []).filter((bt: any) =>
+        Array.isArray(bt?.split_space_ids) && bt.split_space_ids.map(Number).includes(Number(s.block_space_id)));
+      if (bySpace.length === 1) activeBlockTableId = Number(bySpace[0].id);
+    }
+    if (!activeBlockTableId) return false;
+    const tableBlocks = allBlocks.filter((b: any) => Number(b.block_table_id) === Number(activeBlockTableId) && fits(b));
+    myBlocks = tableBlocks.filter((b: any) => wsOf(b).length === 0);
+    othersBlocks = tableBlocks.filter((b: any) => wsOf(b).length > 0);
+  }
+  if (myBlocks.length === 0) return false; // אין מול מה להתריע
 
   const bLo = (b: any) => Math.min(Number(b.alt_from), Number(b.alt_to));
   const bHi = (b: any) => Math.max(Number(b.alt_from), Number(b.alt_to));
@@ -130,7 +141,7 @@ export const computeBlockDeviation = (
     if (covered >= hi) break;
   }
   if (covered < hi) return true;
-  return tableBlocks.some((b: any) => !isMine(b) && lo <= bHi(b) && hi >= bLo(b));
+  return othersBlocks.some((b: any) => lo <= bHi(b) && hi >= bLo(b));
 };
 
 /**
