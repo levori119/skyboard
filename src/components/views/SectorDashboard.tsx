@@ -2047,7 +2047,26 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   }, [acceptFlashIds]);
   useEffect(() => () => { acceptFlashTimers.current.forEach(clearTimeout); }, []);
   const contactsAutoCloseTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [contactsSummaryData, setContactsSummaryData] = useState<any[]>([]);
+  // ריכוז הקשרים **שמור בעמדה**: נטען מהמטמון המקומי מיד (גם אחרי רענון / בנתק),
+  // מתרענן ברקע כל 30 שניות - כך שינוי קשר בעמדה אחת מגיע לכל העמדות, והחלון
+  // שנפתח בשחרור פ"מ על נקודת העברה מוצג מלא ברגע הפתיחה ולא "אין קשרים"
+  const CONTACTS_CACHE_KEY = 'sk.contactsCache';
+  const [contactsSummaryData, setContactsSummaryDataState] = useState<any[]>(() => {
+    try { const v = JSON.parse(localStorage.getItem(CONTACTS_CACHE_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; }
+  });
+  const setContactsSummaryData = (d: any[]) => {
+    if (!Array.isArray(d)) return;
+    setContactsSummaryDataState(prev => JSON.stringify(prev) === JSON.stringify(d) ? prev : d);
+    try { localStorage.setItem(CONTACTS_CACHE_KEY, JSON.stringify(d)); } catch { /* אחסון מלא/חסום - נשאר לסשן */ }
+  };
+  const refreshContactsCache = () => {
+    fetch(`${API_URL}/workstation-contacts/all`).then(r => r.ok ? r.json() : null).then(d => { if (d) setContactsSummaryData(d); }).catch(() => {});
+  };
+  useEffect(() => {
+    pollingRegistry.register('sd-contacts-cache', refreshContactsCache, 30000, { immediate: true });
+    return () => pollingRegistry.unregister('sd-contacts-cache');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [contactsSummaryPos, setContactsSummaryPos] = useState({ x: 60, y: 80 });
   const [contactsSummaryTargetPresetId, setContactsSummaryTargetPresetId] = useState<number | null>(null);
   const [contactsSummarySpecificIds, setContactsSummarySpecificIds] = useState<number[] | null>(null);
@@ -7362,6 +7381,41 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const _sendKey = _sendStrip?.id ?? stripId;
     pendingStripUpdatesRef.current.set(_sendKey, { ...(pendingStripUpdatesRef.current.get(_sendKey) || {}), status: 'pending_transfer' });
     setStrips(prev => prev.map(s => s.id === stripId ? { ...s, status: 'pending_transfer' } : s));
+    // ריכוז הקשרים נפתח **ברגע השחרור** על הנקודה - לא אחרי תשובת השרת
+    if (showContactsOnTransfer) {
+      // Determine target preset: explicit toWorkstationId or derive from sector
+      const targetPid: number | null = toWorkstationId
+        ? Number(toWorkstationId)
+        : (() => {
+            const specific = (workstationPresets as any[]).filter((p: any) => {
+              if (Number(p.id) === Number(session.presetId)) return false;
+              const rel: number[] = Array.isArray(p.relevant_sectors) ? p.relevant_sectors.map(Number) : [];
+              const recv: number[] = (p.classic_receive_points || []).map((rp: any) => Number(rp.sector_id)).filter(Boolean);
+              return rel.includes(Number(toSectorId)) || recv.includes(Number(toSectorId));
+            });
+            return specific.length === 1 ? Number(specific[0].id) : null;
+          })();
+      // Compute specific candidates for this transfer (used for contacts filtering)
+      const specificCandidates = (workstationPresets as any[]).filter((p: any) => {
+        if (Number(p.id) === Number(session.presetId)) return false;
+        const rel: number[] = Array.isArray(p.relevant_sectors) ? p.relevant_sectors.map(Number) : [];
+        const recv: number[] = (p.classic_receive_points || []).map((rp: any) => Number(rp.sector_id)).filter(Boolean);
+        return rel.includes(Number(toSectorId)) || recv.includes(Number(toSectorId));
+      });
+      // Open contacts panel only when at least one specific workstation is known
+      if (targetPid !== null || specificCandidates.length > 0) {
+        setContactsSummaryTargetPresetId(targetPid);
+        setContactsSummarySpecificIds(targetPid !== null ? null : specificCandidates.map((p: any) => Number(p.id)));
+        setContactsSummaryOpen(true);
+        setContactsSummaryFlashing(true);
+        refreshContactsCache(); // מוצג מהמטמון מיד, ומתעדכן ברקע
+        if (contactsAutoCloseTimer.current) clearTimeout(contactsAutoCloseTimer.current);
+        contactsAutoCloseTimer.current = setTimeout(() => {
+          setContactsSummaryFlashing(false);
+          setContactsSummaryOpen(false);
+        }, 5000);
+      }
+    }
     const _undoSend = () => {
       pendingOutgoingRef.current.delete(tmpId);
       setOutgoingTransfers((prev: any[]) => prev.filter((x: any) => String(x.id) !== tmpId));
@@ -7393,41 +7447,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         stripCallsign: strip?.callSign || strip?.callsign,
         details: { toSectorId, toWorkstationId: toWorkstationId || null }
       });
-      // Auto-open contacts summary and flash for 5 seconds (only if toggle is on)
-      if (showContactsOnTransfer) {
-        // Determine target preset: explicit toWorkstationId or derive from sector
-        const targetPid: number | null = toWorkstationId
-          ? Number(toWorkstationId)
-          : (() => {
-              const specific = (workstationPresets as any[]).filter((p: any) => {
-                if (Number(p.id) === Number(session.presetId)) return false;
-                const rel: number[] = Array.isArray(p.relevant_sectors) ? p.relevant_sectors.map(Number) : [];
-                const recv: number[] = (p.classic_receive_points || []).map((rp: any) => Number(rp.sector_id)).filter(Boolean);
-                return rel.includes(Number(toSectorId)) || recv.includes(Number(toSectorId));
-              });
-              return specific.length === 1 ? Number(specific[0].id) : null;
-            })();
-        // Compute specific candidates for this transfer (used for contacts filtering)
-        const specificCandidates = (workstationPresets as any[]).filter((p: any) => {
-          if (Number(p.id) === Number(session.presetId)) return false;
-          const rel: number[] = Array.isArray(p.relevant_sectors) ? p.relevant_sectors.map(Number) : [];
-          const recv: number[] = (p.classic_receive_points || []).map((rp: any) => Number(rp.sector_id)).filter(Boolean);
-          return rel.includes(Number(toSectorId)) || recv.includes(Number(toSectorId));
-        });
-        // Open contacts panel only when at least one specific workstation is known
-        if (targetPid !== null || specificCandidates.length > 0) {
-          setContactsSummaryTargetPresetId(targetPid);
-          setContactsSummarySpecificIds(targetPid !== null ? null : specificCandidates.map((p: any) => Number(p.id)));
-          setContactsSummaryOpen(true);
-          setContactsSummaryFlashing(true);
-          fetch(`${API_URL}/workstation-contacts/all`).then(r => r.ok ? r.json() : []).then(setContactsSummaryData).catch(() => {});
-          if (contactsAutoCloseTimer.current) clearTimeout(contactsAutoCloseTimer.current);
-          contactsAutoCloseTimer.current = setTimeout(() => {
-            setContactsSummaryFlashing(false);
-            setContactsSummaryOpen(false);
-          }, 5000);
-        }
-      }
       loadData();
     } catch (err) {
       console.error('Failed to initiate transfer:', err);
@@ -21003,7 +21022,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         >
                           <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexShrink: 0 }}>
                             <button
-                              onClick={e => { e.stopPropagation(); setContactsSummaryOpen(v => !v); if (!contactsSummaryOpen) { fetch(`${API_URL}/workstation-contacts/all`).then(r => r.ok ? r.json() : []).then(setContactsSummaryData).catch(() => {}); } }}
+                              onClick={e => { e.stopPropagation(); setContactsSummaryOpen(v => !v); if (!contactsSummaryOpen) refreshContactsCache(); }}
                               style={{ fontSize: '9px', padding: '1px 5px', background: contactsSummaryOpen ? '#0369a1' : '#1e3a5f', color: '#7dd3fc', border: '1px solid #1e4976', borderRadius: '3px', cursor: 'pointer' }}
                               title={tr('ctrl.contactSummaryForAll')}
                             >{tr('ctrl.summary')}</button>
