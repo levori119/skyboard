@@ -130,15 +130,22 @@ async function saveAutoBlockSpace(row, body) {
   return r.rows[0] || row;
 }
 
-// טופס העזר בעמדה: לאילו מרחבים מותר לשייך פ"מ אוטומטית לפי מיקום המטרה.
-// null = כל מרחבי העמדה; מערך (גם ריק) = רק המרחבים שסומנו.
+// טופס העזר בעמדה: הפעלת החלוקה האוטומטית (`enabled`) ולאילו מרחבים מותר לשייך
+// פ"מ לפי מיקום המטרה (`ids`: null = כל מרחבי העמדה; מערך, גם ריק = רק המסומנים).
+// כל שדה מתעדכן רק כשנשלח.
 router.patch('/api/workstation-presets/:id/auto-block-spaces', async (req, res) => {
   try {
     const raw = req.body?.ids;
     const ids = raw === null ? null : (Array.isArray(raw) ? [...new Set(raw.map(Number).filter(Number.isFinite))] : undefined);
-    if (ids === undefined) return res.status(400).json({ error: 'ids חייב להיות מערך או null' });
-    const r = await pool.query('UPDATE workstation_presets SET auto_block_space_ids = $1 WHERE id = $2 RETURNING id, auto_block_space_ids',
-      [ids === null ? null : JSON.stringify(ids), req.params.id]);
+    const enabled = typeof req.body?.enabled === 'boolean' ? req.body.enabled : undefined;
+    if (raw !== undefined && ids === undefined) return res.status(400).json({ error: 'ids חייב להיות מערך או null' });
+    if (ids === undefined && enabled === undefined) return res.status(400).json({ error: 'נדרש ids או enabled' });
+    const r = await pool.query(
+      `UPDATE workstation_presets
+          SET auto_block_space_ids = CASE WHEN $3 THEN $1::jsonb ELSE auto_block_space_ids END,
+              auto_block_space_by_target = COALESCE($4, auto_block_space_by_target)
+        WHERE id = $2 RETURNING id, auto_block_space_ids, auto_block_space_by_target`,
+      [ids == null ? null : JSON.stringify(ids), req.params.id, ids !== undefined, enabled ?? null]);
     if (!r.rows.length) return res.status(404).json({ error: 'עמדה לא נמצאה' });
     res.json(r.rows[0]);
   } catch (err) {

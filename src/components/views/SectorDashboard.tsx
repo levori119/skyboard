@@ -5516,15 +5516,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tableMode, myPresetConfig?.auto_block_space_by_target, myPresetConfig?.auto_block_space_ids, myTableStrips, tableOnBoard, stationSplitSpaces, presetBlockSpaces]);
   // שמירת טופס העזר - מיד על המסך, השמירה ברקע; כישלון מחזיר את הקודם
-  const saveAutoSpaceIds = (ids: number[] | null) => {
+  const saveAutoSpaces = (patch: { auto_block_space_ids?: number[] | null; auto_block_space_by_target?: boolean }) => {
     if (!session.presetId) return;
-    const prevIds = myPresetConfig?.auto_block_space_ids ?? null;
-    const apply = (v: number[] | null) => setLivePresetConfig((prev: any) => ({ ...(prev ?? myPresetConfig ?? {}), auto_block_space_ids: v }));
-    apply(ids);
+    const prev: Record<string, any> = {};
+    for (const k of Object.keys(patch)) prev[k] = (myPresetConfig as any)?.[k] ?? null;
+    const apply = (v: Record<string, any>) => setLivePresetConfig((p: any) => ({ ...(p ?? myPresetConfig ?? {}), ...v }));
+    apply(patch);
+    const body: Record<string, any> = {};
+    if ('auto_block_space_ids' in patch) body.ids = patch.auto_block_space_ids;
+    if ('auto_block_space_by_target' in patch) body.enabled = patch.auto_block_space_by_target;
     fetch(`${API_URL}/workstation-presets/${session.presetId}/auto-block-spaces`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }),
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     }).then(r => { if (!r.ok) throw new Error(`auto-block-spaces ${r.status}`); })
-      .catch(err => { console.error(err); apply(prevIds); setSaveFailToast(tr('blocks.autoSpacesSaveFailed')); });
+      .catch(err => { console.error(err); apply(prev); setSaveFailToast(tr('blocks.autoSpacesSaveFailed')); });
   };
   // ...והלוח מחולק למרחבים: קיבוץ לפי מרחב, פעם אחת כשהמנגנון פעיל ואין קיבוץ אחר
   const autoSpaceGroupedRef = useRef(false);
@@ -13440,8 +13444,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     {showTargetMap && <span style={{ fontSize: '10px', color: menuAcc('#38bdf8','#0369a1') }}>{tr('ctrl.active')}</span>}
                   </div>
                   )}
-                  {/* טופס העזר של החלוקה האוטומטית למרחבים - רק כשהמנגנון פעיל בעמדה */}
-                  {tableMode && myPresetConfig?.auto_block_space_by_target === true && (
+                  {/* טופס העזר של החלוקה האוטומטית למרחבים - תמיד במוד טבלה; ההפעלה עצמה בתוך הטופס */}
+                  {tableMode && (
                   <div
                     data-testid="menu-auto-spaces"
                     onClick={() => { setShowAutoSpacesForm(v => !v); setShowViewMenu(false); }}
@@ -18343,7 +18347,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                     onClick={e => { e.stopPropagation(); setTableGroupByKey(null); setTableGroupOrder([]); setTableCollapsedGroups(new Set()); }}
                                     style={{ background: 'transparent', border: `1px solid ${gs.fg}55`, color: gs.fg, borderRadius: '4px', cursor: 'pointer', padding: '0 5px', fontSize: tfz(12), lineHeight: 1.4 }}
                                   >✕</button>
-                                  {tableGroupByKey === 'block_space' && myPresetConfig?.auto_block_space_by_target === true && (
+                                  {tableGroupByKey === 'block_space' && (
                                     <button
                                       data-testid="grp-auto-spaces"
                                       title={tr('blocks.autoSpacesOpen')}
@@ -19182,12 +19186,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           );
         })()}
 
-        {showAutoSpacesForm && tableMode && myPresetConfig?.auto_block_space_by_target === true && (
+        {showAutoSpacesForm && tableMode && (
           <AutoBlockSpacesForm
             spaces={stationSplitSpaces.length > 0 ? stationSplitSpaces : presetBlockSpaces}
             allowedIds={Array.isArray(myPresetConfig?.auto_block_space_ids) ? myPresetConfig.auto_block_space_ids : null}
+            enabled={myPresetConfig?.auto_block_space_by_target === true}
             themeMode={themeMode}
-            onChange={saveAutoSpaceIds}
+            onChange={ids => saveAutoSpaces({ auto_block_space_ids: ids })}
+            onToggleEnabled={on => saveAutoSpaces({ auto_block_space_by_target: on })}
             onClose={() => setShowAutoSpacesForm(false)}
           />
         )}
