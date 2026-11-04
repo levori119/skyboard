@@ -466,9 +466,9 @@ interface Props {
   mode: 'enter' | 'update';
   themeMode?: ThemeMode;
   /** נקרא אחרי שמירה מוצלחת (או דילוג) — הצרכן סוגר את הטופס וממשיך */
-  onDone: (roles: SessionRoles) => void;
+  onDone: (roles: SessionRoles, opts?: { resetStation: boolean }) => void;
   /** מוצג רק במסלול הכניסה */
-  onSkip?: () => void;
+  onSkip?: (opts?: { resetStation: boolean }) => void;
   /**
    * סגירת הטופס בלי לשמור (✕ / Escape). קיים במסלול העדכון: הטופס אינו חובה,
    * ומי שפתח אותו בטעות חייב דרך החוצה שאינה "שמירה". במסלול הכניסה תפקיד זה
@@ -490,6 +490,8 @@ export default function StationCrewForm({
   const { byPosition, crewError } = useMirageCrew(presetId);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
+  // "כניסה לעמדה מאופסת" - רק בעליית עמדה. מה מתאפס: utils/stationResetOnEntry
+  const [resetStation, setResetStation] = useState(false);
 
   // Escape סוגר את הטופס. תפריט הצעות פתוח בולע את המקש לפני כן (SearchPicker),
   // כך שהלחיצה הראשונה סוגרת את התפריט והשנייה את הטופס.
@@ -513,13 +515,13 @@ export default function StationCrewForm({
       if (!res.ok) throw new Error('save failed');
     } catch {
       // מסלול הכניסה חייב להמשיך גם כשהשמירה נכשלה — לא חוסמים בקר מלעלות לעמדה
-      if (mode === 'enter') { setSaving(false); onDone(roles); return; }
+      if (mode === 'enter') { setSaving(false); onDone(roles, { resetStation }); return; }
       setSaving(false);
       setSaveError(true);
       return;
     }
     setSaving(false);
-    onDone(roles);
+    onDone(roles, { resetStation });
   };
 
   return (
@@ -576,6 +578,17 @@ export default function StationCrewForm({
           <div style={{ fontSize: '12px', color: '#ef4444', textAlign: 'center', marginTop: '8px' }}>{tr('crew.saveFailed')}</div>
         )}
 
+        {mode === 'enter' && (
+          <label data-testid="crew-reset-station" style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginTop: '14px', padding: '8px 10px', borderRadius: '8px', cursor: 'pointer',
+            border: `1px solid ${resetStation ? '#f59e0b' : c.border}`, background: resetStation ? 'rgba(245,158,11,0.12)' : 'transparent' }}>
+            <input type="checkbox" checked={resetStation} onChange={e => setResetStation(e.target.checked)} style={{ width: 16, height: 16, marginTop: 2, cursor: 'pointer', flexShrink: 0 }} />
+            <span>
+              <span style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: c.title }}>{tr('crew.resetStation')}</span>
+              <span style={{ display: 'block', fontSize: '11px', color: c.muted }}>{tr('crew.resetStationHint')}</span>
+            </span>
+          </label>
+        )}
+
         <div style={{ display: 'flex', gap: '10px', marginTop: '18px' }}>
           <button
             id="crewFormSubmit"
@@ -591,7 +604,7 @@ export default function StationCrewForm({
           </button>
           {onSkip && (
             <button
-              onClick={onSkip}
+              onClick={() => onSkip({ resetStation })}
               style={{
                 padding: '11px 18px', background: c.chipOff, color: c.chipOffText,
                 border: 'none', borderRadius: '8px', fontSize: '13px', cursor: 'pointer',

@@ -34,6 +34,7 @@ import StationPicker from './components/shared/StationPicker';
 import StartupModeBanner from './components/shared/StartupModeBanner';
 import ExitAppButton from './components/shared/ExitAppButton';
 import { openStationSession } from './utils/stationSession';
+import { markResetOnEntry } from './utils/stationResetOnEntry';
 import ManpowerPage from './components/manpower/ManpowerPage';
 import { LeoLogo } from './components/shared/LeoLogo';
 import MapsManager from './components/map/MapsManager';
@@ -683,8 +684,8 @@ const WorkstationLogin = ({ onLogin, onManagement, initialCrewMember }: { onLogi
           // עדיין בתוך ה-gesture של הלחיצה — השמירה שאחריה היא await שעלול
           // לצרוך את חלון ההרשאה של Fullscreen API
           onSubmitGesture={() => { void enterKioskFullscreen(); }}
-          onDone={() => { const preset = pendingLoginPreset; setPendingLoginPreset(null); handlePresetLogin(preset); }}
-          onSkip={() => { const preset = pendingLoginPreset; setPendingLoginPreset(null); handlePresetLogin(preset); }}
+          onDone={(_roles, opts) => { const preset = pendingLoginPreset; if (opts?.resetStation) markResetOnEntry(preset.id); setPendingLoginPreset(null); handlePresetLogin(preset); }}
+          onSkip={(opts) => { const preset = pendingLoginPreset; if (opts?.resetStation) markResetOnEntry(preset.id); setPendingLoginPreset(null); handlePresetLogin(preset); }}
         />
       )}
 

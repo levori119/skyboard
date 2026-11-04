@@ -9,6 +9,7 @@ import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { tr } from '../../i18n/tr';
 import { API_URL } from '../../config';
+import { resetButtonsState } from '../../utils/stationResetOnEntry';
 import type {
   MDNode, MissionDesk, MissionDeskService,
   MDButtonsState, MDFreeTextState, MDTableState, MDServiceState,
@@ -35,6 +36,10 @@ interface Props {
   // חלון מפה וחלון פ"ממים. הקנבס אינו יודע דבר על מפות - הוא רק מציב את מה
   // שהמארח מחזיר. כך אותה מפה של עמדת הבקר יושבת בתוך פריסת הדסק בלי שכפול.
   renderHostService?: (svc: MissionDeskService) => React.ReactNode;
+  // "כניסה לעמדה מאופסת": בטעינה הראשונה כל כפתורי האמצעים חוזרים למצב הראשון.
+  // שירות ששותף עם עמדות אחרות לא מתאפס - הוא לא רק של העמדה הזו
+  resetButtonsOnLoad?: boolean;
+  sharedServiceIds?: number[];
 }
 
 const POLL_MS = 5000;
@@ -49,7 +54,9 @@ const LOCAL_WRITE_GRACE_MS = 8000;
 
 export default function MissionDeskBody({
   presetId, deskId, presetName, crewMemberId, crewMemberName, allPresets, themeMode, adminMode, renderHostService,
+  resetButtonsOnLoad, sharedServiceIds,
 }: Props) {
+  const resetPendingRef = useRef(!!resetButtonsOnLoad);
   const [desk, setDesk] = useState<(MissionDesk & { services: MissionDeskService[] }) | null>(null);
   const [deskMissing, setDeskMissing] = useState(false);
   const [states, setStates] = useState<Record<number, MDServiceState>>({});
@@ -68,6 +75,8 @@ export default function MissionDeskBody({
   const splitsStorageKey = `bt-md-splits-${presetId}-${deskId || 0}`;
 
   const interactingRef = useRef<Set<number>>(new Set());
+  // pollState מוגדר לפני saveState - האיפוס בטעינה ניגש אליו דרך ref
+  const saveStateRef = useRef<(serviceId: number, next: MDServiceState) => void>(() => {});
   const lastLocalWriteRef = useRef<Record<number, number>>({});
 
   // שחזור חלוקת האזורים האישית של העמדה
@@ -112,6 +121,15 @@ export default function MissionDeskBody({
       const rows: { service_id: number; state: MDServiceState; updated_at: string }[] =
         await fetch(`${API_URL}/mission-desk-state?preset_id=${presetId}`).then(r => r.json());
       if (!Array.isArray(rows)) return;
+      if (resetPendingRef.current) {
+        resetPendingRef.current = false;
+        const shared = new Set((sharedServiceIds || []).map(Number));
+        for (const row of rows) {
+          if (shared.has(Number(row.service_id))) continue;
+          const next = resetButtonsState(row.state as any);
+          if (next !== row.state) { row.state = next; saveStateRef.current(row.service_id, next); }
+        }
+      }
       setStates(prev => {
         const next = { ...prev };
         for (const row of rows) {
@@ -154,6 +172,7 @@ export default function MissionDeskBody({
     clearTimeout(putTimersRef.current[serviceId]);
     putTimersRef.current[serviceId] = setTimeout(() => flushPut(serviceId), 400);
   }, [flushPut]);
+  saveStateRef.current = saveState;
 
   useEffect(() => () => {
     // unmount — לשלוח כל מה שממתין

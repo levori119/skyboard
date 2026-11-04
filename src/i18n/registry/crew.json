@@ -70,6 +70,14 @@
       "he": "שמירה",
       "en": "Save"
     },
+    "resetStation": {
+      "he": "כניסה לעמדה מאופסת",
+      "en": "Enter with a reset station"
+    },
+    "resetStationHint": {
+      "he": "משחרר את כל מה ששייך לעמדה: פ\"מים מהמפה ומהלוח, שיוכים לאזורים, כפתורי אמצעים בדסק וגבהים. פ\"מים של עמדות אחרות לא נוגעים",
+      "en": "Releases everything that belongs to this station: strips on the map and board, zone assignments, desk asset buttons and altitudes. Other stations are not touched"
+    },
     "skip": {
       "he": "דלג",
       "en": "Skip"
