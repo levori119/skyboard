@@ -78,6 +78,26 @@
       "he": "משחרר את כל מה ששייך לעמדה: פ\"מים מהמפה ומהלוח, שיוכים לאזורים, כפתורי אמצעים בדסק וגבהים. פ\"מים של עמדות אחרות לא נוגעים",
       "en": "Releases everything that belongs to this station: strips on the map and board, zone assignments, desk asset buttons and altitudes. Other stations are not touched"
     },
+    "resetLiveTitle": {
+      "he": "העמדה מחוברת כרגע",
+      "en": "This station is currently in use"
+    },
+    "resetLiveBody": {
+      "he": "מישהו מחובר לעמדה הזו עכשיו. איפוס ישחרר את כל הפ\"מים, השיוכים והאמצעים שבה - גם אצלו.",
+      "en": "Someone is logged in to this station now. Resetting releases all its strips, assignments and assets - for them too."
+    },
+    "resetLiveBodyNamed": {
+      "he": "{{name}} מחובר/ת לעמדה הזו עכשיו. איפוס ישחרר את כל הפ\"מים, השיוכים והאמצעים שבה - גם אצלו/ה.",
+      "en": "{{name}} is logged in to this station now. Resetting releases all its strips, assignments and assets - for them too."
+    },
+    "resetLiveConfirm": {
+      "he": "אפס ונכנס",
+      "en": "Reset and enter"
+    },
+    "resetLiveNoReset": {
+      "he": "כניסה בלי איפוס",
+      "en": "Enter without reset"
+    },
     "skip": {
       "he": "דלג",
       "en": "Skip"

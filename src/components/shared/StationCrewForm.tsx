@@ -492,6 +492,9 @@ export default function StationCrewForm({
   const [saveError, setSaveError] = useState(false);
   // "כניסה לעמדה מאופסת" - רק בעליית עמדה. מה מתאפס: utils/stationResetOnEntry
   const [resetStation, setResetStation] = useState(false);
+  // העמדה מחוברת כרגע - התראה לפני איפוס (null = לא נבדק / לא מחוברת)
+  const [liveWarn, setLiveWarn] = useState<{ crew_name: string } | null>(null);
+  const [checkingLive, setCheckingLive] = useState(false);
 
   // Escape סוגר את הטופס. תפריט הצעות פתוח בולע את המקש לפני כן (SearchPicker),
   // כך שהלחיצה הראשונה סוגרת את התפריט והשנייה את הטופס.
@@ -502,7 +505,24 @@ export default function StationCrewForm({
     return () => document.removeEventListener('keydown', onKey);
   }, [onCancel]);
 
-  const submit = async () => {
+  /**
+   * "כניסה מאופסת" לעמדה שמישהו מחובר אליה עכשיו (אחר, או אותו משתמש במקום
+   * אחר) - קודם התראה. בלי חיבור חי, או בלי סימון האיפוס - ישר לכניסה.
+   */
+  const submitChecked = async () => {
+    if (mode !== 'enter' || !resetStation || liveWarn) { void submit(); return; }
+    onSubmitGesture?.();
+    setCheckingLive(true);
+    try {
+      const r = await fetch(`${API_URL}/station-sessions/live/${presetId}`);
+      const j = r.ok ? await r.json() : null;
+      if (j?.active) { setLiveWarn({ crew_name: j.crew_name || '' }); return; }
+    } catch { /* בדיקה שנכשלה לא חוסמת כניסה - נמשיך כרגיל */ } finally { setCheckingLive(false); }
+    void submit();
+  };
+
+  const submit = async (opts?: { resetStation?: boolean }) => {
+    const doReset = opts?.resetStation ?? resetStation;
     onSubmitGesture?.();
     setSaving(true);
     setSaveError(false);
@@ -515,13 +535,13 @@ export default function StationCrewForm({
       if (!res.ok) throw new Error('save failed');
     } catch {
       // מסלול הכניסה חייב להמשיך גם כשהשמירה נכשלה — לא חוסמים בקר מלעלות לעמדה
-      if (mode === 'enter') { setSaving(false); onDone(roles, { resetStation }); return; }
+      if (mode === 'enter') { setSaving(false); onDone(roles, { resetStation: doReset }); return; }
       setSaving(false);
       setSaveError(true);
       return;
     }
     setSaving(false);
-    onDone(roles, { resetStation });
+    onDone(roles, { resetStation: doReset });
   };
 
   return (
@@ -570,7 +590,7 @@ export default function StationCrewForm({
             byPosition={byPosition}
             c={c}
             autoFocus
-            onEnter={submit}
+            onEnter={submitChecked}
           />
         )}
 
@@ -578,7 +598,30 @@ export default function StationCrewForm({
           <div style={{ fontSize: '12px', color: '#ef4444', textAlign: 'center', marginTop: '8px' }}>{tr('crew.saveFailed')}</div>
         )}
 
-        {mode === 'enter' && (
+        {liveWarn && (
+          <div data-testid="crew-reset-live-warn" role="alert" style={{ marginTop: '14px', padding: '10px 12px', borderRadius: '8px', border: '2px solid #ef4444', background: 'rgba(239,68,68,0.12)' }}>
+            <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#fca5a5', marginBottom: '4px' }}>⚠ {tr('crew.resetLiveTitle')}</div>
+            <div style={{ fontSize: '12px', color: c.title, marginBottom: '10px' }}>
+              {liveWarn.crew_name ? tr('crew.resetLiveBodyNamed', { name: liveWarn.crew_name }) : tr('crew.resetLiveBody')}
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button data-testid="crew-reset-live-confirm" onClick={() => void submit({ resetStation: true })}
+                style={{ flex: 1, padding: '8px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}>
+                {tr('crew.resetLiveConfirm')}
+              </button>
+              <button onClick={() => { setLiveWarn(null); void submit({ resetStation: false }); }}
+                style={{ flex: 1, padding: '8px', background: c.chipOff, color: c.chipOffText, border: 'none', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                {tr('crew.resetLiveNoReset')}
+              </button>
+              <button onClick={() => setLiveWarn(null)}
+                style={{ padding: '8px 12px', background: 'transparent', color: c.muted, border: `1px solid ${c.border}`, borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                {tr('crew.close')}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {mode === 'enter' && !liveWarn && (
           <label data-testid="crew-reset-station" style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginTop: '14px', padding: '8px 10px', borderRadius: '8px', cursor: 'pointer',
             border: `1px solid ${resetStation ? '#f59e0b' : c.border}`, background: resetStation ? 'rgba(245,158,11,0.12)' : 'transparent' }}>
             <input type="checkbox" checked={resetStation} onChange={e => setResetStation(e.target.checked)} style={{ width: 16, height: 16, marginTop: 2, cursor: 'pointer', flexShrink: 0 }} />
@@ -592,8 +635,8 @@ export default function StationCrewForm({
         <div style={{ display: 'flex', gap: '10px', marginTop: '18px' }}>
           <button
             id="crewFormSubmit"
-            disabled={saving || loading}
-            onClick={submit}
+            disabled={saving || loading || checkingLive || !!liveWarn}
+            onClick={submitChecked}
             style={{
               flex: 1, padding: '11px', background: saving || loading ? c.chipOff : c.accent,
               color: saving || loading ? c.chipOffText : 'white', border: 'none', borderRadius: '8px',

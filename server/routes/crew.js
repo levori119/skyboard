@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
+import { STATION_LIVE_SECONDS } from './tempZoneSeizures.js';
 const router = new Router();
 
 router.get('/api/crew-members', async (req, res) => {
@@ -402,6 +403,25 @@ router.post('/api/station-sessions/close', async (req, res) => {
     console.error('Error closing station session:', err);
     res.status(500).json({ error: 'Failed to close station session' });
   }
+});
+
+// "יש מישהו בעמדה עכשיו?" - לפני "כניסה לעמדה מאופסת": איפוס עמדה שמחובר אליה
+// אדם (אחר, או אותו משתמש בלשונית/מחשב אחר) משחרר לו את הלוח מתחת לידיים.
+// אותו כלל "פעילה" כמו ברשימת ההפצה של הלאמת אזור: דופק טרי ממקטע פתוח.
+router.get('/api/station-sessions/live/:presetId', async (req, res) => {
+  try {
+    const presetId = Number(req.params.presetId);
+    if (!Number.isFinite(presetId)) return res.status(400).json({ error: 'Invalid preset' });
+    const { rows } = await pool.query(
+      `SELECT crew_name, COALESCE(last_seen, entered_at) AS last_seen
+         FROM station_sessions
+        WHERE preset_id = $1 AND exited_at IS NULL
+          AND COALESCE(last_seen, entered_at) > NOW() - $2::interval
+        ORDER BY COALESCE(last_seen, entered_at) DESC LIMIT 1`,
+      [presetId, `${STATION_LIVE_SECONDS} seconds`],
+    );
+    res.json(rows[0] ? { active: true, crew_name: rows[0].crew_name || '', last_seen: rows[0].last_seen } : { active: false });
+  } catch (err) { res.status(500).json({ error: 'Failed to check station' }); }
 });
 
 // רשימה למסך הכשירויות. `open` מסמן משמרת שעדיין לא נסגרה, ו-`hours` מחושב
