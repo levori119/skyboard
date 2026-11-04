@@ -54,3 +54,12 @@ export function separatedByGroup(a: Record<string, unknown>, b: Record<string, u
   const val = (s: Record<string, unknown>) => String(s?.[field] ?? '').trim();
   return val(a) !== val(b);
 }
+
+/**
+ * האם ההפרדה לפי מרחב ובלוק חלה על הקונפליקט. רק כשנבחרה חלוקה בתצוגה האנכית
+ * (מרחב, ערכה, כותרת...): בלי חלוקה כל הפ"מים בתרשים אחד, וחפיפה בגובה היא
+ * קונפליקט גם בין מרחבים או בלוקים שונים - כך שמה שחופף על המסך תמיד מתריע.
+ */
+export function structureSeparates(groupBy: string | null | undefined): boolean {
+  return !!groupBy && groupBy !== 'none';
+}

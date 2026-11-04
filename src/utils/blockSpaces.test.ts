@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { splitSpaceSet, separatedBySpace, blockFitsSpace, separatedByGroup } from './blockSpaces';
+import { splitSpaceSet, separatedBySpace, blockFitsSpace, separatedByGroup, structureSeparates } from './blockSpaces';
 
 const tables = [
   { id: 1, split_space_ids: [10, 11] },
@@ -54,5 +54,17 @@ describe('separatedByGroup - אין קונפליקט בין עמודות התצ�
   it('שדה טקסט (ערכה) - לפי הערך אחרי trim', () => {
     expect(separatedByGroup({ erka: 'ערכה 2 ' }, { erka: 'ערכה 2' }, 'erka')).toBe(false);
     expect(separatedByGroup({ erka: 'ערכה 2' }, { erka: '' }, 'erka')).toBe(true);
+  });
+});
+
+describe('structureSeparates - הפרדת מרחב/בלוק רק כשיש חלוקה', () => {
+  it('בלי חלוקה - אין הפרדה: חפיפה בגובה היא קונפליקט', () => {
+    expect(structureSeparates('none')).toBe(false);
+    expect(structureSeparates(null)).toBe(false);
+    expect(structureSeparates(undefined)).toBe(false);
+  });
+  it('חלוקה לפי מרחב / ערכה - ההפרדה חלה', () => {
+    expect(structureSeparates('block_space_id')).toBe(true);
+    expect(structureSeparates('erka')).toBe(true);
   });
 });

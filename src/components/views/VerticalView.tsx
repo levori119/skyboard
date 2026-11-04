@@ -1,5 +1,5 @@
 import { tr } from '../../i18n/tr';
-import { splitSpaceSet, separatedBySpace, blockFitsSpace } from '../../utils/blockSpaces';
+import { splitSpaceSet, separatedBySpace, blockFitsSpace, structureSeparates } from '../../utils/blockSpaces';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Strip from '../strips/Strip';
 import BlockTargetMap from '../blocks/BlockTargetMap';
@@ -269,7 +269,7 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
         if (!xOvlp) continue;
         if (!externalConflictIds) {
           const altGap = Math.max(a._altLo, b._altLo) - Math.min(a._altHi, b._altHi);
-          if (altGap !== 0 && altGap < conflictAltDelta && !separatedBySpace(a, b, splitSpaces)) { p[i]._hasConflict = true; p[j]._hasConflict = true; }
+          if (altGap !== 0 && altGap < conflictAltDelta && !(structureSeparates(groupBy) && separatedBySpace(a, b, splitSpaces))) { p[i]._hasConflict = true; p[j]._hasConflict = true; }
         }
         if (!a._isRange && !b._isRange) {
           const yDiff = Math.abs(a._y - b._y);
@@ -297,7 +297,7 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
         for (let j = i + 1; j < list.length; j++) {
           const a = list[i], b = list[j];
           const altGap = Math.max(a._altLo, b._altLo) - Math.min(a._altHi, b._altHi);
-          if (altGap !== 0 && altGap < conflictAltDelta && !separatedBySpace(a, b, splitSpaces)) {
+          if (altGap !== 0 && altGap < conflictAltDelta && !(structureSeparates(groupBy) && separatedBySpace(a, b, splitSpaces))) {
             conflictSet.add(String(a.id));
             conflictSet.add(String(b.id));
           }
