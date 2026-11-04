@@ -412,8 +412,12 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
         const splitTableIds = new Set(blockTables
           .filter((bt: any) => Array.isArray(bt.split_space_ids) && bt.split_space_ids.map(String).includes(bsId))
           .map((bt: any) => Number(bt.id)));
-        const segBlocks = blocksPool.filter((b: any) => bsTableIds.includes(b.block_table_id)
-          || (splitTableIds.has(Number(b.block_table_id)) && blockFitsSpace(b, bsId)));
+        // טבלה פעילה נבחרה - **כל** העמודות מציגות אותה (הבלוקים שלה שמשרתים את
+        // המרחב). קודם רק "ללא מרחב" התחלפה, ועמודות המרחבים נשארו על טבלת החלוקה
+        const segBlocks = activeBlockTableId
+          ? blocksPool.filter((b: any) => Number(b.block_table_id) === Number(activeBlockTableId) && blockFitsSpace(b, bsId === '—' ? null : bsId))
+          : blocksPool.filter((b: any) => bsTableIds.includes(b.block_table_id)
+            || (splitTableIds.has(Number(b.block_table_id)) && blockFitsSpace(b, bsId)));
         // מרחב שאין לו טבלת בלוקים משלו (או "ללא מרחב") - בלוקי העמדה עצמה,
         // ולא תרשים ריק: אלה הבלוקים שהעמדה עובדת בהם
         const shownBlocks = segBlocks.length ? segBlocks : relevantBlocks.filter((b: any) => blockFitsSpace(b, bsId === '—' ? null : bsId));
