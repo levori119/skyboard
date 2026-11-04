@@ -81,12 +81,21 @@ export const altRangeGap = (a: [number, number], b: [number, number]): number =>
  *   (רביעייה) תקין, וטווח שגולש לבלוק של עמדה אחרת - חורג.
  * - בלי טבלה פעילה, בלי בלוקים בטבלה, או כשלעמדה אין בה בלוקים - אין התראה.
  */
+/** רמת טיסה אחת (FL) - בלוקים שביניהם רמה אחת לכל היותר הם רצף */
+const FL_STEP = 10;
 export const computeBlockDeviation = (
   s: any, allBlocks: any[], _blockTables: any[],
   activeBlockTableId?: number | null, viewerPresetId?: number | null,
 ): boolean => {
-  if (!activeBlockTableId) return false;
   if (!s.alt) return false;
+  // בלי טבלה פעילה (לעמדה כמה טבלאות): הטבלה שהמרחב של הפ"מ הוא אחד ממרחבי
+  // החלוקה שלה - זו הטבלה שהעמודה שלו בתצוגה האנכית מציגה. קודם: אין התראה בכלל
+  if (!activeBlockTableId && s.block_space_id != null && s.block_space_id !== '') {
+    const bySpace = (Array.isArray(_blockTables) ? _blockTables : []).filter((bt: any) =>
+      Array.isArray(bt?.split_space_ids) && bt.split_space_ids.map(Number).includes(Number(s.block_space_id)));
+    if (bySpace.length === 1) activeBlockTableId = Number(bySpace[0].id);
+  }
+  if (!activeBlockTableId) return false;
   const presetId = viewerPresetId ? Number(viewerPresetId) : (s.workstation_preset_id ? Number(s.workstation_preset_id) : null);
   if (!presetId) return false;
 
@@ -107,6 +116,16 @@ export const computeBlockDeviation = (
   const bHi = (b: any) => Math.max(Number(b.alt_from), Number(b.alt_to));
   const inMine = (v: number) => myBlocks.some((b: any) => v >= bLo(b) && v <= bHi(b));
   if (!inMine(lo) || !inMine(hi)) return true;
+  // כל הטווח, לא רק הקצוות: 303-358 מתחיל בבלוק 280-310 ונגמר ב-330-380, אבל
+  // עובר דרך 320 שאינו באף בלוק. בלוקים סמוכים ברמת טיסה אחת (260-270 ו-280-310)
+  // הם רצף - אין רמה ביניהם
+  let covered = lo;
+  for (const b of [...myBlocks].filter((b: any) => bHi(b) >= lo && bLo(b) <= hi).sort((a: any, b: any) => bLo(a) - bLo(b))) {
+    if (bLo(b) > covered + FL_STEP) return true;
+    covered = Math.max(covered, bHi(b));
+    if (covered >= hi) break;
+  }
+  if (covered < hi) return true;
   return tableBlocks.some((b: any) => !isMine(b) && lo <= bHi(b) && hi >= bLo(b));
 };
 

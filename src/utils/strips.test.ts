@@ -157,6 +157,16 @@ describe('computeBlockDeviation - טווח גבהים ועמדה צופה', () =
     expect(computeBlockDeviation({ alt: '340', workstation_preset_id: 2 }, blocks, [], T, null)).toBe(true);
     expect(computeBlockDeviation({ alt: '340', workstation_preset_id: 26 }, blocks, [], T, null)).toBe(false);
   });
+  it('כמו בתקלה (כד 303-358): קצוות בשני בלוקים של העמדה, אבל עובר בפער 320 - חריגה', () => {
+    expect(computeBlockDeviation({ alt: '303-358' }, blocks, [], T, 26)).toBe(true);
+  });
+  it('בלי טבלה פעילה - הטבלה שהמרחב של הפ"מ הוא ממרחבי החלוקה שלה', () => {
+    const tables = [{ id: T, split_space_ids: [7, 9] }, { id: 11, split_space_ids: [] }];
+    expect(computeBlockDeviation({ alt: '303-358', block_space_id: 9 }, blocks, tables, null, 26)).toBe(true);
+    expect(computeBlockDeviation({ alt: '330-360', block_space_id: 7 }, blocks, tables, null, 26)).toBe(false);
+    // פ"מ בלי מרחב - אין דרך לדעת איזו טבלה, נשאר בלי התראה עד שבוחרים טבלה
+    expect(computeBlockDeviation({ alt: '303-358' }, blocks, tables, null, 26)).toBe(false);
+  });
 });
 
 // ─── מיזוג עדכון אופטימי מול הפולינג ─────────────────────────────────────────
