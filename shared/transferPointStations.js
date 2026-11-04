@@ -37,6 +37,18 @@ export function presetSectorIds(preset) {
 }
 
 /**
+ * העמדות של נקודה, כפי שהוגדרו בניהול: כל עמדה שמשתמשת בנקודה (`presetSectorIds`)
+ * והנקודה דולקת אצלה. זו הרשימה של תפריט "עמדה" בכלל הגבהים של הנקודה.
+ */
+export function pointStationIds(presets, sector) {
+  const sid = num(sector?.id);
+  if (sid === null) return [];
+  return (Array.isArray(presets) ? presets : [])
+    .filter(p => presetSectorIds(p).has(sid) && !isPointDisabledFor(sector, p?.id))
+    .map(p => Number(p.id)).filter(Number.isFinite);
+}
+
+/**
  * ההעברות הפתוחות שחוזרות למוסר כשהנקודה `sectorId` כובתה לעמדה `presetId`.
  *
  * | העברה | חוזרת? |

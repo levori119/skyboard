@@ -11,6 +11,7 @@ import HandwritingOverlay from '../shared/HandwritingOverlay';
 import { FaultBadge } from '../shared/FaultBadge';
 import { OutgoingTransferCard, IncomingTransferCard, CompactTransferRow } from './TransferCards';
 import { useEtaCountdown } from '../../hooks/useEtaCountdown';
+import { pointStationIds } from '../../../shared/transferPointStations.js';
 
 export const DraggableNeighborPanel = ({ 
   neighbor, 
@@ -87,6 +88,11 @@ export const DraggableNeighborPanel = ({
   const [inCollapsed, setInCollapsed] = useState(false);
   const [showAltEdit, setShowAltEdit] = useState(false);
   const [altEditRanges, setAltEditRanges] = useState<{ preset_id: string; alt_min: string; alt_max: string; parity: string }[]>([]);
+  // תפריט "עמדה" בכלל הגבהים: השותפים שהוגדרו לנקודה בתצוגה הקלאסית, ואם לא
+  // הוגדרו - העמדות של הנקודה מניהול ← נקודות העברה. קודם רק הראשון, והתפריט יצא ריק
+  const pointPartnerIds: number[] = (Array.isArray(transferPointConfig?.partner_preset_ids) && transferPointConfig!.partner_preset_ids!.length)
+    ? transferPointConfig!.partner_preset_ids!.map(Number)
+    : pointStationIds(allPresets, neighbor);
   const [altSaving, setAltSaving] = useState(false);
   const [partnerRangesCache, setPartnerRangesCache] = useState<{ preset_id: number; preset_name: string; ranges: any[] }[]>([]);
 
@@ -450,8 +456,7 @@ export const DraggableNeighborPanel = ({
                   <option value="">{tr('transfers.workstation')}</option>
                   {allPresets.filter(p =>
                     String(p.id) !== String(presetId) &&
-                    Array.isArray(transferPointConfig?.partner_preset_ids) &&
-                    (transferPointConfig!.partner_preset_ids as number[]).map(String).includes(String(p.id)) &&
+                    pointPartnerIds.includes(Number(p.id)) &&
                     !altEditRanges.some((r2, j) => j !== i && String(r2.preset_id) === String(p.id))
                   ).map(p => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
                 </select>

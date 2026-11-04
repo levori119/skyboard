@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { disabledPresetIds, isPointDisabledFor, toggleDisabled, presetSectorIds, transfersToReturn } from './transferPointStations.js';
+import { disabledPresetIds, isPointDisabledFor, toggleDisabled, presetSectorIds, transfersToReturn, pointStationIds } from './transferPointStations.js';
 
 describe('רשימת העמדות הכבויות', () => {
   it('עמידה לערך שבור, מחרוזת JSON וכפילויות', () => {
@@ -44,5 +44,23 @@ describe('transfersToReturn - מה חוזר למוסר כשהנקודה כובת
   });
   it('העברה לנקודה אחרת - לא נוגעים', () => {
     expect(transfersToReturn([{ id: 9, to_sector_id: 200, from_workstation_id: 7 }], S, 7, [])).toEqual([]);
+  });
+});
+
+describe('pointStationIds - העמדות של נקודה לתפריט "עמדה"', () => {
+  const presets = [
+    { id: 21, relevant_sectors: [], classic_transfer_points: [{ sector_id: 2742 }] },
+    { id: 26, relevant_sectors: [2742] },
+    { id: 2, relevant_sectors: [99] },
+    { id: 5, classic_receive_points: [{ sector_id: 2742 }] },
+  ];
+  it('כל עמדה שמשתמשת בנקודה, מורכבת או קלאסית', () => {
+    expect(pointStationIds(presets, { id: 2742 })).toEqual([21, 26, 5]);
+  });
+  it('עמדה שהנקודה כבויה אצלה יוצאת', () => {
+    expect(pointStationIds(presets, { id: 2742, disabled_preset_ids: [5] })).toEqual([21, 26]);
+  });
+  it('בלי נקודה - ריק', () => {
+    expect(pointStationIds(presets, null)).toEqual([]);
   });
 });
