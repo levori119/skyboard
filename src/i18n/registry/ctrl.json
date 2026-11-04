@@ -2546,6 +2546,10 @@
       "he": "הגבהים הסגורים",
       "en": "Closed altitudes"
     },
+    "mapInkNote": {
+      "he": "✍️ הערה בכתב יד",
+      "en": "✍️ Handwritten note"
+    },
     "zoneAltScope": {
       "he": "שינוי הגבהים חל על",
       "en": "Apply the altitude change to"

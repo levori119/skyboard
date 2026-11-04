@@ -141,6 +141,8 @@ import { MAP_PAN_CURSOR, MAP_LAYER_TRANSITION, mapLayerTransform, shouldStartMap
 import { parseParentRect, sectorFocusView, FULL_MAP_VIEW } from '../../utils/sectorFocus';
 import type { RectPct } from '../../utils/sectorFocus';
 import type { MapPan } from '../../utils/mapPan';
+import { StripInkPad } from '../shared/StripInkPad';
+import { parseMapInkNotes, setMapInkNote, purgeMapInkNotes, stripNum, type MapInkNotes } from '../../utils/mapInkNotes';
 import { STRIP_FIELD_DEFS, EDITABLE_LABELS, STICKY_COLORS } from '../../types/stripFields';
 import { TableTransferAcceptCell } from '../transfers/TableTransferAcceptCell';
 import { indexTransfersByStrip, transferCellState, acceptFlashCss, ACCEPT_FLASH_TABLE_MS, ACCEPT_FLASH_DEFAULT_MS } from '../../utils/tableTransferCell';
@@ -930,6 +932,32 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [fzSplitItems, setFzSplitItems] = useState<{ key: number; parentStripId: number; label: string; count: number; zoneId?: number | null; zoneName?: string | null; zoneColor?: string | null; altRangeId?: number | null; status?: string; posX?: number; posY?: number }[]>([]);
   const [fzAnimPaused, setFzAnimPaused] = useState(true);
   const [fzPinMenu, setFzPinMenu] = useState<{ stripId: number; x: number; y: number; strip: any; assignment: StripZoneAssignment | null } | null>(null);
+  // ── הערה בכתב יד ליד פ"מ במפה - של העמדה בלבד (src/utils/mapInkNotes.ts) ──
+  const mapInkKey = `sk.mapInkNotes.${session.presetId ?? 'none'}`;
+  const [mapInkNotes, setMapInkNotesState] = useState<MapInkNotes>(() => {
+    try { return parseMapInkNotes(localStorage.getItem(mapInkKey)); } catch { return {}; }
+  });
+  const saveMapInkNotes = (next: MapInkNotes) => {
+    setMapInkNotesState(next);
+    try { localStorage.setItem(mapInkKey, JSON.stringify(next)); } catch { /* אחסון חסום/מלא - נשאר לסשן */ }
+  };
+  const [mapInkEdit, setMapInkEdit] = useState<number | null>(null);
+  // הפ"מ עבר לעמדה אחרת (או נמחק) - ההערה שלו נעלמת
+  useEffect(() => {
+    const next = purgeMapInkNotes(mapInkNotes, strips, session.presetId, initialDataLoaded);
+    if (next !== mapInkNotes) saveMapInkNotes(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [strips, initialDataLoaded]);
+  /** תמונת ההערה ליד הפ"מ. גודל קבוע על המסך (חלוקה בזום), ולא תופסת מגע */
+  const mapInkImg = (stripId: unknown, zoom: number, style: React.CSSProperties) => {
+    const id = stripNum(stripId);
+    const src = id !== null ? mapInkNotes[id] : undefined;
+    if (!src) return null;
+    return (
+      <img src={src} alt="" draggable={false} data-testid="map-ink-note"
+        style={{ position: 'absolute', width: 110 / zoom, height: 'auto', borderRadius: 4 / zoom, border: `${Math.max(1, 1.5 / zoom)}px solid #f59e0b`, boxShadow: '0 2px 6px rgba(0,0,0,0.45)', pointerEvents: 'none', zIndex: 49, ...style }} />
+    );
+  };
   // ─── דיווח תקלה מתפריט ה-⋮ של הפ"מ על המפה ─────────────────────────────────
   // טופס התקלה נפרס **בתוך** התפריט ולא בחלון נפרד: דיווח תקלה הוא פעולה של
   // שניות באמצע בקרה, וחלון מודאלי נוסף היה עולה יותר מהסדק הפיזי.
@@ -10513,7 +10541,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   })()
                 : rawS;
               return (
-              <Strip key={s.id} s={s}
+              <React.Fragment key={s.id}>
+              <Strip s={s}
+                onInkNote={() => setMapInkEdit(stripNum(s.id))}
                 onProvTransfer={(stripId: any, provId: number, otherPreset: number) => provDropRef.current?.(String(stripId), provId, otherPreset)}
                 onUpdate={handleAltUpdate}
                 onMove={handleMove}
@@ -10538,6 +10568,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 viewerPresetId={session.presetId ? Number(session.presetId) : null}
                 lightMode={lightMode}
               />
+              {/* ההערה בכתב יד - צמודה לצד הכרטיס (רוחבו 130 על המסך) */}
+              {mapInkImg(s.id, mapZoom, { left: Number(s.x) + 134 / mapZoom, top: Number(s.y) })}
+              </React.Fragment>
             ); })}
 
             {/* פוליגון מקיף לפ"מ המחובר לכמה אזורים סמוכים — עוקב בדיוק אחרי גבולות האזורים (union מדויק,
@@ -11227,6 +11260,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     size={Math.max(8, 10 / mapZoom)}
                     style={{ position: 'absolute', bottom: `calc(100% + ${2 / mapZoom}px)`, insetInlineEnd: `${-6 / mapZoom}px`, zIndex: 6, pointerEvents: 'none', background: '#450a0a', borderWidth: `${Math.max(1, 1.2 / mapZoom)}px` }}
                   />
+                  {/* הערה בכתב יד של העמדה - מתחת לפין */}
+                  {mapInkImg(a.strip_id, mapZoom, { top: `calc(100% + ${2 / mapZoom}px)`, left: '50%', transform: 'translateX(-50%)' })}
                   {/* Block-exceedance badge — pin altitude outside the zone's defined/permitted blocks.
                       באותו קו כמו תג התקלה (מעל התוכן), כדי ששניהם ייקראו יחד
                       ואף אחד מהם לא יסתיר את האו"ק. */}
@@ -22493,6 +22528,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       )}
 
       {/* FZ Pin Context Menu */}
+      {mapInkEdit != null && (
+        <StripInkPad existing={mapInkNotes[mapInkEdit]}
+          onSave={dataUrl => { saveMapInkNotes(setMapInkNote(mapInkNotes, mapInkEdit, dataUrl)); setMapInkEdit(null); }}
+          onCancel={() => setMapInkEdit(null)} />
+      )}
       {fzPinMenu && createPortal(
         <div
           style={{ position: 'fixed', inset: 0, zIndex: 9200 }}
@@ -22712,6 +22752,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 </div>
               );
             })()}
+            {/* הערה בכתב יד ליד הפ"מ - של העמדה בלבד */}
+            <button data-testid="fz-pin-ink-note" onClick={() => { setMapInkEdit(fzPinMenu.stripId); setFzPinMenu(null); }}
+              style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#fcd34d', cursor: 'pointer', fontSize: '12px', textAlign: 'start', borderBottom: '1px solid #1e3a5f' }}>
+              {tr('ctrl.mapInkNote')}
+            </button>
             {/* Show assigned zones */}
             <button onClick={() => { setFzAssignedZonesPanel({ stripId: fzPinMenu.stripId, strip: fzPinMenu.strip, assignment: fzPinMenu.assignment, x: fzPinMenu.x, y: fzPinMenu.y }); setFzPinMenu(null); }}
               style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#7dd3fc', cursor: 'pointer', fontSize: '12px', textAlign: 'start', borderBottom: '1px solid #1e3a5f' }}>

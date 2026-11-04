@@ -54,7 +54,7 @@ const StripTimeField = ({ label, value, onSave }: { label: string; value?: strin
   );
 };
 
-const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onProvTransfer, onToggleAirborne, onUpdateNotes, onUpdateDetails, zoom = 1, pan = null, serials = [], serialSelections = [], onSerialSelect, onSerialDismiss, onSerialRemove, allBlockSpaces = [], allBlocks = [], allBlockTables = [], allWorkstationPresets = [], activeBlockTableId = null, mapConflictIds = null, muteConflictAlerts = false, viewerPresetId = null, lightMode = false, themeMode }: any) => {
+const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onProvTransfer, onToggleAirborne, onUpdateNotes, onUpdateDetails, zoom = 1, pan = null, serials = [], serialSelections = [], onSerialSelect, onSerialDismiss, onSerialRemove, allBlockSpaces = [], allBlocks = [], allBlockTables = [], allWorkstationPresets = [], activeBlockTableId = null, mapConflictIds = null, muteConflictAlerts = false, viewerPresetId = null, lightMode = false, themeMode, onInkNote }: any) => {
   // התמה בפועל. עמדות ותיקות מעבירות רק `lightMode`, ולכן היא נגזרת ממנו כשלא
   // הועברה תמה מפורשת - כך ocean לא נופל בשקט ל-dark במי שכן מעביר אותה.
   const theme: 'light' | 'dark' | 'ocean' = themeMode || (lightMode ? 'light' : 'dark');
@@ -921,6 +921,10 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onProvTransfer, onT
                 try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: true }) }); } catch {}
                 setContextMenu(null);
               }});
+            }
+            // הערה בכתב יד ליד הפ"מ במפה - מקומית לעמדה (src/utils/mapInkNotes.ts)
+            if (onInkNote) {
+              actions.push({ label: tr('ctrl.mapInkNote'), onClick: () => { setContextMenu(null); onInkNote(); } });
             }
             if (blockDeviation && !isBlockDeviation) {
               actions.push({ label: 'נקה סטייה ממרחב בלוקים', onClick: async () => {
