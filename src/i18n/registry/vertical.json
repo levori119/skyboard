@@ -42,6 +42,10 @@
       "he": "◻ הצג בלוקים",
       "en": "◻ Show blocks"
     },
+    "showTargetMap": {
+      "he": "הצג מפת מטרות",
+      "en": "Show target map"
+    },
     "shrinkAltitudeRangeBy": {
       "he": "צמצם טווח גובה ב-2000 רגל",
       "en": "Shrink altitude range by 2000 ft"
@@ -61,6 +65,10 @@
     "targetMapOtherTargets": {
       "he": "שאר המטרות",
       "en": "Other targets"
+    },
+    "targetMapSplitter": {
+      "he": "גרור לשינוי הרוחב בין הבלוקים למפה · לחיצה כפולה - חצי-חצי",
+      "en": "Drag to resize blocks and map · double-click to reset to half"
     },
     "theFormationContains": {
       "he": "הפ\"מ מכיל",

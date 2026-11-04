@@ -5,25 +5,53 @@ import Strip from '../strips/Strip';
 import BlockTargetMap from '../blocks/BlockTargetMap';
 import { computeBlockDeviation, getFormationDisplayName, normalizeAlt, parseAltToFeet } from '../../utils/strips';
 
-export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], blockSpaces = [], blockTables = [], allBlocks = [], muteBlockAlerts = false, muteConflictAlerts = false, onStripContextMenu, activeBlockTableId = null, onTimeFieldChange, timeBased = true, onUpdateStripAlt, conflictAltDelta = 500, presetAltMin = null, presetAltMax = null, viewerPresetId = null, externalConflictIds = undefined, initialGroupBy = 'none', onGroupByChange, suggestAltRange = false, blocksSelected = true, mapSpaces }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean; relevantBlocks?: any[]; blockSpaces?: any[]; blockTables?: any[]; allBlocks?: any[]; muteBlockAlerts?: boolean; muteConflictAlerts?: boolean; onStripContextMenu?: (stripId: string, x: number, y: number) => void; activeBlockTableId?: number | null; onTimeFieldChange?: (v: 'takeoff' | 'zmm') => void; timeBased?: boolean; onUpdateStripAlt?: (stripId: string, newAlt: string) => void; conflictAltDelta?: number; presetAltMin?: number | null; presetAltMax?: number | null; viewerPresetId?: number | null; externalConflictIds?: Set<string>; initialGroupBy?: 'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id'; onGroupByChange?: (g: 'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id') => void; suggestAltRange?: boolean;
+export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], blockSpaces = [], blockTables = [], allBlocks = [], muteBlockAlerts = false, muteConflictAlerts = false, onStripContextMenu, activeBlockTableId = null, onTimeFieldChange, timeBased = true, onUpdateStripAlt, conflictAltDelta = 500, presetAltMin = null, presetAltMax = null, viewerPresetId = null, externalConflictIds = undefined, initialGroupBy = 'none', onGroupByChange, suggestAltRange = false, blocksSelected = true, mapSpaces, targetMapOn, onTargetMapToggle }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean; relevantBlocks?: any[]; blockSpaces?: any[]; blockTables?: any[]; allBlocks?: any[]; muteBlockAlerts?: boolean; muteConflictAlerts?: boolean; onStripContextMenu?: (stripId: string, x: number, y: number) => void; activeBlockTableId?: number | null; onTimeFieldChange?: (v: 'takeoff' | 'zmm') => void; timeBased?: boolean; onUpdateStripAlt?: (stripId: string, newAlt: string) => void; conflictAltDelta?: number; presetAltMin?: number | null; presetAltMax?: number | null; viewerPresetId?: number | null; externalConflictIds?: Set<string>; initialGroupBy?: 'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id'; onGroupByChange?: (g: 'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id') => void; suggestAltRange?: boolean;
   /** נבחרה טבלת בלוקים (☆ בעזרים). בלי בחירה לא מוצגים בלוקים בכלל - לא כל בלוקי העמדה */
   blocksSelected?: boolean;
   /** מרחבי הבלוקים של העמדה - למפת המטרות. בלעדיהם: כל המרחבים */
-  mapSpaces?: any[] }) => {
+  mapSpaces?: any[];
+  /** מפת המטרות דלוקה - מנוהל בחוץ כדי שגם תפריט התצוגה ידליק אותה. בלעדיו: מצב פנימי */
+  targetMapOn?: boolean;
+  onTargetMapToggle?: () => void }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const chartContentRef = React.useRef<HTMLDivElement>(null);
   const [chartW, setChartW] = React.useState(800);
   const [groupBy, setGroupBy] = React.useState<'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id'>(initialGroupBy);
   const [showBlocks, setShowBlocks] = React.useState(true);
-  // מפת המטרות ליד הבלוקים - לא קבועה, נדלקת בכפתור. הבחירה נשמרת פר-עמדה
-  const targetMapKey = `sk.vvTargetMap.${viewerPresetId ?? 'none'}`;
-  const [showTargetMap, setShowTargetMap] = React.useState<boolean>(() => {
-    try { return localStorage.getItem(targetMapKey) === '1'; } catch { return false; }
+  // מפת המטרות ליד הבלוקים - לא קבועה, נדלקת בכפתור (או מתפריט התצוגה)
+  const [innerTargetMap, setInnerTargetMap] = React.useState(false);
+  const showTargetMap = targetMapOn ?? innerTargetMap;
+  const toggleTargetMap = onTargetMapToggle ?? (() => setInnerTargetMap(v => !v));
+  // ספליטר בין הבלוקים למפה: החלק של הבלוקים מהרוחב. נשמר פר-עמדה
+  const splitKey = `sk.vvTargetMapSplit.${viewerPresetId ?? 'none'}`;
+  const [mapSplit, setMapSplit] = React.useState<number>(() => {
+    try { const v = Number(localStorage.getItem(splitKey)); return v >= 0.2 && v <= 0.8 ? v : 0.5; } catch { return 0.5; }
   });
-  const toggleTargetMap = () => setShowTargetMap(v => {
-    try { localStorage.setItem(targetMapKey, v ? '0' : '1'); } catch { /* ignore */ }
-    return !v;
-  });
+  const splitRowRef = React.useRef<HTMLDivElement>(null);
+  // Pointer Events (עכבר/עט/אצבע) + setPointerCapture; ההזזה מחולקת ב---s כי #root תחת zoom
+  const onSplitPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button > 0 || !splitRowRef.current) return;
+    const handle = e.currentTarget;
+    const s = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--s')) || 1;
+    const width = splitRowRef.current.offsetWidth || 1;
+    const start = { x: e.clientX, ratio: mapSplit };
+    let last = mapSplit;
+    try { handle.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    const move = (me: PointerEvent) => {
+      last = Math.min(0.8, Math.max(0.2, start.ratio + (me.clientX - start.x) / s / width));
+      setMapSplit(last);
+    };
+    const up = () => {
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', up);
+      handle.removeEventListener('pointercancel', up);
+      try { handle.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+      try { localStorage.setItem(splitKey, String(last)); } catch { /* ignore */ }
+    };
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', up);
+    handle.addEventListener('pointercancel', up);
+  };
   const [blockDisplayMode, setBlockDisplayMode] = React.useState<'altitudes' | 'legend'>('altitudes');
   const [blockSpaceOrder, setBlockSpaceOrder] = React.useState<string[]>([]);
   const [dragSegKey, setDragSegKey] = React.useState<string | null>(null);
@@ -890,8 +918,8 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', direction: 'ltr', background: bg, boxSizing: 'border-box' }}>
 
       {/* ── Main chart row (+ מפת המטרות בחצי השני כשדלוקה) ── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 0 }}>
-      <div style={{ flex: showTargetMap ? '0 0 50%' : 1, minWidth: 0, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 0 }}>
+      <div ref={splitRowRef} style={{ flex: 1, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 0 }}>
+      <div style={{ flex: showTargetMap ? `0 0 ${mapSplit * 100}%` : 1, minWidth: 0, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 0 }}>
 
         {/* Y-axis column */}
         <div style={{ width: Y_AXIS_W, flexShrink: 0, height: '100%', display: usePerSegmentAxis ? 'none' : 'flex', flexDirection: 'column', borderRight: `1px solid ${gridLine}`, background: bg }}>
@@ -1016,9 +1044,17 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
         </div>
       </div>
       {showTargetMap && (
-        <div style={{ flex: '0 0 50%', minWidth: 0, borderLeft: SEG_DIVIDER, boxSizing: 'border-box' }}>
-          <BlockTargetMap strips={strips} spaces={mapSpaces ?? blockSpaces} lightMode={lightMode} />
-        </div>
+        <>
+          <div data-testid="vv-target-map-splitter" onPointerDown={onSplitPointerDown}
+            onDoubleClick={() => { setMapSplit(0.5); try { localStorage.setItem(splitKey, '0.5'); } catch { /* ignore */ } }}
+            title={tr('vertical.targetMapSplitter')}
+            style={{ width: 10, flexShrink: 0, cursor: 'col-resize', touchAction: 'none', userSelect: 'none', background: lightMode ? '#6366f1' : '#4f46e5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#e0e7ff', fontSize: '12px', lineHeight: 1 }}>
+            ⋮
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <BlockTargetMap strips={strips} spaces={mapSpaces ?? blockSpaces} lightMode={lightMode} />
+          </div>
+        </>
       )}
       </div>
 
