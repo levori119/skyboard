@@ -14,6 +14,18 @@
       "he": "+ הוסף הערה",
       "en": "+ Add note"
     },
+    "altRuleSaveFailed": {
+      "he": "השמירה נכשלה - הכללים לא נשמרו. נסה שוב",
+      "en": "Save failed - the rules were not saved. Try again"
+    },
+    "altRulesOwnOnly": {
+      "he": "הגבהים של {{station}} - כל עמדה מעדכנת רק את שלה",
+      "en": "Altitudes of {{station}} - each station updates only its own"
+    },
+    "altRuleLockedHint": {
+      "he": "כלל של עמדה אחרת - רק היא מעדכנת אותו. אפשר להסיר",
+      "en": "Another station's rule - only it can update it. You can remove it"
+    },
     "altitudeConflict": {
       "he": "⚠ קונפליקט גובה",
       "en": "⚠ Altitude conflict"

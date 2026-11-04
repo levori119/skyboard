@@ -11,6 +11,7 @@ import HandwritingOverlay from '../shared/HandwritingOverlay';
 import { FaultBadge } from '../shared/FaultBadge';
 import { OutgoingTransferCard, IncomingTransferCard, CompactTransferRow } from './TransferCards';
 import { useEtaCountdown } from '../../hooks/useEtaCountdown';
+import { collectPointRules } from '../../../shared/transferPointAltRules.js';
 import { useIncomingTransferDrag } from '../../hooks/useIncomingTransferDrag';
 import { pointStationIds } from '../../../shared/transferPointStations.js';
 
@@ -101,6 +102,24 @@ export const DraggableNeighborPanel = ({
     ? transferPointConfig!.partner_preset_ids!.map(Number)
     : pointStationIds(allPresets, neighbor);
   const [altSaving, setAltSaving] = useState(false);
+  const [altSaveError, setAltSaveError] = useState(false);
+  // מה שהיה בפתיחת העורך - כדי שסגירה ב-📐 אחרי שינוי תשמור ולא תזרוק את הבחירה
+  const altEditInitRef = useRef('');
+  // רענון כללי העמדות האחרות: כל 15 שניות, ומיד אחרי שמירה שלי
+  const [partnerRangesTick, setPartnerRangesTick] = useState(0);
+  const saveAltEdit = async () => {
+    if (!onUpdateTransferPointConfig) return;
+    setAltSaving(true); setAltSaveError(false);
+    const finalRanges = altEditRanges.map(r => ({ preset_id: r.preset_id !== '' ? Number(r.preset_id) : null, alt_min: r.alt_min !== '' ? Number(r.alt_min) : null, alt_max: r.alt_max !== '' ? Number(r.alt_max) : null, parity: r.parity }));
+    try {
+      await onUpdateTransferPointConfig(Number(neighbor.id), finalRanges);
+      setShowAltEdit(false);
+      setPartnerRangesTick(t => t + 1);
+    } catch {
+      // השמירה נכשלה - העורך נשאר פתוח עם מה שנבחר, ולא נסגר כאילו נשמר
+      setAltSaveError(true);
+    } finally { setAltSaving(false); }
+  };
   const [partnerRangesCache, setPartnerRangesCache] = useState<{ preset_id: number; preset_name: string; ranges: any[] }[]>([]);
 
   const getNeighborContacts = () => {
@@ -128,16 +147,24 @@ export const DraggableNeighborPanel = ({
     setNeighborContactsOpen(true);
   };
 
+  // כללי הגבהים של שאר העמדות בנקודה - מסונכרנים: כל עמדה רואה את של כולן.
+  // קודם נמשכו רק מ"שותפים" שהוגדרו בתצוגה הקלאסית, ולכן בעמדה בלי שותפים
+  // (בת"ק עזה באשכול) הכללים של העמדות האחרות לא הופיעו בכלל
+  const partnerIdsKey = pointPartnerIds.filter(id => Number(id) !== Number(presetId)).sort((a, b) => a - b).join(',');
   useEffect(() => {
-    const partnerIds: number[] = Array.isArray(transferPointConfig?.partner_preset_ids) ? (transferPointConfig!.partner_preset_ids as number[]) : [];
-    if (!partnerIds.length) { setPartnerRangesCache([]); return; }
+    if (!partnerIdsKey) { setPartnerRangesCache([]); return; }
+    let alive = true;
     // כשל אינו מרוקן את טווחי הגובה של השכן: פאנל ריק נקרא כ"לשכן אין טווחים",
     // וזה מידע בטיחותי שגוי. בנתק נשארים על הטווחים האחרונים שהתקבלו.
-    fetch(`${API_URL}/workstation-presets/partner-alt-ranges?sector_id=${neighbor.id}&preset_ids=${partnerIds.join(',')}`)
+    const load = () => fetch(`${API_URL}/workstation-presets/partner-alt-ranges?sector_id=${neighbor.id}&preset_ids=${partnerIdsKey}`)
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) setPartnerRangesCache(data); })
+      .then(data => { if (data && alive) setPartnerRangesCache(prev => JSON.stringify(prev) === JSON.stringify(data) ? prev : data); })
       .catch(() => { /* נתק — שומרים על הטווחים האחרונים */ });
-  }, [neighbor.id, JSON.stringify(transferPointConfig?.partner_preset_ids)]);
+    load();
+    const iv = setInterval(load, 15000);
+    return () => { alive = false; clearInterval(iv); };
+  }, [neighbor.id, partnerIdsKey, partnerRangesTick]);
+  const pointRules = collectPointRules(transferPointConfig, Number(presetId), partnerRangesCache);
 
   const sectorOutgoing = outgoingTransfers.filter(t => Number(t.to_sector_id) === Number(neighbor.id));
   const sectorIncoming = direction === 'send' ? [] : incomingTransfers.filter(t => Number(t.to_sector_id) === Number(neighbor.id));
@@ -215,9 +242,9 @@ export const DraggableNeighborPanel = ({
   const altViolationOutgoingIds = new Set<string>();
   const altViolationIncomingIds = new Set<string>();
   {
-    const cfg = transferPointConfig as any;
-    const myRanges: { alt_min: number | null; alt_max: number | null }[] = Array.isArray(cfg?.ranges) && cfg.ranges.length ? cfg.ranges : (cfg?.alt_min != null || cfg?.alt_max != null ? [{ alt_min: cfg?.alt_min ?? null, alt_max: cfg?.alt_max ?? null }] : []);
-    const partnerRanges: { alt_min: number | null; alt_max: number | null }[] = partnerRangesCache.flatMap(pr => pr.ranges);
+    // כל כלל נספר לעמדה שלו: שלי - לפ"מים שנכנסים אליי, של האחרות - לפ"מים שאני מוסר
+    const myRanges = pointRules.filter(r => r.station === Number(presetId));
+    const partnerRanges = pointRules.filter(r => r.station !== Number(presetId));
     const makeCheck = (ranges: { alt_min: number | null; alt_max: number | null }[]) => (altStr: string | null | undefined) => {
       if (!ranges.length || !altStr) return false;
       const m = altStr.match(/\d+/);
@@ -371,27 +398,25 @@ export const DraggableNeighborPanel = ({
               <div style={{ fontSize: '9px', color: lightMode ? '#92400e' : '#fbbf24', fontStyle: 'italic', marginTop: '1px' }}>{neighbor.notes}</div>
             )}
             {(() => {
-              const cfg = transferPointConfig as any;
-              const myRanges: any[] = Array.isArray(cfg?.ranges) && cfg.ranges.length ? cfg.ranges : (cfg?.alt_min != null || cfg?.alt_max != null ? [{ alt_min: cfg?.alt_min, alt_max: cfg?.alt_max, parity: cfg?.parity }] : []);
-              const totalPartner = partnerRangesCache.length;
-              if (!myRanges.length && !totalPartner) return null;
+              if (!pointRules.length) return null;
               return (
                 <div style={{ display: 'inline-flex', flexWrap: 'wrap', justifyContent: 'center', gap: '2px', marginTop: '3px' }}>
-                  {/* כל כלל במלואו: עמדה · טווח · זוגיות. קודם, מעל כלל אחד הוצג רק "N טווחים" */}
-                  {myRanges.map((r: any, i: number) => {
-                    const st = r.preset_id != null ? allPresets.find(p => String(p.id) === String(r.preset_id))?.name : null;
+                  {/* כל כללי הנקודה מכל העמדות, כל אחד במלואו: עמדה · טווח · זוגיות.
+                      של העמדה שלי - בצהוב; של האחרות - בכחול (מתעדכנות שם בלבד) */}
+                  {pointRules.map((r, i) => {
+                    const own = r.station === Number(presetId);
+                    const st = allPresets.find(p => String(p.id) === String(r.station))?.name;
                     const par = r.parity === 'even' ? tr('shared.even') : r.parity === 'odd' ? tr('shared.odd') : '';
                     return (
-                      <span key={i} style={{ fontSize: '9px', background: lightMode ? '#fef9c3' : '#292524', color: lightMode ? '#92400e' : '#fbbf24', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '4px', padding: '0px 4px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                      <span key={i} data-testid="tp-alt-rule" data-own={own || undefined}
+                        style={{ fontSize: '9px', borderRadius: '4px', padding: '0px 4px', fontWeight: 'bold', whiteSpace: 'nowrap',
+                          ...(own
+                            ? { background: lightMode ? '#fef9c3' : '#292524', color: lightMode ? '#92400e' : '#fbbf24', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}` }
+                            : { background: lightMode ? '#eff6ff' : '#172554', color: lightMode ? '#1d4ed8' : '#93c5fd', border: `1px solid ${lightMode ? '#bfdbfe' : '#1e3a8a'}` }) }}>
                         📐 {st ? `${st} ` : ''}<bdi>{`${r.alt_min ?? '?'}-${r.alt_max ?? '?'}`}</bdi>{par ? ` ${par}` : ''}
                       </span>
                     );
                   })}
-                  {totalPartner > 0 && (
-                    <span style={{ fontSize: '9px', background: lightMode ? '#eff6ff' : '#172554', color: lightMode ? '#1d4ed8' : '#93c5fd', border: `1px solid ${lightMode ? '#bfdbfe' : '#1e3a8a'}`, borderRadius: '4px', padding: '0px 4px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                      {partnerRangesCache.map(pr => (pr.preset_name || '').split(' ').slice(-1)[0] || pr.preset_name).join('/')}
-                    </span>
-                  )}
                 </div>
               );
             })()}
@@ -413,8 +438,14 @@ export const DraggableNeighborPanel = ({
                       ? [{ preset_id: '', alt_min: cfg?.alt_min != null ? String(cfg.alt_min) : '', alt_max: cfg?.alt_max != null ? String(cfg.alt_max) : '', parity: cfg?.parity || 'any' }]
                       : [{ preset_id: '', alt_min: '', alt_max: '', parity: 'any' }];
                   setAltEditRanges(init);
+                  altEditInitRef.current = JSON.stringify(init);
+                  setAltSaveError(false);
+                  setShowAltEdit(true);
+                  return;
                 }
-                setShowAltEdit(v => !v);
+                // סגירה ב-📐 אחרי שינוי = שמירה. קודם זה סגר בשקט והבחירה (למשל עמדה) אבדה
+                if (JSON.stringify(altEditRanges) !== altEditInitRef.current) { saveAltEdit(); return; }
+                setShowAltEdit(false);
               }}
               onPointerDown={e => e.stopPropagation()}
               title={tr('transfers.setAltitudeParityConditions')}
@@ -468,17 +499,21 @@ export const DraggableNeighborPanel = ({
         {showAltEdit && onUpdateTransferPointConfig && (
           <div style={{ padding: '5px 8px', background: lightMode ? '#fef9c3' : '#1c1008', borderBottom: `1px solid ${lightMode ? '#fde68a' : '#92400e'}`, direction: 'rtl' }}
             onPointerDown={e => e.stopPropagation()}>
-            {altEditRanges.map((row, i) => (
+            <div style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#78350f' : '#fbbf24', marginBottom: '3px' }}>
+              {tr('transfers.altRulesOwnOnly', { station: allPresets.find(p => String(p.id) === String(presetId))?.name || '' })}
+            </div>
+            {altEditRanges.map((row, i) => (row.preset_id !== '' && row.preset_id !== String(presetId)) ? (
+              // כלל ישן שהוגדר כאן לעמדה אחרת: מוצג ונעול - רק העמדה ההיא מעדכנת את הגבהים שלה
+              <div key={i} data-testid="tp-alt-rule-locked" title={tr('transfers.altRuleLockedHint')}
+                style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '3px', fontSize: '10px', color: '#64748b' }}>
+                <span>🔒 {allPresets.find(p => String(p.id) === row.preset_id)?.name || row.preset_id}</span>
+                <bdi>{`${row.alt_min || '?'}-${row.alt_max || '?'}`}</bdi>
+                {row.parity === 'even' ? tr('shared.even') : row.parity === 'odd' ? tr('shared.odd') : ''}
+                <button onClick={e => { e.stopPropagation(); setAltEditRanges(rs => rs.filter((_, j) => j !== i)); }}
+                  style={{ marginInlineStart: 'auto', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px', padding: '0', lineHeight: 1, flexShrink: 0 }}>✕</button>
+              </div>
+            ) : (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '3px', marginBottom: '3px' }}>
-                <select value={row.preset_id} onChange={e => setAltEditRanges(rs => rs.map((r, j) => j === i ? { ...r, preset_id: e.target.value } : r))}
-                  style={{ width: '80px', padding: '2px 2px', background: lightMode ? 'white' : '#0f172a', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : '#fbbf24', fontSize: '10px', minWidth: 0 }}>
-                  <option value="">{tr('transfers.workstation')}</option>
-                  {/* כולל העמדה הנוכחית - כלל גובה יכול לחול גם עליה */}
-                  {allPresets.filter(p =>
-                    (String(p.id) === String(presetId) || pointPartnerIds.includes(Number(p.id))) &&
-                    !altEditRanges.some((r2, j) => j !== i && String(r2.preset_id) === String(p.id))
-                  ).map(p => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
-                </select>
                 <input type="number" placeholder="מינ'" value={row.alt_min} onChange={e => setAltEditRanges(rs => rs.map((r, j) => j === i ? { ...r, alt_min: e.target.value } : r))}
                   style={{ width: '42px', padding: '2px 2px', background: lightMode ? 'white' : '#0f172a', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : '#fbbf24', fontSize: '10px', textAlign: 'center', minWidth: 0 }} />
                 <span style={{ fontSize: '9px', color: '#64748b', flexShrink: 0 }}>–</span>
@@ -497,19 +532,15 @@ export const DraggableNeighborPanel = ({
             <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
               <button onClick={e => { e.stopPropagation(); setAltEditRanges(rs => [...rs, { preset_id: '', alt_min: '', alt_max: '', parity: 'any' }]); }}
                 style={{ padding: '2px 7px', background: 'transparent', color: lightMode ? '#78350f' : '#fbbf24', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '3px', fontSize: '10px', cursor: 'pointer', flexShrink: 0 }}>➕</button>
-              <button disabled={altSaving} onClick={async e => {
-                e.stopPropagation();
-                setAltSaving(true);
-                const finalRanges = altEditRanges.map(r => ({ preset_id: r.preset_id !== '' ? Number(r.preset_id) : null, alt_min: r.alt_min !== '' ? Number(r.alt_min) : null, alt_max: r.alt_max !== '' ? Number(r.alt_max) : null, parity: r.parity }));
-                await onUpdateTransferPointConfig(Number(neighbor.id), finalRanges);
-                setAltSaving(false);
-                setShowAltEdit(false);
-              }} style={{ padding: '2px 8px', background: altSaving ? '#374151' : '#16a34a', color: 'white', border: 'none', borderRadius: '3px', fontSize: '10px', cursor: altSaving ? 'default' : 'pointer', flexShrink: 0 }}>
+              <button disabled={altSaving} onClick={e => { e.stopPropagation(); saveAltEdit(); }} style={{ padding: '2px 8px', background: altSaving ? '#374151' : '#16a34a', color: 'white', border: 'none', borderRadius: '3px', fontSize: '10px', cursor: altSaving ? 'default' : 'pointer', flexShrink: 0 }}>
                 {altSaving ? '...' : '✓ שמור'}
               </button>
               <button onClick={e => { e.stopPropagation(); setShowAltEdit(false); }}
                 style={{ padding: '2px 6px', background: 'transparent', color: '#64748b', border: '1px solid #334155', borderRadius: '3px', fontSize: '10px', cursor: 'pointer', flexShrink: 0 }}>{tr('shared.cancel')}</button>
             </div>
+            {altSaveError && (
+              <div data-testid="tp-alt-save-error" style={{ marginTop: '3px', fontSize: '10px', fontWeight: 'bold', color: '#ef4444' }}>{tr('transfers.altRuleSaveFailed')}</div>
+            )}
           </div>
         )}
 

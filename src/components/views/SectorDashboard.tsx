@@ -9512,8 +9512,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       </div>
                       <span style={{ fontSize: '10px', color: T.muted, whiteSpace: 'nowrap', flexShrink: 0 }}>{s.task}</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '3px' }}>
-                      <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px', marginTop: '3px' }}>
+                      <div style={{ minWidth: 0, overflow: 'hidden' }}>
                         <TakeoffBadge takeoff={s.takeoff_time} airborne={!!s.airborne} label={tkLabel} lightMode={lightMode} />
                       </div>
                       <StripCardLocation info={stripCardLocation(isFlightZonesMode ? stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === parseInt(String(s.id).replace(/^s/, ''), 10)) : null, s.alt)} text={T.text} muted={T.muted} border={lightMode ? '#cbd5e1' : '#334155'} bgAlt={T.bgAlt} />
@@ -12044,7 +12044,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           ✈ {tr('missiondesk.stripsUnlinked')}
         </div>
       );
-      return renderStripsPanel(0, w.key);
+      // גלילה משלו - כמו בעמודת הפ"ממים שליד המפה. בלעדיה רשימה ארוכה נחתכה בתחתית המשבצת
+      return (
+        <div data-testid="md-strips-scroll" style={{ position: 'absolute', inset: 0, overflowY: 'auto', padding: '0 6px 6px', direction: dir }}>
+          {renderStripsPanel(0, w.key)}
+        </div>
+      );
     }
     if (svc.service_type === 'view_tables') {
       // אותם רכיבים שנפתחים מתפריט "תצוגה", מוטמעים במשבצת (ViewTablesSlot עוטף
@@ -15207,10 +15212,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ sector_id: sectorId, ranges }),
                       });
-                      if (res.ok) {
-                        const data = await res.json();
-                        setLivePresetConfig((prev: any) => prev ? { ...prev, classic_transfer_points: data.classic_transfer_points } : prev);
-                      }
+                      // כישלון נזרק - העורך נשאר פתוח ומציג שגיאה, ולא נסגר כאילו נשמר
+                      if (!res.ok) throw new Error(`transfer-point ${res.status}`);
+                      const data = await res.json();
+                      setLivePresetConfig((prev: any) => prev ? { ...prev, classic_transfer_points: data.classic_transfer_points } : prev);
                     } : undefined}
                     allPresets={workstationPresets}
                   />
@@ -18801,8 +18806,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       </div>
                       <span style={{ fontSize: '10px', color: T.muted, whiteSpace: 'nowrap', flexShrink: 0 }}>{s.task}</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '3px' }}>
-                      <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px', marginTop: '3px' }}>
+                      <div style={{ minWidth: 0, overflow: 'hidden' }}>
                         <TakeoffBadge takeoff={s.takeoff_time} airborne={!!s.airborne} label={tkLabel} lightMode={lightMode} />
                       </div>
                       <StripCardLocation info={stripCardLocation(isFlightZonesMode ? stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === parseInt(String(s.id).replace(/^s/, ''), 10)) : null, s.alt)} text={T.text} muted={T.muted} border={lightMode ? '#cbd5e1' : '#334155'} bgAlt={T.bgAlt} />

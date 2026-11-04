@@ -50,7 +50,12 @@ describe('StripCardLocation', () => {
   it('בלי אזור - הגובה גדול מהתווית', () => {
     const html = renderToStaticMarkup(<StripCardLocation info={stripCardLocation(null, '445-455')} {...PAL} />);
     expect(html).toContain('strip-card-alt');
-    expect(html).toContain('font-size:14px;font-weight:bold">445-455');
+    expect(html).toContain('font-size:14px;font-weight:bold;direction:ltr;unicode-bidi:isolate">445-455');
+  });
+
+  it('הגובה בשורה אחת ולא מתכווץ - הכרטיס לא מתעבה והטווח לא מתהפך', () => {
+    const html = renderToStaticMarkup(<StripCardLocation info={stripCardLocation(null, '445-455')} {...PAL} />);
+    expect(html).toContain('white-space:nowrap;flex-shrink:0');
   });
 
   it('אין מידע - לא מרונדר כלום', () => {

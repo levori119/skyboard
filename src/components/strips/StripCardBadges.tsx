@@ -20,7 +20,7 @@ export function TakeoffBadge({ takeoff, airborne, label, lightMode }: { takeoff:
       className={u === 'now' ? 'takeoff-now-blink' : undefined}
       style={{
         fontSize: '12px', fontWeight: 'bold', fontVariantNumeric: 'tabular-nums', color: fg, background: bg,
-        padding: '1px 6px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '4px',
+        padding: '1px 6px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap',
         border: u === 'none' ? `1px solid ${lightMode ? '#cbd5e1' : '#334155'}` : '1px solid transparent',
       }}>
       {u === 'now' && <style>{'@keyframes takeoffNowBlink{0%,100%{opacity:1}50%{opacity:.55}} .takeoff-now-blink{animation:takeoffNowBlink 1s step-end infinite}'}</style>}

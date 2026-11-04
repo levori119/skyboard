@@ -1,3 +1,4 @@
+import { normalizeOwnRules, configRules } from '../../shared/transferPointAltRules.js';
 import { Router } from 'express';
 import pool from '../db/pool.js';
 import { normalizeAutoAcceptMode } from '../utils/autoAccept.js';
@@ -268,7 +269,15 @@ router.patch('/api/workstation-presets/:id/transfer-point', async (req, res) => 
     const others = pts.filter((p) => Number(p.sector_id) !== Number(sector_id));
     const useRanges = ranges !== undefined;
     const isEmpty = useRanges ? !Array.isArray(ranges) || !ranges.length : (alt_min == null && alt_max == null && (!parity || parity === 'any'));
-    const entryData = useRanges ? { sector_id: Number(sector_id), ranges } : { sector_id: Number(sector_id), alt_min: alt_min ?? null, alt_max: alt_max ?? null, parity: parity || 'any' };
+    // כל עמדה מעדכנת רק את הגבהים שלה: כלל חדש/ערוך שייך לעמדה ששומרת, וכלל של
+    // עמדה אחרת נשאר רק אם כבר היה שמור כך (שארית ישנה). shared/transferPointAltRules.js
+    let ownRanges = ranges;
+    if (useRanges && !isEmpty) {
+      const prevEntry = pts.find(p => Number(p.sector_id) === Number(sector_id));
+      ownRanges = normalizeOwnRules(ranges, configRules(prevEntry), Number(req.params.id));
+      if (!ownRanges) return res.status(403).json({ error: 'only_own_station' });
+    }
+    const entryData = useRanges ? { sector_id: Number(sector_id), ranges: ownRanges } : { sector_id: Number(sector_id), alt_min: alt_min ?? null, alt_max: alt_max ?? null, parity: parity || 'any' };
     const next = isEmpty ? others : [...others, { ...pts.find(p => Number(p.sector_id) === Number(sector_id)) || {}, ...entryData }];
     await pool.query('UPDATE workstation_presets SET classic_transfer_points=$1 WHERE id=$2', [JSON.stringify(next), req.params.id]);
     res.json({ ok: true, classic_transfer_points: next });

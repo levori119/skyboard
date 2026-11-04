@@ -46,10 +46,12 @@ export function StripCardLocation({ info, text, muted, border, bgAlt }: {
   return (
     <span
       data-testid="strip-card-alt"
-      style={{ display: 'inline-flex', alignItems: 'baseline', gap: '4px', color: text, border: `1px solid ${border}`, padding: '1px 6px', borderRadius: '3px', background: bgAlt }}
+      // שורה אחת ולא מתכווץ: הגובה הוא המידע שמבדיל את הכרטיס, וטווח שנשבר
+      // לשתי שורות מעבה את הכרטיס ומתהפך ("-445 / 455")
+      style={{ display: 'inline-flex', alignItems: 'baseline', gap: '4px', color: text, border: `1px solid ${border}`, padding: '1px 6px', borderRadius: '3px', background: bgAlt, whiteSpace: 'nowrap', flexShrink: 0 }}
     >
       <span style={{ fontSize: '10px', color: muted }}>{tr('shared.altitude')}</span>
-      <span style={{ fontSize: '14px', fontWeight: 'bold' }}>{info.alt}</span>
+      <span style={{ fontSize: '14px', fontWeight: 'bold', direction: 'ltr', unicodeBidi: 'isolate' }}>{info.alt}</span>
     </span>
   );
 }
