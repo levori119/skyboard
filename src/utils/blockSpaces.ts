@@ -42,3 +42,15 @@ export function blockFitsSpace(block: { space_id?: unknown }, stripSpaceId: unkn
   const bs = toId(block?.space_id), ss = toId(stripSpaceId);
   return bs === null || ss === null || bs === ss;
 }
+
+/**
+ * האם שני הפ"מים בעמודות שונות של התצוגה האנכית כשהיא מקובצת (לפי מרחב, ערכה...).
+ * כל עמודה היא תרשים נפרד, ולכן אין קונפליקט בין עמודות - גם לא מול עמודת
+ * "ללא מרחב" (ערך ריק הוא עמודה משלו). כך חלון ההתראות מסכים עם מה שעל המסך:
+ * קודם פ"מ "ללא מרחב" נצבע בקונפליקט מול כל המרחבים.
+ */
+export function separatedByGroup(a: Record<string, unknown>, b: Record<string, unknown>, field: string | null | undefined): boolean {
+  if (!field || field === 'none') return false;
+  const val = (s: Record<string, unknown>) => String(s?.[field] ?? '').trim();
+  return val(a) !== val(b);
+}

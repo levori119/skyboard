@@ -95,7 +95,7 @@ import { windowFrame, frameColor } from '../../utils/windowFrame';
 import { thinScroll } from '../../utils/thinScroll';
 import { isPointDisabledFor } from '../../../shared/transferPointStations.js';
 import { TakeoffBadge, FormationCountBadge } from '../strips/StripCardBadges';
-import { splitSpaceSet, separatedBySpace, blockFitsSpace } from '../../utils/blockSpaces';
+import { splitSpaceSet, separatedBySpace, blockFitsSpace, separatedByGroup } from '../../utils/blockSpaces';
 import { recommendAltitude, stripArmaments, normalizeAltRules, type AltRecommendation, type RecBlock } from '../../utils/altRecommend';
 import { loadPadLayout, savePadLayout, type PadLayout } from '../../utils/freeDeskLayout';
 import FreeDeskPad from '../shared/FreeDeskPad';
@@ -5043,12 +5043,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         if (effectiveDeltaT <= 0 || Math.abs(altA - altB) * 100 > effectiveDeltaT) continue; // outside delta → no conflict
 
         // Rule 1: strips in different segments (based on current block-view groupBy) → no conflict
-        if (verticalGroupBy !== 'none') {
-          const field = verticalGroupBy === 'block_space_id' ? 'block_space_id' : verticalGroupBy;
-          const valA = String((a as any)[field] || '').trim();
-          const valB = String((b as any)[field] || '').trim();
-          if (valA && valB && valA !== valB) continue;
-        }
+        // קיבוץ בתצוגה האנכית: כל עמודה תרשים נפרד, גם "ללא מרחב"
+        if (separatedByGroup(a, b, verticalGroupBy)) continue;
         if (separatedBySpace(a, b, splitSpaces)) continue; // מרחבי חלוקה שונים
 
         // Rule 2 & 3: block-table / block resolution
@@ -5131,12 +5127,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         const effDelta = Math.max(getStripDeltaT(a.sq || a.squadron || ''), getStripDeltaT(b.sq || b.squadron || ''));
         if (effDelta <= 0 || altRangeGap(rangeA, rangeB) * 100 > effDelta) continue;
         if (isSameFormation(a, b)) continue; // שני חלקים של אותו מבנה
-        if (verticalGroupBy !== 'none') {
-          const field = verticalGroupBy === 'block_space_id' ? 'block_space_id' : verticalGroupBy;
-          const valA = String((a as any)[field] || '').trim();
-          const valB = String((b as any)[field] || '').trim();
-          if (valA && valB && valA !== valB) continue;
-        }
+        // קיבוץ בתצוגה האנכית: כל עמודה תרשים נפרד, גם "ללא מרחב"
+        if (separatedByGroup(a, b, verticalGroupBy)) continue;
         if (separatedBySpace(a, b, splitSpaces)) continue; // מרחבי חלוקה שונים
         if (relBlocks.length > 0) {
           const infoA = resolveBlock(a, rangeA);

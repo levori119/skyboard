@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { splitSpaceSet, separatedBySpace, blockFitsSpace } from './blockSpaces';
+import { splitSpaceSet, separatedBySpace, blockFitsSpace, separatedByGroup } from './blockSpaces';
 
 const tables = [
   { id: 1, split_space_ids: [10, 11] },
@@ -35,5 +35,24 @@ describe('blockFitsSpace', () => {
     expect(blockFitsSpace({ space_id: 10 }, null)).toBe(true);
     expect(blockFitsSpace({ space_id: 10 }, '10')).toBe(true);
     expect(blockFitsSpace({ space_id: 10 }, 11)).toBe(false);
+  });
+});
+
+describe('separatedByGroup - אין קונפליקט בין עמודות התצוגה האנכית', () => {
+  it('בלי קיבוץ - לא מפריד', () => {
+    expect(separatedByGroup({ block_space_id: 7 }, { block_space_id: 9 }, 'none')).toBe(false);
+    expect(separatedByGroup({ block_space_id: 7 }, { block_space_id: 9 }, null)).toBe(false);
+  });
+  it('מרחבים שונים - מפריד; אותו מרחב - לא', () => {
+    expect(separatedByGroup({ block_space_id: 7 }, { block_space_id: 9 }, 'block_space_id')).toBe(true);
+    expect(separatedByGroup({ block_space_id: 7 }, { block_space_id: '7' }, 'block_space_id')).toBe(false);
+  });
+  it('"ללא מרחב" היא עמודה משלה - מופרדת מכל מרחב, ושני פ"מים בלי מרחב באותה עמודה', () => {
+    expect(separatedByGroup({ block_space_id: 7 }, { block_space_id: null }, 'block_space_id')).toBe(true);
+    expect(separatedByGroup({ block_space_id: null }, { block_space_id: undefined }, 'block_space_id')).toBe(false);
+  });
+  it('שדה טקסט (ערכה) - לפי הערך אחרי trim', () => {
+    expect(separatedByGroup({ erka: 'ערכה 2 ' }, { erka: 'ערכה 2' }, 'erka')).toBe(false);
+    expect(separatedByGroup({ erka: 'ערכה 2' }, { erka: '' }, 'erka')).toBe(true);
   });
 });
