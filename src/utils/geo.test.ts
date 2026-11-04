@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildGeoAnchor, geoToImagePct, imagePctToGeo, fmtDms, fmtDdm, fmtCoordPair, parseDdm, parseCoordPair, parseAnyCoordPair, decimalToDmsFields, type MapGeoAnchor } from './geo';
+import { buildGeoAnchor, anchorFromParent, geoToImagePct, imagePctToGeo, fmtDms, fmtDdm, fmtCoordPair, parseDdm, parseCoordPair, parseAnyCoordPair, decimalToDmsFields, type MapGeoAnchor } from './geo';
 
 const anchor: MapGeoAnchor = {
   x1: 0, y1: 0, lat1: 32, lon1: 34,
@@ -217,5 +217,30 @@ describe('decimalToDmsFields - מילוי שדות העוגן', () => {
   });
   it('עיגול ל-60 שניות נושא לדקה (ולמעלה)', () => {
     expect(decimalToDmsFields(31 + 59 / 60 + 59.999 / 3600, true)).toEqual({ deg: '32', min: '0', sec: '0.00', dir: 'N' });
+  });
+});
+
+describe('anchorFromParent - תת-מפה שלא עוגנה יורשת את העיגון של האב', () => {
+  const parent = { id: 17, anchor1_x_img: 10, anchor1_y_img: 20, anchor1_lat: 33, anchor1_lon: 34, anchor2_x_img: 90, anchor2_y_img: 80, anchor2_lat: 31, anchor2_lon: 35 };
+  const child = { id: 22, parent_map_id: 17, parent_rect: { x1: 50, y1: 50, x2: 100, y2: 100 } };
+  it('הנקודות מתורגמות לחיתוך, הקואורדינטות זהות', () => {
+    const a = anchorFromParent(child, [parent, child])!;
+    expect(a).toMatchObject({ x1: -80, y1: -60, x2: 80, y2: 60, lat1: 33, lon1: 34, lat2: 31, lon2: 35 });
+  });
+  it('אותה נקודה גאוגרפית - אותו מקום על האב ועל הבת', () => {
+    const pa = anchorFromParent(parent, [parent])!;
+    const ca = anchorFromParent(child, [parent, child])!;
+    const onParent = geoToImagePct(32, 34.6, pa);
+    const onChild = geoToImagePct(32, 34.6, ca);
+    expect(onChild.x).toBeCloseTo(((onParent.x - 50) / 50) * 100, 6);
+    expect(onChild.y).toBeCloseTo(((onParent.y - 50) / 50) * 100, 6);
+  });
+  it('מפה מעוגנת בעצמה - העיגון שלה גובר', () => {
+    const own = { ...child, anchor1_x_img: 1, anchor1_y_img: 1, anchor1_lat: 30, anchor1_lon: 30, anchor2_x_img: 2, anchor2_y_img: 2, anchor2_lat: 29, anchor2_lon: 31 };
+    expect(anchorFromParent(own, [parent, own])!.x1).toBe(1);
+  });
+  it('אב לא מעוגן / בלי חיתוך - אין עיגון', () => {
+    expect(anchorFromParent(child, [{ id: 17 }, child])).toBeNull();
+    expect(anchorFromParent({ id: 22, parent_map_id: 17 }, [parent])).toBeNull();
   });
 });

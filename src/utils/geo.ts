@@ -42,6 +42,29 @@ export const buildGeoAnchor = (m: Record<string, unknown> | null): MapGeoAnchor 
   };
 };
 
+/**
+ * **עיגון של תת-מפה מהמפה ההורית.** תת-מפה (סקטור שנחתך ממפה מעוגנת) שלא
+ * עוגנה בעצמה - מקבלת את העיגון של האב, מתורגם לחיתוך שלה (`parent_rect`,
+ * באחוזי תמונת האב). ההמרה ליניארית בכל ציר ולכן נכונה גם לנקודות עיגון
+ * שמחוץ לחיתוך. בלי זה סקטור לא מעוגן נשאר בלי נ"צ, בלי סגירות ובלי תמונ"א,
+ * בזמן שהסקטור הסמוך מאותה מפת אב כן מציג אותם.
+ */
+export const anchorFromParent = (map: Record<string, unknown> | null, maps: Record<string, unknown>[]): MapGeoAnchor | null => {
+  const own = buildGeoAnchor(map);
+  if (own || !map?.parent_map_id) return own;
+  let rect: any = map.parent_rect;
+  if (typeof rect === 'string') { try { rect = JSON.parse(rect); } catch { rect = null; } }
+  if (!rect || rect.x1 == null || rect.x2 == null || rect.y1 == null || rect.y2 == null) return null;
+  const sw = Number(rect.x2) - Number(rect.x1), sh = Number(rect.y2) - Number(rect.y1);
+  if (!(sw > 0) || !(sh > 0)) return null;
+  const parent = (maps || []).find(m => Number(m?.id) === Number(map.parent_map_id)) || null;
+  const pa = parent ? anchorFromParent(parent, (maps || []).filter(m => m !== map)) : null;
+  if (!pa) return null;
+  const tx = (x: number) => ((x - Number(rect.x1)) / sw) * 100;
+  const ty = (y: number) => ((y - Number(rect.y1)) / sh) * 100;
+  return { ...pa, x1: tx(pa.x1), y1: ty(pa.y1), x2: tx(pa.x2), y2: ty(pa.y2) };
+};
+
 export const geoToImagePct = (lat: number, lon: number, a: MapGeoAnchor): { x: number; y: number } => {
   const S = latSpace(a);
   const tx = (lon - a.lon1) / (a.lon2 - a.lon1);

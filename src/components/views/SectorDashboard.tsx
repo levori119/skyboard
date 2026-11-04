@@ -39,7 +39,7 @@ import { parseNoteValue, serializeNoteValue } from '../../utils/notes';
 import { bidiAuto } from '../../utils/bidi';
 import { filterDocsByKind, isChecklistDoc, DOC_KIND_BDH, DOC_KIND_CHECKLIST } from '../../utils/bdhDocs';
 import { getSquadronAircraftType, isHeliAircraftType, getHeliPngSrc, renderAircraftSvgPaths } from '../../utils/aircraft';
-import { geoToImagePct, imagePctToGeo, fmtDms, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
+import { geoToImagePct, imagePctToGeo, fmtDms, buildGeoAnchor as getAnchorFromMapData, anchorFromParent } from '../../utils/geo';
 import { listAtsimMaps, loadAtsimMapImage, atsimAnchor, revokeAtsimMapImage, type AtsimMap } from '../../airPicture/atsimMaps';
 import { computeTransferEta, stripSavedGeo, stripPinGeo, transferPointGeo, closestGeoOnPolygon, haversineNm, type GeoPoint, type AutoEta } from '../../utils/eta';
 import { zoneAtPoint, zoneAtPointOrEdge, zoneAtEdgeOnly, pointInPolygon } from '../../utils/zoneHit';
@@ -6087,7 +6087,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         .then(r => r.ok ? r.json() : [])
         .then((maps: any[]) => {
           const m = maps.find((x: any) => Number(x.id) === Number(currentMapId));
-          if (m) { const a = getAnchorFromMapData(m); if (a) setMapGeoAnchor(a); }
+          // כולל סקטור שלא עוגן - העיגון ממפת האב
+          if (m) { const a = anchorFromParent(m, maps); if (a) setMapGeoAnchor(a); }
         })
         .catch(() => {});
     };
@@ -11828,7 +11829,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       const mid = Number(mapIdStr);
       fetch(`${API_URL}/maps/${mid}`)
         .then(r => r.ok ? r.json() : null)
-        .then(map => { if (alive && map) mdPatchSlot(key, { img: map.image_data, geoAnchor: getAnchorFromMapData(map) }); })
+        .then(async map => {
+          if (!alive || !map) return;
+          let anchor = getAnchorFromMapData(map);
+          // סקטור שלא עוגן - העיגון ממפת האב (utils/geo anchorFromParent)
+          if (!anchor && map.parent_map_id) {
+            const all = await fetch(`${API_URL}/maps`).then(r => r.ok ? r.json() : []).catch(() => []);
+            anchor = anchorFromParent(map, all);
+          }
+          if (alive) mdPatchSlot(key, { img: map.image_data, geoAnchor: anchor });
+        })
         .catch(() => {});
       fetch(`${API_URL}/map-zones?map_id=${mid}`)
         .then(r => r.ok ? r.json() : [])

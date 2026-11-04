@@ -36,10 +36,12 @@ describe('resolveMirroredSettings - שיקוף עמדה בחלון דסק', () =
   const presets = [
     { id: 38, name: 'מרחבי 306 לבדיקה 1', map_id: 5, relevant_sectors: [2742], flight_zones_mode: true, fz_pin_display: 'label' },
   ];
-  it('ההגדרות נמשכות חי מהעמדה המשתקפת, והבחירה נשארת שמורה', () => {
-    const r = resolveMirroredSettings(presets, { map_id: 5, transfer_points: [], flight_zones_mode: false, mirror_preset_id: 38, mirror_source_key: 'p38' }, 2);
-    expect(r.flight_zones_mode).toBe(true);
+  it('נתוני העמדה נמשכים חי, כלי החלון נשארים שלו, והבחירה נשארת שמורה', () => {
+    const r = resolveMirroredSettings(presets, { map_id: 5, transfer_points: [], flight_zones_mode: true, fz_pin_display: 'handwrite', mirror_preset_id: 38, mirror_source_key: 'p38' }, 2);
     expect(r.transfer_points).toEqual([2742]);
+    // אצל העמדה המשתקפת אזורי טיסה אחרים - החלון לא מאבד את הכלים שלו
+    expect(r.flight_zones_mode).toBe(true);
+    expect(r.fz_pin_display).toBe('handwrite');
     expect(r.mirror_preset_id).toBe(38);
   });
   it('בלי שיקוף - ההגדרות של החלון כמו שהן', () => {

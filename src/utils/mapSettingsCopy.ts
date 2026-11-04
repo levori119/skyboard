@@ -103,5 +103,15 @@ export function resolveMirroredSettings<T extends Partial<MDPresetMapSettings> &
   const key = settings.mirror_source_key;
   if (!key) return settings;
   const src = mapCopySources(presets, settings.map_id ?? null, { excludePresetId: selfPresetId ?? null }).find(s => s.key === key);
-  return src ? { ...settings, ...src.settings } : settings;
+  if (!src) return settings;
+  // רק **מה שהעמדה רואה** (נקודות העברה, מפות סקטור). כלי החלון - אזורי טיסה,
+  // תצוגת פ"מ, מפה עיוורת - נשארים של החלון: כל חלונות הדסק עובדים באותם כלים,
+  // ועמדה משתקפת שאזורי הטיסה כבויים אצלה הורידה קודם את כל סרגל הכלים
+  const { transfer_points, sector_maps_enabled, sector_map_ids } = src.settings;
+  return {
+    ...settings,
+    ...(transfer_points !== undefined ? { transfer_points } : {}),
+    ...(sector_maps_enabled !== undefined ? { sector_maps_enabled } : {}),
+    ...(sector_map_ids !== undefined ? { sector_map_ids } : {}),
+  };
 }
