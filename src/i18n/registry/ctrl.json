@@ -402,6 +402,10 @@
       "he": "הצג שם סגירה על המפה",
       "en": "Show closure names on the map"
     },
+    "saveFailedReverted": {
+      "he": "השמירה נכשלה - {{callsign}} חזר לערך הקודם",
+      "en": "Save failed - {{callsign}} reverted to the previous value"
+    },
     "closuresOnMap": {
       "he": "🚫 סגירות על מפה",
       "en": "🚫 Closures on map"

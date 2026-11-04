@@ -30,7 +30,7 @@ import DisplayIcon from '../shared/DisplayIcon';
 import { canChangeElementStatus, displayStateOptions, nextServiceability, serviceabilityStyle } from '../../utils/elementStatus';
 import { loadStripFieldCatalog, useStripFieldCatalog } from '../../utils/stripFieldCatalog';
 import { stripInCombined, resolveTransferFromPreset, type CombinedPosition } from '../../utils/unifiedStrips';
-import { getFormationDisplayName, getTransferLabel, getTransferSq, normalizeAlt, parseAltToFeet, computeBlockDeviation, parseAltRange, altRangeGap, mergeStripsWithPending } from '../../utils/strips';
+import { getFormationDisplayName, getTransferLabel, getTransferSq, normalizeAlt, parseAltToFeet, computeBlockDeviation, parseAltRange, altRangeGap, mergeStripsWithPending, releasePendingKeys } from '../../utils/strips';
 import { compareAirborneThenTakeoff } from '../../utils/stripOrder';
 import { applyAircraftOnlyChoice } from '../../../shared/joiningPointProps.js';
 import { altToDisplay, applyJoiningAccept, applyJoiningMove, createJoiningSyncGate, patchJoiningAircraft, runwaySource } from '../../utils/joiningPoints';
@@ -2218,6 +2218,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [configRefreshTick, setConfigRefreshTick] = React.useState(0);
   const [refreshToast, setRefreshToast] = React.useState<string | null>(null);
   const [tpOffToast, setTpOffToast] = React.useState<string | null>(null);
+  // עדכון מיידי שנכשל בשרת: הערך חזר לקודם - והפקח חייב לדעת למה המסך "התחרט"
+  const [saveFailToast, setSaveFailToast] = React.useState<string | null>(null);
+  useEffect(() => {
+    if (!saveFailToast) return;
+    const t = setTimeout(() => setSaveFailToast(null), 5000);
+    return () => clearTimeout(t);
+  }, [saveFailToast]);
   const refreshToastTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const showRefreshToast = (msg: string) => {
     if (refreshToastTimer.current) clearTimeout(refreshToastTimer.current);
@@ -5311,13 +5318,43 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [altRec?.stripId, strips, myTableStrips, tableOnBoard, outgoingTransfers, dashboardBlocks, effectiveBlockTableId]);
+  /**
+   * **עדכון מיידי של פ"מ** - הוראת קבע: כל פעולה בעמדה נראית על המסך מיד, השמירה
+   * יוצאת ברקע, ותשובת השרת לא משנה כלום - אלא אם נכשלה.
+   *
+   * 1. הערך נכנס ל-`strips` ונרשם כממתין, כדי שפולינג שיצא לפני הלחיצה לא יחזיר
+   *    את הערך הישן (`mergeStripsWithPending`).
+   * 2. הצלחה - הממתין משתחרר אחרי כמה שניות, כשתמונה עדכנית כבר הגיעה מהשרת.
+   * 3. כישלון - רק השדות שלא נדרסו בינתיים בלחיצה חדשה חוזרים לקודם, ויוצאת הודעה.
+   */
+  const PENDING_RELEASE_MS = 4000;
+  const optimisticStripPut = (stripId: string, patch: Record<string, any>, body: Record<string, any> = patch) => {
+    const target = strips.find(st => String(st.id) === String(stripId));
+    const key = target?.id ?? stripId;
+    const prevVals: Record<string, any> = {};
+    for (const k of Object.keys(patch)) prevVals[k] = target ? target[k] : undefined;
+    pendingStripUpdatesRef.current.set(key, { ...(pendingStripUpdatesRef.current.get(key) || {}), ...patch });
+    setStrips(prev => prev.map(st => String(st.id) === String(stripId) ? { ...st, ...patch } : st));
+    fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(r => {
+        if (!r.ok) throw new Error(`strip PUT ${r.status}`);
+        setTimeout(() => releasePendingKeys(pendingStripUpdatesRef.current, key, patch), PENDING_RELEASE_MS);
+      })
+      .catch(err => {
+        console.error(err);
+        const back = releasePendingKeys(pendingStripUpdatesRef.current, key, patch);
+        if (!back.length) return; // לחיצה חדשה יותר כבר מחזיקה את השדות
+        const revert: Record<string, any> = {};
+        for (const k of back) revert[k] = prevVals[k];
+        setStrips(prev => prev.map(st => String(st.id) === String(stripId) ? { ...st, ...revert } : st));
+        setSaveFailToast(tr('ctrl.saveFailedReverted', { callsign: target?.callSign || target?.callsign || '' }));
+      });
+  };
+
   const putStripAlt = async (stripId: string, alt: string) => {
     const target = strips.find(st => String(st.id) === stripId);
     const dev = target ? computeBlockDeviation({ ...target, alt }, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false;
-    setStrips(prev => prev.map(st => String(st.id) === stripId ? { ...st, alt, block_deviation: dev } : st));
-    try {
-      await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt, block_deviation: dev }) });
-    } catch (e) { console.error(e); }
+    optimisticStripPut(stripId, { alt, block_deviation: dev });
   };
 
   // Load count per the rules:
@@ -8558,8 +8595,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           updateData.takeoff_time = value || null;
         }
       } else updateData[field] = value;
-      await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updateData) });
-      setStrips(prev => prev.map(s => String(s.id) === stripId ? { ...s, [field]: updateData[field] ?? updateData.callsign ?? value, ...(field === 'callSign' ? { callsign: value } : {}), ...(field === 'numberOfFormation' ? { number_of_formation: value } : {}) } : s));
+      // מיד על המסך, השמירה ברקע (optimisticStripPut)
+      optimisticStripPut(stripId, { [field]: updateData[field] ?? updateData.callsign ?? value, ...(field === 'callSign' ? { callsign: value } : {}), ...(field === 'numberOfFormation' ? { number_of_formation: value } : {}) }, updateData);
     } catch (e) { console.error(e); }
   };
 
@@ -12233,7 +12270,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             )}
             {/* צילום מסך - בתפריט שם המשתמש (מתחת להקלטה). Ctrl+P עובד תמיד,
                 וההודעה "נשמר" צפה בראש המסך גם כשהתפריט סגור */}
-            <ScreenshotToast msg={screenshot.msg} /><ScreenshotToast msg={tpOffToast ? { ok: false, text: tpOffToast } : null} />
+            <ScreenshotToast msg={screenshot.msg} /><ScreenshotToast msg={tpOffToast ? { ok: false, text: tpOffToast } : null} /><ScreenshotToast msg={saveFailToast ? { ok: false, text: saveFailToast } : null} />
             {/* חיווי הקלטה - גלוי כל זמן שהמסך מוקלט. מסך שמוקלט
                 בלי שהיושב בו יודע הוא בעיה, ולכן זה חלק מהפיצר ולא קישוט. */}
             {screenRec.state.recording && (

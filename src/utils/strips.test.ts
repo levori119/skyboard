@@ -9,6 +9,7 @@ import {
   altRangeGap,
   computeBlockDeviation,
   mergeStripsWithPending,
+  releasePendingKeys,
 } from './strips';
 
 describe('normalizeAlt', () => {
@@ -231,5 +232,24 @@ describe('mergeStripsWithPending', () => {
     const pending = new Map<string | number, Record<string, any>>();
     expect(mergeStripsWithPending([strip()], pending)[0].callSign).toBe('ELAL1');
     expect(mergeStripsWithPending([], pending)).toEqual([]);
+  });
+});
+
+describe('releasePendingKeys - עדכון מיידי', () => {
+  it('מוריד את השדות של העדכון ומחזיר אותם', () => {
+    const p = new Map<string | number, Record<string, any>>([[7, { alt: '300', task: 'x' }]]);
+    expect(releasePendingKeys(p, 7, { alt: '300' })).toEqual(['alt']);
+    expect(p.get(7)).toEqual({ task: 'x' });
+  });
+  it('לחיצה חדשה יותר על אותו שדה - לא נמחקת בתשובה של הקודמת', () => {
+    const p = new Map<string | number, Record<string, any>>([[7, { alt: '320' }]]);
+    expect(releasePendingKeys(p, 7, { alt: '300' })).toEqual([]);
+    expect(p.get(7)).toEqual({ alt: '320' });
+  });
+  it('כשלא נשאר כלום - הפ"מ יוצא מהממתינים', () => {
+    const p = new Map<string | number, Record<string, any>>([[7, { alt: '300' }]]);
+    releasePendingKeys(p, 7, { alt: '300' });
+    expect(p.has(7)).toBe(false);
+    expect(releasePendingKeys(p, 7, { alt: '300' })).toEqual([]);
   });
 });

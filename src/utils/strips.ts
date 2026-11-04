@@ -188,3 +188,27 @@ export function mergeStripsWithPending(
     return merged;
   });
 }
+
+/**
+ * **עדכון מיידי - שחרור.** מוריד מהממתינים של פ"מ את השדות של עדכון מסוים,
+ * אבל רק אם הערך הממתין הוא עדיין **של העדכון הזה**: לחיצה חדשה יותר על אותו
+ * שדה כבר החליפה אותו, ואסור שתשובה של הלחיצה הקודמת תמחק אותה.
+ * מחזיר את השדות שהורדו - בכישלון רק הם חוזרים לערך הקודם.
+ */
+export function releasePendingKeys(
+  pending: Map<string | number, Record<string, any>>,
+  id: string | number,
+  patch: Record<string, any>,
+): string[] {
+  const cur = pending.get(id);
+  if (!cur) return [];
+  const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+  const released: string[] = [];
+  const left: Record<string, any> = { ...cur };
+  for (const [k, v] of Object.entries(patch)) {
+    if (k in left && same(left[k], v)) { delete left[k]; released.push(k); }
+  }
+  if (Object.keys(left).length) pending.set(id, left);
+  else pending.delete(id);
+  return released;
+}
