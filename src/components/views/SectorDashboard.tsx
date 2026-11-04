@@ -86,7 +86,7 @@ import { blockAltFeet, type WatchZone as ZoneWatchZone, type WatchAssignment as 
 /** הפניה קבועה - מערך ריק חדש בכל רינדור היה מפיל memo של צרכני ההדגשה. */
 const EMPTY_ZW_OFFENDERS: ZoneWatchOffender[] = [];
 import { unionZones } from '../../utils/zoneUnion';
-import { pinFontForZone } from '../../utils/pinFitZone';
+import { pinFontInsideZone } from '../../utils/pinFitZone';
 import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
 import { useDragPosition } from '../../hooks/useDragPosition';
 import usePinchZoom from '../../hooks/usePinchZoom';
@@ -11414,17 +11414,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
               // Fallback to zone polygon centroid when pos not yet set (skip if no zone)
               const zoneData = a.zone_id != null ? mapZones.find((z: any) => z.id === a.zone_id) : null;
-              // מצב "התאם לגודל אזור": הכתב של הפין הזה לפי גודל האזור שלו על המסך
-              const _fitPx = pinFitZone && zoneData
-                ? pinFontForZone(zoneData.polygon, mapImgBounds.width, mapImgBounds.height, mapZoom,
-                    String((strip as any)?.callSign || '').length + String((strip as any)?.sq || (strip as any)?.squadron || '').length + 4)
-                : null;
-              const fzPinFontSize = _fitPx ?? fzPinFontSizePanel;
               const poly = zoneData?.polygon || [];
               const cx50 = poly.length > 0 ? poly.reduce((s: number, p: any) => s + p.x, 0) / poly.length : 50;
               const cy50 = poly.length > 0 ? poly.reduce((s: number, p: any) => s + p.y, 0) / poly.length : 50;
               const pctX = a.pos_x != null ? a.pos_x : (a.zone_id != null ? cx50 : 50);
               const pctY = a.pos_y != null ? a.pos_y : (a.zone_id != null ? cy50 : 50);
+              // מצב "התאם לגודל אזור": הפין **כולו בתוך האזור** - הכתב לפי המרחב
+              // הפנוי בפועל סביב מיקום הפ"מ באזור (utils/pinFitZone pinFontInsideZone)
+              const _fitPx = pinFitZone && zoneData
+                ? pinFontInsideZone(zoneData.polygon, { x: pctX, y: pctY }, mapImgBounds.width, mapImgBounds.height, mapZoom,
+                    String((strip as any)?.callSign || '').length + String((strip as any)?.sq || (strip as any)?.squadron || '').length + 4)
+                : null;
+              const fzPinFontSize = _fitPx ?? fzPinFontSizePanel;
               // Skip pins with no zone and no stored position (nothing to render)
               if (a.zone_id == null && a.pos_x == null) return null;
               const ib = mapImgBounds;
@@ -11432,7 +11433,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               const pixY = ib.top + (pctY / 100) * ib.height;
               const zoneHex = a.zone_color || '#94a3b8';
               const statusColor = a.is_coordinated ? '#22c55e' : a.status === 'active' ? '#60a5fa' : '#f59e0b';
-              const fontSize = Math.max(7, fzPinFontSize / mapZoom);
+              // רצפת 7 (ביחידות המפה) רק בלי התאמה לאזור: בזום פנימה היא הגדילה את
+              // הכתב הרבה מעבר למה שחושב, וזו הייתה הסיבה העיקרית לחריגה מהאזור
+              const fontSize = _fitPx != null ? fzPinFontSize / mapZoom : Math.max(7, fzPinFontSize / mapZoom);
               const callLabel = strip ? ((strip as any).callSign || (strip as any).call_sign || `#${a.strip_id}`) : `פמ ${a.strip_id}`;
               // Squadron / status colour — grey when no zone
               const sqRaw = String((strip as any)?.sq || (strip as any)?.squadron || '');

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pinFontForZone, PIN_FIT_MIN_PX, PIN_FIT_MAX_PX } from './pinFitZone';
+import { pinFontForZone, pinFontInsideZone, PIN_FIT_MIN_PX, PIN_FIT_MAX_PX, PIN_FIT_INSIDE_MIN_PX } from './pinFitZone';
 
 const sq = (x: number, y: number, w: number, h: number) => [{ x, y }, { x: x + w, y }, { x: x + w, y: y + h }, { x, y: y + h }];
 
@@ -23,5 +23,32 @@ describe('pinFontForZone - הכתב לפי גודל האזור על המסך', (
     expect(pinFontForZone(null, 1000, 1000, 1, 10)).toBeNull();
     expect(pinFontForZone([{ x: 1, y: 1 }], 1000, 1000, 1, 10)).toBeNull();
     expect(pinFontForZone(sq(0, 0, 5, 5), 0, 0, 1, 10)).toBeNull();
+  });
+});
+
+describe('pinFontInsideZone - הפין כולו בתוך האזור', () => {
+  const box = (f: number, chars: number) => ({ w: chars * 0.62 * f, h: 2.8 * f });
+  it('פין במרכז ריבוע - התווית נכנסת', () => {
+    const f = pinFontInsideZone(sq(0, 0, 10, 10), { x: 5, y: 5 }, 1000, 1000, 1, 10)!;
+    const b = box(f, 10);
+    expect(b.w).toBeLessThanOrEqual(100);
+    expect(b.h).toBeLessThanOrEqual(100);
+  });
+  it('פין ליד הקצה - קטן יותר מאשר במרכז', () => {
+    const mid = pinFontInsideZone(sq(0, 0, 10, 10), { x: 5, y: 5 }, 1000, 1000, 1, 10)!;
+    const edge = pinFontInsideZone(sq(0, 0, 10, 10), { x: 9, y: 5 }, 1000, 1000, 1, 10)!;
+    expect(edge).toBeLessThan(mid);
+    // חצי רוחב התווית לא עובר את המרחק לקצה (10 פיקסל) - מעל הרצפה
+    if (edge > PIN_FIT_INSIDE_MIN_PX) expect(box(edge, 10).w / 2).toBeLessThanOrEqual(10);
+  });
+  it('אזור משופע וצר - לפי המרחב בפועל, לא לפי המלבן החוסם', () => {
+    // מקבילית צרה ומשופעת: המלבן החוסם 20x20, אבל לרוחב יש רק 2%
+    const slant = [{ x: 0, y: 0 }, { x: 2, y: 0 }, { x: 22, y: 20 }, { x: 20, y: 20 }];
+    const inside = pinFontInsideZone(slant, { x: 11, y: 10 }, 1000, 1000, 1, 10)!;
+    const byBox = pinFontForZone(slant, 1000, 1000, 1, 10)!;
+    expect(inside).toBeLessThan(byBox);
+  });
+  it('נקודה מחוץ לאזור - נופל לחישוב לפי גודל האזור', () => {
+    expect(pinFontInsideZone(sq(0, 0, 10, 10), { x: 50, y: 50 }, 1000, 1000, 1, 10)).toBe(pinFontForZone(sq(0, 0, 10, 10), 1000, 1000, 1, 10));
   });
 });
