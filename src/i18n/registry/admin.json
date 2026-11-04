@@ -4038,6 +4038,10 @@
       "he": "לכבות את הנקודה לעמדה {{station}}? פ\"מים שממתינים בה יחזרו למוסר.",
       "en": "Turn the point off for {{station}}? Strips waiting in it will return to the sender."
     },
+    "tpStationsOffCount": {
+      "he": "{{count}} כבויות",
+      "en": "{{count}} off"
+    },
     "tpStationReturned": {
       "he": "{{count}} פ\"מים הוחזרו למוסר",
       "en": "{{count}} strips returned to the sender"

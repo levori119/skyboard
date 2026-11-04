@@ -7354,6 +7354,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const handleTransferWithWorkstationPick = (stripId: string, toSectorId: number, targetX?: number, targetY?: number, subLabel?: string) => {
     const candidates = workstationPresets.filter((p: any) => {
       if (Number(p.id) === Number(session.presetId)) return false;
+      // עמדה שהנקודה כבויה אצלה (ניהול ← נקודות העברה) אינה יעד - קודם הוצעה בבורר
+      const tp = allSectorsFull.find((x: any) => Number(x.id) === Number(toSectorId));
+      if (tp && isPointDisabledFor(tp, p.id)) return false;
       const relSectors: number[] = Array.isArray(p.relevant_sectors) ? p.relevant_sectors.map(Number) : [];
       const recvSectors: number[] = (p.classic_receive_points || []).map((rp: any) => Number(rp.sector_id)).filter(Boolean);
       return relSectors.includes(Number(toSectorId)) || recvSectors.includes(Number(toSectorId));

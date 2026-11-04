@@ -1,4 +1,5 @@
 import { tr } from '../../i18n/tr';
+import { disabledPresetIds } from '../../../shared/transferPointStations.js';
 import { PIN_DISPLAY_MODES } from '../../../shared/pinDisplay';
 import { pinDisplayLabel } from '../strips/MapPinLabel';
 import { DockPositionPicker } from '../shared/WindowContainer';
@@ -3272,13 +3273,19 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {sectors.map(sector => {
                   const sid = Number(sector.id);
-                  const recvPresets = presets.filter((p: any) => (Array.isArray(p.classic_receive_points) ? p.classic_receive_points : []).some((pt: any) => Number(pt.sector_id) === sid));
-                  const xferPresets = presets.filter((p: any) => (Array.isArray(p.classic_transfer_points) ? p.classic_transfer_points : []).some((pt: any) => Number(pt.sector_id) === sid));
-                  const relPresets = presets.filter((p: any) => {
-                    const rs = Array.isArray(p.relevant_sectors) ? p.relevant_sectors : [];
-                    return rs.map(Number).includes(sid);
-                  }).filter((p: any) => !recvPresets.some((rp: any) => rp.id === p.id) && !xferPresets.some((xp: any) => xp.id === p.id));
-                  const hasAny = recvPresets.length > 0 || xferPresets.length > 0 || relPresets.length > 0;
+                  // עמדה אחת = תג אחד, גם כשהיא גם מקבלת וגם מוסרת בנקודה. עמדה שהנקודה
+                  // **כבויה** אצלה יורדת מהרשימה (כמו מהמסך שלה) ונספרת בצד. קודם הרשימה
+                  // התעלמה מהכיבוי והציגה כל עמדה פעמיים
+                  const off = new Set(disabledPresetIds(sector));
+                  const tpRoles = presets.map((p: any) => ({
+                    p,
+                    rc: (Array.isArray(p.classic_receive_points) ? p.classic_receive_points : []).some((pt: any) => Number(pt.sector_id) === sid),
+                    tf: (Array.isArray(p.classic_transfer_points) ? p.classic_transfer_points : []).some((pt: any) => Number(pt.sector_id) === sid),
+                    rel: (Array.isArray(p.relevant_sectors) ? p.relevant_sectors : []).map(Number).includes(sid),
+                  })).filter(r => r.rc || r.tf || r.rel);
+                  const tpOn = tpRoles.filter(r => !off.has(Number(r.p.id)));
+                  const tpOff = tpRoles.filter(r => off.has(Number(r.p.id)));
+                  const hasAny = tpRoles.length > 0;
                   return (
                   <div key={sector.id} style={{ background: '#0f172a', borderRadius: '8px', padding: '15px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -3300,21 +3307,20 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                         {hasAny ? (
                           <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '5px', alignItems: 'center' }}>
                             <span style={{ color: '#475569', fontSize: '11px' }}>{tr('admin.amdvt2')}</span>
-                            {recvPresets.map((p: any) => (
-                              <span key={`recv-${p.id}`} title={tr('admin.nkvdtKblhStrypymKlasy')} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '2px 8px', background: '#052e16', border: '1px solid #166534', borderRadius: '10px', fontSize: '11px', color: '#86efac' }}>
-                                📥 {p.name}
+                            {tpOn.map(({ p, rc, tf }) => {
+                              const c = rc ? { bg: '#052e16', bd: '#166534', fg: '#86efac' } : tf ? { bg: '#422006', bd: '#92400e', fg: '#fcd34d' } : { bg: '#1e293b', bd: '#334155', fg: '#94a3b8' };
+                              const title = [rc && tr('admin.nkvdtKblhStrypymKlasy'), tf && tr('admin.nkvdtHabrhStrypymKlasy'), !rc && !tf && tr('admin.nkvdtHabrhRlvvntytAmdt')].filter(Boolean).join(' · ');
+                              return (
+                                <span key={`tp-${p.id}`} title={title} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '2px 8px', background: c.bg, border: `1px solid ${c.bd}`, borderRadius: '10px', fontSize: '11px', color: c.fg }}>
+                                  {rc && '📥'}{tf && '📤'}{!rc && !tf && '📍'} {p.name}
+                                </span>
+                              );
+                            })}
+                            {tpOff.length > 0 && (
+                              <span title={tpOff.map(r => r.p.name).join(', ')} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '2px 8px', background: 'transparent', border: '1px dashed #475569', borderRadius: '10px', fontSize: '11px', color: '#64748b' }}>
+                                ⭘ {tr('admin.tpStationsOffCount', { count: tpOff.length })}
                               </span>
-                            ))}
-                            {xferPresets.map((p: any) => (
-                              <span key={`xfer-${p.id}`} title={tr('admin.nkvdtHabrhStrypymKlasy')} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '2px 8px', background: '#422006', border: '1px solid #92400e', borderRadius: '10px', fontSize: '11px', color: '#fcd34d' }}>
-                                📤 {p.name}
-                              </span>
-                            ))}
-                            {relPresets.map((p: any) => (
-                              <span key={`rel-${p.id}`} title={tr('admin.nkvdtHabrhRlvvntytAmdt')} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '2px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', fontSize: '11px', color: '#94a3b8' }}>
-                                📍 {p.name}
-                              </span>
-                            ))}
+                            )}
                           </div>
                         ) : (
                           <div style={{ marginTop: '6px' }}>
