@@ -920,7 +920,9 @@ body.light-mode tr.sk-row-b .frozen-col-last { background: #dde8f0 !important; }
    הסגול הוא צל פנימי - צל ולא גבול כדי שלא יימתח גם על הרווח. כיוון הצל
    (--sk-grp-x) מתהפך לפי כיוון הטבלה */
 #map-area table tbody tr.sk-grp > td:first-child {
-  border-inline-start: 10px solid var(--sk-grp-gutter) !important;
+  /* 10px + כ-4 תווים: הקבוצה נכנסת פנימה מתחת לכותרת, כך שהקו התוחם בצד ההתחלה
+     (הימני ב-RTL) נפרד בבירור מקצה הטבלה */
+  border-inline-start: calc(10px + 4ch) solid var(--sk-grp-gutter) !important;
   box-shadow: inset var(--sk-grp-x) 0 0 var(--sk-grp) !important;
 }
 #map-area table tbody tr.sk-grp > td:last-child { border-inline-end: 3px solid var(--sk-grp) !important; }
