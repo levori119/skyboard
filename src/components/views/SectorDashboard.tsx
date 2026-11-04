@@ -1,5 +1,6 @@
 import { recommendBlockSpaceId, autoAssignableSpaces } from '../../utils/blockSpaceAuto';
 import AutoBlockSpacesForm from '../blocks/AutoBlockSpacesForm';
+import BlockTargetMap from '../blocks/BlockTargetMap';
 import { GROUP_HEADER_COLORS, groupHeaderStyle, loadGroupHeaderColor, saveGroupHeaderColor, type GroupHeaderColor } from '../../utils/groupHeaderPalette';
 import React, { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
@@ -1773,16 +1774,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     setTableOnBoard(new Set());
   }, [session.presetId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // פ"מים שהוצאו מהטבלה וההסרה שלהם עוד לא "נחתה" בפולינג: id → עד מתי לחסום
+  // (Infinity בזמן שה-DELETE באוויר). בלי זה הסנכרון למטה מחזיר אותם ללוח מתמונה
+  // ישנה - בגרירה מהירה של כמה פ"מים כמעט בוודאות (removeStripFromTable)
+  const tableRemovalTombstonesRef = useRef<Map<string, number>>(new Map());
   // Sync tableOnBoard from DB strip_table_assignments whenever strips update.
   // Uses merge (add-only) so manual drag additions and explicit removals are respected.
   useEffect(() => {
     if (!session.presetId || !strips.length) return;
     const pid = Number(session.presetId);
+    const tombs = tableRemovalTombstonesRef.current;
+    const now = Date.now();
+    for (const [k, until] of tombs) if (until < now) tombs.delete(k);
     setTableOnBoard(prev => {
       const next = new Set(prev);
       let changed = false;
       strips.forEach((s: any) => {
         const id = String(s.id);
+        if (tombs.has(id)) return;
         if (Array.isArray(s.table_preset_ids) && s.table_preset_ids.map(Number).includes(pid) && !next.has(id)) {
           next.add(id);
           changed = true;
@@ -8338,7 +8347,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           if (tableModeRef.current) {
             // Table mode: add strip to the board (center) and persist assignment
             const stripKey = String(id); // id is already 's123' from sidebarPointerDragRef
-            setTableOnBoard(prev => new Set([...prev, stripKey]));
+            tableRemovalTombstonesRef.current.delete(stripKey); setTableOnBoard(prev => new Set([...prev, stripKey]));
             const pid = sessionRef.current?.presetId ? Number(sessionRef.current.presetId) : null;
             if (pid) {
               const numId = stripKey.replace(/^s/, '');
@@ -8545,7 +8554,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       const pkey = prevStrip?.id ?? stripKey;
       pendingStripUpdatesRef.current.set(pkey, { ...(pendingStripUpdatesRef.current.get(pkey) || {}), ...stripPatch });
       setStrips(prev => prev.map(s => String(s.id) === stripKey ? { ...s, ...stripPatch } : s));
-      setTableOnBoard(prev => new Set([...prev, stripKey]));
+      tableRemovalTombstonesRef.current.delete(stripKey); setTableOnBoard(prev => new Set([...prev, stripKey]));
     }
     hiddenIncomingRef.current.set(String(transferId), Date.now() + 15000);
     setIncomingTransfers((prev: any[]) => prev.filter((x: any) => String(x.id) !== String(transferId)));
@@ -9079,15 +9088,35 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     setTimeout(reloadProvPoints, 600);
   };
 
-  // Remove strip from table view: updates local state + deletes DB assignment
-  const doRemoveStripFromTable = (id: string) => {
-    setTableOnBoard(prev => { const n = new Set(prev); n.delete(id); return n; });
-    const numId = id.replace(/^s/, '');
-    const pid = session.presetId;
-    if (pid) {
-      fetch(`${API_URL}/strip-table-assignments/${numId}/${pid}`, { method: 'DELETE' }).catch(() => {});
-    }
+  // הוצאת פ"מ מהטבלה - מקור יחיד לכל המסלולים (גרירה ללוח הפ"מים, תפריט, אישור).
+  // מיד על המסך; הפ"מ מסומן כ"הוסר" עד שהשרת אישר ופולינג עדכני הגיע, כדי שתמונה
+  // ישנה לא תחזיר אותו. כישלון מחזיר אותו לטבלה עם הודעה.
+  const TABLE_REMOVAL_SETTLE_MS = 6000;
+  const removeStripFromTable = (id: string) => {
+    const key = String(id);
+    const tombs = tableRemovalTombstonesRef.current;
+    tombs.set(key, Infinity);
+    setTableOnBoard(prev => { const n = new Set(prev); n.delete(key); return n; });
+    const pid = session.presetId ? Number(session.presetId) : null;
+    if (!pid) { tombs.set(key, Date.now() + TABLE_REMOVAL_SETTLE_MS); return; }
+    setStrips(prev => prev.map((s: any) => String(s.id) === key
+      ? { ...s, table_preset_ids: (Array.isArray(s.table_preset_ids) ? s.table_preset_ids : []).filter((x: number) => Number(x) !== pid) }
+      : s));
+    const numId = key.replace(/^s/, '');
+    fetch(`${API_URL}/strip-table-assignments/${numId}/${pid}`, { method: 'DELETE' })
+      .then(r => {
+        if (!r.ok) throw new Error(`strip-table-assignments DELETE ${r.status}`);
+        tombs.set(key, Date.now() + TABLE_REMOVAL_SETTLE_MS);
+      })
+      .catch(err => {
+        console.error(err);
+        tombs.delete(key);
+        setTableOnBoard(prev => new Set([...prev, key]));
+        const st = strips.find((s: any) => String(s.id) === key);
+        setSaveFailToast(tr('ctrl.saveFailedReverted', { callsign: st?.callSign || st?.callsign || '' }));
+      });
   };
+  const doRemoveStripFromTable = removeStripFromTable;
 
   const handleSendMessageToMarker = (sectorId: number, subLabel?: string) => {
     const sharedPresets = (workstationPresets as any[]).filter(p => {
@@ -13396,22 +13425,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     {showVerticalView && <span style={{ fontSize: '10px', color: menuAcc('#c084fc','#7c3aed') }}>{tr('ctrl.active')}</span>}
                   </div>
                   )}
-                  {/* מפת מטרות - חיה בתוך תצוגת הבלוקים, ולכן הדלקה פותחת גם אותה */}
+                  {/* מפת מטרות - עצמאית: כל פריט מדליק את שלו. עם תצוגת הבלוקים - חצי-חצי עם ספליטר; בלעדיה - לבד */}
                   {!isMissionDeskMode && show('blockView') && (
                   <div
                     data-testid="menu-target-map"
-                    onClick={() => {
-                      const on = !(showTargetMap && showVerticalView);
-                      setTargetMap(on);
-                      if (on) setShowVerticalView(true);
-                      setShowViewMenu(false);
-                    }}
-                    style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: showTargetMap && showVerticalView ? '#38bdf8' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: showTargetMap && showVerticalView ? 'bold' : 'normal' }}
+                    onClick={() => { setTargetMap(!showTargetMap); setShowViewMenu(false); }}
+                    style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: showTargetMap ? '#38bdf8' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: showTargetMap ? 'bold' : 'normal' }}
                     onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                     onMouseLeave={e => (e.currentTarget.style.background = '')}
                   >
                     <span>🗺 {tr('vertical.showTargetMap')}</span>
-                    {showTargetMap && showVerticalView && <span style={{ fontSize: '10px', color: menuAcc('#38bdf8','#0369a1') }}>{tr('ctrl.active')}</span>}
+                    {showTargetMap && <span style={{ fontSize: '10px', color: menuAcc('#38bdf8','#0369a1') }}>{tr('ctrl.active')}</span>}
                   </div>
                   )}
                   {/* טופס העזר של החלוקה האוטומטית למרחבים - רק כשהמנגנון פעיל בעמדה */}
@@ -15717,7 +15741,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             if (sid) {
               // Add strip to the board (center) and persist via many-to-many assignment
               // sid is numeric (Number(rawId)), so strip key must be 's'+sid to match s.id format
-              setTableOnBoard(prev => new Set([...prev, 's' + sid]));
+              tableRemovalTombstonesRef.current.delete('s' + sid); setTableOnBoard(prev => new Set([...prev, 's' + sid]));
               tableSidebarDragId.current = null;
               if (session.presetId) {
                 const pid = Number(session.presetId);
@@ -18838,16 +18862,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <button
                 onClick={() => {
                   const removedId = tableRowCtxMenu.stripId;
-                  setTableOnBoard(prev => { const n = new Set(prev); n.delete(removedId); return n; });
                   setTableRowCtxMenu(null);
-                  if (session.presetId) {
-                    const numId = removedId.replace(/^s/, '');
-                    const pid = Number(session.presetId);
-                    fetch(`${API_URL}/strip-table-assignments/${numId}/${pid}`, { method: 'DELETE' }).catch(() => {});
-                    setStrips(prev => prev.map((s: any) => String(s.id) === removedId
-                      ? { ...s, table_preset_ids: (Array.isArray(s.table_preset_ids) ? s.table_preset_ids : []).filter((x: number) => x !== pid) }
-                      : s));
-                  }
+                  removeStripFromTable(removedId);
                 }}
                 style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#94a3b8', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
               >{tr('ctrl.removeFromBoard')}</button>
@@ -19215,18 +19231,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const sid = e.dataTransfer.getData('text/strip-id-for-transfer');
             if (sid) {
               // Strip dragged from center back to sidebar = remove from board, delete assignment
-              setTableOnBoard(prev => { const n = new Set(prev); n.delete(sid); return n; });
               if (!sidebarPinned) setSidebarPinned(true);
-              if (session.presetId) {
-                const numId = String(sid).replace(/^s/, '');
-                const pid = Number(session.presetId);
-                fetch(`${API_URL}/strip-table-assignments/${numId}/${pid}`, { method: 'DELETE' })
-                  .then(() => loadData())
-                  .catch(() => {});
-                setStrips(prev => prev.map((s: any) => String(s.id) === sid
-                  ? { ...s, table_preset_ids: (Array.isArray(s.table_preset_ids) ? s.table_preset_ids : []).filter((x: number) => x !== pid) }
-                  : s));
-              }
+              removeStripFromTable(sid);
             }
           } : undefined}
         >
@@ -22029,8 +22035,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         />
       </div>
 
-      {/* Vertical View panel — full width */}
-      {showVerticalView && (tableMode ? (
+      {/* Vertical View panel — full width. גם למפת המטרות לבד (בלי תצוגת הבלוקים) */}
+      {(showVerticalView || showTargetMap) && (tableMode ? (
         /* Table mode: flex item so table area shrinks up */
         <div style={{
           height: 'calc(100vh / 3)',
@@ -22041,7 +22047,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={showFullPicture && tableMode ? fullPictureStrips.filter(s => showPendingTransfer || s.status !== 'pending_transfer') : tableMode ? myTableStrips.filter(s => tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer')) : myTableStrips.filter(s => showPendingTransfer || s.status !== 'pending_transfer')} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} muteConflictAlerts={muteConflictAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={effectiveBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { const targetStrip = strips.find(s => String(s.id) === String(stripId)); const syntheticStrip = targetStrip ? { ...targetStrip, alt: altStr } : null; const newDeviation = syntheticStrip ? computeBlockDeviation(syntheticStrip, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false; await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: newDeviation }) }); setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, alt: altStr, block_deviation: newDeviation } : s)); } catch (e) { console.error(e); } }} conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500} presetAltMin={myPresetConfig?.view_alt_min ?? null} presetAltMax={myPresetConfig?.view_alt_max ?? null} viewerPresetId={session.presetId ? Number(session.presetId) : null} externalConflictIds={tableMode ? tableEffectiveConflictIds : undefined} initialGroupBy={verticalGroupBy} onGroupByChange={setVerticalGroupBy} suggestAltRange={suggestAltRangeFormation || myPresetConfig?.suggest_alt_range === true} blocksSelected={activeBlockTableId != null} mapSpaces={stationSplitSpaces.length > 0 ? stationSplitSpaces : presetBlockSpaces} targetMapOn={showTargetMap} onTargetMapToggle={() => setTargetMap(!showTargetMap)} />
+          {(() => { const vvStrips = showFullPicture && tableMode ? fullPictureStrips.filter(s => showPendingTransfer || s.status !== 'pending_transfer') : tableMode ? myTableStrips.filter(s => tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer')) : myTableStrips.filter(s => showPendingTransfer || s.status !== 'pending_transfer'); return showVerticalView ? (<VerticalView strips={vvStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} muteConflictAlerts={muteConflictAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={effectiveBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { const targetStrip = strips.find(s => String(s.id) === String(stripId)); const syntheticStrip = targetStrip ? { ...targetStrip, alt: altStr } : null; const newDeviation = syntheticStrip ? computeBlockDeviation(syntheticStrip, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false; await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: newDeviation }) }); setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, alt: altStr, block_deviation: newDeviation } : s)); } catch (e) { console.error(e); } }} conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500} presetAltMin={myPresetConfig?.view_alt_min ?? null} presetAltMax={myPresetConfig?.view_alt_max ?? null} viewerPresetId={session.presetId ? Number(session.presetId) : null} externalConflictIds={tableMode ? tableEffectiveConflictIds : undefined} initialGroupBy={verticalGroupBy} onGroupByChange={setVerticalGroupBy} suggestAltRange={suggestAltRangeFormation || myPresetConfig?.suggest_alt_range === true} blocksSelected={activeBlockTableId != null} mapSpaces={stationSplitSpaces.length > 0 ? stationSplitSpaces : presetBlockSpaces} targetMapOn={showTargetMap} onTargetMapToggle={() => setTargetMap(!showTargetMap)} />) : (<BlockTargetMap strips={vvStrips} spaces={stationSplitSpaces.length > 0 ? stationSplitSpaces : presetBlockSpaces} lightMode={lightMode} />); })()}
         </div>
       ) : (
         /* Map mode: fixed overlay so map area stays full size and strips don't move */
@@ -22058,7 +22064,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={showFullPicture && tableMode ? fullPictureStrips.filter(s => showPendingTransfer || s.status !== 'pending_transfer') : tableMode ? myTableStrips.filter(s => tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer')) : myTableStrips.filter(s => showPendingTransfer || s.status !== 'pending_transfer')} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} muteConflictAlerts={muteConflictAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={effectiveBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { const targetStrip = strips.find(s => String(s.id) === String(stripId)); const syntheticStrip = targetStrip ? { ...targetStrip, alt: altStr } : null; const newDeviation = syntheticStrip ? computeBlockDeviation(syntheticStrip, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false; await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: newDeviation }) }); setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, alt: altStr, block_deviation: newDeviation } : s)); } catch (e) { console.error(e); } }} conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500} presetAltMin={myPresetConfig?.view_alt_min ?? null} presetAltMax={myPresetConfig?.view_alt_max ?? null} viewerPresetId={session.presetId ? Number(session.presetId) : null} externalConflictIds={tableMode ? tableEffectiveConflictIds : undefined} initialGroupBy={verticalGroupBy} onGroupByChange={setVerticalGroupBy} suggestAltRange={suggestAltRangeFormation || myPresetConfig?.suggest_alt_range === true} blocksSelected={activeBlockTableId != null} mapSpaces={stationSplitSpaces.length > 0 ? stationSplitSpaces : presetBlockSpaces} targetMapOn={showTargetMap} onTargetMapToggle={() => setTargetMap(!showTargetMap)} />
+          {(() => { const vvStrips = showFullPicture && tableMode ? fullPictureStrips.filter(s => showPendingTransfer || s.status !== 'pending_transfer') : tableMode ? myTableStrips.filter(s => tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer')) : myTableStrips.filter(s => showPendingTransfer || s.status !== 'pending_transfer'); return showVerticalView ? (<VerticalView strips={vvStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} muteConflictAlerts={muteConflictAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={effectiveBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { const targetStrip = strips.find(s => String(s.id) === String(stripId)); const syntheticStrip = targetStrip ? { ...targetStrip, alt: altStr } : null; const newDeviation = syntheticStrip ? computeBlockDeviation(syntheticStrip, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false; await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: newDeviation }) }); setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, alt: altStr, block_deviation: newDeviation } : s)); } catch (e) { console.error(e); } }} conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500} presetAltMin={myPresetConfig?.view_alt_min ?? null} presetAltMax={myPresetConfig?.view_alt_max ?? null} viewerPresetId={session.presetId ? Number(session.presetId) : null} externalConflictIds={tableMode ? tableEffectiveConflictIds : undefined} initialGroupBy={verticalGroupBy} onGroupByChange={setVerticalGroupBy} suggestAltRange={suggestAltRangeFormation || myPresetConfig?.suggest_alt_range === true} blocksSelected={activeBlockTableId != null} mapSpaces={stationSplitSpaces.length > 0 ? stationSplitSpaces : presetBlockSpaces} targetMapOn={showTargetMap} onTargetMapToggle={() => setTargetMap(!showTargetMap)} />) : (<BlockTargetMap strips={vvStrips} spaces={stationSplitSpaces.length > 0 ? stationSplitSpaces : presetBlockSpaces} lightMode={lightMode} />); })()}
         </div>
       ))}
 

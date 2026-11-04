@@ -4121,6 +4121,18 @@
     "mapCopyFromStationPick": {
       "he": "בחר עמדה עם אותה מפה ({{count}})",
       "en": "Pick a station with the same map ({{count}})"
+    },
+    "tpAddRule": {
+      "he": "+ כלל",
+      "en": "+ Rule"
+    },
+    "tpNoRules": {
+      "he": "אין כללים",
+      "en": "No rules"
+    },
+    "tpRuleOtherHint": {
+      "he": "כלל ישן שהוגדר כאן לעמדה אחרת - רק העמדה ההיא מעדכנת את הגבהים שלה. אפשר להסיר",
+      "en": "Legacy rule defined here for another station - only that station updates its altitudes. It can be removed"
     }
   }
 }

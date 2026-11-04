@@ -10,6 +10,22 @@
       "he": "הצעת בלוק גבהים",
       "en": "Altitude block suggestion"
     },
+    "badgeBlock": {
+      "he": "ב",
+      "en": "B"
+    },
+    "badgeBlockTitle": {
+      "he": "חריגה מבלוק",
+      "en": "Block deviation"
+    },
+    "badgeConflict": {
+      "he": "ק",
+      "en": "C"
+    },
+    "badgeConflictTitle": {
+      "he": "קונפליקט גובה",
+      "en": "Altitude conflict"
+    },
     "blockView": {
       "he": "תצוגת בלוקים:",
       "en": "Block view:"
@@ -58,9 +74,21 @@
       "he": "מפת מטרות",
       "en": "Target map"
     },
+    "targetMapAllTargets": {
+      "he": "כל המטרות",
+      "en": "All targets"
+    },
+    "targetMapClearFocus": {
+      "he": "לחיצה על שטח ריק מבטלת בחירה",
+      "en": "Tap empty area to clear selection"
+    },
     "targetMapEmpty": {
       "he": "אין מטרות או פ\"מים עם נ\"צ להצגה",
       "en": "No targets or strips with coordinates to show"
+    },
+    "targetMapFirstOnly": {
+      "he": "ראשונות",
+      "en": "First only"
     },
     "targetMapOtherTargets": {
       "he": "שאר המטרות",
@@ -69,6 +97,18 @@
     "targetMapSplitter": {
       "he": "גרור לשינוי הרוחב בין הבלוקים למפה · לחיצה כפולה - חצי-חצי",
       "en": "Drag to resize blocks and map · double-click to reset to half"
+    },
+    "targetMapZoomIn": {
+      "he": "הגדל (גם גלגלת או צביטה)",
+      "en": "Zoom in (also wheel or pinch)"
+    },
+    "targetMapZoomOut": {
+      "he": "הקטן",
+      "en": "Zoom out"
+    },
+    "targetMapZoomReset": {
+      "he": "התאמה אוטומטית",
+      "en": "Fit to content"
     },
     "theFormationContains": {
       "he": "הפ\"מ מכיל",

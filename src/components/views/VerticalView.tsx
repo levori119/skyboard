@@ -191,7 +191,7 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
   };
 
   const CHART_H = 220;
-  const STRIP_H = 26;
+  const STRIP_H = 22;
   const X_AXIS_H = 22;
   const Y_AXIS_W = 62;
 
@@ -560,6 +560,21 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
     </div>
   );
 
+  // התראות על הפ"מ: אות בעיגול - ב (חריגה מבלוק) / ק (קונפליקט גובה) - ולא צביעת
+  // כל המלבן והבהוב. חריגה שאושרה: אות במסגרת בלבד. השתקת בלוקים מסתירה את ב
+  const alertBadges = (deviation: boolean, deviationAck: boolean, conflict: boolean) => {
+    const badge = (letter: string, color: string, solid: boolean, title: string, testId: string) => (
+      <span key={letter} data-testid={testId} title={title}
+        style={{ flexShrink: 0, width: 15, height: 15, borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold', lineHeight: 1, background: solid ? color : 'transparent', color: solid ? '#fff' : color, border: `1.5px solid ${color}`, boxSizing: 'border-box' }}>
+        {letter}
+      </span>
+    );
+    const out: React.ReactNode[] = [];
+    if (!muteBlockAlerts && (deviation || deviationAck)) out.push(badge(tr('vertical.badgeBlock'), '#f97316', !deviationAck, tr('vertical.badgeBlockTitle'), 'vv-badge-block'));
+    if (conflict) out.push(badge(tr('vertical.badgeConflict'), '#ef4444', true, tr('vertical.badgeConflictTitle'), 'vv-badge-conflict'));
+    return out.length ? <span style={{ display: 'inline-flex', gap: 3, marginInlineStart: 'auto', alignItems: 'center' }}>{out}</span> : null;
+  };
+
   const renderChartContent = (placed: any[], blocksToShow: any[], isFirst = false) => (
     <div ref={isFirst ? chartContentRef : undefined} style={{ flex: 1, position: 'relative', background: bg, overflow: 'hidden', contain: 'paint', cursor: (altDrag || altExpandDrag) ? 'ns-resize' : 'default' }}>
       {/* Block range background bands */}
@@ -681,24 +696,21 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
             topPct = Math.min(Math.max(yPct - halfPct, 0), 100 - (STRIP_H / CHART_H) * 100);
             heightVal = `${STRIP_H}px`;
           }
-          // ההשתקה מכבה את ההבהוב בלבד - המסגרת האדומה והרקע נשארים כסימון.
+          // התראות כאות (ב/ק) על המלבן - לא צבע של כל המלבן ולא הבהוב
           const isConflict = s._hasConflict;
-          const conflictFlash = isConflict && !muteConflictAlerts;
-          const borderColor = (effectiveDeviation || effectiveDeviationAck) ? '#f97316'
-            : s.airborne ? '#3b82f6' : isConflict ? '#ef4444' : (lightMode ? '#94a3b8' : '#475569');
-          const textMainColor = s.airborne ? '#3b82f6' : isConflict ? '#ef4444' : boldTextColor;
+          const borderColor = s.airborne ? '#3b82f6' : (lightMode ? '#475569' : '#94a3b8');
+          const textMainColor = s.airborne ? '#3b82f6' : boldTextColor;
           const normalBg = s._isRange ? (lightMode ? 'rgba(59,130,246,0.12)' : 'rgba(59,130,246,0.18)')
-            : isConflict ? (lightMode ? '#fef2f2' : '#450a0a') : (lightMode ? 'rgba(255,255,255,0.95)' : 'rgba(15,23,42,0.95)');
+            : (lightMode ? '#ffffff' : '#0f172a');
           return (
             <div key={s.id}
-              className={conflictFlash ? 'alt-conflict-flash' : (effectiveDeviation && !isDeviationAcknowledged) ? 'block-deviation-flash' : ''}
+              data-testid={`vv-strip-${s.id}`}
               title={`${getFormationDisplayName(s)}${sq ? ' / ' + sq : ''} | גובה: ${normalizeAlt(s.alt || '')}${isDeviation ? ' ⚠️ חריגה מבלוק' : ''}${isConflict ? ' ⚠️ חפיפת גובה' : ''}`}
               onContextMenu={onStripContextMenu ? (e) => { e.preventDefault(); e.stopPropagation(); onStripContextMenu(s.id, e.clientX, e.clientY); } : undefined}
               style={{
                 position: 'absolute', left: `${Math.max(xPct, 0)}%`, top: `${topPct}%`,
                 width: `${wPct}%`, height: heightVal,
-                background: (effectiveDeviation && !isDeviationAcknowledged) ? undefined
-                  : effectiveDeviationAck ? 'rgba(234, 88, 12, 0.2)' : (conflictFlash ? undefined : normalBg),
+                background: normalBg, boxShadow: s._isRange ? undefined : '0 1px 3px rgba(0,0,0,0.35)',
                 border: `2px solid ${isDragging ? '#f59e0b' : borderColor}`, borderRadius: 4,
                 display: 'flex', flexDirection: 'row', alignItems: 'stretch',
                 overflow: 'hidden', zIndex: isDragging ? 10 : isConflict ? 3 : 2,
@@ -717,9 +729,10 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
               <div
                 onPointerDown={onUpdateStripAlt ? (e) => { e.preventDefault(); e.stopPropagation(); setAltDrag({ stripId: s.id, currentAlt: (s._altLo + s._altHi) / 2, origLo: s._altLo, origHi: s._altHi }); } : undefined}
                 style={{ flex: 1, overflow: 'hidden', padding: '2px 4px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', cursor: onUpdateStripAlt ? 'grab' : 'default', touchAction: 'none', userSelect: 'none' }}>
-                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: `${stripFontSize}px`, lineHeight: 1.3, display: 'flex', gap: '4px', alignItems: 'baseline' }}>
-                  <span style={{ fontWeight: 'bold', color: textMainColor, flexShrink: 0 }}>{getFormationDisplayName(s) || '—'}{sq ? ` / ${sq}` : ''}</span>
-                  {s.alt && <span style={{ fontSize: `${Math.max(stripFontSize - 1, 8)}px`, color: (effectiveDeviation || effectiveDeviationAck) ? '#f97316' : textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>גובה: {normalizeAlt(s.alt)}{(effectiveDeviation || effectiveDeviationAck) ? ' ⚠️' : ''}</span>}
+                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: `${stripFontSize + 1}px`, lineHeight: 1.3, display: 'flex', gap: '5px', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 800, color: textMainColor, flexShrink: 0 }}>{getFormationDisplayName(s) || '—'}{sq ? ` / ${sq}` : ''}</span>
+                  {s.alt && <span style={{ fontSize: `${stripFontSize}px`, fontWeight: 'bold', color: textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{normalizeAlt(s.alt)}</span>}
+                  {alertBadges(isDeviation && !isDeviationAcknowledged, isDeviationAcknowledged, isConflict)}
                 </div>
               </div>
             </div>
@@ -741,24 +754,24 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
             topPct = Math.min(Math.max(yPct - halfPct, 0), 100 - (STRIP_H / CHART_H) * 100);
             heightVal = `${STRIP_H}px`;
           }
+          // התראות כאות (ב/ק) על המלבן - לא צבע של כל המלבן ולא הבהוב
           const ntConflict = !!s._hasConflict;
-          const ntConflictFlash = ntConflict && !muteConflictAlerts;
-          const borderColor = (effectiveDeviation || effectiveDeviationAck) ? '#f97316'
-            : s.airborne ? '#3b82f6' : ntConflict ? '#ef4444' : (lightMode ? '#94a3b8' : '#475569');
-          const textMainColor = s.airborne ? '#3b82f6' : ntConflict ? '#ef4444' : boldTextColor;
+          const borderColor = s.airborne ? '#3b82f6' : (lightMode ? '#475569' : '#94a3b8');
+          const textMainColor = s.airborne ? '#3b82f6' : boldTextColor;
           const normalBg = s._isRange
             ? (lightMode ? 'rgba(59,130,246,0.12)' : 'rgba(59,130,246,0.18)')
-            : ntConflict ? (lightMode ? '#fef2f2' : '#450a0a') : (lightMode ? 'rgba(255,255,255,0.95)' : 'rgba(15,23,42,0.95)');
+            : (lightMode ? '#ffffff' : '#0f172a');
           return (
             <div key={s.id}
-              className={ntConflictFlash ? 'alt-conflict-flash' : (effectiveDeviation && !isDeviationAcknowledged) ? 'block-deviation-flash' : ''}
+              data-testid={`vv-strip-${s.id}`}
               title={`${getFormationDisplayName(s)}${sq ? ' / ' + sq : ''} | גובה: ${normalizeAlt(s.alt || '')}${isDeviation ? ' ⚠️ חריגה מבלוק' : ''}${ntConflict ? ' ⚠️ חפיפת גובה' : ''}`}
               onContextMenu={onStripContextMenu ? (e) => { e.preventDefault(); e.stopPropagation(); onStripContextMenu(s.id, e.clientX, e.clientY); } : undefined}
               style={{
+                // מלבן קטן בגודל התוכן (טווח גבהים - ברוחב העמודה, כי הגובה שלו הוא המידע)
                 position: 'absolute', left: `${leftPct}%`, top: `${topPct}%`,
-                width: `${colW - 0.5}%`, height: heightVal,
-                background: (effectiveDeviation && !isDeviationAcknowledged) ? undefined
-                  : effectiveDeviationAck ? 'rgba(234, 88, 12, 0.2)' : (ntConflictFlash ? undefined : normalBg),
+                ...(s._isRange ? { width: `${colW - 0.5}%` } : { width: 'max-content', maxWidth: `${colW - 0.5}%` }),
+                height: heightVal,
+                background: normalBg, boxShadow: s._isRange ? undefined : '0 1px 3px rgba(0,0,0,0.35)',
                 border: `2px solid ${isDragging ? '#f59e0b' : borderColor}`, borderRadius: 4,
                 display: 'flex', flexDirection: 'row', alignItems: 'stretch',
                 overflow: 'hidden', zIndex: isDragging ? 10 : ntConflict ? 3 : 2,
@@ -777,9 +790,10 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
               <div
                 onPointerDown={onUpdateStripAlt ? (e) => { e.preventDefault(); e.stopPropagation(); setAltDrag({ stripId: s.id, currentAlt: (s._altLo + s._altHi) / 2, origLo: s._altLo, origHi: s._altHi }); } : undefined}
                 style={{ flex: 1, overflow: 'hidden', padding: '2px 4px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', direction: 'rtl', cursor: onUpdateStripAlt ? 'grab' : 'default', touchAction: 'none', userSelect: 'none' }}>
-                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: `${stripFontSize}px`, lineHeight: 1.3, display: 'flex', gap: '4px', alignItems: 'baseline' }}>
-                  <span style={{ fontWeight: 'bold', color: textMainColor, flexShrink: 0 }}>{getFormationDisplayName(s) || '—'}{sq ? ` / ${sq}` : ''}</span>
-                  {s.alt && <span style={{ fontSize: `${Math.max(stripFontSize - 1, 8)}px`, color: (effectiveDeviation || effectiveDeviationAck) ? '#f97316' : textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>גובה: {normalizeAlt(s.alt)}{(effectiveDeviation || effectiveDeviationAck) ? ' ⚠️' : ''}</span>}
+                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: `${stripFontSize + 1}px`, lineHeight: 1.3, display: 'flex', gap: '5px', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 800, color: textMainColor, flexShrink: 0 }}>{getFormationDisplayName(s) || '—'}{sq ? ` / ${sq}` : ''}</span>
+                  {s.alt && <span style={{ fontSize: `${stripFontSize}px`, fontWeight: 'bold', color: textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{normalizeAlt(s.alt)}</span>}
+                  {alertBadges(isDeviation && !isDeviationAcknowledged, isDeviationAcknowledged, ntConflict)}
                 </div>
               </div>
             </div>

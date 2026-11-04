@@ -1,6 +1,7 @@
 import BlockSpaceZonesPicker from './BlockSpaceZonesPicker';
 import { tr } from '../../i18n/tr';
 import { disabledPresetIds, stationDirection } from '../../../shared/transferPointStations.js';
+import { configRules } from '../../../shared/transferPointAltRules.js';
 import { PIN_DISPLAY_MODES } from '../../../shared/pinDisplay';
 import { pinDisplayLabel } from '../strips/MapPinLabel';
 import { DockPositionPicker } from '../shared/WindowContainer';
@@ -2765,36 +2766,60 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                       {presetForm.relevant_sectors.map((sid: number) => {
                         const sec = sectors.find((s: any) => s.id === sid);
                         if (!sec) return null;
+                        // אותה רשימת כללים (`ranges`) שהעמדה עורכת בנקודה - לא הפורמט הישן
+                        // (טווח יחיד), שהמערכת מתעלמת ממנו כשיש רשימה. shared/transferPointAltRules.js
                         const xferPts: any[] = presetForm.classic_transfer_points || [];
-                        const pt = xferPts.find((p: any) => Number(p.sector_id) === sid) || { sector_id: sid, alt_min: null, alt_max: null, parity: 'any' };
-                        const updatePt = (patch: any) => {
-                          const next = xferPts.filter((p: any) => Number(p.sector_id) !== sid);
-                          const merged = { ...pt, ...patch };
-                          const isEmpty = merged.alt_min == null && merged.alt_max == null && (!merged.parity || merged.parity === 'any');
-                          setPresetForm(prev => ({ ...prev, classic_transfer_points: isEmpty ? next : [...next, merged] }));
+                        const pt = xferPts.find((p: any) => Number(p.sector_id) === sid);
+                        const rules: any[] = configRules(pt);
+                        const myId = editingPreset?.id != null ? Number(editingPreset.id) : null;
+                        const isOther = (r: any) => r.preset_id != null && r.preset_id !== '' && Number(r.preset_id) !== myId;
+                        const setRules = (next: any[]) => {
+                          const others = xferPts.filter((p: any) => Number(p.sector_id) !== sid);
+                          const keep = next.filter(r => isOther(r) || r.alt_min != null || r.alt_max != null || (r.parity && r.parity !== 'any'));
+                          // הפורמט הישן מתאפס - אחרת הוא "חוזר לחיים" ברגע שהרשימה מתרוקנת
+                          const base = pt ? { ...pt, alt_min: null, alt_max: null, parity: 'any' } : { sector_id: sid };
+                          const merged = { ...base, sector_id: sid, ranges: keep };
+                          const hasOtherFields = pt && (pt.label || (Array.isArray(pt.partner_preset_ids) && pt.partner_preset_ids.length));
+                          setPresetForm(prev => ({ ...prev, classic_transfer_points: keep.length || hasOtherFields ? [...others, merged] : others }));
                         };
+                        const updRule = (idx: number, patch: any) => setRules(rules.map((r, n) => n === idx ? { ...r, ...patch } : r));
+                        const inputStyle = { width: '58px', padding: '3px 5px', background: '#0f172a', border: '1px solid #92400e', borderRadius: '4px', color: '#fbbf24', fontSize: '11px', textAlign: 'center' as const };
                         return (
-                          <div key={sid} style={{ display: 'flex', alignItems: 'center', gap: '8px', direction: 'rtl', padding: '5px 8px', background: '#0a1628', borderRadius: '6px', border: '1px solid #1e3a5f', flexWrap: 'wrap' }}>
-                            <span style={{ color: '#93c5fd', fontSize: '12px', fontWeight: 'bold', minWidth: '80px' }}>{sec.label_he || sec.name}</span>
-                            <span style={{ color: '#64748b', fontSize: '11px' }}>{tr('shared.minAltitude')}</span>
-                            <input type="number" placeholder="—" value={pt.alt_min ?? ''}
-                              onChange={e => updatePt({ alt_min: e.target.value !== '' ? Number(e.target.value) : null })}
-                              style={{ width: '58px', padding: '3px 5px', background: '#0f172a', border: '1px solid #92400e', borderRadius: '4px', color: '#fbbf24', fontSize: '11px', textAlign: 'center' }} />
-                            <span style={{ color: '#64748b', fontSize: '11px' }}>{tr('shared.max')}</span>
-                            <input type="number" placeholder="—" value={pt.alt_max ?? ''}
-                              onChange={e => updatePt({ alt_max: e.target.value !== '' ? Number(e.target.value) : null })}
-                              style={{ width: '58px', padding: '3px 5px', background: '#0f172a', border: '1px solid #92400e', borderRadius: '4px', color: '#fbbf24', fontSize: '11px', textAlign: 'center' }} />
-                            <span style={{ color: '#64748b', fontSize: '11px' }}>{tr('shared.parity')}</span>
-                            <select value={pt.parity || 'any'} onChange={e => updatePt({ parity: e.target.value })}
-                              style={{ padding: '3px 5px', background: '#0f172a', border: '1px solid #92400e', borderRadius: '4px', color: '#fbbf24', fontSize: '11px' }}>
-                              <option value="any">{tr('shared.all')}</option>
-                              <option value="even">{tr('shared.even')}</option>
-                              <option value="odd">{tr('shared.odd')}</option>
-                            </select>
-                            {(pt.alt_min != null || pt.alt_max != null || (pt.parity && pt.parity !== 'any')) && (
-                              <button type="button" onClick={() => updatePt({ alt_min: null, alt_max: null, parity: 'any' })}
-                                style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px', padding: '0 2px' }}>✕</button>
-                            )}
+                          <div key={sid} data-testid={`tp-rules-${sid}`} style={{ display: 'flex', flexDirection: 'column', gap: '4px', direction: 'rtl', padding: '5px 8px', background: '#0a1628', borderRadius: '6px', border: '1px solid #1e3a5f' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ color: '#93c5fd', fontSize: '12px', fontWeight: 'bold', minWidth: '80px' }}>{sec.label_he || sec.name}</span>
+                              {rules.length === 0 && <span style={{ color: '#64748b', fontSize: '11px' }}>{tr('admin.tpNoRules')}</span>}
+                              <button type="button" data-testid={`tp-rule-add-${sid}`} onClick={() => setRules([...rules, { preset_id: myId, alt_min: null, alt_max: null, parity: 'any' }])}
+                                style={{ marginInlineStart: 'auto', background: 'none', border: '1px solid #92400e', color: '#fbbf24', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', padding: '1px 8px' }}>{tr('admin.tpAddRule')}</button>
+                            </div>
+                            {rules.map((r: any, n: number) => isOther(r) ? (
+                              // שארית ישנה: כלל שהוגדר כאן לעמדה אחרת - נעול, אפשר רק להסיר
+                              <div key={n} title={tr('admin.tpRuleOtherHint')} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: '#64748b', paddingInlineStart: '88px' }}>
+                                <span>🔒 {(presets || []).find((p: any) => Number(p.id) === Number(r.preset_id))?.name || r.preset_id}</span>
+                                <bdi>{`${r.alt_min ?? '?'}-${r.alt_max ?? '?'}`}</bdi>
+                                <span>{r.parity === 'even' ? tr('shared.even') : r.parity === 'odd' ? tr('shared.odd') : ''}</span>
+                                <button type="button" onClick={() => setRules(rules.filter((_, m) => m !== n))}
+                                  style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px', padding: '0 2px' }}>✕</button>
+                              </div>
+                            ) : (
+                              <div key={n} style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', paddingInlineStart: '88px' }}>
+                                <span style={{ color: '#64748b', fontSize: '11px' }}>{tr('shared.minAltitude')}</span>
+                                <input type="number" placeholder="-" value={r.alt_min ?? ''}
+                                  onChange={e => updRule(n, { alt_min: e.target.value !== '' ? Number(e.target.value) : null })} style={inputStyle} />
+                                <span style={{ color: '#64748b', fontSize: '11px' }}>{tr('shared.max')}</span>
+                                <input type="number" placeholder="-" value={r.alt_max ?? ''}
+                                  onChange={e => updRule(n, { alt_max: e.target.value !== '' ? Number(e.target.value) : null })} style={inputStyle} />
+                                <span style={{ color: '#64748b', fontSize: '11px' }}>{tr('shared.parity')}</span>
+                                <select value={r.parity || 'any'} onChange={e => updRule(n, { parity: e.target.value })}
+                                  style={{ padding: '3px 5px', background: '#0f172a', border: '1px solid #92400e', borderRadius: '4px', color: '#fbbf24', fontSize: '11px' }}>
+                                  <option value="any">{tr('shared.all')}</option>
+                                  <option value="even">{tr('shared.even')}</option>
+                                  <option value="odd">{tr('shared.odd')}</option>
+                                </select>
+                                <button type="button" data-testid={`tp-rule-del-${sid}-${n}`} onClick={() => setRules(rules.filter((_, m) => m !== n))}
+                                  style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px', padding: '0 2px' }}>✕</button>
+                              </div>
+                            ))}
                           </div>
                         );
                       })}
