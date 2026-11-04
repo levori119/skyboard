@@ -97,7 +97,7 @@ import { isPointDisabledFor, canSendVia, canReceiveVia, stationDirection } from 
 import { TakeoffBadge, FormationCountBadge } from '../strips/StripCardBadges';
 import { splitSpaceSet, separatedBySpace, blockFitsSpace, separatedByGroup } from '../../utils/blockSpaces';
 import { applyAltOverrides, parseAltOverrides, refitAltToBand, blockForAlt, type AltOverrides } from '../../utils/zoneAltOverride';
-import { recommendAltitude, stripArmaments, normalizeAltRules, stationRecBlocks, type AltRecommendation, type RecBlock } from '../../utils/altRecommend';
+import { recommendAltitude, stripArmaments, normalizeAltRules, stationRecBlocks, assignedAltitude, PAIR_SEPARATION, type AltRecommendation, type RecBlock } from '../../utils/altRecommend';
 import { loadPadLayout, savePadLayout, type PadLayout } from '../../utils/freeDeskLayout';
 import FreeDeskPad from '../shared/FreeDeskPad';
 import { AimPointsSummary, AimPointsWindow } from '../strips/AimPointsTable';
@@ -5385,7 +5385,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // פ"מ שנגרר לטבלה מקבל המלצה על בלוק פנוי מטבלת הבלוקים של העמדה (רביעייה =
   // 2 בלוקים סמוכים, לפי חוקי החימוש בהגדרות העמדה), והבלוקים נבחרים מראש. אם
   // אין רצף פנוי - התראה להטפיס/להנמיך פ"מ אחד כדי לפנות. src/utils/altRecommend.ts
-  const [altRec, setAltRec] = useState<{ stripId: string; label: string; formation: number; blocks: RecBlock[]; rec: AltRecommendation; selected: number[]; moved: boolean } | null>(null);
+  const [altRec, setAltRec] = useState<{ stripId: string; label: string; formation: number; blocks: RecBlock[]; rec: AltRecommendation; selected: number[]; moved: boolean; assignStart?: number | null } | null>(null);
   const altRecBlocks = (): RecBlock[] => stationRecBlocks(
     dashboardBlocks, (myPresetConfig?.block_table_ids || []).map(Number),
     session.presetId ? Number(session.presetId) : null, effectiveBlockTableId,
@@ -13987,7 +13987,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         const ar = altRec;
         const byId = new Map(ar.blocks.map(b => [b.id, b]));
         const sel = ar.selected.map(id => byId.get(id)).filter(Boolean).sort((a, b) => a!.alt_from - b!.alt_from) as RecBlock[];
-        const selAlt = sel.length ? `${sel[0].alt_from}-${sel[sel.length - 1].alt_to}` : '';
+        // ההמלצה ברמת הבלוק, אבל על הפ"מ נרשם גובה לכל זוג (utils/altRecommend assignedAltitude)
+        const selFrom = sel.length ? sel[0].alt_from : 0, selTo = sel.length ? sel[sel.length - 1].alt_to : 0;
+        const selAlt = sel.length ? assignedAltitude(selFrom, selTo, ar.formation, ar.assignStart) : '';
+        const curStart = sel.length ? parseInt(selAlt, 10) : 0;
+        const shiftStart = (d: number) => setAltRec(prev => prev ? { ...prev, assignStart: curStart + d * PAIR_SEPARATION } : prev);
         const rule = ar.rec.rule;
         const ruleText = rule ? (rule.kind === 'band' ? tr(rule.band === 'high' ? 'admin.altRulesHigh' : rule.band === 'mid' ? 'admin.altRulesMid' : 'admin.altRulesLow')
           : rule.kind === 'alt' ? `${rule.alt_ft} ${tr('admin.altRulesFeet')}` : `${rule.min_ft ?? ''}-${rule.max_ft ?? ''} ${tr('admin.altRulesFeet')}`) : '';
@@ -14043,7 +14047,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 const who = [...occ, ...movedIn];
                 return (
                   <button key={b.id} data-testid="alt-rec-block" data-selected={on || undefined} data-recommended={recd || undefined}
-                    onClick={() => setAltRec(prev => prev ? { ...prev, selected: on ? prev.selected.filter(x => x !== b.id) : [...prev.selected, b.id] } : prev)}
+                    onClick={() => setAltRec(prev => prev ? { ...prev, assignStart: null, selected: on ? prev.selected.filter(x => x !== b.id) : [...prev.selected, b.id] } : prev)}
                     style={{ display: 'flex', alignItems: 'center', gap: '8px', textAlign: 'start', padding: '5px 8px', borderRadius: '5px', cursor: 'pointer', fontFamily: 'inherit',
                       border: `1px solid ${on ? '#22c55e' : T.border}`, background: on ? 'rgba(34,197,94,0.18)' : 'transparent', color: T.text, fontSize: '13px' }}>
                     <span style={{ fontWeight: 'bold', fontVariantNumeric: 'tabular-nums', minWidth: 64 }}>{b.alt_from}-{b.alt_to}</span>
@@ -14055,6 +14059,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 );
               })}
             </div>
+            {selAlt && (
+              <div data-testid="alt-rec-assign" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', fontSize: '12px' }}>
+                <span style={{ color: T.muted }}>{tr('ctrl.altRecAssigned')}</span>
+                <button data-testid="alt-rec-assign-down" disabled={curStart <= selFrom} onClick={() => shiftStart(-1)}
+                  style={{ background: T.bg, color: T.text, border: `1px solid ${T.border}`, borderRadius: '5px', padding: '2px 8px', cursor: curStart <= selFrom ? 'default' : 'pointer', opacity: curStart <= selFrom ? 0.4 : 1 }}>▼</button>
+                <span style={{ fontWeight: 'bold', fontSize: '15px', fontVariantNumeric: 'tabular-nums', direction: 'ltr', unicodeBidi: 'isolate' }}>{selAlt}</span>
+                <button data-testid="alt-rec-assign-up" disabled={assignedAltitude(selFrom, selTo, ar.formation, curStart + PAIR_SEPARATION) === selAlt} onClick={() => shiftStart(1)}
+                  style={{ background: T.bg, color: T.text, border: `1px solid ${T.border}`, borderRadius: '5px', padding: '2px 8px', cursor: 'pointer' }}>▲</button>
+                <span style={{ color: T.muted, fontSize: '11px' }}>{tr('ctrl.altRecAssignedHint')}</span>
+              </div>
+            )}
             <div style={{ display: 'flex', gap: '8px' }}>
               <button data-testid="alt-rec-apply" disabled={!selAlt}
                 onClick={async () => { const id = ar.stripId; setAltRec(null); if (selAlt) await putStripAlt(id, selAlt); }}

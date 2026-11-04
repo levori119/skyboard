@@ -125,6 +125,27 @@ export function blocksNeeded(formation: number): number {
   return n <= 3 ? 1 : Math.ceil(n / 2);
 }
 
+/** הפרדה בין זוגות באותו מבנה - 1000 רגל (10 במאות רגל) */
+export const PAIR_SEPARATION = 10;
+
+/**
+ * **הגובה שנרשם על הפ"מ בהקצאה** - לא כל הבלוק. ההמלצה בוחרת בלוק (או בלוקים
+ * סמוכים), אבל הפ"מ מקבל גובה לכל זוג: זוג (או בודד) - גובה אחד; רביעייה - שני
+ * גבהים בהפרדה של 1000 רגל ("זוג ב-240 וזוג ב-250"); שלישייה - זוג ובודד, שני
+ * גבהים. נכתב כמו כל גובה בפ"מ: "240" או "240-250".
+ *
+ * `start` - הגובה התחתון שהפקח בחר בתוך הטווח (▲▼ בחלון). ברירת מחדל: תחתית
+ * הטווח. נשמר בתוך הטווח כך שהזוג העליון לא חורג ממנו.
+ */
+export function assignedAltitude(from: number, to: number, formation: number, start?: number | null): string {
+  const n = Number.isFinite(formation) && formation > 0 ? Math.floor(formation) : 1;
+  const levels = Math.max(1, Math.ceil(n / 2));
+  const span = PAIR_SEPARATION * (levels - 1);
+  const maxStart = Math.max(from, to - span);
+  const s = Math.min(maxStart, Math.max(from, start ?? from));
+  return levels === 1 ? `${s}` : `${s}-${s + span}`;
+}
+
 const overlaps = (r: { lo: number; hi: number }, b: RecBlock) => r.lo <= b.alt_to && r.hi >= b.alt_from;
 
 /** החוק הראשון (לפי סדר ההגדרה) שהחימוש שלו נמצא על הפ"מ */
@@ -210,10 +231,12 @@ export function recommendAltitude(args: {
       if (inWin.has(to.id) || occIds[to.id].length) continue;
       const cost = score(i) * 1000 + Math.abs(to.alt_from - from.alt_from);
       if (bestMove && cost >= bestMove.cost) continue;
-      // שומרים על מיקום הפ"מ בתוך הבלוק; טווח עובר לטווח הבלוק החדש
+      // שומרים על מיקום הפ"מ בתוך הבלוק - גם גובה בודד וגם גבהי זוגות ("240-250"):
+      // הכל זז באותו הפרש לבלוק החדש, בלי לחרוג ממנו. טווח של בלוק שלם עובר לבלוק שלם
+      const shift = (v: number) => Math.min(to.alt_to, Math.max(to.alt_from, to.alt_from + (v - from.alt_from)));
       const newAlt = blocker.r.lo === blocker.r.hi
-        ? String(Math.min(to.alt_to, to.alt_from + (blocker.r.lo - from.alt_from)))
-        : `${to.alt_from}-${to.alt_to}`;
+        ? String(shift(blocker.r.lo))
+        : `${shift(blocker.r.lo)}-${shift(blocker.r.hi)}`;
       bestMove = {
         i, cost,
         move: {

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   recommendAltitude, blocksNeeded, parseAltHundreds, matchRule, stripArmaments, normalizeAltRules,
-  type RecBlock, stationRecBlocks } from './altRecommend';
+  type RecBlock, stationRecBlocks, assignedAltitude } from './altRecommend';
 
 // שישה בלוקים של 2000 רגל: 40-60, 60-80 ... 140-160
 const B: RecBlock[] = [40, 60, 80, 100, 120, 140].map((f, i) => ({ id: i + 1, alt_from: f, alt_to: f + 20 }));
@@ -158,5 +158,23 @@ describe('stationRecBlocks - רק בלוקים שהעמדה רשאית להמל�
   });
   it('לעמדה אין אף בלוק משויך - הבלוקים שלא שויכו לאף עמדה', () => {
     expect(stationRecBlocks(blocks, [9, 4], 99).map(b => b.id)).toEqual([2, 5]);
+  });
+});
+
+describe('assignedAltitude - הגובה בהקצאה, לא כל הבלוק', () => {
+  it('זוג - גובה אחד (תחתית הבלוק)', () => {
+    expect(assignedAltitude(210, 250, 2)).toBe('210');
+    expect(assignedAltitude(210, 250, 1)).toBe('210');
+  });
+  it('רביעייה - שני גבהים בהפרדה של 1000 רגל', () => {
+    expect(assignedAltitude(210, 250, 4, 240)).toBe('240-250');
+    expect(assignedAltitude(210, 250, 4)).toBe('210-220');
+  });
+  it('שלישייה - זוג ובודד: שני גבהים', () => {
+    expect(assignedAltitude(340, 390, 3)).toBe('340-350');
+  });
+  it('הבחירה נשמרת בתוך הטווח - הזוג העליון לא חורג', () => {
+    expect(assignedAltitude(210, 250, 4, 250)).toBe('240-250');
+    expect(assignedAltitude(210, 250, 2, 100)).toBe('210');
   });
 });

@@ -418,6 +418,14 @@
       "he": "מוחק את הגובה של כל הפ\"מים שברשימה - לא של מה שעל הלוח ולא של פ\"מ בהעברה",
       "en": "Clears the altitude of every strip in the list - not those on the board or in transfer"
     },
+    "altRecAssigned": {
+      "he": "גובה בהקצאה:",
+      "en": "Assigned altitude:"
+    },
+    "altRecAssignedHint": {
+      "he": "גובה לכל זוג, 1000 רגל בין זוגות",
+      "en": "One altitude per pair, 1000 ft apart"
+    },
     "closuresOnMap": {
       "he": "🚫 סגירות על מפה",
       "en": "🚫 Closures on map"
