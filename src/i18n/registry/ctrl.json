@@ -2546,6 +2546,30 @@
       "he": "הגבהים הסגורים",
       "en": "Closed altitudes"
     },
+    "zoneAltScope": {
+      "he": "שינוי הגבהים חל על",
+      "en": "Apply the altitude change to"
+    },
+    "zoneAltScopeGlobal": {
+      "he": "כל העמדות",
+      "en": "All stations"
+    },
+    "zoneAltScopeLocal": {
+      "he": "זמני - עמדה זו",
+      "en": "Temporary - this station"
+    },
+    "zoneAltScopeHint": {
+      "he": "הפ\"מים שבבלוק מקבלים גובה לפי הטווח החדש",
+      "en": "Strips in the block get an altitude within the new range"
+    },
+    "zoneAltLocalBadge": {
+      "he": "זמני",
+      "en": "Temp"
+    },
+    "zoneAltLocalReset": {
+      "he": "חזרה להגדרת האזור",
+      "en": "Back to the zone definition"
+    },
     "zoneScopeHint": {
       "he": "בלי סימון - ההגבלה חלה על כל הגבהים",
       "en": "Nothing ticked - the restriction applies to all altitudes"

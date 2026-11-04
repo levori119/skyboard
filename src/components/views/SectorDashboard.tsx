@@ -96,6 +96,7 @@ import { thinScroll } from '../../utils/thinScroll';
 import { isPointDisabledFor } from '../../../shared/transferPointStations.js';
 import { TakeoffBadge, FormationCountBadge } from '../strips/StripCardBadges';
 import { splitSpaceSet, separatedBySpace, blockFitsSpace, separatedByGroup } from '../../utils/blockSpaces';
+import { applyAltOverrides, parseAltOverrides, refitAltToBand, type AltOverrides } from '../../utils/zoneAltOverride';
 import { recommendAltitude, stripArmaments, normalizeAltRules, stationRecBlocks, type AltRecommendation, type RecBlock } from '../../utils/altRecommend';
 import { loadPadLayout, savePadLayout, type PadLayout } from '../../utils/freeDeskLayout';
 import FreeDeskPad from '../shared/FreeDeskPad';
@@ -489,6 +490,10 @@ interface ZoneMenuDraft {
   altMin: number | null;
   altMax: number | null;
   note: string;
+  /** עריכת גבהי הבלוקים (טקסט כפי שהוקלד), לפי מזהה בלוק */
+  altEdits: Record<number, { lo: string; hi: string }>;
+  /** לכל העמדות (הגדרת האזור) או זמני לעמדה הזו - src/utils/zoneAltOverride.ts */
+  altScope: 'global' | 'local';
 }
 
 /**
@@ -824,7 +829,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const dualMapSplitterStartRef = useRef({ pos: 0, split: 50 });
   const map2DragRef = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null);
   const [mapZones, setMapZones] = useState<MapZone[]>([]);
-  const [zoneAltRanges, setZoneAltRanges] = useState<Record<number, ZoneAltRange[]>>({});
+  const [zoneAltRangesRaw, setZoneAltRanges] = useState<Record<number, ZoneAltRange[]>>({});
+  // עקיפה **זמנית לעמדה** של גבהי בלוק (חלון ההגבלות של אזור). נשמרת פר-עמדה עד
+  // "חזרה להגדרה", וכל צרכני הבלוקים בעמדה רואים את הטווח המקומי
+  const zoneAltOvKey = `sk.zoneAltOverride.${session.presetId ?? 'none'}`;
+  const [zoneAltOverrides, setZoneAltOverrides] = useState<AltOverrides>(() => {
+    try { return parseAltOverrides(localStorage.getItem(zoneAltOvKey)); } catch { return {}; }
+  });
+  const saveZoneAltOverrides = (next: AltOverrides) => {
+    setZoneAltOverrides(next);
+    try { localStorage.setItem(zoneAltOvKey, JSON.stringify(next)); } catch { /* אחסון חסום - נשאר לסשן */ }
+  };
+  const zoneAltRanges = React.useMemo(() => applyAltOverrides(zoneAltRangesRaw, zoneAltOverrides), [zoneAltRangesRaw, zoneAltOverrides]);
   const [stripZoneAssignments, setStripZoneAssignments] = useState<StripZoneAssignment[]>([]);
   const [fzDragStripId, setFzDragStripId] = useState<number | null>(null);
   const [fzPanelCollapsed, setFzPanelCollapsed] = useState<Set<number>>(new Set());
@@ -2965,12 +2981,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return Number.isFinite(n) ? n : null;
   };
   // A zone's altitude blocks with lo/hi normalized (lo<=hi), highest block first.
-  const zoneAltBlocks = (zoneId: number): { id: number; name: string; lo: number | null; hi: number | null }[] => {
+  const zoneAltBlocks = (zoneId: number): { id: number; name: string; lo: number | null; hi: number | null; local: boolean }[] => {
     return (zoneAltRangesRef.current[zoneId] || []).map((r: any) => {
       const a = r.alt_min, b = r.alt_max;
       const lo = (a != null && b != null) ? Math.min(a, b) : (a ?? b ?? null);
       const hi = (a != null && b != null) ? Math.max(a, b) : (b ?? a ?? null);
-      return { id: r.id, name: r.name || '', lo, hi };
+      return { id: r.id, name: r.name || '', lo, hi, local: !!r.local_override };
     });
   };
   // Pick the block whose numeric band contains the strip's altitude; else the first block.
@@ -3770,6 +3786,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         altMin: zone?.restriction_alt_min ?? null,
         altMax: zone?.restriction_alt_max ?? null,
         note: zone?.limitation_note || '',
+        altEdits: {},
+        altScope: 'global',
       },
     });
   };
@@ -22955,6 +22973,66 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           const m = raw.replace(/,/g, '').match(/-?\d+/);
           return m ? parseInt(m[0], 10) : null;
         };
+        // ── עריכת גבהי הבלוקים ──────────────────────────────────────────────
+        // רק בלוק ששני הגבולות שלו תקינים ושונים מהמוצג נחשב שינוי
+        const altChanges = blocks.flatMap(b => {
+          const e = d.altEdits[b.id];
+          if (!e) return [];
+          const lo = parseBound(e.lo), hi = parseBound(e.hi);
+          if (lo === null || hi === null || lo < 0 || hi < 0) return [];
+          const nLo = Math.min(lo, hi), nHi = Math.max(lo, hi);
+          if (nLo === b.lo && nHi === b.hi) return [];
+          return [{ b, band: { alt_min: nLo, alt_max: nHi } }];
+        });
+        const editAlt = (id: number, side: 'lo' | 'hi', v: string) => {
+          const b = blocks.find(x => x.id === id);
+          const cur = d.altEdits[id] ?? { lo: b?.lo != null ? String(b.lo) : '', hi: b?.hi != null ? String(b.hi) : '' };
+          edit({ altEdits: { ...d.altEdits, [id]: { ...cur, [side]: v } } });
+        };
+        /**
+         * החלת עריכת הגבהים: הגדרת האזור (לכל העמדות) או עקיפה מקומית - ובשני
+         * המקרים הפ"מים שמשויכים עכשיו לבלוק באזור מקבלים גובה שמתאים לטווח החדש.
+         */
+        const applyAltEdits = () => {
+          if (!altChanges.length) return;
+          const raw = zoneAltRangesRaw[zone.id] || [];
+          const next = { ...zoneAltOverrides };
+          if (d.altScope === 'local') {
+            for (const c of altChanges) next[c.b.id] = c.band;
+          } else {
+            for (const c of altChanges) {
+              delete next[c.b.id]; // ההגדרה החדשה גוברת על עקיפה מקומית ישנה
+              const r = raw.find(x => x.id === c.b.id);
+              if (!r) continue;
+              fetch(`${API_URL}/zone-altitude-ranges/${r.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: r.name, alt_min: c.band.alt_min, alt_max: c.band.alt_max, sort_order: r.sort_order }) })
+                .catch(err => console.error(err));
+            }
+            setZoneAltRanges(prev => ({ ...prev, [zone.id]: (prev[zone.id] || []).map(r => { const c = altChanges.find(x => x.b.id === r.id); return c ? { ...r, ...c.band } : r; }) }));
+          }
+          saveZoneAltOverrides(next);
+          for (const c of altChanges) {
+            const oldBand = c.b.lo != null && c.b.hi != null ? { alt_min: c.b.lo, alt_max: c.b.hi } : null;
+            const inBlock = stripZoneAssignments.filter(a => Number(a.zone_id) === Number(zone.id) && asgnAltIds(a).includes(c.b.id));
+            for (const a of inBlock) {
+              const st = strips.find(x => String(x.id) === String(a.strip_id));
+              if (!st) continue;
+              const alt = refitAltToBand(st.alt, oldBand, c.band);
+              if (alt) putStripAlt(String(st.id), alt);
+            }
+          }
+        };
+        const resetLocalAlt = (id: number) => {
+          const next = { ...zoneAltOverrides };
+          delete next[id];
+          saveZoneAltOverrides(next);
+          const rest = { ...d.altEdits };
+          delete rest[id];
+          edit({ altEdits: rest });
+        };
+        const altBoundStyle: React.CSSProperties = {
+          width: 44, boxSizing: 'border-box', background: T.input, border: `1px solid ${menuBorder}`,
+          borderRadius: '4px', padding: '2px 3px', color: menuText, fontSize: '11px', textAlign: 'center',
+        };
         const STATES: { kind: ZoneRestriction; label: string; on: string; text: string }[] = [
           { kind: '',           label: tr('ctrl.zoneOpen'),       on: '#16a34a', text: '#dcfce7' },
           { kind: 'restricted', label: tr('ctrl.zoneRestricted'), on: '#d97706', text: '#fef3c7' },
@@ -22983,6 +23061,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             // המנגנון הישן מתבטל בכל אישור: התפריט הוא עכשיו המקום היחיד של ההגבלה
             ...(hasLegacyActiveAlt(zone) ? { active_alt_range_ids: [] } : {}),
           });
+          applyAltEdits();
           close();
         };
         // האם יש בכלל מה לאשר. כפתור שנראה פעיל ואינו עושה דבר הוא בדיוק סוג
@@ -22992,6 +23071,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           || (d.altMin ?? null) !== (zone.restriction_alt_min ?? null)
           || (d.altMax ?? null) !== (zone.restriction_alt_max ?? null)
           || d.note !== (zone.limitation_note || '')
+          || altChanges.length > 0
           // הגבלה ישנה תמיד "ממתינה לאישור" - אחרת בחירת "פתוח" לא הייתה מבטלת אותה
           || hasLegacyActiveAlt(zone);
         const acc = d.restriction === '' ? '#16a34a' : ZONE_RESTRICTION_COLOR[d.restriction];
@@ -23049,15 +23129,47 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       const rangeTxt = bandLabel({ lo: b.lo, hi: b.hi });
                       const bacc = d.restriction === 'closed' ? ZONE_RESTRICTION_COLOR.closed : ZONE_RESTRICTION_COLOR.restricted;
                       return (
-                        <label key={b.id} data-zone-block={b.id} style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '3px 0', cursor: 'pointer', fontSize: '12px', color: on ? bacc : menuText, fontWeight: on ? 'bold' : 'normal' }}>
-                          <input type="checkbox" checked={on} onChange={() => toggleBlock(b.id)} style={{ accentColor: bacc, cursor: 'pointer' }} />
-                          <span>{on ? (d.restriction === 'closed' ? '⛔ ' : '⚠ ') : ''}{bidiAuto(b.name || tr('ctrl.altitude'))}
-                            {rangeTxt && <span style={{ color: menuMuted, fontSize: '10px', fontWeight: 'normal' }}> ({rangeTxt})</span>}
+                        <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <label data-zone-block={b.id} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '7px', padding: '3px 0', cursor: 'pointer', fontSize: '12px', color: on ? bacc : menuText, fontWeight: on ? 'bold' : 'normal' }}>
+                            <input type="checkbox" checked={on} onChange={() => toggleBlock(b.id)} style={{ accentColor: bacc, cursor: 'pointer' }} />
+                            <span>{on ? (d.restriction === 'closed' ? '⛔ ' : '⚠ ') : ''}{bidiAuto(b.name || tr('ctrl.altitude'))}
+                            </span>
+                          </label>
+                          {/* גבהי הבלוק - ניתנים לעריכה; ההחלה ב"אשר" לפי האופן שנבחר למטה */}
+                          <span title={rangeTxt || undefined} style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0, direction: 'ltr' }}>
+                            <input type="text" inputMode="numeric" data-zone-block-lo={b.id} aria-label={tr('ctrl.zoneRestrictionFrom')}
+                              value={d.altEdits[b.id]?.lo ?? (b.lo != null ? String(b.lo) : '')} onChange={e => editAlt(b.id, 'lo', e.target.value)} style={altBoundStyle} />
+                            <span style={{ fontSize: '10px', color: menuMuted }}>-</span>
+                            <input type="text" inputMode="numeric" data-zone-block-hi={b.id} aria-label={tr('ctrl.zoneRestrictionTo')}
+                              value={d.altEdits[b.id]?.hi ?? (b.hi != null ? String(b.hi) : '')} onChange={e => editAlt(b.id, 'hi', e.target.value)} style={altBoundStyle} />
                           </span>
-                        </label>
+                          {b.local && (
+                            <button type="button" onClick={() => resetLocalAlt(b.id)} title={tr('ctrl.zoneAltLocalReset')}
+                              style={{ flexShrink: 0, fontSize: '9px', padding: '1px 4px', background: 'transparent', border: `1px dashed ${menuMuted}`, borderRadius: 4, color: menuMuted, cursor: 'pointer' }}>
+                              {tr('ctrl.zoneAltLocalBadge')} ↺
+                            </button>
+                          )}
+                        </div>
                       );
                     })}
                     <div style={{ fontSize: '9px', color: menuMuted, marginTop: '4px' }}>{tr('ctrl.zoneScopeHint')}</div>
+                    {altChanges.length > 0 && (
+                      <div style={{ marginTop: '8px' }}>
+                        <div style={{ fontSize: '10px', color: menuMuted, marginBottom: '4px' }}>{tr('ctrl.zoneAltScope')}</div>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          {(['global', 'local'] as const).map(sc => {
+                            const on = d.altScope === sc;
+                            return (
+                              <button key={sc} type="button" data-zone-alt-scope={sc} onClick={() => edit({ altScope: sc })}
+                                style={{ flex: 1, padding: '5px 2px', fontSize: '11px', fontWeight: on ? 'bold' : 'normal', background: on ? '#0e7490' : 'transparent', color: on ? '#ecfeff' : menuMuted, border: `1px solid ${on ? '#0e7490' : menuBorder}`, borderRadius: '6px', cursor: 'pointer' }}>
+                                {tr(sc === 'global' ? 'ctrl.zoneAltScopeGlobal' : 'ctrl.zoneAltScopeLocal')}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div style={{ fontSize: '9px', color: menuMuted, marginTop: '4px' }}>{tr('ctrl.zoneAltScopeHint')}</div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   /* אזור **לא מפוצל** - אין בלוקים לסמן, ולכן טווח מספרי חופשי */
