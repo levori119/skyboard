@@ -5418,7 +5418,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
    * 3. כישלון - רק השדות שלא נדרסו בינתיים בלחיצה חדשה חוזרים לקודם, ויוצאת הודעה.
    */
   const PENDING_RELEASE_MS = 4000;
-  const optimisticStripPut = (stripId: string, patch: Record<string, any>, body: Record<string, any> = patch) => {
+  const optimisticStripPut = (stripId: string, patch: Record<string, any>, body: Record<string, any> = patch, onOk?: () => void) => {
     const target = strips.find(st => String(st.id) === String(stripId));
     const key = target?.id ?? stripId;
     const prevVals: Record<string, any> = {};
@@ -5429,6 +5429,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       .then(r => {
         if (!r.ok) throw new Error(`strip PUT ${r.status}`);
         setTimeout(() => releasePendingKeys(pendingStripUpdatesRef.current, key, patch), PENDING_RELEASE_MS);
+        onOk?.();
       })
       .catch(err => {
         console.error(err);
@@ -6761,32 +6762,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         }
       }
     }
-    setStrips(prev => prev.map(item => item.id === id ? {
-      ...item, x, y, onMap: toMap,
-      workstation_preset_id: toMap ? presetId : item.workstation_preset_id,
+    // מיד על המסך, השמירה ברקע; כישלון מחזיר את הפ"מ למקומו (optimisticStripPut)
+    const fields = {
+      x, y, onMap: toMap,
+      ...(toMap ? { workstation_preset_id: presetId } : {}),
       ...(hasPinData ? { map_pin_x: pinX, map_pin_y: pinY, map_zone_name: zoneName ?? '', map_zone_alts: zoneAlts ?? '' } : {}),
       ...(!hasPinData && hasZone ? { map_zone_name: zoneName ?? '', map_zone_alts: zoneAlts ?? '' } : {}),
       ...(toMap ? geoUpdate : { map_pin_x: null, map_pin_y: null, map_zone_name: '', map_zone_alts: '', map_lat: null, map_lon: null }),
-    } : item));
+    };
     if (toMap) {
       setTableOnBoard(prev => { const n = new Set(prev); n.delete(String(id)); return n; });
     }
-    try {
-      await fetch(`${API_URL}/strips/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          x, y, onMap: toMap,
-          ...(toMap ? { workstation_preset_id: presetId } : {}),
-          ...(hasPinData ? { map_pin_x: pinX, map_pin_y: pinY, map_zone_name: zoneName ?? '', map_zone_alts: zoneAlts ?? '' } : {}),
-          ...(!hasPinData && hasZone ? { map_zone_name: zoneName ?? '', map_zone_alts: zoneAlts ?? '' } : {}),
-          ...(toMap ? geoUpdate : { map_pin_x: null, map_pin_y: null, map_zone_name: '', map_zone_alts: '', map_lat: null, map_lon: null }),
-        })
-      });
-      loadData();
-    } catch (err) {
-      console.error('Failed to update strip position:', err);
-    }
+    optimisticStripPut(id, fields, fields, () => loadData());
   };
   handleMoveRef.current = handleMove;
   tableModeRef.current = tableMode;
