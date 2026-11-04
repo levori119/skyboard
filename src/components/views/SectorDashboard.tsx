@@ -9594,6 +9594,25 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const t = setTimeout(() => setAltResetArmed(false), 4000);
     return () => clearTimeout(t);
   }, [altResetArmed]);
+  /** "↺ איפוס גבהים" - אותו כפתור ברשימת הפ"מים של מוד מפה ושל מוד טבלה */
+  const renderResetAltsButton = (list: any[]) => {
+    const targets = list.filter(s => s.alt && s.status !== 'pending_transfer' && !tableOnBoard.has(String(s.id)));
+    return (
+      <button data-testid="strips-reset-alts" disabled={!targets.length}
+        title={tr('ctrl.resetListAltsHint')}
+        onClick={() => {
+          if (!altResetArmed) { setAltResetArmed(true); return; }
+          setAltResetArmed(false);
+          for (const s of targets) optimisticStripPut(String(s.id), { alt: '', block_deviation: false });
+        }}
+        style={{ display: 'block', width: '100%', marginBottom: '6px', padding: '3px 6px', fontSize: '11px', fontWeight: 'bold', borderRadius: '5px',
+          cursor: targets.length ? 'pointer' : 'default', opacity: targets.length ? 1 : 0.45,
+          border: `1px solid ${altResetArmed ? '#f59e0b' : T.border}`, background: altResetArmed ? (lightMode ? '#fef3c7' : '#451a03') : T.surface,
+          color: altResetArmed ? (lightMode ? '#92400e' : '#fcd34d') : T.muted }}>
+        {altResetArmed ? tr('ctrl.resetListAltsConfirm', { count: targets.length }) : `↺ ${tr('ctrl.resetListAlts')} (${targets.length})`}
+      </button>
+    );
+  };
   const renderStripsPanel = (stickyPadTop = 0, mdKey?: string) => {
                 // דסק משימה: הרשימה משרתת **חלון מפה** - מצב אזורי הטיסה, האזורים,
                 // השיוכים וה-overlay הם של החלון. בלי זה הקיבוץ לפי אזורים והגרירה
@@ -9633,25 +9652,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               {/* הכותרת והבורר נעוצים למעלה - נשארים גלויים כשגוללים את הרשימה */}
               <div style={{ position: 'sticky', top: 0, zIndex: 5, background: T.bg, paddingTop: stickyPadTop }}>
               <h4 style={{ margin: '0 0 6px 30px', ...panelTitle(themeMode), flex: undefined }}>{isClassicMode ? 'כל הפממים' : 'פ"מ עמדה'} ({sidebarStripList.length})</h4>
-              {(() => {
-                // רק הפ"מים **ברשימה** - לא מה שכבר על הלוח/בטבלה, ולא פ"מ בהעברה
-                const targets = sidebarStripList.filter(s => s.alt && s.status !== 'pending_transfer' && !tableOnBoard.has(String(s.id)));
-                return (
-                  <button data-testid="strips-reset-alts" disabled={!targets.length}
-                    title={tr('ctrl.resetListAltsHint')}
-                    onClick={() => {
-                      if (!altResetArmed) { setAltResetArmed(true); return; }
-                      setAltResetArmed(false);
-                      for (const s of targets) optimisticStripPut(String(s.id), { alt: '', block_deviation: false });
-                    }}
-                    style={{ display: 'block', width: '100%', marginBottom: '6px', padding: '3px 6px', fontSize: '11px', fontWeight: 'bold', borderRadius: '5px',
-                      cursor: targets.length ? 'pointer' : 'default', opacity: targets.length ? 1 : 0.45,
-                      border: `1px solid ${altResetArmed ? '#f59e0b' : T.border}`, background: altResetArmed ? (lightMode ? '#fef3c7' : '#451a03') : T.surface,
-                      color: altResetArmed ? (lightMode ? '#92400e' : '#fcd34d') : T.muted }}>
-                    {altResetArmed ? tr('ctrl.resetListAltsConfirm', { count: targets.length }) : `↺ ${tr('ctrl.resetListAlts')} (${targets.length})`}
-                  </button>
-                );
-              })()}
+              {/* רק הפ"מים **ברשימה** - לא מה שכבר על הלוח/בטבלה, ולא פ"מ בהעברה */}
+              {renderResetAltsButton(sidebarStripList)}
               <div style={{ fontSize: '10px', color: T.muted, marginBottom: '8px' }}>{isClassicMode ? 'גרור פמם לפממים שלי' : 'גרור פמם למפה להוספה'}</div>
               {/* בורר תצוגה (רק כשהמפה עם אזורים): קיבוץ לפי אזורים / רשימת פ"מ רגילה */}
               {isFlightZonesMode && (
@@ -19127,6 +19129,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <>
               <div style={{ position: 'sticky', top: 0, zIndex: 5, background: T.bg, paddingTop: 10 }}>
               <h4 style={{ margin: '0 0 6px 30px', ...panelTitle(themeMode), flex: undefined }}>{tr('ctrl.availableFormations')}{myTableStrips.filter(s => !tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer')).length}):</h4>
+              {renderResetAltsButton(myTableStrips.filter(s => !tableOnBoard.has(s.id)))}
               <div style={{ fontSize: '10px', color: T.muted, marginBottom: '6px' }}>{tr('ctrl.dragAFormationTo')}</div>
               <input
                 value={sidebarAvailableSearch}
