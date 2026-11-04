@@ -406,6 +406,38 @@
       "he": "השמירה נכשלה - {{callsign}} חזר לערך הקודם",
       "en": "Save failed - {{callsign}} reverted to the previous value"
     },
+    "grpHeaderColor": {
+      "he": "צבע כותרות הקיבוץ",
+      "en": "Group header color"
+    },
+    "grpColor_violet": {
+      "he": "סגול (ברירת מחדל)",
+      "en": "Violet (default)"
+    },
+    "grpColor_blue": {
+      "he": "כחול",
+      "en": "Blue"
+    },
+    "grpColor_cyan": {
+      "he": "תורכיז",
+      "en": "Cyan"
+    },
+    "grpColor_green": {
+      "he": "ירוק",
+      "en": "Green"
+    },
+    "grpColor_amber": {
+      "he": "כתום",
+      "en": "Amber"
+    },
+    "grpColor_pink": {
+      "he": "ורוד",
+      "en": "Pink"
+    },
+    "grpColor_white": {
+      "he": "ניגוד גבוה",
+      "en": "High contrast"
+    },
     "resetListAlts": {
       "he": "איפוס גבהים",
       "en": "Reset altitudes"

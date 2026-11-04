@@ -1,3 +1,4 @@
+import { GROUP_HEADER_COLORS, groupHeaderStyle, loadGroupHeaderColor, saveGroupHeaderColor, type GroupHeaderColor } from '../../utils/groupHeaderPalette';
 import React, { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
@@ -1721,6 +1722,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const displayIcons = useDisplayIcons(tableModesUseIcons);
   const [tableGroupByKey, setTableGroupByKey] = useState<string | null>(null);
   const [tableGroupOrder, setTableGroupOrder] = useState<string[]>([]);
+  // צבע כותרת הקיבוץ - בחירת הפקח/בקר עד שהכותרת בולטת, פר-עמדה (utils/groupHeaderPalette)
+  const [grpColor, setGrpColor] = useState<GroupHeaderColor>(() => loadGroupHeaderColor(session.presetId));
+  const [grpPaletteOpen, setGrpPaletteOpen] = useState(false);
   const tableElRef = useRef<HTMLTableElement | null>(null);
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const [tableStickyOffsets, setTableStickyOffsets] = useState<number[]>([]);
@@ -18023,7 +18027,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 ref={setTableElRef}
                 style={{ width: hasFrozen ? 'max-content' : '100%', minWidth: '100%', borderCollapse: 'collapse', fontSize: `${tableFontSize}px`, direction: dir,
                   // צבע תיבת הקבוצה - אותו גוון של כותרת הקבוצה (ראה .sk-grp ב-App.css)
-                  ['--sk-grp' as any]: themeMode === 'light' ? '#7c3aed' : themeMode === 'ocean' ? '#0ea5e9' : '#6d28d9',
+                  ['--sk-grp' as any]: groupHeaderStyle(grpColor, themeMode).solid,
+                  ['--sk-grp-head-bg' as any]: groupHeaderStyle(grpColor, themeMode).bg,
                   ['--sk-grp-tint' as any]: themeMode === 'light' ? 'rgba(124,58,237,0.07)' : themeMode === 'ocean' ? 'rgba(14,165,233,0.09)' : 'rgba(124,58,237,0.12)',
                   // הזחת תיבת הקבוצה: צבע הרווח = הרקע שמאחורי הטבלה, וכיוון הפס לפי RTL/LTR
                   ['--sk-grp-gutter' as any]: themeMode === 'light' ? '#d8e4ee' : T.bg,
@@ -18160,9 +18165,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   {tableDisplayItems.map((item, idx) => {
                     if (item._type === 'groupHeader') {
                       const isDragOverGroup = tableGroupDragOverKey === item.groupKey;
+                      const gs = groupHeaderStyle(grpColor, themeMode);
                       return (
+                        <React.Fragment key={'group_' + item.groupKey}>
+                        {/* רווח בין הפ"מ האחרון של הקבוצה הקודמת לכותרת הבאה */}
+                        {idx > 0 && (
+                          <tr className="sk-grp-gap" aria-hidden><td colSpan={totalColSpan + 1} /></tr>
+                        )}
                         <tr
-                          key={'group_' + item.groupKey}
                           className="sk-grp-head"
                           draggable
                           onDragStart={e => { e.stopPropagation(); setTableGroupDragKey(item.groupKey); }}
@@ -18182,15 +18192,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             setTableGroupDragKey(null); setTableGroupDragOverKey(null);
                           }}
                           style={{
-                            background: isDragOverGroup ? (themeMode === 'light' ? '#bfdbfe' : '#1d4ed8') : (themeMode === 'light' ? '#ede9fe' : themeMode === 'ocean' ? '#0369a1' : '#1e1b4b'),
-                            borderTop: `3px solid ${themeMode === 'light' ? '#5b21b6' : themeMode === 'ocean' ? '#0ea5e9' : '#4c1d95'}`,
-                            borderBottom: isDragOverGroup ? '3px solid #3b82f6' : `3px solid ${themeMode === 'light' ? '#5b21b6' : themeMode === 'ocean' ? '#0ea5e9' : '#4c1d95'}`,
+                            background: isDragOverGroup ? (themeMode === 'light' ? '#bfdbfe' : '#1d4ed8') : gs.bg,
+                            borderTop: `3px solid ${gs.solid}`,
+                            borderBottom: isDragOverGroup ? '3px solid #3b82f6' : `3px solid ${gs.solid}`,
                             cursor: 'pointer',
                             opacity: tableGroupDragKey === item.groupKey ? 0.5 : 1,
                             boxShadow: themeMode === 'light' ? '0 1px 4px rgba(109,40,217,0.2)' : themeMode === 'ocean' ? '0 2px 10px rgba(3,105,161,0.4)' : 'inset 0 0 0 1px #7c3aed33, 0 2px 8px rgba(124,58,237,0.15)'
                           }}
                           onClick={e => {
-                            if ((e.target as HTMLElement).closest('[data-drag-handle]')) return;
+                            if ((e.target as HTMLElement).closest('[data-drag-handle],[data-grp-palette]')) return;
                             setTableCollapsedGroups(prev => {
                               const next = new Set(prev);
                               if (next.has(item.groupKey)) next.delete(item.groupKey); else next.add(item.groupKey);
@@ -18201,13 +18211,37 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           {/* +1 על totalColSpan - גם התא האפסי שבקצה (משולש ההעברה) */}
                           <td colSpan={totalColSpan + 1} style={{ padding: '0', direction: dir }}>
                             <div style={{ position: 'sticky', right: 0, display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '5px 12px' }}>
-                              <span data-drag-handle style={{ color: themeMode === 'light' ? '#5b21b6' : themeMode === 'ocean' ? 'rgba(255,255,255,0.7)' : T.muted, fontSize: tfz(14), cursor: 'grab', flexShrink: 0 }}>⠿</span>
-                              <span style={{ fontSize: tfz(11), color: themeMode === 'light' ? '#4c1d95' : themeMode === 'ocean' ? 'rgba(255,255,255,0.9)' : '#a78bfa', transition: 'transform 0.15s', transform: item.collapsed ? 'rotate(-90deg)' : 'rotate(0deg)', flexShrink: 0 }}>▾</span>
-                              <span style={{ background: themeMode === 'light' ? '#fff' : 'rgba(255,255,255,0.18)', color: themeMode === 'light' ? '#2e1065' : '#fff', fontWeight: 'bold', fontSize: tfz(13), padding: '3px 12px', borderRadius: '5px', letterSpacing: '0.02em', border: themeMode === 'light' ? '1px solid #a78bfa' : '1px solid rgba(255,255,255,0.3)', boxShadow: themeMode === 'light' ? 'none' : '0 1px 4px rgba(0,0,0,0.25)' }}>{item.groupKey}</span>
-                              <span style={{ background: themeMode === 'light' ? '#7c3aed' : 'rgba(255,255,255,0.22)', color: '#fff', fontWeight: 'bold', fontSize: tfz(12), padding: '2px 8px', borderRadius: '4px', flexShrink: 0 }}>{item.count}</span>
+                              <span data-drag-handle style={{ color: gs.fg, opacity: 0.75, fontSize: tfz(14), cursor: 'grab', flexShrink: 0 }}>⠿</span>
+                              <span style={{ fontSize: tfz(11), color: gs.fg, opacity: 0.9, transition: 'transform 0.15s', transform: item.collapsed ? 'rotate(-90deg)' : 'rotate(0deg)', flexShrink: 0 }}>▾</span>
+                              <span style={{ background: gs.chipBg, color: gs.chipBg === '#fff' ? (themeMode === 'light' ? gs.fg : '#0f172a') : gs.fg, fontWeight: 'bold', fontSize: tfz(13), padding: '3px 12px', borderRadius: '5px', letterSpacing: '0.02em', border: `1px solid ${themeMode === 'light' && grpColor !== 'white' ? gs.solid : 'rgba(255,255,255,0.3)'}`, boxShadow: themeMode === 'light' ? 'none' : '0 1px 4px rgba(0,0,0,0.25)' }}>{item.groupKey}</span>
+                              <span style={{ background: gs.countBg, color: themeMode === 'light' && grpColor !== 'white' && grpColor !== 'violet' ? '#0f172a' : '#fff', fontWeight: 'bold', fontSize: tfz(12), padding: '2px 8px', borderRadius: '4px', flexShrink: 0 }}>{item.count}</span>
+                              {/* בחירת צבע לכותרות הקיבוץ - רק בכותרת הראשונה, חל על כולן */}
+                              {idx === 0 && (
+                                <span data-grp-palette style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', marginInlineStart: '8px' }}>
+                                  <button
+                                    data-testid="grp-palette-toggle"
+                                    title={tr('ctrl.grpHeaderColor')}
+                                    onClick={e => { e.stopPropagation(); setGrpPaletteOpen(v => !v); }}
+                                    style={{ background: 'transparent', border: `1px solid ${gs.fg}55`, color: gs.fg, borderRadius: '4px', cursor: 'pointer', padding: '0 5px', fontSize: tfz(12), lineHeight: 1.4 }}
+                                  >🎨</button>
+                                  {grpPaletteOpen && GROUP_HEADER_COLORS.map(c => {
+                                    const cs = groupHeaderStyle(c, themeMode);
+                                    return (
+                                      <button
+                                        key={c}
+                                        data-testid={`grp-color-${c}`}
+                                        title={tr(`ctrl.grpColor_${c}`)}
+                                        onClick={e => { e.stopPropagation(); setGrpColor(c); saveGroupHeaderColor(session.presetId, c); }}
+                                        style={{ width: tfz(18), height: tfz(18), borderRadius: '50%', cursor: 'pointer', padding: 0, background: cs.bg, border: `3px solid ${cs.solid}`, outline: c === grpColor ? `2px solid ${gs.fg}` : 'none', outlineOffset: '1px', flexShrink: 0 }}
+                                      />
+                                    );
+                                  })}
+                                </span>
+                              )}
                             </div>
                           </td>
                         </tr>
+                        </React.Fragment>
                       );
                     }
                     const s = item;

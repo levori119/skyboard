@@ -932,4 +932,14 @@ body.light-mode tr.sk-row-b .frozen-col-last { background: #dde8f0 !important; }
 }
 /* כותרת הקבוצה במוד יום: הכלל הכללי של שורות הטבלה (#edf2f7) דרס את הסגול,
    והטקסט הלבן נעלם. הכותרת שומרת על רקע סגלגל בהיר וטקסט כהה */
-body.light-mode #map-area table tbody tr.sk-grp-head { background: #ede9fe !important; }
+body.light-mode #map-area table tbody tr.sk-grp-head { background: var(--sk-grp-head-bg, #ede9fe) !important; }
+/* רווח בין הפ"מ האחרון של קבוצה לכותרת הקבוצה הבאה - בצבע הרקע שמאחורי הטבלה,
+   בלי זברה, גבולות או הדגשת ריחוף של שורות הטבלה */
+#map-area table tbody tr.sk-grp-gap,
+#map-area table tbody tr.sk-grp-gap > td {
+  background: var(--sk-grp-gutter) !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  height: 12px;
+}
