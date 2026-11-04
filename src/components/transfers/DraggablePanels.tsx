@@ -45,6 +45,8 @@ export const DraggableNeighborPanel = ({
   allPresets = [],
   disabled = false,
   direction = 'both',
+  onTransferAltChanged,
+  onTransferAltAck,
 }: { 
   neighbor: any; 
   subSectors: any[];
@@ -85,6 +87,9 @@ export const DraggableNeighborPanel = ({
    * "מקבל"; `receive` - מקבלת בלבד, הנקודה אינה יעד שחרור אצלה.
    */
   direction?: 'both' | 'send' | 'receive';
+  /** שינוי גובה של המקבלת והאישור שלו - src/utils/transferAltChange.ts */
+  onTransferAltChanged?: (id: string) => void;
+  onTransferAltAck?: (id: string, side: 'from' | 'to') => void;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isStripDragOver, setIsStripDragOver] = useState(false);
@@ -589,6 +594,7 @@ export const DraggableNeighborPanel = ({
                     onUpdateStripField={onUpdateStripField}
                     onAction={isOut ? ((t.status === 'rejected' && onDismissTransfer) ? onDismissTransfer : onCancelTransfer) : onAcceptTransfer}
                     onAcceptToMap={onAcceptToMap} tableMode={tableMode} mapZoom={mapZoom} mapPan={mapPan}
+                    onAltChanged={onTransferAltChanged} onAltAck={onTransferAltAck}
                     lightMode={lightMode} shrunk={conflict} />
                 );
               };

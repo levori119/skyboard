@@ -7,6 +7,7 @@ import HandwritingOverlay from '../shared/HandwritingOverlay';
 import { FaultBadge } from '../shared/FaultBadge';
 import { useEtaCountdown } from '../../hooks/useEtaCountdown';
 import { useIncomingTransferDrag } from '../../hooks/useIncomingTransferDrag';
+import { altChangeNeedsAck, type AltAckSide } from '../../utils/transferAltChange';
 
 export const TransferStripEditor = ({ transfer, onAltUpdate, onCancel }: { 
   transfer: any; 
@@ -194,7 +195,7 @@ export const OutgoingTransferCard = ({ t, isConflict, isAltViolation = false, on
 };
 
 // --- שורה קומפקטית לנקודת העברה: או"ק/טייסת | גובה (מודגש, לחיץ לעדכון). ימין=מוסר, שמאל=מקבל ---
-export const CompactTransferRow = ({ t, dir, isConflict, isAltViolation = false, onUpdateStripField, onAction, lightMode = false, shrunk = false, onAcceptToMap, tableMode = false, mapZoom, mapPan }: {
+export const CompactTransferRow = ({ t, dir, isConflict, isAltViolation = false, onUpdateStripField, onAction, lightMode = false, shrunk = false, onAcceptToMap, tableMode = false, mapZoom, mapPan, onAltChanged, onAltAck }: {
   t: any;
   dir: 'out' | 'in';
   isConflict: boolean;
@@ -208,8 +209,14 @@ export const CompactTransferRow = ({ t, dir, isConflict, isAltViolation = false,
   tableMode?: boolean;
   mapZoom?: number;
   mapPan?: { x: number; y: number };
+  /** העמדה המקבלת שינתה את הגובה - מדליק הבהוב בשני הצדדים */
+  onAltChanged?: (id: string) => void;
+  /** אישור השינוי בלחיצה על הגובה המהבהב - לצד הזה בלבד */
+  onAltAck?: (id: string, side: AltAckSide) => void;
 }) => {
   const altRef = useRef<HTMLSpanElement>(null);
+  // אישור מקומי: ההבהוב נכבה ברגע הלחיצה, לפני שהשרת ענה
+  const [altAckLocal, setAltAckLocal] = useState<number | null>(null);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const [showHw, setShowHw] = useState(false);
   const sq = getTransferSq(t);
@@ -220,6 +227,8 @@ export const CompactTransferRow = ({ t, dir, isConflict, isAltViolation = false,
   // רק לפ"מ **שמתקבל**, ובשורה משלו מתחת לאו"ק - כך המלבן גדל לגובה ולא גוזל
   // רוחב מהאו"ק ומהטייסת
   const showEta = !!eta && !isOut;
+  const altSide: AltAckSide = isOut ? 'from' : 'to';
+  const altFlash = altChangeNeedsAck(t, altSide, altAckLocal);
   const drag = useIncomingTransferDrag({
     transferId: String(t.id), enabled: !isOut, tableMode, zoom: mapZoom, pan: mapPan,
     onAccept: onAction, onAcceptToMap,
@@ -245,8 +254,15 @@ export const CompactTransferRow = ({ t, dir, isConflict, isAltViolation = false,
         {/* גובה — צמוד לשמאל, שני מיד אחרי ה-✕ (marginInlineStart:auto יוצר את הרווח לפניו) */}
         <span ref={altRef} title={tr('transfers.clickToUpdateAltitude')}
           onPointerDown={e => e.stopPropagation()}
-          onClick={() => { if (altRef.current) setAnchorRect(altRef.current.getBoundingClientRect()); setShowHw(true); }}
+          data-testid="tp-row-alt" data-alt-flash={altFlash || undefined}
+          className={altFlash ? 'tp-alt-change-flash' : undefined}
+          onClick={() => {
+            // גובה מהבהב = לחיצה מאשרת את השינוי (ולא פותחת עריכה)
+            if (altFlash) { setAltAckLocal(Date.now()); onAltAck?.(String(t.id), altSide); return; }
+            if (altRef.current) setAnchorRect(altRef.current.getBoundingClientRect()); setShowHw(true);
+          }}
           style={{ marginInlineStart: 'auto', fontWeight: 'bold', fontSize: shrunk ? '11px' : '13px', color: '#fff', background: main, padding: '0px 5px', borderRadius: '4px', cursor: 'pointer', letterSpacing: '0.5px', flexShrink: 0 }}>
+          {altFlash && <style>{'@keyframes tpAltChange{0%,100%{opacity:1;box-shadow:0 0 0 2px #facc15}50%{opacity:.35;box-shadow:0 0 0 2px transparent}} .tp-alt-change-flash{animation:tpAltChange .9s step-end infinite}'}</style>}
           {isConflict && <span style={{ marginInlineEnd: '2px' }}>⚠</span>}{t.alt ? normalizeAlt(t.alt) : '—'}
         </span>
         <button onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); onAction(t.id); }} title={isOut ? 'בטל' : 'קבל'}
@@ -262,7 +278,12 @@ export const CompactTransferRow = ({ t, dir, isConflict, isAltViolation = false,
       </div>
       {showHw && (
         <HandwritingOverlay onCancel={() => setShowHw(false)} anchorRect={anchorRect}
-          onComplete={(val: string) => { const n = normalizeAlt(val); setShowHw(false); if (onUpdateStripField) onUpdateStripField(String(t.strip_id), 'alt', n); }} />
+          onComplete={(val: string) => {
+            const n = normalizeAlt(val); setShowHw(false);
+            if (onUpdateStripField) onUpdateStripField(String(t.strip_id), 'alt', n);
+            // המקבלת שינתה את הגובה שהיא רוצה לקבל - מהבהב אצלה ואצל המוסרת
+            if (!isOut && n !== normalizeAlt(t.alt || '')) { setAltAckLocal(null); onAltChanged?.(String(t.id)); }
+          }} />
       )}
       {drag.pos && createPortal(
         <div style={{ position: 'fixed', left: drag.pos.x - 40, top: drag.pos.y - 20, background: '#22c55e', color: 'white', padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', boxShadow: '0 8px 20px rgba(0,0,0,0.4)', zIndex: 9999, pointerEvents: 'none', direction: 'rtl' }}>

@@ -400,6 +400,7 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | `target_x`, `target_y` | REAL | מיקום יעד |
 | `sub_sector_label` | VARCHAR(50) | תווית נקודת ההעברה |
 | `eta_minutes`, `eta_set_at` | — | ETA לספירה לאחור |
+| `alt_changed_at`, `alt_changed_by`, `alt_ack_from_at`, `alt_ack_to_at` | TIMESTAMPTZ / INTEGER | העמדה המקבלת שינתה את הגובה בהעברה פתוחה: הגובה מהבהב במוסרת (`from`) ובמקבלת (`to`) עד שכל צד מאשר בלחיצה. שינוי חדש מאפס את שני האישורים |
 | **`reject_note`** | TEXT | **הערת דחייה (חובה בדחייה) — מוצגת בפופאפ אצל המוסר** |
 | `created_at` / `updated_at` | TIMESTAMP | חותמות |
 

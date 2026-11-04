@@ -709,6 +709,12 @@ async function applySchemaOnce() {
   await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS note_by_preset_id INTEGER`);
   await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS eta_minutes INTEGER`);
   await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS eta_set_at TIMESTAMPTZ`);
+  // העמדה המקבלת שינתה את הגובה שהיא רוצה לקבל: הגובה מהבהב במוסרת ובמקבלת עד
+  // שכל צד מאשר בלחיצה על הגובה (src/utils/transferAltChange.ts)
+  await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS alt_changed_at TIMESTAMPTZ`);
+  await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS alt_changed_by INTEGER`);
+  await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS alt_ack_from_at TIMESTAMPTZ`);
+  await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS alt_ack_to_at TIMESTAMPTZ`);
   // ⚠️ העמודה עצמה — ולא רק ה-FK עליה. היא נולדה בפרודקשן בעריכה ידנית ומעולם
   // לא נכתבה ל-init.js, ולכן DB **חדש** נבנה בלעדיה: ה-FK למטה נכשל, נבלע
   // ב-`sq`, ו-8 קבצי routes (העברות, פ"מים, נקודות הצטרפות) קראו לעמודה שאינה

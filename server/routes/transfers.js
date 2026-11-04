@@ -822,6 +822,37 @@ router.patch('/api/transfers/:id/note', async (req, res) => {
   }
 });
 
+// ── שינוי גובה בהעברה פתוחה ע"י העמדה המקבלת ─────────────────────────────────
+// הגובה מהבהב בשני הצדדים עד שכל צד מאשר בלחיצה. שינוי חדש מאפס את שני האישורים.
+router.post('/api/transfers/:id/alt-changed', async (req, res) => {
+  try {
+    const r = await pool.query(
+      `UPDATE strip_transfers SET alt_changed_at = NOW(), alt_changed_by = $2, alt_ack_from_at = NULL, alt_ack_to_at = NULL
+        WHERE id = $1 AND status IN ('pending','acknowledged') RETURNING id`,
+      [req.params.id, req.body?.preset_id ? Number(req.body.preset_id) : null]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'Transfer not open' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error marking transfer alt change:', err);
+    res.status(500).json({ error: 'Failed to mark alt change' });
+  }
+});
+
+router.post('/api/transfers/:id/alt-ack', async (req, res) => {
+  const side = req.body?.side;
+  if (side !== 'from' && side !== 'to') return res.status(400).json({ error: 'side must be from|to' });
+  try {
+    const col = side === 'from' ? 'alt_ack_from_at' : 'alt_ack_to_at';
+    const r = await pool.query(`UPDATE strip_transfers SET ${col} = NOW() WHERE id = $1 RETURNING id`, [req.params.id]);
+    if (!r.rows.length) return res.status(404).json({ error: 'Transfer not found' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error acking transfer alt change:', err);
+    res.status(500).json({ error: 'Failed to ack alt change' });
+  }
+});
+
 router.post('/api/transfers/:id/cancel', async (req, res) => {
   await closeTransferRoute(req, res, 'cancelled');
 });

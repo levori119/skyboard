@@ -9147,6 +9147,27 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
   };
 
+  // ── שינוי גובה בהעברה פתוחה (utils/transferAltChange) - מיד על המסך, השמירה ברקע ──
+  const handleTransferAltChanged = (transferId: string) => {
+    const now = new Date().toISOString();
+    const mark = (t: any) => String(t.id) === String(transferId) ? { ...t, alt_changed_at: now, alt_changed_by: session.presetId ?? null, alt_ack_from_at: null, alt_ack_to_at: null } : t;
+    setIncomingTransfers((prev: any[]) => prev.map(mark));
+    setOutgoingTransfers((prev: any[]) => prev.map(mark));
+    fetch(`${API_URL}/transfers/${transferId}/alt-changed`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ preset_id: session.presetId ?? null }) })
+      .then(r => { if (!r.ok) throw new Error(String(r.status)); })
+      .catch(err => console.error('Failed to mark transfer alt change:', err));
+  };
+  const handleTransferAltAck = (transferId: string, side: 'from' | 'to') => {
+    const now = new Date().toISOString();
+    const col = side === 'from' ? 'alt_ack_from_at' : 'alt_ack_to_at';
+    const mark = (t: any) => String(t.id) === String(transferId) ? { ...t, [col]: now } : t;
+    setIncomingTransfers((prev: any[]) => prev.map(mark));
+    setOutgoingTransfers((prev: any[]) => prev.map(mark));
+    fetch(`${API_URL}/transfers/${transferId}/alt-ack`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ side }) })
+      .then(r => { if (!r.ok) throw new Error(String(r.status)); })
+      .catch(err => console.error('Failed to ack transfer alt change:', err));
+  };
+
   const handleUpdateTransferNote = async (transferId: string, note: string) => {
     try {
       await fetch(`${API_URL}/transfers/${transferId}/note`, {
@@ -12276,7 +12297,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <DraggableNeighborPanel
               key={n.id}
               neighbor={n}
-              disabled={isPointDisabledFor(n, session.presetId)} direction={stationDirection(n, session.presetId)}
+              disabled={isPointDisabledFor(n, session.presetId)} direction={stationDirection(n, session.presetId)} onTransferAltChanged={handleTransferAltChanged} onTransferAltAck={handleTransferAltAck}
               subSectors={subSectors}
               onDropOnMap={handleNeighborDropOnMap}
               isExpanded={expandedNeighbors.has(n.id)}
@@ -15514,7 +15535,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   <DraggableNeighborPanel
                     key={n.id}
                     neighbor={n}
-                    disabled={isPointDisabledFor(n, session.presetId)} direction={stationDirection(n, session.presetId)}
+                    disabled={isPointDisabledFor(n, session.presetId)} direction={stationDirection(n, session.presetId)} onTransferAltChanged={handleTransferAltChanged} onTransferAltAck={handleTransferAltAck}
                     subSectors={subSectors}
                     onDropOnMap={handleNeighborDropOnMap}
                     isExpanded={expandedNeighbors.has(n.id)}
@@ -18973,7 +18994,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   <DraggableNeighborPanel
                     key={n.id}
                     neighbor={n}
-                    disabled={isPointDisabledFor(n, session.presetId)} direction={stationDirection(n, session.presetId)}
+                    disabled={isPointDisabledFor(n, session.presetId)} direction={stationDirection(n, session.presetId)} onTransferAltChanged={handleTransferAltChanged} onTransferAltAck={handleTransferAltAck}
                     subSectors={subSectors}
                     onDropOnMap={handleNeighborDropOnMap}
                     isExpanded={expandedNeighbors.has(n.id)}
