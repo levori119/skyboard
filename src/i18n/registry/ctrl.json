@@ -406,6 +406,18 @@
       "he": "השמירה נכשלה - {{callsign}} חזר לערך הקודם",
       "en": "Save failed - {{callsign}} reverted to the previous value"
     },
+    "resetListAlts": {
+      "he": "איפוס גבהים",
+      "en": "Reset altitudes"
+    },
+    "resetListAltsConfirm": {
+      "he": "לחץ שוב לאיפוס {{count}} גבהים",
+      "en": "Click again to reset {{count}} altitudes"
+    },
+    "resetListAltsHint": {
+      "he": "מוחק את הגובה של כל הפ\"מים שברשימה - לא של מה שעל הלוח ולא של פ\"מ בהעברה",
+      "en": "Clears the altitude of every strip in the list - not those on the board or in transfer"
+    },
     "closuresOnMap": {
       "he": "🚫 סגירות על מפה",
       "en": "🚫 Closures on map"

@@ -532,6 +532,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const hiddenIncomingRef = React.useRef<Map<string, number>>(new Map());
   // העברות יוצאות שנשלחו וטרם חזרו מהשרת: כרטיס זמני בנקודה (id = tmp-<strip>)
   const pendingOutgoingRef = React.useRef<Map<string, { t: any; until: number }>>(new Map());
+  // העברות יוצאות שבוטלו (X) וטרם אושר בשרת: id → עד מתי להסתיר מהפולינג
+  const hiddenOutgoingRef = React.useRef<Map<string, number>>(new Map());
   const [liveRunwayConflicts, setLiveRunwayConflicts] = React.useState<{routeName:string;conflicts:{type:string;name:string;callsign:string}[];recommendations:{id:number;name:string;category:string;display_state:string;blocking_statuses:string[];allowed_statuses:string[]}[]}[]>([]);
   const [activeTakeoffs, setActiveTakeoffs] = React.useState<{stripId:number|string;callsign:string;runway:string;routeName:string}[]>([]);
   const [dismissedTakeoffs, setDismissedTakeoffs] = React.useState<Set<string>>(new Set());
@@ -5883,9 +5885,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         for (const [k, p] of [...pendingOutgoingRef.current.entries()]) {
           if (p.until <= _nowOut || freshOutgoing.some((x: any) => String(x.strip_id) === String(p.t.strip_id))) pendingOutgoingRef.current.delete(k);
         }
+        for (const [k, until] of [...hiddenOutgoingRef.current.entries()]) if (until <= _nowOut) hiddenOutgoingRef.current.delete(k);
+        const _shownOut = hiddenOutgoingRef.current.size
+          ? freshOutgoing.filter((x: any) => !hiddenOutgoingRef.current.has(String(x.id)))
+          : freshOutgoing;
         setOutgoingTransfers(pendingOutgoingRef.current.size
-          ? [...freshOutgoing, ...[...pendingOutgoingRef.current.values()].map(p => p.t)]
-          : freshOutgoing);
+          ? [..._shownOut, ...[...pendingOutgoingRef.current.values()].map(p => p.t)]
+          : _shownOut);
       }
       fetch(`${API_URL}/transfers/pending-all`).then(r => r.ok ? r.json() : []).then(data => { allPendingTransfersRef.current = data; setAllPendingTransfers(data); }).catch(() => {});
       if (session.presetId) {
@@ -9107,11 +9113,37 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const handleCancelTransfer = async (transferId: string) => {
     // כרטיס זמני של שליחה שעוד לא הגיעה לשרת - אין מה לבטל שם עדיין
     if (String(transferId).startsWith('tmp-')) return;
+    // ── עדכון מיידי: הכרטיס יורד והפ"מ חוזר אליי ברגע הלחיצה ────────────────
+    const t = outgoingTransfers.find((x: any) => String(x.id) === String(transferId));
+    const stripKey = t?.strip_id ? 's' + t.strip_id : null;
+    const prevStrip: any = stripKey ? strips.find(s => String(s.id) === stripKey) : null;
+    const back = prevStrip?.status === 'pending_transfer' ? { status: 'active' } : null;
+    hiddenOutgoingRef.current.set(String(transferId), Date.now() + 15000);
+    setOutgoingTransfers((prev: any[]) => prev.filter((x: any) => String(x.id) !== String(transferId)));
+    if (stripKey && back) {
+      const pkey = prevStrip?.id ?? stripKey;
+      pendingStripUpdatesRef.current.set(pkey, { ...(pendingStripUpdatesRef.current.get(pkey) || {}), ...back });
+      setStrips(prev => prev.map(s => String(s.id) === stripKey ? { ...s, ...back } : s));
+    }
     try {
-      await fetch(`${API_URL}/transfers/${transferId}/cancel`, { method: 'POST' });
+      const res = await fetch(`${API_URL}/transfers/${transferId}/cancel`, { method: 'POST' });
+      if (!res.ok) throw new Error(`cancel failed: ${res.status}`);
+      hiddenOutgoingRef.current.set(String(transferId), Date.now() + 4000);
+      if (stripKey && back) {
+        const pkey = prevStrip?.id ?? stripKey;
+        setTimeout(() => releasePendingKeys(pendingStripUpdatesRef.current, pkey, back), PENDING_RELEASE_MS);
+      }
       loadData();
     } catch (err) {
       console.error('Failed to cancel transfer:', err);
+      // השרת דחה (למשל כבר התקבלה בצד השני) - הכרטיס והפ"מ חוזרים כמו שהיו
+      hiddenOutgoingRef.current.delete(String(transferId));
+      if (t) setOutgoingTransfers((prev: any[]) => prev.some((x: any) => String(x.id) === String(transferId)) ? prev : [...prev, t]);
+      if (stripKey && back && releasePendingKeys(pendingStripUpdatesRef.current, prevStrip?.id ?? stripKey, back).length) {
+        setStrips(prev => prev.map(s => String(s.id) === stripKey ? { ...s, status: prevStrip.status } : s));
+      }
+      setSaveFailToast(tr('ctrl.saveFailedReverted', { callsign: t?.callsign || t?.callSign || '' }));
+      loadData();
     }
   };
 
@@ -9534,6 +9566,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const stripZoneAssignmentsMain = stripZoneAssignments;
   const mapZonesMain = mapZones;
   const fzOverlayRefMain = fzOverlayRef;
+  // איפוס גבהים לרשימת הפ"מים הזמינים: לחיצה ראשונה מבקשת אישור, שנייה (תוך 4 שניות) מבצעת
+  const [altResetArmed, setAltResetArmed] = useState(false);
+  useEffect(() => {
+    if (!altResetArmed) return;
+    const t = setTimeout(() => setAltResetArmed(false), 4000);
+    return () => clearTimeout(t);
+  }, [altResetArmed]);
   const renderStripsPanel = (stickyPadTop = 0, mdKey?: string) => {
                 // דסק משימה: הרשימה משרתת **חלון מפה** - מצב אזורי הטיסה, האזורים,
                 // השיוכים וה-overlay הם של החלון. בלי זה הקיבוץ לפי אזורים והגרירה
@@ -9573,6 +9612,25 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               {/* הכותרת והבורר נעוצים למעלה - נשארים גלויים כשגוללים את הרשימה */}
               <div style={{ position: 'sticky', top: 0, zIndex: 5, background: T.bg, paddingTop: stickyPadTop }}>
               <h4 style={{ margin: '0 0 6px 30px', ...panelTitle(themeMode), flex: undefined }}>{isClassicMode ? 'כל הפממים' : 'פ"מ עמדה'} ({sidebarStripList.length})</h4>
+              {(() => {
+                // רק הפ"מים **ברשימה** - לא מה שכבר על הלוח/בטבלה, ולא פ"מ בהעברה
+                const targets = sidebarStripList.filter(s => s.alt && s.status !== 'pending_transfer' && !tableOnBoard.has(String(s.id)));
+                return (
+                  <button data-testid="strips-reset-alts" disabled={!targets.length}
+                    title={tr('ctrl.resetListAltsHint')}
+                    onClick={() => {
+                      if (!altResetArmed) { setAltResetArmed(true); return; }
+                      setAltResetArmed(false);
+                      for (const s of targets) optimisticStripPut(String(s.id), { alt: '', block_deviation: false });
+                    }}
+                    style={{ display: 'block', width: '100%', marginBottom: '6px', padding: '3px 6px', fontSize: '11px', fontWeight: 'bold', borderRadius: '5px',
+                      cursor: targets.length ? 'pointer' : 'default', opacity: targets.length ? 1 : 0.45,
+                      border: `1px solid ${altResetArmed ? '#f59e0b' : T.border}`, background: altResetArmed ? (lightMode ? '#fef3c7' : '#451a03') : T.surface,
+                      color: altResetArmed ? (lightMode ? '#92400e' : '#fcd34d') : T.muted }}>
+                    {altResetArmed ? tr('ctrl.resetListAltsConfirm', { count: targets.length }) : `↺ ${tr('ctrl.resetListAlts')} (${targets.length})`}
+                  </button>
+                );
+              })()}
               <div style={{ fontSize: '10px', color: T.muted, marginBottom: '8px' }}>{isClassicMode ? 'גרור פמם לפממים שלי' : 'גרור פמם למפה להוספה'}</div>
               {/* בורר תצוגה (רק כשהמפה עם אזורים): קיבוץ לפי אזורים / רשימת פ"מ רגילה */}
               {isFlightZonesMode && (
