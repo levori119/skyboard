@@ -88,3 +88,24 @@ export function parseAltOverrides(raw: string | null | undefined): AltOverrides 
     return out;
   } catch { return {}; }
 }
+
+/**
+ * בלוק הגובה של האזור שמתאים לגובה הפ"מ, או `null` כשאין התאמה.
+ *
+ * משמש להצבה ב"הצג גבהי אזור": פ"מ שמתקבל למפה (מנקודת העברה / מהסרגל) נכנס
+ * לרצועה של **הגובה שלו** - "גבוה" לגבוה - ולא לרצועה שבמקרה נלחצה. טווח גבהים
+ * נכנס לבלוק שהוא חופף בו הכי הרבה.
+ */
+export function blockForAlt(alt: string | null | undefined, ranges: RangeLike[]): number | null {
+  const r = alt ? parseAltRange(String(alt).replace(/,/g, '')) : null;
+  if (!r || !ranges?.length) return null;
+  const [lo, hi] = r.map(v => (v >= 1000 ? Math.round(v / 100) : v));
+  let best: number | null = null, bestOv = -1;
+  for (const b of ranges) {
+    if (b.alt_min == null || b.alt_max == null) continue;
+    const bLo = Math.min(b.alt_min, b.alt_max), bHi = Math.max(b.alt_min, b.alt_max);
+    const ov = Math.min(hi, bHi) - Math.max(lo, bLo);
+    if (ov >= 0 && ov > bestOv) { best = b.id; bestOv = ov; }
+  }
+  return best;
+}

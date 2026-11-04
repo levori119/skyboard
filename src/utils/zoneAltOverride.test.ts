@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { applyAltOverrides, refitAltToBand, parseAltOverrides } from './zoneAltOverride';
+import { applyAltOverrides, refitAltToBand, parseAltOverrides, blockForAlt } from './zoneAltOverride';
 
 const OLD = { alt_min: 150, alt_max: 400 };
 const NEW = { alt_min: 200, alt_max: 400 };
@@ -46,5 +46,22 @@ describe('parseAltOverrides', () => {
     expect(parseAltOverrides('{"1":{"alt_min":200,"alt_max":400},"x":{"alt_min":"a"}}')).toEqual({ 1: { alt_min: 200, alt_max: 400 } });
     expect(parseAltOverrides('nope')).toEqual({});
     expect(parseAltOverrides(null)).toEqual({});
+  });
+});
+
+describe('blockForAlt - הרצועה לפי גובה הפ"מ', () => {
+  const ranges = [{ id: 1, alt_min: 150, alt_max: 400 }, { id: 2, alt_min: 100, alt_max: 140 }];
+  it('גובה בודד - הבלוק שמכיל אותו', () => {
+    expect(blockForAlt('320', ranges)).toBe(1);
+    expect(blockForAlt('FL120', ranges)).toBe(2);
+    expect(blockForAlt('12000', ranges)).toBe(2);
+  });
+  it('טווח - הבלוק עם החפיפה הגדולה', () => {
+    expect(blockForAlt('130-200', ranges)).toBe(1);
+    expect(blockForAlt('100-160', ranges)).toBe(2);
+  });
+  it('מחוץ לכל הבלוקים / בלי גובה - null', () => {
+    expect(blockForAlt('050', ranges)).toBeNull();
+    expect(blockForAlt('', ranges)).toBeNull();
   });
 });

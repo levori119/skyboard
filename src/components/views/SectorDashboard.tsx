@@ -96,7 +96,7 @@ import { thinScroll } from '../../utils/thinScroll';
 import { isPointDisabledFor } from '../../../shared/transferPointStations.js';
 import { TakeoffBadge, FormationCountBadge } from '../strips/StripCardBadges';
 import { splitSpaceSet, separatedBySpace, blockFitsSpace, separatedByGroup } from '../../utils/blockSpaces';
-import { applyAltOverrides, parseAltOverrides, refitAltToBand, type AltOverrides } from '../../utils/zoneAltOverride';
+import { applyAltOverrides, parseAltOverrides, refitAltToBand, blockForAlt, type AltOverrides } from '../../utils/zoneAltOverride';
 import { recommendAltitude, stripArmaments, normalizeAltRules, stationRecBlocks, type AltRecommendation, type RecBlock } from '../../utils/altRecommend';
 import { loadPadLayout, savePadLayout, type PadLayout } from '../../utils/freeDeskLayout';
 import FreeDeskPad from '../shared/FreeDeskPad';
@@ -7767,7 +7767,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
     // פ"מ מהסרגל - שיוך מיידי בלי דיאלוג, בדיוק כמו גרירה מהסרגל למפה
     const pairStrip = strips.find((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10) === parseInt(String(sel.id).replace(/^s/, ''), 10));
-    doFzSave(sel.id, zone.id, altBlockAtPoint(zone.id, px, py) ?? pickAltRangeForStrip(pairStrip, altRangesForZone), 'בדרך לאזור', existing?.note || '', existing?.coordination_note || '', existing?.is_coordinated || false, px, py, [], mapId);
+    // "הצג גבהי אזור" דלוק: הפ"מ נכנס לרצועה של **הגובה שלו** (גבוה לגבוה) ולנקודה
+    // בתוכה - גם כשהלחיצה / הקבלה למפה נפלה ברצועה אחרת. בלי התאמה לגובה, או
+    // כשהתצוגה כבויה - הרצועה שנלחצה, ואחריה הניחוש הקודם
+    const byAlt = zoneSplitOrdered(zone.id) ? blockForAlt(pairStrip?.alt, altRangesForZone) : null;
+    const pos = byAlt != null ? snapPosToAltBand(zone.id, byAlt, px, py) : { x: px, y: py };
+    doFzSave(sel.id, zone.id, byAlt ?? altBlockAtPoint(zone.id, px, py) ?? pickAltRangeForStrip(pairStrip, altRangesForZone), 'בדרך לאזור', existing?.note || '', existing?.coordination_note || '', existing?.is_coordinated || false, pos.x, pos.y, [], mapId);
     flashFz(`${tr('ctrl.pairAssigned')} ${label} · ${zone.name}`);
   };
 
