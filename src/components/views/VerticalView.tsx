@@ -2,14 +2,28 @@ import { tr } from '../../i18n/tr';
 import { splitSpaceSet, separatedBySpace, blockFitsSpace } from '../../utils/blockSpaces';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Strip from '../strips/Strip';
+import BlockTargetMap from '../blocks/BlockTargetMap';
 import { computeBlockDeviation, getFormationDisplayName, normalizeAlt, parseAltToFeet } from '../../utils/strips';
 
-export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], blockSpaces = [], blockTables = [], allBlocks = [], muteBlockAlerts = false, muteConflictAlerts = false, onStripContextMenu, activeBlockTableId = null, onTimeFieldChange, timeBased = true, onUpdateStripAlt, conflictAltDelta = 500, presetAltMin = null, presetAltMax = null, viewerPresetId = null, externalConflictIds = undefined, initialGroupBy = 'none', onGroupByChange, suggestAltRange = false }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean; relevantBlocks?: any[]; blockSpaces?: any[]; blockTables?: any[]; allBlocks?: any[]; muteBlockAlerts?: boolean; muteConflictAlerts?: boolean; onStripContextMenu?: (stripId: string, x: number, y: number) => void; activeBlockTableId?: number | null; onTimeFieldChange?: (v: 'takeoff' | 'zmm') => void; timeBased?: boolean; onUpdateStripAlt?: (stripId: string, newAlt: string) => void; conflictAltDelta?: number; presetAltMin?: number | null; presetAltMax?: number | null; viewerPresetId?: number | null; externalConflictIds?: Set<string>; initialGroupBy?: 'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id'; onGroupByChange?: (g: 'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id') => void; suggestAltRange?: boolean }) => {
+export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], blockSpaces = [], blockTables = [], allBlocks = [], muteBlockAlerts = false, muteConflictAlerts = false, onStripContextMenu, activeBlockTableId = null, onTimeFieldChange, timeBased = true, onUpdateStripAlt, conflictAltDelta = 500, presetAltMin = null, presetAltMax = null, viewerPresetId = null, externalConflictIds = undefined, initialGroupBy = 'none', onGroupByChange, suggestAltRange = false, blocksSelected = true, mapSpaces }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean; relevantBlocks?: any[]; blockSpaces?: any[]; blockTables?: any[]; allBlocks?: any[]; muteBlockAlerts?: boolean; muteConflictAlerts?: boolean; onStripContextMenu?: (stripId: string, x: number, y: number) => void; activeBlockTableId?: number | null; onTimeFieldChange?: (v: 'takeoff' | 'zmm') => void; timeBased?: boolean; onUpdateStripAlt?: (stripId: string, newAlt: string) => void; conflictAltDelta?: number; presetAltMin?: number | null; presetAltMax?: number | null; viewerPresetId?: number | null; externalConflictIds?: Set<string>; initialGroupBy?: 'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id'; onGroupByChange?: (g: 'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id') => void; suggestAltRange?: boolean;
+  /** נבחרה טבלת בלוקים (☆ בעזרים). בלי בחירה לא מוצגים בלוקים בכלל - לא כל בלוקי העמדה */
+  blocksSelected?: boolean;
+  /** מרחבי הבלוקים של העמדה - למפת המטרות. בלעדיהם: כל המרחבים */
+  mapSpaces?: any[] }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const chartContentRef = React.useRef<HTMLDivElement>(null);
   const [chartW, setChartW] = React.useState(800);
   const [groupBy, setGroupBy] = React.useState<'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id'>(initialGroupBy);
   const [showBlocks, setShowBlocks] = React.useState(true);
+  // מפת המטרות ליד הבלוקים - לא קבועה, נדלקת בכפתור. הבחירה נשמרת פר-עמדה
+  const targetMapKey = `sk.vvTargetMap.${viewerPresetId ?? 'none'}`;
+  const [showTargetMap, setShowTargetMap] = React.useState<boolean>(() => {
+    try { return localStorage.getItem(targetMapKey) === '1'; } catch { return false; }
+  });
+  const toggleTargetMap = () => setShowTargetMap(v => {
+    try { localStorage.setItem(targetMapKey, v ? '0' : '1'); } catch { /* ignore */ }
+    return !v;
+  });
   const [blockDisplayMode, setBlockDisplayMode] = React.useState<'altitudes' | 'legend'>('altitudes');
   const [blockSpaceOrder, setBlockSpaceOrder] = React.useState<string[]>([]);
   const [dragSegKey, setDragSegKey] = React.useState<string | null>(null);
@@ -487,7 +501,7 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
     const bt = blockTables.find((t: any) => t.id === b.block_table_id);
     return bt ? bt.block_space_id : undefined;
   }).filter(Boolean)));
-  const effectiveShowBlocks = showBlocks && relevantBlocks.length > 0 && (relevantBlockSpaceIds.length <= 1 || groupBy === 'block_space_id');
+  const effectiveShowBlocks = showBlocks && blocksSelected && relevantBlocks.length > 0 && (relevantBlockSpaceIds.length <= 1 || groupBy === 'block_space_id');
   // per-segment Y-axis only when grouping by block space + blocks shown + altitudes mode
   const usePerSegmentAxis = isBlockSpaceGroup && effectiveShowBlocks && blockDisplayMode === 'altitudes';
   // legend mode: block space grouping + blocks shown + legend mode
@@ -875,8 +889,9 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', direction: 'ltr', background: bg, boxSizing: 'border-box' }}>
 
-      {/* ── Main chart row ── */}
+      {/* ── Main chart row (+ מפת המטרות בחצי השני כשדלוקה) ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 0 }}>
+      <div style={{ flex: showTargetMap ? '0 0 50%' : 1, minWidth: 0, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 0 }}>
 
         {/* Y-axis column */}
         <div style={{ width: Y_AXIS_W, flexShrink: 0, height: '100%', display: usePerSegmentAxis ? 'none' : 'flex', flexDirection: 'column', borderRight: `1px solid ${gridLine}`, background: bg }}>
@@ -1000,6 +1015,12 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
           )}
         </div>
       </div>
+      {showTargetMap && (
+        <div style={{ flex: '0 0 50%', minWidth: 0, borderLeft: SEG_DIVIDER, boxSizing: 'border-box' }}>
+          <BlockTargetMap strips={strips} spaces={mapSpaces ?? blockSpaces} lightMode={lightMode} />
+        </div>
+      )}
+      </div>
 
       {/* ── Toolbar ── */}
       <div style={{ height: TOOLBAR_H, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '0 10px', background: lightMode ? '#e2e8f0' : '#0f172a', borderTop: `1px solid ${gridLine}`, direction: 'rtl', overflow: 'hidden' }}>
@@ -1014,10 +1035,20 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
         {/* Separator */}
         <div style={{ width: 1, height: 18, background: gridLine, flexShrink: 0 }} />
 
-        {/* Toggle blocks */}
-        <button onClick={() => setShowBlocks(v => !v)}
-          style={{ padding: '2px 10px', fontSize: '11px', borderRadius: 4, border: `1px solid ${showBlocks ? '#6366f1' : gridLine}`, cursor: 'pointer', background: showBlocks ? (lightMode ? '#ede9fe' : '#1e1b4b') : (lightMode ? '#cbd5e1' : '#334155'), color: showBlocks ? (lightMode ? '#4338ca' : '#a5b4fc') : (lightMode ? '#1e293b' : '#94a3b8'), fontWeight: 'bold', whiteSpace: 'nowrap', direction: 'rtl' }}>
-          {showBlocks ? '◼ הסתר בלוקים' : '◻ הצג בלוקים'}
+        {/* Toggle blocks - רק כשנבחרה טבלת בלוקים; בלי בחירה מוסבר למה אין בלוקים */}
+        {blocksSelected ? (
+          <button onClick={() => setShowBlocks(v => !v)}
+            style={{ padding: '2px 10px', fontSize: '11px', borderRadius: 4, border: `1px solid ${showBlocks ? '#6366f1' : gridLine}`, cursor: 'pointer', background: showBlocks ? (lightMode ? '#ede9fe' : '#1e1b4b') : (lightMode ? '#cbd5e1' : '#334155'), color: showBlocks ? (lightMode ? '#4338ca' : '#a5b4fc') : (lightMode ? '#1e293b' : '#94a3b8'), fontWeight: 'bold', whiteSpace: 'nowrap', direction: 'rtl' }}>
+            {showBlocks ? tr('vertical.hideBlocks') : tr('vertical.showBlocks')}
+          </button>
+        ) : (
+          <span data-testid="vv-no-blocks-selected" style={{ fontSize: '11px', color: textColor, whiteSpace: 'nowrap', fontStyle: 'italic' }}>{tr('vertical.noBlockTableSelected')}</span>
+        )}
+
+        {/* מפת מטרות ליד הבלוקים */}
+        <button data-testid="vv-target-map-toggle" onClick={toggleTargetMap}
+          style={{ padding: '2px 10px', fontSize: '11px', borderRadius: 4, border: `1px solid ${showTargetMap ? '#0ea5e9' : gridLine}`, cursor: 'pointer', background: showTargetMap ? (lightMode ? '#e0f2fe' : '#082f49') : (lightMode ? '#cbd5e1' : '#334155'), color: showTargetMap ? (lightMode ? '#0369a1' : '#7dd3fc') : (lightMode ? '#1e293b' : '#94a3b8'), fontWeight: 'bold', whiteSpace: 'nowrap', direction: 'rtl' }}>
+          🗺 {tr('vertical.targetMap')}
         </button>
 
         {/* Block display mode — only when grouping by block space and blocks visible */}

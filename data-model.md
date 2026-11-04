@@ -3535,6 +3535,7 @@ REFACTOR_LOG #045.
 | `block_spaces.map_id` | INTEGER | **מיקום המרחב על המפה** - מפה מעוגנת שעליה מוגדרים האזורים שלו |
 | `block_spaces.zone_ids` | JSONB DEFAULT `'[]'` | מזהי `map_zones` שמרכיבים את המרחב. מרכז האזורים (משוקלל שטח) = מרכז המרחב, ומוחזר ב-`GET /api/block-spaces` כ-`center_lat`/`center_lon` (`shared/blockSpaceGeo.js`) |
 | `workstation_presets.auto_block_space_by_target` | BOOLEAN DEFAULT false | **חלוקה למרחבים לפי מיקום המטרה** במוד טבלה: פ"מ בלי מרחב משויך למרחב שמרכזו הכי קרוב לנ"צ המטרה "הראשונה לביצוע" (`strips.targets[].first_exec`, ובלי סימון - השורה העליונה עם נ"צ). פעם אחת לכל פ"מ - שיוך ידני לא נדרס. הלוח מקובץ לפי מרחב |
+| `workstation_presets.auto_block_space_ids` | JSONB DEFAULT NULL | **טופס העזר בעמדה** - המרחבים שמותר לשייך אליהם אוטומטית. NULL = כל מרחבי העמדה שיש להם מיקום; מערך (גם ריק) = רק המסומנים. המטרה לא חייבת להיות בתוך מרחב - הפ"מ הולך למרחב **המותר** הקרוב ביותר. נכתב ב-`PATCH /api/workstation-presets/:id/auto-block-spaces` |
 | `strips.targets[].first_exec` | boolean בתוך JSONB | **ראשונה לביצוע** בטבלת נקודות המכוון - שורה אחת לכל היותר |
 | `blocks.space_id` | INTEGER NULL | המרחב שהבלוק משרת. ריק = כל המרחבים. פ"מ "נמצא" רק בבלוק של המרחב שלו - לחישוב סטייה מבלוק, קונפליקט והמלצת הגובה |
 

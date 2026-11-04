@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { firstExecTarget, recommendBlockSpaceId } from './blockSpaceAuto';
+import { firstExecTarget, firstExecIndex, autoAssignableSpaces, recommendBlockSpaceId } from './blockSpaceAuto';
 
 // מה שנבדק: המטרה הקובעת (ראשונה לביצוע / שורה עליונה) והמרחב המומלץ לפ"מ.
 const NORTH = 'N3230.0000/E03500.0000'; // 32.5, 35.0
@@ -32,5 +32,30 @@ describe('recommendBlockSpaceId', () => {
   });
   it('בלי מטרה - אין המלצה', () => {
     expect(recommendBlockSpaceId([], spaces)).toBe(null);
+  });
+});
+
+describe('firstExecIndex', () => {
+  it('מסומנת גוברת, אחרת העליונה עם נ"צ, אחרת -1', () => {
+    expect(firstExecIndex([{ coord: SOUTH }, { coord: NORTH, first_exec: true }])).toBe(1);
+    expect(firstExecIndex([{ coord: '' }, { coord: SOUTH }])).toBe(1);
+    expect(firstExecIndex([{ coord: 'x' }])).toBe(-1);
+  });
+});
+
+describe('autoAssignableSpaces - טופס העזר', () => {
+  const all = [...spaces, { id: 3, center_lat: null, center_lon: null }];
+  it('הטופס לא נערך (null) - כל המרחבים שיש להם מיקום', () => {
+    expect(autoAssignableSpaces(all, null).map(s => s.id)).toEqual([1, 2]);
+    expect(autoAssignableSpaces(all, undefined).map(s => s.id)).toEqual([1, 2]);
+  });
+  it('רק המרחבים שסומנו', () => {
+    expect(autoAssignableSpaces(all, [2, 3]).map(s => s.id)).toEqual([2]);
+  });
+  it('רשימה ריקה - אין מרחב מותר', () => {
+    expect(autoAssignableSpaces(all, [])).toEqual([]);
+  });
+  it('המטרה במרחב שאינו מותר - הפ"מ הולך למותר הקרוב ביותר', () => {
+    expect(recommendBlockSpaceId([{ coord: SOUTH }], autoAssignableSpaces(all, [2]))).toBe(2);
   });
 });

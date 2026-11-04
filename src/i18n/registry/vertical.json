@@ -26,9 +26,21 @@
       "he": "חלוקה לפי:",
       "en": "Group by:"
     },
+    "hideBlocks": {
+      "he": "◼ הסתר בלוקים",
+      "en": "◼ Hide blocks"
+    },
+    "noBlockTableSelected": {
+      "he": "לא נבחרו בלוקים - בחר טבלה (☆) בעזרים",
+      "en": "No blocks selected - pick a table (☆) in the aids panel"
+    },
     "noBlocks": {
       "he": "ללא בלוקים",
       "en": "No blocks"
+    },
+    "showBlocks": {
+      "he": "◻ הצג בלוקים",
+      "en": "◻ Show blocks"
     },
     "shrinkAltitudeRangeBy": {
       "he": "צמצם טווח גובה ב-2000 רגל",
@@ -37,6 +49,18 @@
     "suggested": {
       "he": "מוצע:",
       "en": "Suggested:"
+    },
+    "targetMap": {
+      "he": "מפת מטרות",
+      "en": "Target map"
+    },
+    "targetMapEmpty": {
+      "he": "אין מטרות או פ\"מים עם נ\"צ להצגה",
+      "en": "No targets or strips with coordinates to show"
+    },
+    "targetMapOtherTargets": {
+      "he": "שאר המטרות",
+      "en": "Other targets"
     },
     "theFormationContains": {
       "he": "הפ\"מ מכיל",

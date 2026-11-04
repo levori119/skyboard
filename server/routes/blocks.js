@@ -16,7 +16,7 @@ const jsonArr = v => {
  */
 async function withCenters(spaces) {
   const ids = [...new Set(spaces.flatMap(s => jsonArr(s.zone_ids).map(Number)).filter(Number.isFinite))];
-  if (!ids.length) return spaces.map(s => ({ ...s, center_lat: null, center_lon: null }));
+  if (!ids.length) return spaces.map(s => ({ ...s, center_lat: null, center_lon: null, polygons: [] }));
   const { rows } = await pool.query(
     `SELECT z.id, z.polygon, z.polygon_geo, m.anchor1_x_img, m.anchor1_y_img, m.anchor1_lat, m.anchor1_lon,
             m.anchor2_x_img, m.anchor2_y_img, m.anchor2_lat, m.anchor2_lon
@@ -32,7 +32,8 @@ async function withCenters(spaces) {
   }));
   return spaces.map(s => {
     const c = spaceCenter(jsonArr(s.zone_ids).map(id => poly.get(Number(id))).filter(Boolean));
-    return { ...s, center_lat: c?.lat ?? null, center_lon: c?.lon ?? null };
+    const polygons = jsonArr(s.zone_ids).map(id => poly.get(Number(id))).filter(g => g && g.length >= 3);
+    return { ...s, center_lat: c?.lat ?? null, center_lon: c?.lon ?? null, polygons };
   });
 }
 

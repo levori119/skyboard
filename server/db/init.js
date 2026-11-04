@@ -1319,6 +1319,8 @@ async function applySchemaOnce() {
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS suggest_alt_range BOOLEAN DEFAULT false`);
   // מוד טבלה: פ"מ בלי מרחב משויך אוטומטית למרחב הבלוקים הקרוב למטרה שלו
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS auto_block_space_by_target BOOLEAN DEFAULT false`);
+  // המרחבים שמותר לשייך אליהם אוטומטית (טופס עזר בעמדה). NULL = כל מרחבי העמדה
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS auto_block_space_ids JSONB DEFAULT NULL`);
   // חוקי גובה לפי חימוש - בסיס להמלצת הגובה בכניסת פ"מ לעמדה (src/utils/altRecommend.ts).
   // [{armament, kind:'band'|'alt'|'range', band, alt_ft, min_ft, max_ft}], לפי סדר עדיפות
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS alt_armament_rules JSONB DEFAULT '[]'`);

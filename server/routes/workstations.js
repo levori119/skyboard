@@ -130,6 +130,23 @@ async function saveAutoBlockSpace(row, body) {
   return r.rows[0] || row;
 }
 
+// טופס העזר בעמדה: לאילו מרחבים מותר לשייך פ"מ אוטומטית לפי מיקום המטרה.
+// null = כל מרחבי העמדה; מערך (גם ריק) = רק המרחבים שסומנו.
+router.patch('/api/workstation-presets/:id/auto-block-spaces', async (req, res) => {
+  try {
+    const raw = req.body?.ids;
+    const ids = raw === null ? null : (Array.isArray(raw) ? [...new Set(raw.map(Number).filter(Number.isFinite))] : undefined);
+    if (ids === undefined) return res.status(400).json({ error: 'ids חייב להיות מערך או null' });
+    const r = await pool.query('UPDATE workstation_presets SET auto_block_space_ids = $1 WHERE id = $2 RETURNING id, auto_block_space_ids',
+      [ids === null ? null : JSON.stringify(ids), req.params.id]);
+    if (!r.rows.length) return res.status(404).json({ error: 'עמדה לא נמצאה' });
+    res.json(r.rows[0]);
+  } catch (err) {
+    console.error('Error saving auto block spaces:', err);
+    res.status(500).json({ error: 'Failed to save auto block spaces' });
+  }
+});
+
 router.post('/api/workstation-presets', async (req, res) => {
   try {
     const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, conflict_alt_rules, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role, parent_base_id, can_update_pressure, datk_show_minutes, show_dashboard, can_update_mazaa, civilian_columns, use_map_zones, civilian_board_bg, dual_map_mode, map2_id, dual_map_layout, dual_map_split, suggest_alt_range, show_full_picture, blind_map_default, can_update_atis, can_update_notam, mazaa_update_base_id, fz_pin_display, mission_desk_id, mission_desk_sharing, mission_desk_map_config, mission_desk_view_tables, sector_maps_enabled, sector_map_ids, map2_sector_maps_enabled, map2_sector_map_ids, data_windows, show_data_windows, show_window_container, window_container_position, can_seize_zone, can_add_vehicle, air_picture_enabled, air_picture_defaults, zone_watch_settings, civilian_strip_table_id, load_relevant, alt_armament_rules } = req.body;

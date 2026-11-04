@@ -2,6 +2,46 @@
   "_group": "בלוקי גובה",
   "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
   "keys": {
+    "autoSpacesAll": {
+      "he": "כולם",
+      "en": "All"
+    },
+    "autoSpacesClear": {
+      "he": "אף אחד",
+      "en": "None"
+    },
+    "autoSpacesCount": {
+      "he": "{{n}} מתוך {{total}} מרחבים",
+      "en": "{{n}} of {{total}} spaces"
+    },
+    "autoSpacesHint": {
+      "he": "פ\"מ משויך למרחב המסומן שמרכזו הכי קרוב למטרה. המטרה לא חייבת להיות בתוך המרחב. פ\"מ שכבר שויך לא זז.",
+      "en": "A strip is assigned to the checked space whose center is nearest its target. The target need not be inside the space. Assigned strips do not move."
+    },
+    "autoSpacesNoLocation": {
+      "he": "אין מיקום על המפה",
+      "en": "No map location"
+    },
+    "autoSpacesNone": {
+      "he": "אין לעמדה מרחבי בלוקים",
+      "en": "This station has no block spaces"
+    },
+    "autoSpacesOpen": {
+      "he": "מרחבים לשיוך אוטומטי",
+      "en": "Auto-assign spaces"
+    },
+    "autoSpacesSaveFailed": {
+      "he": "שמירת המרחבים לשיוך אוטומטי נכשלה - הבחירה הקודמת חזרה",
+      "en": "Saving auto-assign spaces failed - previous selection restored"
+    },
+    "autoSpacesTitle": {
+      "he": "מרחבים לשיוך אוטומטי",
+      "en": "Spaces for auto-assignment"
+    },
+    "autoSpacesZero": {
+      "he": "אף מרחב לא מסומן - אין שיוך אוטומטי",
+      "en": "No space checked - no auto-assignment"
+    },
     "higherResolutionSmallerSteps": {
       "he": "רזולוציה גבוהה יותר (צעדים קטנים)",
       "en": "Higher resolution (smaller steps)"

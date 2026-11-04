@@ -57,6 +57,13 @@ describe('מרחב בלוקים - מיקום על המפה', () => {
     expect(json.center_lat).toBeCloseTo(32.1, 6);
     expect(json.center_lon).toBeCloseTo(34.1, 6);
   });
+  it('GET מחזיר את פוליגוני האזורים - למפת המטרות בעמדה', async () => {
+    const { json } = await req('GET', '/api/block-spaces');
+    const sp = json.find(s => s.id === 1);
+    expect(sp.polygons).toHaveLength(1);
+    expect(sp.polygons[0][0]).toEqual({ lat: 32, lon: 34 });
+    expect(json.find(s => s.id === 3).polygons).toEqual([]);
+  });
   it('אזור באחוזי תמונה בלבד - מומר דרך עוגן המפה', async () => {
     await req('PUT', '/api/block-spaces/2', { name: 'מרכז', map_id: 1, zone_ids: [11] });
     const { json } = await req('GET', '/api/block-spaces');
