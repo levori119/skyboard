@@ -530,6 +530,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const asgnChainRef = React.useRef<Map<number, Promise<unknown>>>(new Map());
   // העברות נכנסות שהתקבלו וטרם אושרו בשרת: id → עד מתי להסתיר מהפולינג
   const hiddenIncomingRef = React.useRef<Map<string, number>>(new Map());
+  // העברות יוצאות שנשלחו וטרם חזרו מהשרת: כרטיס זמני בנקודה (id = tmp-<strip>)
+  const pendingOutgoingRef = React.useRef<Map<string, { t: any; until: number }>>(new Map());
   const [liveRunwayConflicts, setLiveRunwayConflicts] = React.useState<{routeName:string;conflicts:{type:string;name:string;callsign:string}[];recommendations:{id:number;name:string;category:string;display_state:string;blocking_statuses:string[];allowed_statuses:string[]}[]}[]>([]);
   const [activeTakeoffs, setActiveTakeoffs] = React.useState<{stripId:number|string;callsign:string;runway:string;routeName:string}[]>([]);
   const [dismissedTakeoffs, setDismissedTakeoffs] = React.useState<Set<string>>(new Set());
@@ -5857,7 +5859,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           }
         });
         prevOutgoingTransfersRef.current = freshOutgoing;
-        setOutgoingTransfers(freshOutgoing);
+        // שליחה שעוד לא הגיעה לשרת - הכרטיס הזמני נשאר עד שהאמיתי מופיע
+        const _nowOut = Date.now();
+        for (const [k, p] of [...pendingOutgoingRef.current.entries()]) {
+          if (p.until <= _nowOut || freshOutgoing.some((x: any) => String(x.strip_id) === String(p.t.strip_id))) pendingOutgoingRef.current.delete(k);
+        }
+        setOutgoingTransfers(pendingOutgoingRef.current.size
+          ? [...freshOutgoing, ...[...pendingOutgoingRef.current.values()].map(p => p.t)]
+          : freshOutgoing);
       }
       fetch(`${API_URL}/transfers/pending-all`).then(r => r.ok ? r.json() : []).then(data => { allPendingTransfersRef.current = data; setAllPendingTransfers(data); }).catch(() => {});
       if (session.presetId) {
@@ -7336,8 +7345,33 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       subSectorLabel, fromWorkstationId: fromPreset, toWorkstationId: toWorkstationId || null, etaMinutes: etaMinutes || null,
     });
     if (takeoverOpened) return;
+    // ── עדכון מיידי: הפ"מ "בהעברה" וכרטיס בנקודה - לפני שהשרת עונה ─────────
+    const _sendStrip: any = strips.find((s: any) => String(s.id) === String(stripId));
+    const _prevStatus = _sendStrip?.status;
+    const tmpId = `tmp-${String(stripId).replace(/^s/, '')}`;
+    const tmpT = {
+      id: tmpId, strip_id: Number(String(stripId).replace(/^s/, '')), to_sector_id: toSectorId,
+      to_workstation_id: toWorkstationId || null, from_workstation_id: fromPreset, status: 'pending',
+      callsign: _sendStrip?.callSign || _sendStrip?.callsign, callSign: _sendStrip?.callSign || _sendStrip?.callsign,
+      sq: _sendStrip?.sq || _sendStrip?.squadron, alt: _sendStrip?.alt, number_of_formation: _sendStrip?.number_of_formation,
+      eta_minutes: etaMinutes || null, eta_set_at: etaMinutes ? new Date().toISOString() : null, sub_sector_label: subSectorLabel || null,
+      _optimistic: true,
+    };
+    pendingOutgoingRef.current.set(tmpId, { t: tmpT, until: Date.now() + 15000 });
+    setOutgoingTransfers((prev: any[]) => [...prev.filter((x: any) => String(x.id) !== tmpId), tmpT]);
+    const _sendKey = _sendStrip?.id ?? stripId;
+    pendingStripUpdatesRef.current.set(_sendKey, { ...(pendingStripUpdatesRef.current.get(_sendKey) || {}), status: 'pending_transfer' });
+    setStrips(prev => prev.map(s => s.id === stripId ? { ...s, status: 'pending_transfer' } : s));
+    const _undoSend = () => {
+      pendingOutgoingRef.current.delete(tmpId);
+      setOutgoingTransfers((prev: any[]) => prev.filter((x: any) => String(x.id) !== tmpId));
+      if (releasePendingKeys(pendingStripUpdatesRef.current, _sendKey, { status: 'pending_transfer' }).length) {
+        setStrips(prev => prev.map(s => s.id === stripId ? { ...s, status: _prevStatus } : s));
+      }
+      setSaveFailToast(tr('ctrl.saveFailedReverted', { callsign: _sendStrip?.callSign || _sendStrip?.callsign || '' }));
+    };
     try {
-      await fetch(`${API_URL}/strips/${stripId}/transfer`, {
+      const _sendRes = await fetch(`${API_URL}/strips/${stripId}/transfer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -7351,9 +7385,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           etaMinutes: etaMinutes || null
         })
       });
-      // Optimistic update: immediately mark the strip as pending_transfer in local state
-      // so the load count drops right away without waiting for the next poll cycle
-      setStrips(prev => prev.map(s => s.id === stripId ? { ...s, status: 'pending_transfer' } : s));
+      if (!_sendRes.ok) throw new Error(`transfer failed: ${_sendRes.status}`);
+      setTimeout(() => releasePendingKeys(pendingStripUpdatesRef.current, _sendKey, { status: 'pending_transfer' }), PENDING_RELEASE_MS);
       const strip = strips.find((s: any) => String(s.id) === String(stripId));
       logActivity('transfer_sent', {
         stripId: String(stripId),
@@ -7398,6 +7431,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       loadData();
     } catch (err) {
       console.error('Failed to initiate transfer:', err);
+      _undoSend();
     }
   };
   handleTransferRef.current = handleTransfer;
@@ -8818,12 +8852,29 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         }
       }
     }
+    // ── עדכון מיידי: הפ"מ על המפה בנקודת השחרור והכרטיס יורד מהנקודה ────────
+    const stripKey = t?.strip_id ? 's' + t.strip_id : null;
+    const prevStrip = stripKey ? strips.find(s => String(s.id) === stripKey) : null;
+    const mapPatch: Record<string, any> = { x, y, onMap: true, status: 'active', workstation_preset_id: session?.presetId ?? null, ...geoCoords };
+    if (stripKey) {
+      const pkey = prevStrip?.id ?? stripKey;
+      pendingStripUpdatesRef.current.set(pkey, { ...(pendingStripUpdatesRef.current.get(pkey) || {}), ...mapPatch });
+      setStrips(prev => prev.map(s => String(s.id) === stripKey ? { ...s, ...mapPatch } : s));
+    }
+    hiddenIncomingRef.current.set(String(transferId), Date.now() + 15000);
+    setIncomingTransfers((prev: any[]) => prev.filter((x: any) => String(x.id) !== String(transferId)));
     try {
-      await fetch(`${API_URL}/transfers/${transferId}/accept-to-map`, { 
+      const res = await fetch(`${API_URL}/transfers/${transferId}/accept-to-map`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ x, y, receivingPresetId: session?.presetId ?? null, ...geoCoords })
       });
+      if (!res.ok) throw new Error(`accept-to-map failed: ${res.status}`);
+      hiddenIncomingRef.current.set(String(transferId), Date.now() + 4000);
+      if (stripKey) {
+        const pkey = prevStrip?.id ?? stripKey;
+        setTimeout(() => releasePendingKeys(pendingStripUpdatesRef.current, pkey, mapPatch), PENDING_RELEASE_MS);
+      }
       logActivity('accept_to_map', {
         stripId: t?.strip_id ? String(t.strip_id) : undefined,
         stripCallsign: t?.callsign || t?.callSign,
@@ -8833,6 +8884,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       loadData();
     } catch (err) {
       console.error('Failed to accept transfer to map:', err);
+      // השרת דחה - הכרטיס חוזר לנקודה והפ"מ חוזר למקומו
+      hiddenIncomingRef.current.delete(String(transferId));
+      if (t) setIncomingTransfers((prev: any[]) => prev.some((x: any) => String(x.id) === String(transferId)) ? prev : [...prev, t]);
+      if (stripKey) {
+        const back = releasePendingKeys(pendingStripUpdatesRef.current, prevStrip?.id ?? stripKey, mapPatch);
+        if (back.length && prevStrip) {
+          const restore: Record<string, any> = {};
+          for (const k of back) restore[k] = (prevStrip as any)[k];
+          setStrips(prev => prev.map(s => String(s.id) === stripKey ? { ...s, ...restore } : s));
+        }
+      }
+      setSaveFailToast(tr('ctrl.saveFailedReverted', { callsign: t?.callsign || t?.callSign || '' }));
     }
   };
   
@@ -9023,6 +9086,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   };
 
   const handleCancelTransfer = async (transferId: string) => {
+    // כרטיס זמני של שליחה שעוד לא הגיעה לשרת - אין מה לבטל שם עדיין
+    if (String(transferId).startsWith('tmp-')) return;
     try {
       await fetch(`${API_URL}/transfers/${transferId}/cancel`, { method: 'POST' });
       loadData();
