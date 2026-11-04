@@ -4066,6 +4066,14 @@
       "he": "השינוי לא נשמר - נסה שוב",
       "en": "The change was not saved - try again"
     },
+    "mapMirrorNone": {
+      "he": "ללא שיקוף",
+      "en": "No mirroring"
+    },
+    "mapMirrorMissing": {
+      "he": "העמדה שנבחרה כבר לא מציגה את המפה הזו",
+      "en": "The selected station no longer shows this map"
+    },
     "mapCopyFromStation": {
       "he": "זהה לעמדה:",
       "en": "Same as station:"

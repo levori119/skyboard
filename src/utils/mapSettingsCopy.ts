@@ -15,6 +15,8 @@ export interface MapCopySource {
   /** מפתח יציב לבורר */
   key: string;
   label: string;
+  /** העמדה שהמקור שייך לה - היא העמדה שחלון משקף כשהבחירה נשמרת */
+  presetId: number;
   /** הגדרות המפה במבנה של חלון מפה בדסק */
   settings: Partial<MDPresetMapSettings>;
 }
@@ -34,7 +36,7 @@ export function mapCopySources(presets: any[], mapId: number | null | undefined,
     const self = opts.excludePresetId != null && pid === Number(opts.excludePresetId);
     if (!self && Number(p?.map_id) === Number(mapId)) {
       out.push({
-        key: `p${pid}`, label: name,
+        key: `p${pid}`, label: name, presetId: pid,
         settings: {
           transfer_points: nums(p.relevant_sectors),
           flight_zones_mode: p.flight_zones_mode === true,
@@ -47,7 +49,7 @@ export function mapCopySources(presets: any[], mapId: number | null | undefined,
     }
     if (!self && Number(p?.map2_id) === Number(mapId)) {
       out.push({
-        key: `p${pid}m2`, label: `${name} (מפה 2)`,
+        key: `p${pid}m2`, label: `${name} (מפה 2)`, presetId: pid,
         settings: {
           transfer_points: nums(p.map2_transfer_points).length ? nums(p.map2_transfer_points) : nums(p.relevant_sectors),
           sector_maps_enabled: p.map2_sector_maps_enabled === true,
@@ -60,7 +62,7 @@ export function mapCopySources(presets: any[], mapId: number | null | undefined,
       if (!w || Number(w.map_id) !== Number(mapId)) continue;
       if (self && wk === opts.excludeWindowKey) continue;
       out.push({
-        key: `p${pid}w${wk}`, label: `${name} · ${wk}`,
+        key: `p${pid}w${wk}`, label: `${name} · ${wk}`, presetId: pid,
         settings: {
           transfer_points: nums(w.transfer_points),
           flight_zones_mode: w.flight_zones_mode === true,
@@ -87,4 +89,19 @@ export function presetFieldsFromSource(src: MapCopySource): Record<string, unkno
     ...(s.sector_map_ids ? { sector_map_ids: s.sector_map_ids } : {}),
     ...(s.blind_map_default !== undefined ? { blind_map_default: s.blind_map_default } : {}),
   };
+}
+
+/**
+ * **שיקוף עמדה** בחלון מפה של דסק משימה: כשנשמר מקור (`mirror_source_key`),
+ * הגדרות המפה נלקחות **מהעמדה המשתקפת עכשיו** ולא מהעתקה ישנה - שינוי שם
+ * מגיע לחלון בטעינה הבאה. מקור שנעלם (העמדה נמחקה / החליפה מפה) - נשארות
+ * ההגדרות השמורות של החלון.
+ */
+export function resolveMirroredSettings<T extends Partial<MDPresetMapSettings> & { map_id?: number | null }>(
+  presets: any[], settings: T, selfPresetId?: number | null,
+): T {
+  const key = settings.mirror_source_key;
+  if (!key) return settings;
+  const src = mapCopySources(presets, settings.map_id ?? null, { excludePresetId: selfPresetId ?? null }).find(s => s.key === key);
+  return src ? { ...settings, ...src.settings } : settings;
 }

@@ -369,7 +369,14 @@ describe('חלונות מפה בדסק משימה', () => {
     expect(mdMapSettings(cfg, 3)).toEqual({
       map_id: 12, transfer_points: [4, 5], sector_maps_enabled: true, sector_map_ids: [8],
       flight_zones_mode: false, fz_pin_display: 'handwrite', strips_panel: true, blind_map_default: false,
+      mirror_preset_id: null, mirror_source_key: null,
     });
+  });
+
+  it('שיקוף עמדה ("זהה לעמדה") נשמר בקריאה - קודם נמחק בנרמול ונראה כאילו לא נשמר', () => {
+    const r = mdMapSettings({ '3': { map_id: 1, transfer_points: [], mirror_preset_id: '38', mirror_source_key: 'p38' } } as any, 3);
+    expect(r.mirror_preset_id).toBe(38);
+    expect(r.mirror_source_key).toBe('p38');
   });
 
   it('תצוגת פ"מ לא מוכרת נופלת לכתב יד; מוכרת נשמרת', () => {

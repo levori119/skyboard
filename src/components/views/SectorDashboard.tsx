@@ -174,6 +174,7 @@ import DataWindowLayer from '../dataWindows/DataWindowLayer';
 import MissionDeskBody, { useMissionDeskName } from '../missiondesk/MissionDeskBody';
 import type { MissionDeskService, MDPresetMapConfig, MDPresetMapSettings, MDNode, MDPresetViewTablesConfig, MDViewTableKey } from '../../types/missionDesk';
 import { mdMapServices, mdMapSettings, mdStripsMapServiceId, MD_VIEW_TABLES, mdViewTablesSettings, mdViewTableOwners, mdViewTableSource } from '../../utils/missionDesk';
+import { resolveMirroredSettings } from '../../utils/mapSettingsCopy';
 import ViewTablesSlot from '../missiondesk/ViewTablesSlot';
 import MyScriptTestPanel from '../shared/MyScriptTestPanel';
 import { MapDrawToolbar, MapShapeSvg, PolyDraftSvg, EraserCursorSvg, polySnapTol, usePolyDraft } from '../map/MapDrawLayer';
@@ -2600,6 +2601,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // wrapper around the map panel). Slice 1 routes only map1 through it (identical output).
   const map1Cfg = {
     mapId: currentMapId, region: dmMap1Region, secondary: false,
+    // העמדה שהפ"מים שלה על המפה. null = העמדה הזו; חלון דסק שמשקף עמדה - אותה
+    viewPresetId: null as number | null,
     panKey: String(currentMapId ?? 'map1'),
     view: {
       showZones: fzShowZones, setShowZones: setFzShowZones,
@@ -2630,7 +2633,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // Map 2 — same shape; MVP renders image+zones+strips only (other layers neutralised).
   type MapPanelCfg = typeof map1Cfg;
   const map2Cfg: MapPanelCfg = {
-    mapId: effMap2Id || -2, region: dmMap2Region, secondary: true,
+    mapId: effMap2Id || -2, region: dmMap2Region, secondary: true, viewPresetId: null,
     panKey: String((effMap2Id || -2) ?? 'map2'),
     view: map1Cfg.view,   // דו-מפה: שתי המפות חולקות פקדים, כפי שהיה
     zoom: map2Zoom, setZoom: setMap2Zoom, pan: map2Pan, setPan: setMap2Pan,
@@ -4933,6 +4936,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     // איחוד עמדה: פ"מ נכלל אם תואם את הפילטר שלי או את אחת מהעמדות המאוחדות (union)
     return (!effectiveFilter || evaluateQuery(s, effectiveFilter, _qCtx)) || stripInCombined(s, myCombined);
   });
+
+  /**
+   * הפ"מים של עמדה **אחרת** - לחלון מפה בדסק שמשקף אותה. אותו כלל כמו `myStrips`
+   * (השאילתה של העמדה; בלי שאילתה - הכל), רק לפי ההגדרה של העמדה המשתקפת.
+   */
+  const stripsOfPreset = (pid: number) => {
+    const p: any = workstationPresets.find((x: any) => Number(x.id) === Number(pid));
+    let fq: any = p?.filter_query ?? null;
+    if (typeof fq === 'string') { try { fq = JSON.parse(fq); } catch { fq = null; } }
+    const filter: QGroup | null = hasConditions(fq) ? fq : null;
+    const ctx = { presetId: pid, presetName: p?.name || null, aviationBases };
+    return strips.filter(s => s.status === 'pending_transfer'
+      ? Number(s.workstation_preset_id) === Number(pid)
+      : (!filter || evaluateQuery(s, filter, ctx as any)));
+  };
 
   // myTableStrips: query-driven strips PLUS explicit assignments PLUS strips of any unified position.
   const myTableStrips = (() => {
@@ -9351,7 +9369,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 const stripZoneAssignments = _mdW ? ((mdSlots[_mdW.key] || MD_MAP_SLOT_INIT).assignments) : stripZoneAssignmentsMain;
                 const mapZones = _mdW ? ((mdSlots[_mdW.key] || MD_MAP_SLOT_INIT).zones) : mapZonesMain;
                 const fzOverlayRef = _mdW ? mdRefsFor(_mdW.key).overlay : fzOverlayRefMain;
-                const sidebarStripList = myStrips.filter(s =>
+                // חלון שמשקף עמדה - הרשימה היא של העמדה המשתקפת
+                const _mirrorPid = _mdW?.settings.mirror_preset_id ?? null;
+                const sidebarStripList = (_mirrorPid != null ? stripsOfPreset(_mirrorPid) : myStrips).filter(s =>
                   (showPendingTransfer || s.status !== 'pending_transfer') &&
                   !s.onMap &&
                   // In classic mode, don't show strips already assigned to "שלי"
@@ -9721,6 +9741,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const renderMapPanel = (cfg: MapPanelCfg) => {
             const dmMap1Region = cfg.region;
             const toolbarSlot = cfg.panKey;
+            const viewPid = cfg.viewPresetId ?? session.presetId;
             const toolbarCols: 1 | 2 = mapToolbarCols[toolbarSlot] ?? 1;
             const toolbarW = toolbarCols === 2 ? MAP_TOOLBAR_W2 : MAP_TOOLBAR_W;
             const toolbarGap = mapToolbarGap(toolbarCols);
@@ -10581,7 +10602,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             
             {/* Strips Layer — only show strips placed by this workstation */}
             {strips.filter(s => s.onMap && stripBelongsToMapPanel(s, cfg.secondary, cfg.mapId) && (
-              ((!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId)) && (showPendingTransfer || s.status !== 'pending_transfer')) ||
+              ((!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(viewPid)) && (showPendingTransfer || s.status !== 'pending_transfer')) ||
               (showPendingTransfer && s.status === 'pending_transfer' && outgoingTransfers.some((t: any) => String('s' + t.strip_id) === String(s.id)))
             )).map(rawS => {
               // If strip has geo pin and map is anchored, compute pixel position from lat/lon
@@ -10727,7 +10748,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {/* Map Zone Pins & Lines overlay */}
             {isMapZonesMode && showMapPinStrips && (() => {
               const pinStrips = strips.filter((s: any) => s.onMap && s.map_pin_x != null && s.map_pin_y != null && (
-                ((!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId)) && (showPendingTransfer || s.status !== 'pending_transfer')) ||
+                ((!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(viewPid)) && (showPendingTransfer || s.status !== 'pending_transfer')) ||
                 (showPendingTransfer && s.status === 'pending_transfer' && outgoingTransfers.some((t: any) => String('s' + t.strip_id) === String(s.id)))
               ));
               if (pinStrips.length === 0) return null;
@@ -10793,7 +10814,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {/* Formation Split/Merge Overlay — split button for multi-aircraft strips, merge for siblings */}
             {mapSplitMergeMode && (() => {
               const onMapStrips = strips.filter(s => s.onMap && stripBelongsToMapPanel(s, cfg.secondary, cfg.mapId) && (
-                ((!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId)) && (showPendingTransfer || s.status !== 'pending_transfer')) ||
+                ((!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(viewPid)) && (showPendingTransfer || s.status !== 'pending_transfer')) ||
                 (showPendingTransfer && s.status === 'pending_transfer' && outgoingTransfers.some((t: any) => String('s' + t.strip_id) === String(s.id)))
               ));
               return onMapStrips.map(s => {
@@ -11765,7 +11786,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const mdMapConfig: MDPresetMapConfig = (myPresetConfig as any)?.mission_desk_map_config || {};
   const mdMapWindows = mdMapServices(mdDesk?.services)
     .map(svc => {
-      const settings = mdMapSettings(mdMapConfig, svc.id);
+      // שיקוף עמדה: ההגדרות נמשכות חי מהעמדה המשתקפת (utils/mapSettingsCopy)
+      const settings = resolveMirroredSettings(workstationPresets, mdMapSettings(mdMapConfig, svc.id), session.presetId != null ? Number(session.presetId) : null);
       return { svc, key: `md-${svc.id}`, mapId: settings.map_id, settings };
     })
     .filter((w): w is { svc: MissionDeskService; key: string; mapId: number; settings: MDPresetMapSettings } => w.mapId != null);
@@ -11955,6 +11977,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       pinDisplay: (mdLayerPrefs[w.key]?.pin ?? null) ?? (w.settings.fz_pin_display || 'handwrite'),
       view: mdViewFor(w.key),
       sectors: sectorsForMap(w.mapId, w.settings.sector_maps_enabled === true, w.settings.sector_map_ids),
+      // שיקוף עמדה: הפ"מים על החלון הם של העמדה המשתקפת, לא של עמדת הדסק
+      viewPresetId: w.settings.mirror_preset_id ?? null,
     };
   };
 

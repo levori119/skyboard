@@ -81,6 +81,11 @@ export interface MDPresetMapSettings {
   strips_panel?: boolean;
   // ברירת המחדל של החלון בעליית העמדה: מפה עיוורת (התמונה מוסתרת, השכבות נשארות)
   blind_map_default?: boolean;
+  // **שיקוף עמדה** ("זהה לעמדה" שנשמר): החלון מציג את העמדה הזו חי - הגדרות
+  // המפה שלה (נמשכות ממנה בכל טעינה, לא העתקה חד-פעמית) והפ"מים שלה.
+  // `mirror_source_key` = המקור המדויק מ-mapCopySources (מפה ראשית / מפה 2 / חלון דסק)
+  mirror_preset_id?: number | null;
+  mirror_source_key?: string | null;
 }
 export type MDPresetMapConfig = Record<string, MDPresetMapSettings>;
 export const mdEmptyMapSettings = (): MDPresetMapSettings =>

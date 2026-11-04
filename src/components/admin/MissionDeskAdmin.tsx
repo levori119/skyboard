@@ -592,7 +592,10 @@ function MapWindowSettings({ settings, maps, sectors, boundStrips, onChange, cop
         <option value="">{tr('missiondesk.mapSelectNone')}</option>
         {maps.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
       </select>
-      <MapCopyFromStation sources={copySources} onPick={src => onChange({ ...settings, ...src.settings })} />
+      {/* "זהה לעמדה" בחלון דסק = שיקוף: הבחירה נשמרת, והחלון מציג את העמדה הזו חי */}
+      <MapCopyFromStation sources={copySources} value={settings.mirror_source_key ?? null}
+        onPick={src => onChange({ ...settings, ...src.settings, mirror_preset_id: src.presetId, mirror_source_key: src.key })}
+        onClear={() => onChange({ ...settings, mirror_preset_id: null, mirror_source_key: null })} />
 
       {/* חלונות הפ"ממים שקשורים לחלון הזה - כדי שיהיה ברור מה נגרר לאן */}
       {boundStrips.length > 0 && (

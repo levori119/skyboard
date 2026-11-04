@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mapCopySources, presetFieldsFromSource } from './mapSettingsCopy';
+import { mapCopySources, presetFieldsFromSource, resolveMirroredSettings } from './mapSettingsCopy';
 
 const presets = [
   { id: 1, name: 'מרחבי 305', map_id: 7, relevant_sectors: [5, 6], flight_zones_mode: true, fz_pin_display: 'tag', sector_maps_enabled: true, sector_map_ids: [70] },
@@ -29,5 +29,28 @@ describe('presetFieldsFromSource', () => {
   it('נקודות העברה ומצב אזורים בשדות של טופס עמדה', () => {
     const src = mapCopySources(presets, 7)[0];
     expect(presetFieldsFromSource(src)).toEqual({ relevant_sectors: [5, 6], flight_zones_mode: true, fz_pin_display: 'tag', sector_maps_enabled: true, sector_map_ids: [70], blind_map_default: false });
+  });
+});
+
+describe('resolveMirroredSettings - שיקוף עמדה בחלון דסק', () => {
+  const presets = [
+    { id: 38, name: 'מרחבי 306 לבדיקה 1', map_id: 5, relevant_sectors: [2742], flight_zones_mode: true, fz_pin_display: 'label' },
+  ];
+  it('ההגדרות נמשכות חי מהעמדה המשתקפת, והבחירה נשארת שמורה', () => {
+    const r = resolveMirroredSettings(presets, { map_id: 5, transfer_points: [], flight_zones_mode: false, mirror_preset_id: 38, mirror_source_key: 'p38' }, 2);
+    expect(r.flight_zones_mode).toBe(true);
+    expect(r.transfer_points).toEqual([2742]);
+    expect(r.mirror_preset_id).toBe(38);
+  });
+  it('בלי שיקוף - ההגדרות של החלון כמו שהן', () => {
+    const st = { map_id: 5, transfer_points: [1], flight_zones_mode: false };
+    expect(resolveMirroredSettings(presets, st, 2)).toBe(st);
+  });
+  it('מקור שנעלם (העמדה החליפה מפה) - נשארות ההגדרות השמורות', () => {
+    const st = { map_id: 9, transfer_points: [1], mirror_preset_id: 38, mirror_source_key: 'p38' };
+    expect(resolveMirroredSettings(presets, st, 2)).toBe(st);
+  });
+  it('לכל מקור יש את העמדה שלו', () => {
+    expect(mapCopySources(presets, 5).map(s => s.presetId)).toEqual([38]);
   });
 });

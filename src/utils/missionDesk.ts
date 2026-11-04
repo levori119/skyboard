@@ -429,6 +429,9 @@ export function mdMapSettings(cfg: MDPresetMapConfig | undefined | null, service
     strips_panel: raw.strips_panel !== false,
     fz_pin_display: normalizePinDisplay(raw.fz_pin_display, DEFAULT_PIN_DISPLAY),
     blind_map_default: raw.blind_map_default === true,
+    // שיקוף עמדה - בלי השורות האלה הבחירה "נשמרה" ונמחקה בקריאה הבאה
+    mirror_preset_id: Number.isFinite(Number(raw.mirror_preset_id)) && Number(raw.mirror_preset_id) > 0 ? Number(raw.mirror_preset_id) : null,
+    mirror_source_key: typeof raw.mirror_source_key === 'string' && raw.mirror_source_key ? raw.mirror_source_key : null,
   };
 }
 
