@@ -45,7 +45,8 @@ beforeAll(async () => {
     on_map BOOLEAN DEFAULT FALSE, x REAL DEFAULT 0, y REAL DEFAULT 0,
     map_lat DOUBLE PRECISION, map_lon DOUBLE PRECISION, map_pin_x REAL, map_pin_y REAL,
     map_zone_name TEXT DEFAULT '', map_zone_alts TEXT DEFAULT '',
-    in_table BOOLEAN DEFAULT FALSE, workstation_preset_id INTEGER)`);
+    in_table BOOLEAN DEFAULT FALSE, workstation_preset_id INTEGER,
+    alt VARCHAR(50) DEFAULT '', block_deviation BOOLEAN DEFAULT FALSE, block_space_id INTEGER)`);
   await pool.query(`CREATE TABLE strip_table_assignments (
     strip_id INTEGER NOT NULL REFERENCES strips(id) ON DELETE CASCADE,
     preset_id INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
@@ -195,6 +196,29 @@ describe('ניקוי הקצאות עמדה - תצוגה אזרחית', () => {
     const left = await pool.query('SELECT preset_id FROM civilian_strip_assignments');
     expect(left.rows.map(r => r.preset_id)).toEqual([OTHER]);
     expect(json.civilianAssignments).toBe(1);
+  });
+});
+
+// כניסה לעמדה מאופסת: גובה ומרחב בלוקים מתאפסים רק לפ"מ שהעמדה מחזיקה (או שאין לו בעלים)
+describe('ניקוי הקצאות עמדה - גבהים ומרחבי בלוקים', () => {
+  const seed = async () => {
+    await addStrip(700, { owner: MINE });
+    await addStrip(701, { owner: OTHER, in_table: true });
+    await pool.query(`UPDATE strips SET alt = '240', block_space_id = 3 WHERE id IN (700, 701)`);
+    await pool.query(`INSERT INTO strip_table_assignments (strip_id, preset_id) VALUES (701, $1)`, [MINE]);
+  };
+  it('עם הדגלים - הגובה והמרחב של הפ"מ שלי מתאפסים, של עמדה אחרת נשארים', async () => {
+    await seed();
+    const { json } = await req('POST', '/api/strips/reset-placement-preset',
+      { presetId: MINE, mapIds: [], resetAlts: true, resetBlockSpaces: true });
+    expect(json.blockSpaces).toBe(1);
+    expect(await stripRow(700)).toMatchObject({ alt: '', block_space_id: null });
+    expect(await stripRow(701)).toMatchObject({ alt: '240', block_space_id: 3 });
+  });
+  it('בלי הדגל - המרחב נשאר', async () => {
+    await seed();
+    await clear(MINE, []);
+    expect((await stripRow(700)).block_space_id).toBe(3);
   });
 });
 

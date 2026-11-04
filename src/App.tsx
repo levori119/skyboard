@@ -249,7 +249,7 @@ const WorkstationLogin = ({ onLogin, onManagement, initialCrewMember }: { onLogi
         // ── כניסה לעמדה מאופסת ───────────────────────────────────────────────
         // בזמן מסך הטעינה ולפני שהעמדה עולה - כך היא נפתחת כבר מאופסת, בלי רגע
         // שבו הלוח הישן מוצג ו"נעלם". אותו ניקוי כמו "נקה הקצאות עמדה", ובנוסף
-        // גבהים וכפתורי אמצעים. רק מה ששייך לעמדה. כשל לא חוסם כניסה.
+        // גבהים, מרחבי בלוקים וכפתורי אמצעים. רק מה ששייך לעמדה. כשל לא חוסם כניסה.
         if (opts?.resetStation) {
           const mapIds = [preset.map_id, preset.map2_id,
             ...Object.values((preset.mission_desk_map_config && typeof preset.mission_desk_map_config === 'object') ? preset.mission_desk_map_config : {}).map((w: any) => w?.map_id)]
@@ -257,7 +257,7 @@ const WorkstationLogin = ({ onLogin, onManagement, initialCrewMember }: { onLogi
           try {
             await fetch(`${API_URL}/strips/reset-placement-preset`, {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ presetId: Number(preset.id), mapIds: [...new Set(mapIds)], resetAlts: true, resetDeskButtons: true }),
+              body: JSON.stringify({ presetId: Number(preset.id), mapIds: [...new Set(mapIds)], resetAlts: true, resetBlockSpaces: true, resetDeskButtons: true }),
             });
           } catch { /* עמדה נכנסת גם כשהאיפוס נכשל */ }
         }

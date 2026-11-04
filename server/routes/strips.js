@@ -414,6 +414,18 @@ router.post('/api/strips/reset-placement-preset', async (req, res) => {
       );
       alts = ar.rowCount ?? 0;
     }
+    // ── כניסה לעמדה מאופסת: גם מרחב הבלוקים של הפ"מ ─────────────────────────
+    // אותה בעלות כמו הגבהים: מרחב של פ"מ שעמדה אחרת מחזיקה נשאר
+    let blockSpaces = 0;
+    if (req.body?.resetBlockSpaces === true && ids.length) {
+      const br = await client.query(
+        `UPDATE strips SET block_space_id = NULL
+          WHERE id = ANY($1::int[]) AND (workstation_preset_id IS NULL OR workstation_preset_id = $2)
+            AND block_space_id IS NOT NULL`,
+        [ids, presetId]
+      );
+      blockSpaces = br.rowCount ?? 0;
+    }
     // הקצאות טבלה של העמדה הזו בלבד
     const ta = await client.query('DELETE FROM strip_table_assignments WHERE preset_id = $1', [presetId]);
     // הקצאות התצוגה האזרחית של העמדה - גם הן "הקצאות של עמדה", ועד כה שרדו את הניקוי
@@ -513,7 +525,7 @@ router.post('/api/strips/reset-placement-preset', async (req, res) => {
       ok: true, strips: ids.length,
       zoneAssignments: za.rowCount ?? 0, tableAssignments: ta.rowCount ?? 0,
       civilianAssignments: ca.rowCount ?? 0, transfers: tr.rowCount ?? 0,
-      seizures, restrictions, alts, deskButtons,
+      seizures, restrictions, alts, blockSpaces, deskButtons,
     });
   } catch (e) {
     await client.query('ROLLBACK');
