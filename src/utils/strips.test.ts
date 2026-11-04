@@ -130,6 +130,35 @@ describe('computeBlockDeviation', () => {
   });
 });
 
+// התקלה מהשטח (טבלת "בלוקים עזה", עמדה 26): רעם 330-360 ישב בבלוק 330-380
+// שמוקצה לעמדה - וסומן כחורג, כי נמדד מול העמדה הרשומה על הפ"מ (2, שהיא גם
+// יעד העברה). ובז 303-358 חצה לבלוק של עמדות אחרות - ולא סומן, כי נבדק רק
+// הגובה הראשון בטווח.
+describe('computeBlockDeviation - טווח גבהים ועמדה צופה', () => {
+  const T = 9;
+  const blocks = [
+    { block_table_id: T, alt_from: 260, alt_to: 270, workstations: [] },
+    { block_table_id: T, alt_from: 280, alt_to: 310, workstations: [] },
+    { block_table_id: T, alt_from: 330, alt_to: 380, workstations: [21, 26] },
+  ];
+  it('פ"מ בתוך בלוק של העמדה הצופה - אין חריגה, גם אם רשום עליו עמדה אחרת', () => {
+    expect(computeBlockDeviation({ alt: '330-360', workstation_preset_id: 2 }, blocks, [], T, 26)).toBe(false);
+  });
+  it('טווח שיוצא מהבלוק לבלוק של עמדה אחרת - חריגה', () => {
+    expect(computeBlockDeviation({ alt: '303-358', workstation_preset_id: 2 }, blocks, [], T, 2)).toBe(true);
+  });
+  it('טווח שקצהו העליון מחוץ לכל בלוק - חריגה', () => {
+    expect(computeBlockDeviation({ alt: '280-320' }, blocks, [], T, 26)).toBe(true);
+  });
+  it('טווח על פני שני בלוקים סמוכים של העמדה (רביעייה) - אין חריגה', () => {
+    expect(computeBlockDeviation({ alt: '260-310' }, blocks, [], T, 26)).toBe(false);
+  });
+  it('בלי עמדה צופה - נמדד מול העמדה הרשומה על הפ"מ', () => {
+    expect(computeBlockDeviation({ alt: '340', workstation_preset_id: 2 }, blocks, [], T, null)).toBe(true);
+    expect(computeBlockDeviation({ alt: '340', workstation_preset_id: 26 }, blocks, [], T, null)).toBe(false);
+  });
+});
+
 // ─── מיזוג עדכון אופטימי מול הפולינג ─────────────────────────────────────────
 // התקלה שהולידה את הבדיקה: לחיצה על כפתור החליפה ערך, ושתי שניות אחר כך
 // הפולינג החזיר את הפ"מ מהשרת בלי הערך - ומהעמדה זה נראה כאילו "הכפתור לא

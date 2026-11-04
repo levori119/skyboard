@@ -70,33 +70,44 @@ export const parseAltRange = (alt: string | null | undefined): [number, number] 
 export const altRangeGap = (a: [number, number], b: [number, number]): number =>
   Math.max(0, Math.max(a[0], b[0]) - Math.min(a[1], b[1]));
 
+/**
+ * חריגה מבלוק: האם גובה הפ"מ יוצא מהבלוקים של העמדה בטבלה הפעילה.
+ *
+ * - העמדה הקובעת היא **העמדה שמציגה** את הפ"מ (`viewerPresetId`), ורק בהיעדרה
+ *   העמדה הרשומה על הפ"מ: `workstation_preset_id` נושא גם יעד העברה, ופ"מ שיושב
+ *   בבלוק של העמדה סומן כחורג כי נמדד מול עמדה אחרת.
+ * - נבדק **כל הטווח** ולא רק הגובה הראשון: שני הקצוות בבלוקים של העמדה, ואף
+ *   בלוק של עמדה אחרת לא נחתך בדרך. כך טווח על פני שני בלוקים סמוכים של העמדה
+ *   (רביעייה) תקין, וטווח שגולש לבלוק של עמדה אחרת - חורג.
+ * - בלי טבלה פעילה, בלי בלוקים בטבלה, או כשלעמדה אין בה בלוקים - אין התראה.
+ */
 export const computeBlockDeviation = (
   s: any, allBlocks: any[], _blockTables: any[],
   activeBlockTableId?: number | null, viewerPresetId?: number | null,
 ): boolean => {
   if (!activeBlockTableId) return false;
   if (!s.alt) return false;
-  const effectivePresetId = s.workstation_preset_id ? Number(s.workstation_preset_id) : (viewerPresetId ? Number(viewerPresetId) : null);
-  if (!effectivePresetId) return false;
+  const presetId = viewerPresetId ? Number(viewerPresetId) : (s.workstation_preset_id ? Number(s.workstation_preset_id) : null);
+  if (!presetId) return false;
 
-  const rawAlt = String(s.alt).trim().toUpperCase().replace(/,/g, '');
-  const flMatch = rawAlt.match(/^F[L]?(\d+)/);
-  const numMatch = rawAlt.match(/^(\d+)/);
-  const altFL = flMatch ? parseInt(flMatch[1]) : (numMatch ? parseInt(numMatch[1]) : null);
-  if (altFL === null) return false;
+  const r = parseAltRange(String(s.alt).replace(/,/g, ''));
+  if (!r) return false;
+  // גובה ברגל (33000) מול בלוקים ביחידות FL
+  const [lo, hi] = r.map(v => (v >= 1000 ? Math.round(v / 100) : v));
 
-  const presetId = effectivePresetId;
-  const tableBlocks = allBlocks.filter((b: any) => b.block_table_id === activeBlockTableId);
+  const tableBlocks = allBlocks.filter((b: any) => b.block_table_id === activeBlockTableId && blockFitsSpace(b, s.block_space_id));
   if (tableBlocks.length === 0) return false;
-
-  const myBlocks = tableBlocks.filter((b: any) => {
-    const ws = Array.isArray(b.workstations) ? b.workstations.map(Number) : [];
-    // בלוק של מרחב אחר אינו "הבלוק שלו" - גם אם הגובה זהה
-    return (ws.length === 0 || ws.includes(presetId)) && blockFitsSpace(b, s.block_space_id);
-  });
+  const wsOf = (b: any): number[] => (Array.isArray(b.workstations) ? b.workstations.map(Number) : []);
+  // בלוק של מרחב אחר אינו "הבלוק שלו" - גם אם הגובה זהה (סונן למעלה)
+  const isMine = (b: any) => { const ws = wsOf(b); return ws.length === 0 || ws.includes(presetId); };
+  const myBlocks = tableBlocks.filter(isMine);
   if (myBlocks.length === 0) return false;
 
-  return !myBlocks.some((b: any) => altFL >= Number(b.alt_from) && altFL <= Number(b.alt_to));
+  const bLo = (b: any) => Math.min(Number(b.alt_from), Number(b.alt_to));
+  const bHi = (b: any) => Math.max(Number(b.alt_from), Number(b.alt_to));
+  const inMine = (v: number) => myBlocks.some((b: any) => v >= bLo(b) && v <= bHi(b));
+  if (!inMine(lo) || !inMine(hi)) return true;
+  return tableBlocks.some((b: any) => !isMine(b) && lo <= bHi(b) && hi >= bLo(b));
 };
 
 /**

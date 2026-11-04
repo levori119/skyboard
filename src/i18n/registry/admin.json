@@ -4019,8 +4019,8 @@
       "en": "Stations using this point"
     },
     "tpStationsHint": {
-      "he": "לחיצה מדליקה/מכבה את הנקודה לעמדה - חל מיד. בעמדה כבויה הנקודה מוצגת אבל לא רגישה, ופ\"מים שממתינים בה חוזרים למוסר.",
-      "en": "Click to turn the point on/off for a station - applies immediately. When off, the station still sees the point but it is inactive, and strips waiting in it return to the sender."
+      "he": "לחיצה מדליקה/מכבה את הנקודה לעמדה - חל מיד. בעמדה כבויה הנקודה יורדת מהמסך, ופ\"מים שממתינים בה חוזרים למוסר.",
+      "en": "Click to turn the point on/off for a station - applies immediately. When off, the point is removed from the station screen, and strips waiting in it return to the sender."
     },
     "tpStationsNone": {
       "he": "אף עמדה לא משתמשת בנקודה הזו",

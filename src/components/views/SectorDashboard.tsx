@@ -547,7 +547,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [composeSending, setComposeSending] = React.useState(false);
   const [strips, setStrips] = useState<any[]>([]);
   const [waitingStrips, setWaitingStrips] = useState<any[]>([]);
-  const [allSectors, setAllSectors] = useState(session.relevantSectors);
+  const [allSectorsSnap, setAllSectors] = useState(session.relevantSectors);
+  const [allSectorsFull, setAllSectorsFull] = useState<any[]>([]);
+  // נקודה שכובתה לעמדה (ניהול ← נקודות העברה) **נעלמת** מהעמדה. רשימת הנקודות
+  // של העמדה היא תמונת מצב מהכניסה, ולכן מצב ההדלקה נלקח מהרשימה המתרעננת
+  const allSectors = React.useMemo(() => {
+    const fresh = new Map(allSectorsFull.map((x: any) => [Number(x.id), x]));
+    return allSectorsSnap.filter((n: any) => !isPointDisabledFor(fresh.get(Number(n.id)) ?? n, session.presetId));
+  }, [allSectorsSnap, allSectorsFull, session.presetId]);
   const [sectorFormationSummaries, setSectorFormationSummaries] = useState<Record<string, { hasShakadia: boolean; armaments: { name: string; totalQty: number; aircraftNums: number[] }[] }>>({});
   const [sectorSplitModal, setSectorSplitModal] = useState<{ strip: any } | null>(null);
   const [sectorSplitSelected, setSectorSplitSelected] = useState<number[]>([]);
@@ -789,7 +796,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // איחוד עמדה: העברות + סקטורי-כל-המערכת של העמדה המיובאת (למפה 2)
   const [map2IncomingTransfers, setMap2IncomingTransfers] = useState<any[]>([]);
   const [map2OutgoingTransfers, setMap2OutgoingTransfers] = useState<any[]>([]);
-  const [allSectorsFull, setAllSectorsFull] = useState<any[]>([]);
   const [transferNoteAlert, setTransferNoteAlert] = useState<{ label: string; note: string } | null>(null);
   const transferNoteTrackRef = useRef<Map<string, string | null>>(new Map());
   const [classicIncomingTransfers, setClassicIncomingTransfers] = useState<any[]>([]);
@@ -2430,8 +2436,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   })();
   const _coveredIdsKey = _coveredPresetIds.join(',');
   // טעינת כל הסקטורים (לפתרון סקטורי-ההעברה של העמדה המיובאת)
+  // מתרענן כדי שכיבוי נקודה לעמדה בניהול יגיע לעמדה בלי כניסה מחדש
   useEffect(() => {
-    fetch(`${API_URL}/sectors`).then(r => r.ok ? r.json() : []).then((d: any[]) => setAllSectorsFull(d)).catch(() => {});
+    const load = () => fetch(`${API_URL}/sectors`).then(r => r.ok ? r.json() : null).then((d: any[] | null) => { if (Array.isArray(d)) setAllSectorsFull(d); }).catch(() => {});
+    load();
+    const iv = setInterval(load, 15000);
+    return () => clearInterval(iv);
   }, []);
   // רשימת המפות (ללא image_data) — מקור מפות-הסקטור של כל מפה בעמדה
   useEffect(() => {
@@ -5088,25 +5098,25 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const splitSpaces = splitSpaceSet(dashboardBlockTables, new Set([...btIds, ...relBlocks.map((b: any) => Number(b.block_table_id))]));
     // a block (alt_from..alt_to) is relevant to a strip if the strip's whole
     // altitude RANGE overlaps it (was: a single point — missed multi-altitude blocks)
-    const resolveBlock = (strip: any, range: [number, number]): { tableId: number; blockId: number } | null => {
+    // פ"מ בטווח גבהים יכול לשבת על פני **כמה** בלוקים - ולכן מוחזרים כל הבלוקים
+    // שהטווח חותך (ריק = בטבלה אבל מחוץ לכל בלוק). קודם הוחזר רק הראשון, ופ"מ
+    // שחוצה שני בלוקים נחשב "בבלוק אחר" מול פ"מ שיושב בבלוק השני - בלי התראה
+    const resolveBlock = (strip: any, range: [number, number]): { tableId: number; blockIds: number[] } | null => {
       // רק בלוקים של המרחב של הפ"מ (או בלי מרחב) - אותו גובה במרחב אחר הוא בלוק אחר
       const rbSpace = relBlocks.filter((b: any) => blockFitsSpace(b, strip.block_space_id));
-      const overlaps = (b: any) => range[0] <= Number(b.alt_to) && range[1] >= Number(b.alt_from);
+      const overlaps = (b: any) => range[0] <= Math.max(Number(b.alt_from), Number(b.alt_to)) && range[1] >= Math.min(Number(b.alt_from), Number(b.alt_to));
+      const inTable = (tid: number) => rbSpace.filter((b: any) => Number(b.block_table_id) === tid && overlaps(b)).map((b: any) => Number(b.id));
       const erka = (strip.erka || '').trim();
       if (erka && hasMultipleTables) {
         const matchedTable = dashboardBlockTables.find((bt: any) => (bt.name || '').trim() === erka);
-        if (matchedTable) {
-          const mtId = Number(matchedTable.id);
-          const blk = rbSpace.find((b: any) => Number(b.block_table_id) === mtId && overlaps(b));
-          return blk ? { tableId: mtId, blockId: Number(blk.id) } : { tableId: mtId, blockId: -1 };
-        }
+        if (matchedTable) return { tableId: Number(matchedTable.id), blockIds: inTable(Number(matchedTable.id)) };
       }
       const inlineBtId: number | null = activeBlockTableId ?? (
         new Set(rbSpace.map((b: any) => Number(b.block_table_id))).size === 1 ? Number(rbSpace[0]?.block_table_id) : null
       );
       if (inlineBtId === null) return null;
-      const blk = rbSpace.find((b: any) => Number(b.block_table_id) === inlineBtId && overlaps(b));
-      return blk ? { tableId: inlineBtId, blockId: Number(blk.id) } : null;
+      const ids = inTable(inlineBtId);
+      return ids.length ? { tableId: inlineBtId, blockIds: ids } : null;
     };
     const pendingOutgoingStripIdsP = new Set(outgoingTransfers.map((t: any) => String(t.strip_id)));
     const boardStrips = myTableStrips.filter((s: any) => tableOnBoard.has(s.id) && !pendingOutgoingStripIdsP.has(String(s.id)));
@@ -5133,7 +5143,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           const infoB = resolveBlock(b, rangeB);
           if (infoA !== null && infoB !== null) {
             if (infoA.tableId !== infoB.tableId) continue;
-            if (infoA.blockId !== infoB.blockId && infoA.blockId !== -1 && infoB.blockId !== -1) continue;
+            // בלוקים שונים לגמרי - אין קונפליקט; בלוק משותף אחד מספיק
+            if (infoA.blockIds.length && infoB.blockIds.length && !infoA.blockIds.some(id => infoB.blockIds.includes(id))) continue;
           }
         }
         const idA = String(a.id), idB = String(b.id);
@@ -7096,7 +7107,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   }, [session?.presetId, session?.workstationName, session?.crewMember?.id, session?.crewMember?.name]);
 
   const handleTransfer = async (stripId: string, toSectorId: number, targetX?: number, targetY?: number, subSectorLabel?: string, toWorkstationId?: number, etaMinutes?: number) => {
-    // נקודה כבויה לעמדה (ניהול ← נקודות העברה): מוצגת אבל לא רגישה - כל שליחה
+    // נקודה כבויה לעמדה (ניהול ← נקודות העברה): יורדת מהמסך, וכל שליחה
     // אליה, מכל מסלול גרירה, נעצרת כאן. השרת חוסם גם הוא (409)
     const _tpSec = [...allSectors, ...allSectorsFull].find((x: any) => Number(x.id) === Number(toSectorId));
     if (!toWorkstationId && _tpSec && isPointDisabledFor(_tpSec, session.presetId)) {
@@ -17564,7 +17575,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 style={{ width: hasFrozen ? 'max-content' : '100%', minWidth: '100%', borderCollapse: 'collapse', fontSize: `${tableFontSize}px`, direction: dir,
                   // צבע תיבת הקבוצה - אותו גוון של כותרת הקבוצה (ראה .sk-grp ב-App.css)
                   ['--sk-grp' as any]: themeMode === 'light' ? '#7c3aed' : themeMode === 'ocean' ? '#0ea5e9' : '#6d28d9',
-                  ['--sk-grp-tint' as any]: themeMode === 'light' ? 'rgba(124,58,237,0.07)' : themeMode === 'ocean' ? 'rgba(14,165,233,0.09)' : 'rgba(124,58,237,0.12)' }}
+                  ['--sk-grp-tint' as any]: themeMode === 'light' ? 'rgba(124,58,237,0.07)' : themeMode === 'ocean' ? 'rgba(14,165,233,0.09)' : 'rgba(124,58,237,0.12)',
+                  // הזחת תיבת הקבוצה: צבע הרווח = הרקע שמאחורי הטבלה, וכיוון הפס לפי RTL/LTR
+                  ['--sk-grp-gutter' as any]: themeMode === 'light' ? '#d8e4ee' : T.bg,
+                  ['--sk-grp-x' as any]: dir === 'rtl' ? '-3px' : '3px' }}
                 onDragOver={e => e.preventDefault()}
                 onClick={() => tableHeaderMenuKey && setTableHeaderMenuKey(null)}
               >
@@ -17700,6 +17714,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       return (
                         <tr
                           key={'group_' + item.groupKey}
+                          className="sk-grp-head"
                           draggable
                           onDragStart={e => { e.stopPropagation(); setTableGroupDragKey(item.groupKey); }}
                           onDragOver={e => { e.preventDefault(); e.stopPropagation(); setTableGroupDragOverKey(item.groupKey); }}
@@ -17718,12 +17733,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             setTableGroupDragKey(null); setTableGroupDragOverKey(null);
                           }}
                           style={{
-                            background: isDragOverGroup ? '#1d4ed8' : (themeMode === 'light' ? '#7c3aed' : themeMode === 'ocean' ? '#0369a1' : '#1e1b4b'),
+                            background: isDragOverGroup ? (themeMode === 'light' ? '#bfdbfe' : '#1d4ed8') : (themeMode === 'light' ? '#ede9fe' : themeMode === 'ocean' ? '#0369a1' : '#1e1b4b'),
                             borderTop: `3px solid ${themeMode === 'light' ? '#5b21b6' : themeMode === 'ocean' ? '#0ea5e9' : '#4c1d95'}`,
                             borderBottom: isDragOverGroup ? '3px solid #3b82f6' : `3px solid ${themeMode === 'light' ? '#5b21b6' : themeMode === 'ocean' ? '#0ea5e9' : '#4c1d95'}`,
                             cursor: 'pointer',
                             opacity: tableGroupDragKey === item.groupKey ? 0.5 : 1,
-                            boxShadow: themeMode === 'light' ? '0 2px 10px rgba(109,40,217,0.35)' : themeMode === 'ocean' ? '0 2px 10px rgba(3,105,161,0.4)' : 'inset 0 0 0 1px #7c3aed33, 0 2px 8px rgba(124,58,237,0.15)'
+                            boxShadow: themeMode === 'light' ? '0 1px 4px rgba(109,40,217,0.2)' : themeMode === 'ocean' ? '0 2px 10px rgba(3,105,161,0.4)' : 'inset 0 0 0 1px #7c3aed33, 0 2px 8px rgba(124,58,237,0.15)'
                           }}
                           onClick={e => {
                             if ((e.target as HTMLElement).closest('[data-drag-handle]')) return;
@@ -17737,10 +17752,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           {/* +1 על totalColSpan - גם התא האפסי שבקצה (משולש ההעברה) */}
                           <td colSpan={totalColSpan + 1} style={{ padding: '0', direction: dir }}>
                             <div style={{ position: 'sticky', right: 0, display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '5px 12px' }}>
-                              <span data-drag-handle style={{ color: (themeMode === 'light' || themeMode === 'ocean') ? 'rgba(255,255,255,0.7)' : T.muted, fontSize: tfz(14), cursor: 'grab', flexShrink: 0 }}>⠿</span>
-                              <span style={{ fontSize: tfz(11), color: (themeMode === 'light' || themeMode === 'ocean') ? 'rgba(255,255,255,0.9)' : '#a78bfa', transition: 'transform 0.15s', transform: item.collapsed ? 'rotate(-90deg)' : 'rotate(0deg)', flexShrink: 0 }}>▾</span>
-                              <span style={{ background: 'rgba(255,255,255,0.18)', color: '#fff', fontWeight: 'bold', fontSize: tfz(13), padding: '3px 12px', borderRadius: '5px', letterSpacing: '0.02em', border: '1px solid rgba(255,255,255,0.3)', boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }}>{item.groupKey}</span>
-                              <span style={{ background: 'rgba(255,255,255,0.22)', color: '#fff', fontWeight: 'bold', fontSize: tfz(12), padding: '2px 8px', borderRadius: '4px', flexShrink: 0 }}>{item.count}</span>
+                              <span data-drag-handle style={{ color: themeMode === 'light' ? '#5b21b6' : themeMode === 'ocean' ? 'rgba(255,255,255,0.7)' : T.muted, fontSize: tfz(14), cursor: 'grab', flexShrink: 0 }}>⠿</span>
+                              <span style={{ fontSize: tfz(11), color: themeMode === 'light' ? '#4c1d95' : themeMode === 'ocean' ? 'rgba(255,255,255,0.9)' : '#a78bfa', transition: 'transform 0.15s', transform: item.collapsed ? 'rotate(-90deg)' : 'rotate(0deg)', flexShrink: 0 }}>▾</span>
+                              <span style={{ background: themeMode === 'light' ? '#fff' : 'rgba(255,255,255,0.18)', color: themeMode === 'light' ? '#2e1065' : '#fff', fontWeight: 'bold', fontSize: tfz(13), padding: '3px 12px', borderRadius: '5px', letterSpacing: '0.02em', border: themeMode === 'light' ? '1px solid #a78bfa' : '1px solid rgba(255,255,255,0.3)', boxShadow: themeMode === 'light' ? 'none' : '0 1px 4px rgba(0,0,0,0.25)' }}>{item.groupKey}</span>
+                              <span style={{ background: themeMode === 'light' ? '#7c3aed' : 'rgba(255,255,255,0.22)', color: '#fff', fontWeight: 'bold', fontSize: tfz(12), padding: '2px 8px', borderRadius: '4px', flexShrink: 0 }}>{item.count}</span>
                             </div>
                           </td>
                         </tr>

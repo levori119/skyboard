@@ -915,6 +915,19 @@ body.light-mode tr.sk-row-b .frozen-col-last { background: #dde8f0 !important; }
    הצבע מגיע מ---sk-grp על הטבלה. */
 /* מסגרת בלבד, בלי רקע: רקע בגוון הקבוצה היה עוד צבע על שורות שכבר נושאות
    צבעי מצב (קונפליקט, חריגה, זברה) - יותר מדי צבעים בשורה אחת */
-#map-area table tbody tr.sk-grp > td:first-child { border-inline-start: 3px solid var(--sk-grp) !important; }
+/* הזחה: התיבה מוזחת פנימה מצד ההתחלה (שמאלה ב-RTL), כך שהקבוצה יושבת "מתחת"
+   לכותרת שלה. הרווח הוא גבול בצבע הרקע שמאחורי הטבלה (--sk-grp-gutter), והפס
+   הסגול הוא צל פנימי - צל ולא גבול כדי שלא יימתח גם על הרווח. כיוון הצל
+   (--sk-grp-x) מתהפך לפי כיוון הטבלה */
+#map-area table tbody tr.sk-grp > td:first-child {
+  border-inline-start: 10px solid var(--sk-grp-gutter) !important;
+  box-shadow: inset var(--sk-grp-x) 0 0 var(--sk-grp) !important;
+}
 #map-area table tbody tr.sk-grp > td:last-child { border-inline-end: 3px solid var(--sk-grp) !important; }
-#map-area table tbody tr.sk-grp-last > td { border-bottom: 3px solid var(--sk-grp) !important; }
+#map-area table tbody tr.sk-grp-last > td { box-shadow: inset 0 -3px 0 var(--sk-grp) !important; }
+#map-area table tbody tr.sk-grp.sk-grp-last > td:first-child {
+  box-shadow: inset var(--sk-grp-x) 0 0 var(--sk-grp), inset 0 -3px 0 var(--sk-grp) !important;
+}
+/* כותרת הקבוצה במוד יום: הכלל הכללי של שורות הטבלה (#edf2f7) דרס את הסגול,
+   והטקסט הלבן נעלם. הכותרת שומרת על רקע סגלגל בהיר וטקסט כהה */
+body.light-mode #map-area table tbody tr.sk-grp-head { background: #ede9fe !important; }
