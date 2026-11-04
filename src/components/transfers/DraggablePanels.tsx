@@ -411,7 +411,7 @@ export const DraggableNeighborPanel = ({
                     const par = r.parity === 'even' ? tr('shared.even') : r.parity === 'odd' ? tr('shared.odd') : '';
                     return (
                       <span key={i} data-testid="tp-alt-rule" data-own={own || undefined}
-                        style={{ fontSize: '9px', borderRadius: '4px', padding: '0px 4px', fontWeight: 'bold', whiteSpace: 'nowrap',
+                        style={{ fontSize: '12px', borderRadius: '4px', padding: '1px 6px', lineHeight: 1.4, fontWeight: 'bold', whiteSpace: 'nowrap',
                           ...(own
                             ? { background: lightMode ? '#fef9c3' : '#292524', color: lightMode ? '#92400e' : '#fbbf24', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}` }
                             : { background: lightMode ? '#eff6ff' : '#172554', color: lightMode ? '#1d4ed8' : '#93c5fd', border: `1px solid ${lightMode ? '#bfdbfe' : '#1e3a8a'}` }) }}>
