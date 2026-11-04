@@ -363,11 +363,16 @@ export const DraggableNeighborPanel = ({
               if (!myRanges.length && !totalPartner) return null;
               return (
                 <div style={{ display: 'inline-flex', flexWrap: 'wrap', justifyContent: 'center', gap: '2px', marginTop: '3px' }}>
-                  {myRanges.length > 0 && (
-                    <span style={{ fontSize: '9px', background: lightMode ? '#fef9c3' : '#292524', color: lightMode ? '#92400e' : '#fbbf24', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '4px', padding: '0px 4px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                      📐 {myRanges.length > 1 ? `${myRanges.length} טווחים` : `${myRanges[0]?.alt_min ?? '—'}–${myRanges[0]?.alt_max ?? '—'}`}
-                    </span>
-                  )}
+                  {/* כל כלל במלואו: עמדה · טווח · זוגיות. קודם, מעל כלל אחד הוצג רק "N טווחים" */}
+                  {myRanges.map((r: any, i: number) => {
+                    const st = r.preset_id != null ? allPresets.find(p => String(p.id) === String(r.preset_id))?.name : null;
+                    const par = r.parity === 'even' ? tr('shared.even') : r.parity === 'odd' ? tr('shared.odd') : '';
+                    return (
+                      <span key={i} style={{ fontSize: '9px', background: lightMode ? '#fef9c3' : '#292524', color: lightMode ? '#92400e' : '#fbbf24', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '4px', padding: '0px 4px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                        📐 {st ? `${st} ` : ''}<bdi>{`${r.alt_min ?? '?'}-${r.alt_max ?? '?'}`}</bdi>{par ? ` ${par}` : ''}
+                      </span>
+                    );
+                  })}
                   {totalPartner > 0 && (
                     <span style={{ fontSize: '9px', background: lightMode ? '#eff6ff' : '#172554', color: lightMode ? '#1d4ed8' : '#93c5fd', border: `1px solid ${lightMode ? '#bfdbfe' : '#1e3a8a'}`, borderRadius: '4px', padding: '0px 4px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
                       {partnerRangesCache.map(pr => (pr.preset_name || '').split(' ').slice(-1)[0] || pr.preset_name).join('/')}
@@ -454,9 +459,9 @@ export const DraggableNeighborPanel = ({
                 <select value={row.preset_id} onChange={e => setAltEditRanges(rs => rs.map((r, j) => j === i ? { ...r, preset_id: e.target.value } : r))}
                   style={{ width: '80px', padding: '2px 2px', background: lightMode ? 'white' : '#0f172a', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : '#fbbf24', fontSize: '10px', minWidth: 0 }}>
                   <option value="">{tr('transfers.workstation')}</option>
+                  {/* כולל העמדה הנוכחית - כלל גובה יכול לחול גם עליה */}
                   {allPresets.filter(p =>
-                    String(p.id) !== String(presetId) &&
-                    pointPartnerIds.includes(Number(p.id)) &&
+                    (String(p.id) === String(presetId) || pointPartnerIds.includes(Number(p.id))) &&
                     !altEditRanges.some((r2, j) => j !== i && String(r2.preset_id) === String(p.id))
                   ).map(p => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
                 </select>
