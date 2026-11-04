@@ -29,7 +29,9 @@ export interface RecBlock {
 
 /**
  * הבלוקים שהעמדה רשאית להמליץ עליהם: מטבלאות העמדה (או בלוק שהעמדה רשומה
- * עליו), **בלי** בלוק ששויך לעמדות אחרות בלבד. בלוק בלי עמדות פתוח לכולן.
+ * עליו), **בלי** בלוק ששויך לעמדות אחרות. כשלעמדה יש בלוקים משויכים - **רק**
+ * הם (בלוק בלי עמדות אינו שלה, כמו בחריגה מבלוק - `computeBlockDeviation`);
+ * כשאין לה אף אחד - הבלוקים שלא שויכו לאף עמדה.
  * קודם הוצעו גם בלוקים של עמדות אחרות - ההמלצה "חרגה" לבלוק של שכן.
  */
 export function stationRecBlocks(
@@ -45,6 +47,10 @@ export function stationRecBlocks(
       if (!inTable && !mine) return false;
       if (ws.length > 0 && !mine) return false; // בלוק של עמדה אחרת
       return !activeTableId || Number(b.block_table_id) === Number(activeTableId);
+    })
+    .filter((b, _i, all) => {
+      const anyMine = presetId !== null && all.some(x => wsOf(x).includes(presetId));
+      return !anyMine || wsOf(b).includes(presetId as number);
     })
     .map(b => ({
       id: Number(b.id), alt_from: Number(b.alt_from), alt_to: Number(b.alt_to),

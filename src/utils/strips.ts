@@ -107,10 +107,14 @@ export const computeBlockDeviation = (
   const tableBlocks = allBlocks.filter((b: any) => b.block_table_id === activeBlockTableId && blockFitsSpace(b, s.block_space_id));
   if (tableBlocks.length === 0) return false;
   const wsOf = (b: any): number[] => (Array.isArray(b.workstations) ? b.workstations.map(Number) : []);
-  // בלוק של מרחב אחר אינו "הבלוק שלו" - גם אם הגובה זהה (סונן למעלה)
-  const isMine = (b: any) => { const ws = wsOf(b); return ws.length === 0 || ws.includes(presetId); };
+  // בלוק של מרחב אחר אינו "הבלוק שלו" - גם אם הגובה זהה (סונן למעלה).
+  // "שלי" = בלוק שהעמדה **משויכת** אליו. בלוק בלי עמדות אינו של אף אחד: קודם
+  // הוא נחשב פתוח לכולם, ופ"מ שישב בו (שקד 290 בכטממ) לא סומן כחריגה
+  // טבלה שאיש לא שויך בה לבלוקים - כל הבלוקים הלא-משויכים הם "שלי" (טבלה כללית)
+  const assigned = tableBlocks.some((b: any) => wsOf(b).includes(presetId));
+  const isMine = (b: any) => (assigned ? wsOf(b).includes(presetId) : wsOf(b).length === 0);
   const myBlocks = tableBlocks.filter(isMine);
-  if (myBlocks.length === 0) return false;
+  if (myBlocks.length === 0) return false; // לעמדה אין בלוקים בטבלה - אין מול מה להתריע
 
   const bLo = (b: any) => Math.min(Number(b.alt_from), Number(b.alt_to));
   const bHi = (b: any) => Math.max(Number(b.alt_from), Number(b.alt_to));

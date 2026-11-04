@@ -137,15 +137,28 @@ describe('computeBlockDeviation', () => {
 describe('computeBlockDeviation - טווח גבהים ועמדה צופה', () => {
   const T = 9;
   const blocks = [
-    { block_table_id: T, alt_from: 260, alt_to: 270, workstations: [] },
-    { block_table_id: T, alt_from: 280, alt_to: 310, workstations: [] },
+    { block_table_id: T, alt_from: 260, alt_to: 270, workstations: [26] },
+    { block_table_id: T, alt_from: 280, alt_to: 310, workstations: [26] },
     { block_table_id: T, alt_from: 330, alt_to: 380, workstations: [21, 26] },
   ];
   it('פ"מ בתוך בלוק של העמדה הצופה - אין חריגה, גם אם רשום עליו עמדה אחרת', () => {
     expect(computeBlockDeviation({ alt: '330-360', workstation_preset_id: 2 }, blocks, [], T, 26)).toBe(false);
   });
+  it('כמו בתקלה (שקד 290): בלוק שלא משויכת אליו אף עמדה אינו של העמדה - חריגה', () => {
+    const real = [
+      { block_table_id: T, alt_from: 280, alt_to: 310, workstations: {} },
+      { block_table_id: T, alt_from: 330, alt_to: 380, workstations: [21, 26] },
+      { block_table_id: T, alt_from: 120, alt_to: 240, workstations: [21, 26] },
+    ];
+    expect(computeBlockDeviation({ alt: '290' }, real, [], T, 26)).toBe(true);
+    expect(computeBlockDeviation({ alt: '340' }, real, [], T, 26)).toBe(false);
+  });
+  it('לעמדה אין אף בלוק משויך בטבלה - אין התראה', () => {
+    expect(computeBlockDeviation({ alt: '290' }, [{ block_table_id: T, alt_from: 280, alt_to: 310, workstations: [] }], [], T, 26)).toBe(false);
+  });
   it('טווח שיוצא מהבלוק לבלוק של עמדה אחרת - חריגה', () => {
-    expect(computeBlockDeviation({ alt: '303-358', workstation_preset_id: 2 }, blocks, [], T, 2)).toBe(true);
+    const b2 = [{ block_table_id: T, alt_from: 280, alt_to: 310, workstations: [2] }, { block_table_id: T, alt_from: 330, alt_to: 380, workstations: [21, 26] }];
+    expect(computeBlockDeviation({ alt: '303-358', workstation_preset_id: 2 }, b2, [], T, 2)).toBe(true);
   });
   it('טווח שקצהו העליון מחוץ לכל בלוק - חריגה', () => {
     expect(computeBlockDeviation({ alt: '280-320' }, blocks, [], T, 26)).toBe(true);
@@ -154,7 +167,8 @@ describe('computeBlockDeviation - טווח גבהים ועמדה צופה', () =
     expect(computeBlockDeviation({ alt: '260-310' }, blocks, [], T, 26)).toBe(false);
   });
   it('בלי עמדה צופה - נמדד מול העמדה הרשומה על הפ"מ', () => {
-    expect(computeBlockDeviation({ alt: '340', workstation_preset_id: 2 }, blocks, [], T, null)).toBe(true);
+    const b2 = [...blocks, { block_table_id: T, alt_from: 100, alt_to: 200, workstations: [2] }];
+    expect(computeBlockDeviation({ alt: '340', workstation_preset_id: 2 }, b2, [], T, null)).toBe(true);
     expect(computeBlockDeviation({ alt: '340', workstation_preset_id: 26 }, blocks, [], T, null)).toBe(false);
   });
   it('כמו בתקלה (כד 303-358): קצוות בשני בלוקים של העמדה, אבל עובר בפער 320 - חריגה', () => {

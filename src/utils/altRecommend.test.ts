@@ -147,10 +147,13 @@ describe('stationRecBlocks - רק בלוקים שהעמדה רשאית להמל�
     { id: 4, block_table_id: 4, alt_from: 60, alt_to: 100, workstations: [26] },
     { id: 5, block_table_id: 4, alt_from: 0, alt_to: 50, workstations: [] },
   ];
-  it('בלוק של עמדה אחרת יוצא; בלוק פתוח ובלוק שלי נשארים', () => {
-    expect(stationRecBlocks(blocks, [9], 26).map(b => b.id)).toEqual([1, 2, 4]);
+  it('לעמדה יש בלוקים משויכים - רק הם; בלוק בלי עמדות ובלוק של אחרת יוצאים', () => {
+    expect(stationRecBlocks(blocks, [9], 26).map(b => b.id)).toEqual([1, 4]);
   });
   it('טבלה פעילה מצמצמת לטבלה אחת', () => {
-    expect(stationRecBlocks(blocks, [9, 4], 26, 4).map(b => b.id)).toEqual([4, 5]);
+    expect(stationRecBlocks(blocks, [9, 4], 26, 4).map(b => b.id)).toEqual([4]);
+  });
+  it('לעמדה אין אף בלוק משויך - הבלוקים שלא שויכו לאף עמדה', () => {
+    expect(stationRecBlocks(blocks, [9, 4], 99).map(b => b.id)).toEqual([2, 5]);
   });
 });
