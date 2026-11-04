@@ -1,10 +1,12 @@
 import { tr } from '../../i18n/tr';
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { normalizeAlt, getTransferSq, getTransferLabel } from '../../utils/strips';
 import { parseNoteValue, serializeNoteValue } from '../../utils/notes';
 import HandwritingOverlay from '../shared/HandwritingOverlay';
 import { FaultBadge } from '../shared/FaultBadge';
 import { useEtaCountdown } from '../../hooks/useEtaCountdown';
+import { useIncomingTransferDrag } from '../../hooks/useIncomingTransferDrag';
 
 export const TransferStripEditor = ({ transfer, onAltUpdate, onCancel }: { 
   transfer: any; 
@@ -192,7 +194,7 @@ export const OutgoingTransferCard = ({ t, isConflict, isAltViolation = false, on
 };
 
 // --- שורה קומפקטית לנקודת העברה: או"ק/טייסת | גובה (מודגש, לחיץ לעדכון). ימין=מוסר, שמאל=מקבל ---
-export const CompactTransferRow = ({ t, dir, isConflict, isAltViolation = false, onUpdateStripField, onAction, lightMode = false, shrunk = false }: {
+export const CompactTransferRow = ({ t, dir, isConflict, isAltViolation = false, onUpdateStripField, onAction, lightMode = false, shrunk = false, onAcceptToMap, tableMode = false, mapZoom, mapPan }: {
   t: any;
   dir: 'out' | 'in';
   isConflict: boolean;
@@ -201,6 +203,11 @@ export const CompactTransferRow = ({ t, dir, isConflict, isAltViolation = false,
   onAction: (id: string) => void;
   lightMode?: boolean;
   shrunk?: boolean;
+  /** פ"מ מתקבל נגרר גם לטבלה / לסרגל / למפה, לא רק ✓ - useIncomingTransferDrag */
+  onAcceptToMap?: (id: string, x: number, y: number, clientX?: number, clientY?: number) => void;
+  tableMode?: boolean;
+  mapZoom?: number;
+  mapPan?: { x: number; y: number };
 }) => {
   const altRef = useRef<HTMLSpanElement>(null);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
@@ -213,6 +220,10 @@ export const CompactTransferRow = ({ t, dir, isConflict, isAltViolation = false,
   // רק לפ"מ **שמתקבל**, ובשורה משלו מתחת לאו"ק - כך המלבן גדל לגובה ולא גוזל
   // רוחב מהאו"ק ומהטייסת
   const showEta = !!eta && !isOut;
+  const drag = useIncomingTransferDrag({
+    transferId: String(t.id), enabled: !isOut, tableMode, zoom: mapZoom, pan: mapPan,
+    onAccept: onAction, onAcceptToMap,
+  });
   const isAck = t.status === 'acknowledged';
   const isRejected = t.status === 'rejected';
   // צבע ראשי: קונפליקט אדום · מוסר: נדחה כתום / אושר ירוק / רגיל ענבר · מקבל ירוק
@@ -222,7 +233,9 @@ export const CompactTransferRow = ({ t, dir, isConflict, isAltViolation = false,
   return (
     <>
       <div title={isOut ? 'מוסר — ✕ לביטול · לחץ גובה לעדכון' : 'מקבל — ✓ לקבלה · לחץ גובה לעדכון'}
-        style={{ display: 'flex', flexWrap: showEta ? 'wrap' : undefined, alignItems: 'center', gap: '4px', direction: 'rtl', padding: shrunk ? '0px 4px' : '1px 6px', borderRadius: '5px', border: `1px solid ${main}${isAltViolation && !isConflict ? '66' : '99'}`, background: bg, opacity: isAltViolation && !isConflict ? 0.6 : 1, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+        data-testid={isOut ? undefined : 'tp-incoming-row'}
+        {...(isOut ? {} : drag.handlers)}
+        style={{ ...drag.handleStyle, display: 'flex', flexWrap: showEta ? 'wrap' : undefined, alignItems: 'center', gap: '4px', direction: 'rtl', padding: shrunk ? '0px 4px' : '1px 6px', borderRadius: '5px', border: `1px solid ${main}${isAltViolation && !isConflict ? '66' : '99'}`, background: bg, opacity: isAltViolation && !isConflict ? 0.6 : 1, whiteSpace: 'nowrap', overflow: 'hidden' }}>
         {/* סדר הוויתור כשהשורה צרה (קונפליקט = חצי רוחב): קודם הטייסת/מס"מ, אחר כך האו"ק.
             הגובה וכפתור ✕/✓ לא נחתכים לעולם - בלעדיהם אי אפשר לקבל/לבטל את הפ"מ */}
         <span style={{ fontWeight: 'bold', color: txt, fontSize: shrunk ? '9px' : '11px', flex: '0 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getTransferLabel(t)}</span>
@@ -231,11 +244,12 @@ export const CompactTransferRow = ({ t, dir, isConflict, isAltViolation = false,
         {sq && <span style={{ fontSize: shrunk ? '8px' : '9px', opacity: 0.85, color: txt, flex: '0 100 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{sq}</span>}
         {/* גובה — צמוד לשמאל, שני מיד אחרי ה-✕ (marginInlineStart:auto יוצר את הרווח לפניו) */}
         <span ref={altRef} title={tr('transfers.clickToUpdateAltitude')}
+          onPointerDown={e => e.stopPropagation()}
           onClick={() => { if (altRef.current) setAnchorRect(altRef.current.getBoundingClientRect()); setShowHw(true); }}
           style={{ marginInlineStart: 'auto', fontWeight: 'bold', fontSize: shrunk ? '11px' : '13px', color: '#fff', background: main, padding: '0px 5px', borderRadius: '4px', cursor: 'pointer', letterSpacing: '0.5px', flexShrink: 0 }}>
           {isConflict && <span style={{ marginInlineEnd: '2px' }}>⚠</span>}{t.alt ? normalizeAlt(t.alt) : '—'}
         </span>
-        <button onClick={e => { e.stopPropagation(); onAction(t.id); }} title={isOut ? 'בטל' : 'קבל'}
+        <button onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); onAction(t.id); }} title={isOut ? 'בטל' : 'קבל'}
           style={{ border: 'none', background: 'transparent', color: main, cursor: 'pointer', fontSize: shrunk ? '10px' : '12px', padding: '0 2px', flexShrink: 0, lineHeight: 1 }}>{isOut ? '✕' : '✓'}</button>
         {showEta && (
           <div style={{ flexBasis: '100%', display: 'flex', justifyContent: 'flex-start' }}>
@@ -249,6 +263,13 @@ export const CompactTransferRow = ({ t, dir, isConflict, isAltViolation = false,
       {showHw && (
         <HandwritingOverlay onCancel={() => setShowHw(false)} anchorRect={anchorRect}
           onComplete={(val: string) => { const n = normalizeAlt(val); setShowHw(false); if (onUpdateStripField) onUpdateStripField(String(t.strip_id), 'alt', n); }} />
+      )}
+      {drag.pos && createPortal(
+        <div style={{ position: 'fixed', left: drag.pos.x - 40, top: drag.pos.y - 20, background: '#22c55e', color: 'white', padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', boxShadow: '0 8px 20px rgba(0,0,0,0.4)', zIndex: 9999, pointerEvents: 'none', direction: 'rtl' }}>
+          {getTransferLabel(t)}{t.alt ? ` · ${normalizeAlt(t.alt)}` : ''}
+          <div style={{ fontSize: '9px', opacity: 0.85 }}>{tr(tableMode ? 'transfers.dragToTable' : 'transfers.dragToTheMap')}</div>
+        </div>,
+        document.body,
       )}
     </>
   );

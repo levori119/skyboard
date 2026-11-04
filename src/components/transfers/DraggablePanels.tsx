@@ -11,6 +11,7 @@ import HandwritingOverlay from '../shared/HandwritingOverlay';
 import { FaultBadge } from '../shared/FaultBadge';
 import { OutgoingTransferCard, IncomingTransferCard, CompactTransferRow } from './TransferCards';
 import { useEtaCountdown } from '../../hooks/useEtaCountdown';
+import { useIncomingTransferDrag } from '../../hooks/useIncomingTransferDrag';
 import { pointStationIds } from '../../../shared/transferPointStations.js';
 
 export const DraggableNeighborPanel = ({ 
@@ -554,6 +555,7 @@ export const DraggableNeighborPanel = ({
                     isAltViolation={violation}
                     onUpdateStripField={onUpdateStripField}
                     onAction={isOut ? ((t.status === 'rejected' && onDismissTransfer) ? onDismissTransfer : onCancelTransfer) : onAcceptTransfer}
+                    onAcceptToMap={onAcceptToMap} tableMode={tableMode} mapZoom={mapZoom} mapPan={mapPan}
                     lightMode={lightMode} shrunk={conflict} />
                 );
               };
@@ -680,8 +682,6 @@ export const DraggableIncomingTransferMini = ({
   presetId?: number | string | null;
   onUpdateNote?: (transferId: string, note: string) => void;
 }) => {
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
   const [editingAlt, setEditingAlt] = useState(false);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const [noteOpen, setNoteOpen] = useState(false);
@@ -693,78 +693,17 @@ export const DraggableIncomingTransferMini = ({
   const etaCountdown = eta?.text ?? null;
   const etaOver = !!eta?.over;
 
-  const handlePointerDown = (e: React.PointerEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-    setDragPos({ x: e.clientX - 40, y: e.clientY - 20 });
-  };
-
-  useEffect(() => {
-    if (!isDragging) return;
-
-    let lastClientX = 0;
-    let lastClientY = 0;
-
-    const handleMove = (e: PointerEvent) => {
-      lastClientX = e.clientX;
-      lastClientY = e.clientY;
-      setDragPos({ x: e.clientX - 40, y: e.clientY - 20 });
-    };
-
-    const screenToMapCoords = (clientX: number, clientY: number, rect: DOMRect) => {
-      const cx = rect.left + rect.width / 2;
-      const cy = rect.top + rect.height / 2;
-      const z = zoom || 1;
-      const px = pan?.x ?? 0;
-      const py = pan?.y ?? 0;
-      const rawX = (clientX - cx - px) / z + rect.width / 2;
-      const rawY = (clientY - cy - py) / z + rect.height / 2;
-      return { rawX, rawY };
-    };
-
-    const dropAt = (clientX: number, clientY: number) => {
-      setIsDragging(false);
-      const sidebarArea = document.getElementById('sidebar-area');
-      if (sidebarArea) {
-        const sidebarRect = sidebarArea.getBoundingClientRect();
-        if (clientX >= sidebarRect.left && clientX <= sidebarRect.right &&
-            clientY >= sidebarRect.top && clientY <= sidebarRect.bottom) {
-          onAccept(transfer.id);
-          return;
-        }
-      }
-      const mapArea = document.getElementById('map-area');
-      if (mapArea) {
-        const rect = mapArea.getBoundingClientRect();
-        if (clientX >= rect.left && clientX <= rect.right &&
-            clientY >= rect.top && clientY <= rect.bottom) {
-          const { rawX, rawY } = screenToMapCoords(clientX, clientY, rect);
-          const x = Math.max(100, Math.min(rect.width - 100, rawX));
-          const y = Math.max(40, Math.min(rect.height - 50, rawY));
-          onAcceptToMap(transfer.id, x, y, clientX, clientY);
-        }
-      }
-    };
-
-    const handleUp = (e: PointerEvent) => dropAt(e.clientX, e.clientY);
-    const handleCancel = () => dropAt(lastClientX, lastClientY);
-
-    window.addEventListener('pointermove', handleMove);
-    window.addEventListener('pointerup', handleUp);
-    window.addEventListener('pointercancel', handleCancel);
-    return () => {
-      window.removeEventListener('pointermove', handleMove);
-      window.removeEventListener('pointerup', handleUp);
-      window.removeEventListener('pointercancel', handleCancel);
-    };
-  }, [isDragging, transfer.id, onAcceptToMap, zoom, pan]);
+  // הגרירה לטבלה / למפה - אותו hook של השורה המקוצרת (CompactTransferRow)
+  const drag = useIncomingTransferDrag({ transferId: String(transfer.id), enabled: true, zoom, pan, onAccept, onAcceptToMap });
+  const isDragging = !!drag.pos;
+  const dragPos = drag.pos ? { x: drag.pos.x - 40, y: drag.pos.y - 20 } : { x: 0, y: 0 };
 
   return (
     <>
       <div 
-        onPointerDown={handlePointerDown}
+        {...drag.handlers}
         style={{ 
+          ...drag.handleStyle,
           background: isConflict ? '#450a0a' : isAltViolation ? '#1c0800' : '#dcfce7',
           border: isConflict ? '2px solid #ef4444' : isAltViolation ? '1px solid #f97316' : '1px solid #22c55e',
           borderRadius: '4px',

@@ -34,6 +34,10 @@
       "he": "לחץ לעדכון גובה",
       "en": "Click to update altitude"
     },
+    "dragToTable": {
+      "he": "שחרר על הטבלה לקבלה",
+      "en": "Drop on the table to accept"
+    },
     "dragToTheMap": {
       "he": "גרור למפה או לפ\"מ פעילים",
       "en": "Drag to the map or to active formations"
