@@ -175,6 +175,7 @@ import MissionDeskBody, { useMissionDeskName } from '../missiondesk/MissionDeskB
 import type { MissionDeskService, MDPresetMapConfig, MDPresetMapSettings, MDNode, MDPresetViewTablesConfig, MDViewTableKey } from '../../types/missionDesk';
 import { mdMapServices, mdMapSettings, mdStripsMapServiceId, MD_VIEW_TABLES, mdViewTablesSettings, mdViewTableOwners, mdViewTableSource } from '../../utils/missionDesk';
 import { resolveMirroredSettings } from '../../utils/mapSettingsCopy';
+import { applyPendingAssignments, type PendingAssignment } from '../../utils/assignmentPending';
 import ViewTablesSlot from '../missiondesk/ViewTablesSlot';
 import MyScriptTestPanel from '../shared/MyScriptTestPanel';
 import { MapDrawToolbar, MapShapeSvg, PolyDraftSvg, EraserCursorSvg, polySnapTol, usePolyDraft } from '../map/MapDrawLayer';
@@ -524,6 +525,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const { t, i18n } = useTranslation();
   const dir = i18n.dir(); // כיווניות פעילה — מחליף את ה-direction: dir הקשיחים
   const pendingStripUpdatesRef = React.useRef<Map<string|number, Record<string, any>>>(new Map());
+  // שיוכים לאזורים שנגררו וטרם אושרו - מוחלים על כל רשימה מהשרת (utils/assignmentPending)
+  const pendingAsgnRef = React.useRef<Map<number, PendingAssignment<StripZoneAssignment>>>(new Map());
+  const asgnChainRef = React.useRef<Map<number, Promise<unknown>>>(new Map());
   const [liveRunwayConflicts, setLiveRunwayConflicts] = React.useState<{routeName:string;conflicts:{type:string;name:string;callsign:string}[];recommendations:{id:number;name:string;category:string;display_state:string;blocking_statuses:string[];allowed_statuses:string[]}[]}[]>([]);
   const [activeTakeoffs, setActiveTakeoffs] = React.useState<{stripId:number|string;callsign:string;runway:string;routeName:string}[]>([]);
   const [dismissedTakeoffs, setDismissedTakeoffs] = React.useState<Set<string>>(new Set());
@@ -4220,7 +4224,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const reloadAssignmentsForMap = (mapId: number) => {
     if (isMissionDeskMode) { reloadMdAssignments(mapId); return; }
     if (isDualMapMode && effMap2Id === Number(mapId)) {
-      fetch(`${API_URL}/strip-zone-assignments?map_id=${mapId}`).then(r => r.ok ? r.json() : []).then((d: any[]) => setMap2Assignments(d)).catch(() => {});
+      fetch(`${API_URL}/strip-zone-assignments?map_id=${mapId}`).then(r => r.ok ? r.json() : []).then((d: any[]) => setMap2Assignments(applyPendingAssignments(d, mapId, pendingAsgnRef.current, Date.now()))).catch(() => {});
     } else {
       loadStripZoneAssignments(mapId);
     }
@@ -4256,6 +4260,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
    * מסלול השמירה **היחיד** של שיוך פ"מ לאזור - כל 26 נקודות הקריאה עוברות בו.
    * מחזירה `false` כשהשיוך **נחסם** (אזור סגור), ואז שום דבר לא נכתב.
    */
+  /**
+   * העמדה שפעולה על מפה `mapId` נרשמת עליה: חלון מפה בדסק שמשקף עמדה - העמדה
+   * המשתקפת (מפה 2 פועלת כמו מפה 1, רק בשם העמדה שלה). אחרת - העמדה הזו.
+   */
+  const presetForMapId = (mapId: number | null | undefined): number | string | null => {
+    if (mapId != null && isMissionDeskMode) {
+      const w = mdMapWindows.find(x => Number(x.mapId) === Number(mapId) && x.settings.mirror_preset_id != null);
+      if (w) return w.settings.mirror_preset_id as number;
+    }
+    return session?.presetId ?? null;
+  };
   const doFzSave = async (stripId: number | string, zoneId: number | null, altRangeId: number | null, status: string, note: string, coordNote: string, isCoordinated: boolean, posX?: number, posY?: number, requestedZoneIds?: number[], mapIdArg?: number | null, altRangeIds?: number[]): Promise<boolean> => {
     const numericStripId = parseInt(String(stripId).replace(/^s/, ''), 10);
     if (isNaN(numericStripId)) return false;
@@ -4309,16 +4324,73 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     })();
     const savePosX = snapped ? snapped.x : posX;
     const savePosY = snapped ? snapped.y : posY;
-    try {
-      await fetch(`${API_URL}/strip-zone-assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strip_id: numericStripId, zone_id: zoneId, altitude_range_id: singleAlt, altitude_range_ids: altIds, status, note, coordination_note: coordNote, is_coordinated: isCoordinated, pos_x: savePosX ?? null, pos_y: savePosY ?? null, requested_zone_ids: requestedZoneIds || [], map_id: mid, preset_id: session?.presetId ?? null }) });
+    // ── עדכון מיידי: השיוך על המסך עכשיו, השמירה ברקע ─────────────────────
+    // (הוראת קבע: כל פעולה בעמדה מוצגת מיד; רק כישלון משנה את המסך)
+    const prevA = fzAssignmentsAll().find((a: StripZoneAssignment) => Number(a.strip_id) === numericStripId) || null;
+    const zObj: any = zoneId != null ? findZoneWithAnchor(zoneId)?.zone ?? null : null;
+    const localA = {
+      ...(prevA || { id: -numericStripId, alt_range_name: null, alt_min: null, alt_max: null, extra_zones: [] }),
+      strip_id: numericStripId, zone_id: zoneId, altitude_range_id: singleAlt, altitude_range_ids: altIds,
+      status, note, coordination_note: coordNote, is_coordinated: isCoordinated,
+      pos_x: savePosX ?? null, pos_y: savePosY ?? null, requested_zone_ids: requestedZoneIds || [], map_id: mid ?? null,
+      zone_name: zObj?.name ?? (prevA && prevA.zone_id === zoneId ? prevA.zone_name : null),
+      zone_color: zObj?.color ?? (prevA && prevA.zone_id === zoneId ? prevA.zone_color : null),
+    } as StripZoneAssignment;
+    pendingAsgnRef.current.set(numericStripId, { a: localA, until: Date.now() + 15000 });
+    refreshAssignmentsFromPending();
+    // שמירות של אותו פ"מ יוצאות לפי הסדר - שתי גרירות מהירות לא מתהפכות בשרת
+    const body = JSON.stringify({ strip_id: numericStripId, zone_id: zoneId, altitude_range_id: singleAlt, altitude_range_ids: altIds, status, note, coordination_note: coordNote, is_coordinated: isCoordinated, pos_x: savePosX ?? null, pos_y: savePosY ?? null, requested_zone_ids: requestedZoneIds || [], map_id: mid, preset_id: presetForMapId(mid) });
+    const send = () => fetch(`${API_URL}/strip-zone-assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body })
+      .then(r => { if (!r.ok) throw new Error(`assignment ${r.status}`); });
+    const chained = (asgnChainRef.current.get(numericStripId) || Promise.resolve()).then(send, send);
+    asgnChainRef.current.set(numericStripId, chained.catch(() => {}));
+    chained.then(() => {
+      // אושר - הממתין מחזיק עוד רגע, עד שתמונה עדכנית מהשרת מגיעה
+      const p = pendingAsgnRef.current.get(numericStripId);
+      if (p && p.a === localA) p.until = Date.now() + 4000;
       if (mid) reloadAssignmentsForMap(mid);
-      // "אויש אזור מוגבל" - **אחרי** שהשיוך נשמר בפועל. בתוך ה-try בכוונה:
-      // שמירה שנפלה אינה איוש, והתראה עליה הייתה מתארת מצב שלא קרה.
+      // "אויש אזור מוגבל" - **אחרי** שהשיוך נשמר בפועל: שמירה שנפלה אינה
+      // איוש, והתראה עליה הייתה מתארת מצב שלא קרה.
       if (verdict.kind === 'restricted' && verdict.isNew) {
         raiseZoneRestrictionAlert(zoneId, [numericStripId], altIds, 'manned');
       }
-    } catch { return false; }
+    }).catch(err => {
+      console.error(err);
+      const p = pendingAsgnRef.current.get(numericStripId);
+      if (!p || p.a !== localA) return; // גרירה חדשה יותר כבר מחזיקה את הפ"מ
+      // חוזר למה שהיה: השיוך הקודם (או בלי שיוך), ואז האמת מהשרת
+      if (prevA) pendingAsgnRef.current.set(numericStripId, { a: prevA, until: Date.now() + 3000 });
+      else pendingAsgnRef.current.delete(numericStripId);
+      refreshAssignmentsFromPending(prevA ? null : numericStripId);
+      if (mid) reloadAssignmentsForMap(mid);
+      if (prevA?.map_id && prevA.map_id !== mid) reloadAssignmentsForMap(prevA.map_id);
+      const st: any = fzStripById(numericStripId);
+      setSaveFailToast(tr('ctrl.saveFailedReverted', { callsign: st?.callSign || st?.callsign || '' }));
+    });
     return true;
+  };
+  /**
+   * מחיל את השיוכים הממתינים על כל רשימות השיוכים שעל המסך: המפה הראשית, מפה 2
+   * וחלונות הדסק. `dropStripId` - פ"מ שהשיוך החדש שלו נכשל ולא היה לו קודם: יורד מכולן.
+   */
+  const refreshAssignmentsFromPending = (dropStripId: number | null = null) => {
+    const now = Date.now();
+    const fix = (list: StripZoneAssignment[], mapId: number | null | undefined) => {
+      const l = dropStripId != null ? list.filter(a => Number(a.strip_id) !== dropStripId) : list;
+      return applyPendingAssignments(l, mapId, pendingAsgnRef.current, now);
+    };
+    setStripZoneAssignments(prev => fix(prev, currentMapId));
+    setMap2Assignments(prev => fix(prev, effMap2Id || null));
+    if (isMissionDeskMode) {
+      setMdSlots(prev => {
+        const next: typeof prev = {};
+        for (const [k, sl] of Object.entries(prev)) {
+          const w = mdMapWindows.find(x => x.key === k);
+          next[k] = w ? { ...sl, assignments: fix(sl.assignments || [], w.mapId) } : sl;
+        }
+        return next;
+      });
+    }
   };
 
   /**
@@ -5841,7 +5913,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const loadStripZoneAssignments = async (mapId: number) => {
     try {
       const res = await fetch(`${API_URL}/strip-zone-assignments?map_id=${mapId}`);
-      if (res.ok) setStripZoneAssignments(await res.json());
+      if (res.ok) setStripZoneAssignments(applyPendingAssignments(await res.json(), mapId, pendingAsgnRef.current, Date.now()));
     } catch {}
   };
   // ── דסק משימה: השיוכים לאזורים יושבים בחלונות המפה (mdSlots) ──────────────
@@ -5875,7 +5947,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       if (mapId != null && Number(w.mapId) !== Number(mapId)) continue;
       fetch(`${API_URL}/strip-zone-assignments?map_id=${w.mapId}`)
         .then(r => r.ok ? r.json() : null)
-        .then((d: any[] | null) => { if (Array.isArray(d)) mdPatchSlot(w.key, { assignments: d }); })
+        .then((d: any[] | null) => { if (Array.isArray(d)) mdPatchSlot(w.key, { assignments: applyPendingAssignments(d, w.mapId, pendingAsgnRef.current, Date.now()) }); })
         .catch(() => {});
     }
   };
@@ -6111,7 +6183,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       .catch(() => {});
     fetch(`${API_URL}/strip-zone-assignments?map_id=${m2}`)
       .then(r => r.ok ? r.json() : [])
-      .then((data: any[]) => setMap2Assignments(data))
+      .then((data: any[]) => setMap2Assignments(applyPendingAssignments(data, m2, pendingAsgnRef.current, Date.now())))
       .catch(() => {});
   }, [isDualMapMode, effMap2Id]);
 
@@ -11846,7 +11918,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         .catch(() => {});
       fetch(`${API_URL}/strip-zone-assignments?map_id=${mid}`)
         .then(r => r.ok ? r.json() : [])
-        .then((data: any[]) => { if (alive) mdPatchSlot(key, { assignments: data }); })
+        .then((data: any[]) => { if (alive) mdPatchSlot(key, { assignments: applyPendingAssignments(data, mid, pendingAsgnRef.current, Date.now()) }); })
         .catch(() => {});
     }
     return () => { alive = false; };
@@ -13446,7 +13518,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         mdMapWindows.forEach(w => {
                           fetch(`${API_URL}/strip-zone-assignments?map_id=${w.mapId}`)
                             .then(r => r.ok ? r.json() : [])
-                            .then((data: any[]) => mdPatchSlot(w.key, { assignments: data }))
+                            .then((data: any[]) => mdPatchSlot(w.key, { assignments: applyPendingAssignments(data, w.mapId, pendingAsgnRef.current, Date.now()) }))
                             .catch(() => {});
                         });
                         const extras = [
