@@ -398,6 +398,10 @@
       "he": "🚫 סגור מסלול",
       "en": "🚫 Close runway"
     },
+    "closureShowNames": {
+      "he": "הצג שם סגירה על המפה",
+      "en": "Show closure names on the map"
+    },
     "closuresOnMap": {
       "he": "🚫 סגירות על מפה",
       "en": "🚫 Closures on map"

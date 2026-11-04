@@ -172,10 +172,15 @@ router.post('/api/workstation-presets/:id/duplicate', async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: 'Preset not found' });
     const src = rows[0];
     const newName = `${src.name} העתק`;
+    // העתקה של **כל** עמודות ההגדרה, לא רשימה ידנית: הרשימה הישנה העתיקה רק חלק,
+    // ועמדה משוכפלת עלתה בלי מפה 2, דסק משימה, אזורי טיסה, שכבות ועוד - כל עמודה
+    // שנוספה אחרי שנכתבה. עמודות שאינן הגדרה (מזהה, שם, חותמות זמן) לא מועתקות.
+    const SKIP = new Set(['id', 'name', 'created_at', 'updated_at']);
+    const cols = Object.keys(src).filter(c => !SKIP.has(c) && /^[a-z_][a-z0-9_]*$/.test(c));
+    const colList = cols.map(c => `"${c}"`).join(', ');
     const result = await pool.query(
-      `INSERT INTO workstation_presets (name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, block_table_ids, vertical_time_based, view_alt_min, view_alt_max, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role, parent_base_id, can_update_pressure, datk_show_minutes, show_dashboard, can_update_atis, can_update_notam, can_add_vehicle, load_relevant)
-       SELECT $1, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, block_table_ids, vertical_time_based, view_alt_min, view_alt_max, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role, parent_base_id, can_update_pressure, datk_show_minutes, show_dashboard, can_update_atis, can_update_notam, can_add_vehicle, load_relevant
-       FROM workstation_presets WHERE id = $2 RETURNING *`,
+      `INSERT INTO workstation_presets (name, ${colList})
+       SELECT $1, ${colList} FROM workstation_presets WHERE id = $2 RETURNING *`,
       [newName, req.params.id]
     );
     const row = result.rows[0];

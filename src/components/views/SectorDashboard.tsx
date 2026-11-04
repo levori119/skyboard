@@ -1197,6 +1197,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const voiceRecogRef = React.useRef<SpeechSession | null>(null);
   const voiceResultTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [enabledClosureIds, setEnabledClosureIds] = useState<Set<number>>(new Set());
+  // שם הסגירה על המפה - אפשר להסתיר (נשארים הפוליגון וטווח הגובה). נשמר פר-עמדה
+  const closureNamesKey = `sk.closureNamesHidden.${session?.presetId ?? 'none'}`;
+  const [closureNamesHidden, setClosureNamesHiddenState] = useState<boolean>(() => {
+    try { return localStorage.getItem(closureNamesKey) === '1'; } catch { return false; }
+  });
+  const setClosureNamesHidden = (v: boolean) => {
+    setClosureNamesHiddenState(v);
+    try { localStorage.setItem(closureNamesKey, v ? '1' : '0'); } catch { /* אחסון חסום - נשאר לסשן */ }
+  };
   const fetchClosuresForMap = React.useCallback(() => {
     fetch(`${API_URL}/closures`).then(r => r.json()).then((d: any) => setAllClosures(Array.isArray(d) ? d : [])).catch(() => {});
   }, []);
@@ -9658,7 +9667,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
    * אחרת הם היו נפתחים על גבי העמודה השנייה. שתי המפות בדו-מפה נמדדות בנפרד:
    * לכל אחת גובה משלה.
    */
-  const [mapToolbarCols, setMapToolbarCols] = useState<{ main: 1 | 2; secondary: 1 | 2 }>({ main: 1, secondary: 1 });
+  // לפי מפתח הפאן של המפה ולא "ראשית/משנית": בדסק משימה כל חלוני המפה היו
+  // "ראשית", וחלקו מדידה אחת - המפה הנמוכה קיבלה את העמודות של הגבוהה והסרגל שלה נחתך
+  const [mapToolbarCols, setMapToolbarCols] = useState<Record<string, 1 | 2>>({});
   /** באיזו מפה פתוח כל פאנל של כלי משותף - ראה utils/mapToolFlyout. */
   const [mapFlyoutOwners, setMapFlyoutOwners] = useState<MapFlyoutOwners>({});
 
@@ -9672,11 +9683,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const fzPinFontSizeMain = fzPinFontSize, setFzPinFontSizeMain = setFzPinFontSize;
   const renderMapPanel = (cfg: MapPanelCfg) => {
             const dmMap1Region = cfg.region;
-            const toolbarSlot: 'main' | 'secondary' = cfg.secondary ? 'secondary' : 'main';
-            const toolbarCols = mapToolbarCols[toolbarSlot];
+            const toolbarSlot = cfg.panKey;
+            const toolbarCols: 1 | 2 = mapToolbarCols[toolbarSlot] ?? 1;
             const toolbarW = toolbarCols === 2 ? MAP_TOOLBAR_W2 : MAP_TOOLBAR_W;
             const toolbarGap = mapToolbarGap(toolbarCols);
-            const setToolbarCols = (c: 1 | 2) => setMapToolbarCols(prev => prev[toolbarSlot] === c ? prev : { ...prev, [toolbarSlot]: c });
+            const setToolbarCols = (c: 1 | 2) => setMapToolbarCols(prev => (prev[toolbarSlot] ?? 1) === c ? prev : { ...prev, [toolbarSlot]: c });
             const _panKey = cfg.panKey;
             // כלים משותפים (תמונ"א, סגירות, תצוגת פ"מ): ההגדרה אחת לכל המפות,
             // אבל הפאנל נפתח רק בסרגל שנלחץ ולא פעמיים על המסך.
@@ -10235,6 +10246,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 <span style={{ fontWeight: 'bold', color: '#e2e8f0', fontSize: '12px' }}>{tr('ctrl.closuresOnMap')}</span>
                 <button onClick={() => setShowClosuresPanel(false)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '15px', lineHeight: 1 }}>✕</button>
               </div>
+              <label data-testid="closure-names-toggle" style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '2px 2px 6px', marginBottom: '4px', borderBottom: '1px solid #334155', cursor: 'pointer', flexShrink: 0 }}>
+                <input type="checkbox" checked={!closureNamesHidden} onChange={e => setClosureNamesHidden(!e.target.checked)} style={{ width: 14, height: 14, cursor: 'pointer' }} />
+                <span style={{ fontSize: '11px', color: '#cbd5e1' }}>{tr('ctrl.closureShowNames')}</span>
+              </label>
               <div style={{ overflowY: 'auto', flex: 1 }}>
                 {allClosures.length === 0 ? (
                   <div style={{ color: '#475569', fontSize: '11px', textAlign: 'center', padding: '14px 0' }}>{tr('ctrl.noClosuresWithA')}</div>
@@ -11074,17 +11089,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     return (
                       <g key={c.id}>
                         <polygon points={pts} fill={col + '33'} stroke={col} strokeWidth="1.5" strokeDasharray="4,2" />
-                        <text x={labelX} y={labelY} textAnchor="middle" dominantBaseline="middle"
-                          fontSize={Math.max(8, 12 / mapZoom)} fontWeight="bold" fill={col}
-                          stroke="#0f172a" strokeWidth={3 / mapZoom} paintOrder="stroke"
-                          style={{ pointerEvents: 'none', userSelect: 'none' }}>
-                          🚫 {bidiAuto(c.name)}
-                        </text>
+                        {/* בלי אייקון "אין כניסה" - הצבע והקו המקווקו כבר אומרים "סגירה" */}
+                        {!closureNamesHidden && (
+                          <text data-testid="closure-name" x={labelX} y={labelY} textAnchor="middle" dominantBaseline="middle"
+                            fontSize={Math.max(8, 12 / mapZoom)} fontWeight="bold" fill={col}
+                            stroke="#0f172a" strokeWidth={3 / mapZoom} paintOrder="stroke"
+                            style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                            {bidiAuto(c.name)}
+                          </text>
+                        )}
                         {(c.alt_min != null || c.alt_max != null) && (
-                          <text x={labelX} y={labelY + Math.max(10, 14 / mapZoom)} textAnchor="middle" dominantBaseline="middle"
+                          <text x={labelX} y={closureNamesHidden ? labelY : labelY + Math.max(10, 14 / mapZoom)} textAnchor="middle" dominantBaseline="middle"
                             fontSize={Math.max(7, 10 / mapZoom)} fill={col} stroke="#0f172a" strokeWidth={2 / mapZoom} paintOrder="stroke"
                             style={{ pointerEvents: 'none', userSelect: 'none' }}>
-                            FL{c.alt_min ?? '?'}–{c.alt_max ?? '?'}
+                            FL{c.alt_min ?? '?'}-{c.alt_max ?? '?'}
                           </text>
                         )}
                       </g>
