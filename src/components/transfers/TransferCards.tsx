@@ -210,6 +210,9 @@ export const CompactTransferRow = ({ t, dir, isConflict, isAltViolation = false,
   // המקוצרת לא הציגה אותו, ובנקודת העברה מקוצרת לא היה לפקח שום חיווי זמן
   const eta = useEtaCountdown(t.eta_minutes, t.eta_set_at);
   const isOut = dir === 'out';
+  // רק לפ"מ **שמתקבל**, ובשורה משלו מתחת לאו"ק - כך המלבן גדל לגובה ולא גוזל
+  // רוחב מהאו"ק ומהטייסת
+  const showEta = !!eta && !isOut;
   const isAck = t.status === 'acknowledged';
   const isRejected = t.status === 'rejected';
   // צבע ראשי: קונפליקט אדום · מוסר: נדחה כתום / אושר ירוק / רגיל ענבר · מקבל ירוק
@@ -219,27 +222,29 @@ export const CompactTransferRow = ({ t, dir, isConflict, isAltViolation = false,
   return (
     <>
       <div title={isOut ? 'מוסר — ✕ לביטול · לחץ גובה לעדכון' : 'מקבל — ✓ לקבלה · לחץ גובה לעדכון'}
-        style={{ display: 'flex', alignItems: 'center', gap: '4px', direction: 'rtl', padding: shrunk ? '0px 4px' : '1px 6px', borderRadius: '5px', border: `1px solid ${main}${isAltViolation && !isConflict ? '66' : '99'}`, background: bg, opacity: isAltViolation && !isConflict ? 0.6 : 1, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+        style={{ display: 'flex', flexWrap: showEta ? 'wrap' : undefined, alignItems: 'center', gap: '4px', direction: 'rtl', padding: shrunk ? '0px 4px' : '1px 6px', borderRadius: '5px', border: `1px solid ${main}${isAltViolation && !isConflict ? '66' : '99'}`, background: bg, opacity: isAltViolation && !isConflict ? 0.6 : 1, whiteSpace: 'nowrap', overflow: 'hidden' }}>
         {/* סדר הוויתור כשהשורה צרה (קונפליקט = חצי רוחב): קודם הטייסת/מס"מ, אחר כך האו"ק.
             הגובה וכפתור ✕/✓ לא נחתכים לעולם - בלעדיהם אי אפשר לקבל/לבטל את הפ"מ */}
         <span style={{ fontWeight: 'bold', color: txt, fontSize: shrunk ? '9px' : '11px', flex: '0 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getTransferLabel(t)}</span>
         {/* תקלה במטוס - צמודה לאו"ק, כי היא משנה את ההחלטה אם לקבל את המבנה */}
         <FaultBadge faults={t.aircraft_faults} lightMode size={shrunk ? 8 : 9} />
         {sq && <span style={{ fontSize: shrunk ? '8px' : '9px', opacity: 0.85, color: txt, flex: '0 100 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{sq}</span>}
-        {eta && (
-          <span title={tr('transfers.timeUntilArrivalAt')}
-            style={{ marginInlineStart: 'auto', fontSize: shrunk ? '9px' : '10px', fontWeight: 'bold', fontVariantNumeric: 'tabular-nums', flexShrink: 0, padding: '0 4px', borderRadius: '3px', border: `1px solid ${eta.over ? '#dc2626' : '#22c55e'}`, color: eta.over ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#15803d' : '#86efac'), background: eta.over ? (lightMode ? '#fee2e2' : '#450a0a') : 'transparent' }}>
-            ⏱ {eta.text}
-          </span>
-        )}
         {/* גובה — צמוד לשמאל, שני מיד אחרי ה-✕ (marginInlineStart:auto יוצר את הרווח לפניו) */}
         <span ref={altRef} title={tr('transfers.clickToUpdateAltitude')}
           onClick={() => { if (altRef.current) setAnchorRect(altRef.current.getBoundingClientRect()); setShowHw(true); }}
-          style={{ marginInlineStart: eta ? 0 : 'auto', fontWeight: 'bold', fontSize: shrunk ? '11px' : '13px', color: '#fff', background: main, padding: '0px 5px', borderRadius: '4px', cursor: 'pointer', letterSpacing: '0.5px', flexShrink: 0 }}>
+          style={{ marginInlineStart: 'auto', fontWeight: 'bold', fontSize: shrunk ? '11px' : '13px', color: '#fff', background: main, padding: '0px 5px', borderRadius: '4px', cursor: 'pointer', letterSpacing: '0.5px', flexShrink: 0 }}>
           {isConflict && <span style={{ marginInlineEnd: '2px' }}>⚠</span>}{t.alt ? normalizeAlt(t.alt) : '—'}
         </span>
         <button onClick={e => { e.stopPropagation(); onAction(t.id); }} title={isOut ? 'בטל' : 'קבל'}
           style={{ border: 'none', background: 'transparent', color: main, cursor: 'pointer', fontSize: shrunk ? '10px' : '12px', padding: '0 2px', flexShrink: 0, lineHeight: 1 }}>{isOut ? '✕' : '✓'}</button>
+        {showEta && (
+          <div style={{ flexBasis: '100%', display: 'flex', justifyContent: 'flex-start' }}>
+            <span title={tr('transfers.timeUntilArrivalAt')}
+              style={{ fontSize: shrunk ? '9px' : '10px', fontWeight: 'bold', fontVariantNumeric: 'tabular-nums', padding: '0 4px', borderRadius: '3px', border: `1px solid ${eta!.over ? '#dc2626' : '#22c55e'}`, color: eta!.over ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#15803d' : '#86efac'), background: eta!.over ? (lightMode ? '#fee2e2' : '#450a0a') : 'transparent' }}>
+              ⏱ {eta!.text}
+            </span>
+          </div>
+        )}
       </div>
       {showHw && (
         <HandwritingOverlay onCancel={() => setShowHw(false)} anchorRect={anchorRect}
