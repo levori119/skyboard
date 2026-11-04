@@ -168,6 +168,12 @@ describe('חריגים תפעוליים קודמים לתחיליות הניהו
     expect((await call('PUT', '/api/airfield-element-types/5', user())).status).toBe(403);
   });
 
+  it('כללי גבהים בנקודת העברה מותרים לבקר, עריכת העמדה אינה', async () => {
+    expect((await call('PATCH', '/api/workstation-presets/26/transfer-point', user())).status).toBe(200);
+    expect((await call('PUT', '/api/workstation-presets/26', user())).status).toBe(403);
+    expect((await call('PATCH', '/api/workstation-presets/26/thresholds', user())).status).toBe(403);
+  });
+
   it('הערת סקטור מותרת לבקר, עריכת הסקטור אינה', async () => {
     expect((await call('PUT', '/api/sectors/3/notes', user())).status).toBe(200);
     expect((await call('PUT', '/api/sectors/3', user())).status).toBe(403);

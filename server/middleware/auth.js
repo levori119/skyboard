@@ -182,6 +182,10 @@ const RULES = [
   { m: WRITE, p: /^\/api\/reader\/docs(\/|$)/, need: NEED.STAFF, why: 'העלאת חומר קריאה ומחיקתו - הגדרת ניהול' },
   { m: ALL, p: /^\/api\/bdh-preset-assignments/, need: NEED.USER, why: 'קריאת שיוך בלבד' },
   { m: ['PUT'], p: /^\/api\/sectors\/\d+\/notes$/, need: NEED.USER, why: 'הערת סקטור - כתיבה תפעולית של הבקר' },
+  // כללי הגבהים של העמדה בנקודת העברה נערכים **מתוך העמדה** (📐 בכותרת הנקודה),
+  // ולא ממסך הניהול. תחת כלל "הגדרת עמדות" (STAFF) כל שמירה של בקר נדחתה ב-403
+  // והכללים "לא נשמרו". השרת מצמיד כל כלל לעמדה שבנתיב (shared/transferPointAltRules.js)
+  { m: ['PATCH'], p: /^\/api\/workstation-presets\/\d+\/transfer-point$/, need: NEED.USER, why: 'כללי גבהים בנקודת העברה - כל עמדה את שלה' },
   { m: ALL, p: /^\/api\/airfield-elements(\/|$)/, need: NEED.USER, why: 'שינוי סטטוס אלמנט בשטח - פעולה תפעולית של הפקח' },
   { m: ALL, p: /^\/api\/strip-serial-(selections|dismissals)/, need: NEED.USER, why: 'בחירת סדרה לפ"מ - תפעולי' },
   { m: ALL, p: /^\/api\/mission-desk-state/, need: NEED.USER, why: 'מצב שירות בדסק - תפעולי' },
