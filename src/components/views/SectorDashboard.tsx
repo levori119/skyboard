@@ -96,7 +96,7 @@ import { thinScroll } from '../../utils/thinScroll';
 import { isPointDisabledFor } from '../../../shared/transferPointStations.js';
 import { TakeoffBadge, FormationCountBadge } from '../strips/StripCardBadges';
 import { splitSpaceSet, separatedBySpace, blockFitsSpace, separatedByGroup } from '../../utils/blockSpaces';
-import { recommendAltitude, stripArmaments, normalizeAltRules, type AltRecommendation, type RecBlock } from '../../utils/altRecommend';
+import { recommendAltitude, stripArmaments, normalizeAltRules, stationRecBlocks, type AltRecommendation, type RecBlock } from '../../utils/altRecommend';
 import { loadPadLayout, savePadLayout, type PadLayout } from '../../utils/freeDeskLayout';
 import FreeDeskPad from '../shared/FreeDeskPad';
 import { AimPointsSummary, AimPointsWindow } from '../strips/AimPointsTable';
@@ -5205,14 +5205,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // 2 בלוקים סמוכים, לפי חוקי החימוש בהגדרות העמדה), והבלוקים נבחרים מראש. אם
   // אין רצף פנוי - התראה להטפיס/להנמיך פ"מ אחד כדי לפנות. src/utils/altRecommend.ts
   const [altRec, setAltRec] = useState<{ stripId: string; label: string; formation: number; blocks: RecBlock[]; rec: AltRecommendation; selected: number[]; moved: boolean } | null>(null);
-  const altRecBlocks = (): RecBlock[] => {
-    const pid = session.presetId ? Number(session.presetId) : null;
-    const btIds: number[] = (myPresetConfig?.block_table_ids || []).map(Number);
-    return dashboardBlocks
-      .filter((b: any) => btIds.includes(Number(b.block_table_id)) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid)))
-      .filter((b: any) => !effectiveBlockTableId || Number(b.block_table_id) === Number(effectiveBlockTableId))
-      .map((b: any) => ({ id: Number(b.id), alt_from: Number(b.alt_from), alt_to: Number(b.alt_to), mission: b.mission || null, space_id: b.space_id ?? null, block_table_id: Number(b.block_table_id) }));
-  };
+  const altRecBlocks = (): RecBlock[] => stationRecBlocks(
+    dashboardBlocks, (myPresetConfig?.block_table_ids || []).map(Number),
+    session.presetId ? Number(session.presetId) : null, effectiveBlockTableId,
+  );
   const computeAltRec = (stripId: string, spaceOverride?: number | null) => {
     const found: any = strips.find(st => String(st.id) === stripId);
     if (!found) return null;
@@ -5223,7 +5219,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const blocks = allBlocks.filter(b => blockFitsSpace(b, strip.block_space_id));
     if (!blocks.length) return null;
     const formation = parseInt(String(strip.numberOfFormation ?? strip.number_of_formation ?? '1'), 10) || 1;
+    // "תפוס" רק מי שבאמת על הלוח - פ"מ שהוקצאתו נוקתה או שנשלח ממני כבר לא תופס
+    const outgoingIds = new Set(outgoingTransfers.map((t: any) => String(t.strip_id)));
     const others = myTableStrips
+      .filter((o: any) => (!tableMode || tableOnBoard.has(o.id)) && !outgoingIds.has(String(o.id)))
       .filter((o: any) => String(o.id) !== stripId && o.alt && !separatedBySpace(strip, o, split))
       .map((o: any) => ({ id: String(o.id), label: o.callSign || String(o.id), alt: String(o.alt) }));
     const rec = recommendAltitude({
@@ -5238,6 +5237,22 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     if (r) setAltRec({ ...r, selected: r.rec.blockIds, moved: false });
   };
   offerAltRecRef.current = offerAltRec;
+  // החלון פתוח והלוח השתנה (הקצאה נוקתה, פ"מ נמחק, גובה עודכן) - ההמלצה מחושבת
+  // מחדש. קודם היא נקבעה פעם אחת בפתיחה, ו"תפוס" נשאר על פ"מים שכבר לא שם
+  useEffect(() => {
+    if (!altRec) return;
+    const r = computeAltRec(altRec.stripId);
+    if (!r) return;
+    if (JSON.stringify(r.rec) === JSON.stringify(altRec.rec) && JSON.stringify(r.blocks) === JSON.stringify(altRec.blocks)) return;
+    setAltRec(prev => {
+      if (!prev || prev.stripId !== r.stripId) return prev;
+      // בחירה שהפקח לא שינה - עוברת להמלצה החדשה; בחירה ידנית נשמרת
+      const untouched = JSON.stringify(prev.selected) === JSON.stringify(prev.rec.blockIds);
+      const ids = new Set(r.blocks.map(b => b.id));
+      return { ...prev, ...r, selected: untouched ? r.rec.blockIds : prev.selected.filter(id => ids.has(id)) };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [altRec?.stripId, strips, myTableStrips, tableOnBoard, outgoingTransfers, dashboardBlocks, effectiveBlockTableId]);
   const putStripAlt = async (stripId: string, alt: string) => {
     const target = strips.find(st => String(st.id) === stripId);
     const dev = target ? computeBlockDeviation({ ...target, alt }, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false;

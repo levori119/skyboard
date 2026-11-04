@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   recommendAltitude, blocksNeeded, parseAltHundreds, matchRule, stripArmaments, normalizeAltRules,
-  type RecBlock,
-} from './altRecommend';
+  type RecBlock, stationRecBlocks } from './altRecommend';
 
 // שישה בלוקים של 2000 רגל: 40-60, 60-80 ... 140-160
 const B: RecBlock[] = [40, 60, 80, 100, 120, 140].map((f, i) => ({ id: i + 1, alt_from: f, alt_to: f + 20 }));
@@ -137,5 +136,21 @@ describe('matchRule / stripArmaments / normalizeAltRules', () => {
       { armament: 'מהיר', kind: 'range', min_ft: 5000, max_ft: null },
     ]);
     expect(normalizeAltRules('x')).toEqual([]);
+  });
+});
+
+describe('stationRecBlocks - רק בלוקים שהעמדה רשאית להמליץ עליהם', () => {
+  const blocks = [
+    { id: 1, block_table_id: 9, alt_from: 330, alt_to: 380, workstations: [21, 26] },
+    { id: 2, block_table_id: 9, alt_from: 280, alt_to: 310, workstations: {} },
+    { id: 3, block_table_id: 9, alt_from: 210, alt_to: 250, workstations: [5] },
+    { id: 4, block_table_id: 4, alt_from: 60, alt_to: 100, workstations: [26] },
+    { id: 5, block_table_id: 4, alt_from: 0, alt_to: 50, workstations: [] },
+  ];
+  it('בלוק של עמדה אחרת יוצא; בלוק פתוח ובלוק שלי נשארים', () => {
+    expect(stationRecBlocks(blocks, [9], 26).map(b => b.id)).toEqual([1, 2, 4]);
+  });
+  it('טבלה פעילה מצמצמת לטבלה אחת', () => {
+    expect(stationRecBlocks(blocks, [9, 4], 26, 4).map(b => b.id)).toEqual([4, 5]);
   });
 });

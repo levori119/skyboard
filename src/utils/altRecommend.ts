@@ -27,6 +27,31 @@ export interface RecBlock {
   block_table_id?: number;
 }
 
+/**
+ * הבלוקים שהעמדה רשאית להמליץ עליהם: מטבלאות העמדה (או בלוק שהעמדה רשומה
+ * עליו), **בלי** בלוק ששויך לעמדות אחרות בלבד. בלוק בלי עמדות פתוח לכולן.
+ * קודם הוצעו גם בלוקים של עמדות אחרות - ההמלצה "חרגה" לבלוק של שכן.
+ */
+export function stationRecBlocks(
+  allBlocks: unknown[], tableIds: number[], presetId: number | null, activeTableId?: number | null,
+): RecBlock[] {
+  const wsOf = (b: Record<string, unknown>): number[] => (Array.isArray(b.workstations) ? b.workstations.map(Number) : []);
+  return (Array.isArray(allBlocks) ? allBlocks : [])
+    .map(b => (b && typeof b === 'object' ? b as Record<string, unknown> : {}))
+    .filter(b => {
+      const ws = wsOf(b);
+      const inTable = tableIds.includes(Number(b.block_table_id));
+      const mine = presetId !== null && ws.includes(presetId);
+      if (!inTable && !mine) return false;
+      if (ws.length > 0 && !mine) return false; // בלוק של עמדה אחרת
+      return !activeTableId || Number(b.block_table_id) === Number(activeTableId);
+    })
+    .map(b => ({
+      id: Number(b.id), alt_from: Number(b.alt_from), alt_to: Number(b.alt_to),
+      mission: (b.mission as string) || null, space_id: (b.space_id as number | null) ?? null, block_table_id: Number(b.block_table_id),
+    }));
+}
+
 export type AltRuleBand = 'low' | 'mid' | 'high';
 
 export interface AltArmamentRule {
