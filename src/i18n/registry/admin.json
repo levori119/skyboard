@@ -4039,8 +4039,8 @@
       "en": "Split spaces"
     },
     "splitSpacesHint": {
-      "he": "הטבלה מתחלקת למרחבים האלה. לכל בלוק אפשר לשייך מרחב, ופ\"מים באותו גובה במרחבים שונים אינם בקונפליקט.",
-      "en": "The table is split into these spaces. Each block can belong to one, and strips at the same altitude in different spaces are not in conflict."
+      "he": "הטבלה מתחלקת למרחבים האלה. לכל בלוק אפשר לשייך מרחב. פ\"מים באותו גובה במרחבים שונים אינם בקונפליקט כשהתצוגה מחולקת (לפי מרחב, ערכה וכו'); ב\"ללא חלוקה\" חפיפה בגובה היא קונפליקט.",
+      "en": "The table is split into these spaces. Each block can belong to one. Strips at the same altitude in different spaces are not in conflict when the view is grouped (by space, kit, etc.); with no grouping, an altitude overlap is a conflict."
     },
     "splitSpacesNone": {
       "he": "אין מרחבי בלוקים - הוסף מרחב בלשונית המרחבים",
