@@ -206,6 +206,9 @@ export const CompactTransferRow = ({ t, dir, isConflict, isAltViolation = false,
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const [showHw, setShowHw] = useState(false);
   const sq = getTransferSq(t);
+  // זמן ההעברה - אותו שעון של הכרטיס ושל תא ההעברה במוד הטבלה. קודם השורה
+  // המקוצרת לא הציגה אותו, ובנקודת העברה מקוצרת לא היה לפקח שום חיווי זמן
+  const eta = useEtaCountdown(t.eta_minutes, t.eta_set_at);
   const isOut = dir === 'out';
   const isAck = t.status === 'acknowledged';
   const isRejected = t.status === 'rejected';
@@ -223,10 +226,16 @@ export const CompactTransferRow = ({ t, dir, isConflict, isAltViolation = false,
         {/* תקלה במטוס - צמודה לאו"ק, כי היא משנה את ההחלטה אם לקבל את המבנה */}
         <FaultBadge faults={t.aircraft_faults} lightMode size={shrunk ? 8 : 9} />
         {sq && <span style={{ fontSize: shrunk ? '8px' : '9px', opacity: 0.85, color: txt, flex: '0 100 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{sq}</span>}
+        {eta && (
+          <span title={tr('transfers.timeUntilArrivalAt')}
+            style={{ marginInlineStart: 'auto', fontSize: shrunk ? '9px' : '10px', fontWeight: 'bold', fontVariantNumeric: 'tabular-nums', flexShrink: 0, padding: '0 4px', borderRadius: '3px', border: `1px solid ${eta.over ? '#dc2626' : '#22c55e'}`, color: eta.over ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#15803d' : '#86efac'), background: eta.over ? (lightMode ? '#fee2e2' : '#450a0a') : 'transparent' }}>
+            ⏱ {eta.text}
+          </span>
+        )}
         {/* גובה — צמוד לשמאל, שני מיד אחרי ה-✕ (marginInlineStart:auto יוצר את הרווח לפניו) */}
         <span ref={altRef} title={tr('transfers.clickToUpdateAltitude')}
           onClick={() => { if (altRef.current) setAnchorRect(altRef.current.getBoundingClientRect()); setShowHw(true); }}
-          style={{ marginInlineStart: 'auto', fontWeight: 'bold', fontSize: shrunk ? '11px' : '13px', color: '#fff', background: main, padding: '0px 5px', borderRadius: '4px', cursor: 'pointer', letterSpacing: '0.5px', flexShrink: 0 }}>
+          style={{ marginInlineStart: eta ? 0 : 'auto', fontWeight: 'bold', fontSize: shrunk ? '11px' : '13px', color: '#fff', background: main, padding: '0px 5px', borderRadius: '4px', cursor: 'pointer', letterSpacing: '0.5px', flexShrink: 0 }}>
           {isConflict && <span style={{ marginInlineEnd: '2px' }}>⚠</span>}{t.alt ? normalizeAlt(t.alt) : '—'}
         </span>
         <button onClick={e => { e.stopPropagation(); onAction(t.id); }} title={isOut ? 'בטל' : 'קבל'}
