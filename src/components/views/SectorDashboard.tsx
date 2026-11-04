@@ -528,6 +528,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // שיוכים לאזורים שנגררו וטרם אושרו - מוחלים על כל רשימה מהשרת (utils/assignmentPending)
   const pendingAsgnRef = React.useRef<Map<number, PendingAssignment<StripZoneAssignment>>>(new Map());
   const asgnChainRef = React.useRef<Map<number, Promise<unknown>>>(new Map());
+  // העברות נכנסות שהתקבלו וטרם אושרו בשרת: id → עד מתי להסתיר מהפולינג
+  const hiddenIncomingRef = React.useRef<Map<string, number>>(new Map());
   const [liveRunwayConflicts, setLiveRunwayConflicts] = React.useState<{routeName:string;conflicts:{type:string;name:string;callsign:string}[];recommendations:{id:number;name:string;category:string;display_state:string;blocking_statuses:string[];allowed_statuses:string[]}[]}[]>([]);
   const [activeTakeoffs, setActiveTakeoffs] = React.useState<{stripId:number|string;callsign:string;runway:string;routeName:string}[]>([]);
   const [dismissedTakeoffs, setDismissedTakeoffs] = React.useState<Set<string>>(new Set());
@@ -5823,7 +5825,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           }
           transferNoteTrackRef.current.set(String(t.id), t.note || null);
         });
-        setIncomingTransfers(freshIncoming);
+        // קבלה שיצאה וטרם אושרה - הכרטיס לא חוזר לנקודה בפולינג שיצא לפניה
+        const _now = Date.now();
+        for (const [k, until] of [...hiddenIncomingRef.current.entries()]) if (until <= _now) hiddenIncomingRef.current.delete(k);
+        setIncomingTransfers(hiddenIncomingRef.current.size
+          ? freshIncoming.filter((t: any) => !hiddenIncomingRef.current.has(String(t.id)))
+          : freshIncoming);
       }
       if (outgoingRes.ok) {
         const freshOutgoing = await outgoingRes.json();
@@ -8406,6 +8413,37 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   /** מחזיר את מזהה הפ"מ שהתקבל (או האח שאליו מוזג), ו-null בכשל. */
   const handleAcceptTransfer = async (transferId: string): Promise<number | null> => {
     const t = incomingTransfers.find((x: any) => String(x.id) === String(transferId));
+    // ── עדכון מיידי: הפ"מ בטבלה והכרטיס יורד מהנקודה ברגע הלחיצה ───────────
+    // השרת עוד יכול לדחות (נקודה "מוסרת בלבד", העברה שבוטלה) - ואז הכל חוזר.
+    const stripKey = t?.strip_id ? 's' + t.strip_id : null;
+    const pid = session?.presetId ? Number(session.presetId) : null;
+    const prevStrip = stripKey ? strips.find(s => String(s.id) === stripKey) : null;
+    const wasOnBoard = stripKey ? tableOnBoard.has(stripKey) : false;
+    let stripPatch: Record<string, any> | null = null;
+    if (stripKey && pid != null) {
+      const ids: number[] = Array.isArray((prevStrip as any)?.table_preset_ids) ? (prevStrip as any).table_preset_ids : [];
+      stripPatch = { status: 'active', inTable: true, workstation_preset_id: session.presetId, table_preset_ids: ids.includes(pid) ? ids : [...ids, pid] };
+      const pkey = prevStrip?.id ?? stripKey;
+      pendingStripUpdatesRef.current.set(pkey, { ...(pendingStripUpdatesRef.current.get(pkey) || {}), ...stripPatch });
+      setStrips(prev => prev.map(s => String(s.id) === stripKey ? { ...s, ...stripPatch } : s));
+      setTableOnBoard(prev => new Set([...prev, stripKey]));
+    }
+    hiddenIncomingRef.current.set(String(transferId), Date.now() + 15000);
+    setIncomingTransfers((prev: any[]) => prev.filter((x: any) => String(x.id) !== String(transferId)));
+    const revert = () => {
+      hiddenIncomingRef.current.delete(String(transferId));
+      if (t) setIncomingTransfers((prev: any[]) => prev.some((x: any) => String(x.id) === String(transferId)) ? prev : [...prev, t]);
+      if (stripKey && stripPatch) {
+        const back = releasePendingKeys(pendingStripUpdatesRef.current, prevStrip?.id ?? stripKey, stripPatch);
+        if (back.length && prevStrip) {
+          const restore: Record<string, any> = {};
+          for (const k of back) restore[k] = (prevStrip as any)[k];
+          setStrips(prev => prev.map(s => String(s.id) === stripKey ? { ...s, ...restore } : s));
+        }
+        if (!wasOnBoard) setTableOnBoard(prev => { const n = new Set(prev); n.delete(stripKey); return n; });
+      }
+      setSaveFailToast(tr('ctrl.saveFailedReverted', { callsign: t?.callsign || t?.callSign || '' }));
+    };
     try {
       const res = await fetch(`${API_URL}/transfers/${transferId}/accept`, {
         method: 'POST',
@@ -8414,21 +8452,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       });
       const data = res.ok ? await res.json() : {};
       if (!res.ok) throw new Error(`accept failed: ${res.status}`);
-      // קבלה שמוזגה לאח קיים - הפ"מ הנכנס נמחק, והפ"מ שמוצג (ומהבהב) הוא האח
-      const shownKey = data?.mergedIntoId ? 's' + String(data.mergedIntoId).replace(/^s/, '') : (t?.strip_id ? 's' + t.strip_id : null);
-      // Optimistic update: immediately place strip in table and record assignment
-      if (t?.strip_id && session?.presetId) {
-        const stripKey = 's' + t.strip_id;
-        const pid = Number(session.presetId);
-        setStrips(prev => prev.map(s => {
-          if (String(s.id) !== stripKey) return s;
-          const ids: number[] = Array.isArray((s as any).table_preset_ids) ? (s as any).table_preset_ids : [];
-          return { ...s, status: 'active', inTable: true, workstation_preset_id: session.presetId, table_preset_ids: ids.includes(pid) ? ids : [...ids, pid] };
-        }));
-        // פ"מ שלא היה בטבלה נכנס אליה (וגם האח שאליו מוזג, אם לא היה בה)
-        setTableOnBoard(prev => new Set([...prev, stripKey, ...(shownKey ? [shownKey] : [])]));
-        setIncomingTransfers((prev: any[]) => prev.filter((x: any) => String(x.id) !== String(transferId)));
+      hiddenIncomingRef.current.set(String(transferId), Date.now() + 4000);
+      if (stripKey && stripPatch) {
+        const pkey = prevStrip?.id ?? stripKey, sp = stripPatch;
+        setTimeout(() => releasePendingKeys(pendingStripUpdatesRef.current, pkey, sp), PENDING_RELEASE_MS);
       }
+      // קבלה שמוזגה לאח קיים - הפ"מ הנכנס נמחק, והפ"מ שמוצג (ומהבהב) הוא האח
+      const shownKey = data?.mergedIntoId ? 's' + String(data.mergedIntoId).replace(/^s/, '') : stripKey;
+      if (shownKey && shownKey !== stripKey) setTableOnBoard(prev => new Set([...prev, shownKey]));
       logActivity('transfer_accepted', {
         stripId: t?.strip_id ? String(t.strip_id) : undefined,
         stripCallsign: t?.callsign || t?.callSign,
@@ -8439,6 +8470,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       return shownKey ? parseInt(shownKey.replace(/^s/, ''), 10) : null;
     } catch (err) {
       console.error('Failed to accept transfer:', err);
+      revert();
       return null;
     }
   };
