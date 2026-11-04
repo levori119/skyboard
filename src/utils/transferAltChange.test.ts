@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { altChangeNeedsAck } from './transferAltChange';
 
-// מה שנבדק: גובה שהעמדה המקבלת שינתה מהבהב בשני הצדדים עד אישור של כל צד בנפרד.
+// מה שנבדק: גובה שהעמדה המקבלת שינתה מהבהב בשני הצדדים עד שהמוסרת מאשרת.
 const T0 = '2026-11-04T10:00:00Z', T1 = '2026-11-04T10:01:00Z', TM = '2026-11-04T09:59:00Z';
 
 describe('altChangeNeedsAck', () => {
@@ -14,10 +14,18 @@ describe('altChangeNeedsAck', () => {
     expect(altChangeNeedsAck(t, 'from')).toBe(true);
     expect(altChangeNeedsAck(t, 'to')).toBe(true);
   });
-  it('אישור של צד אחד לא מכבה את השני', () => {
+  it('אישור המוסרת מכבה בשני הצדדים', () => {
     const t = { alt_changed_at: T0, alt_ack_from_at: T1 };
     expect(altChangeNeedsAck(t, 'from')).toBe(false);
-    expect(altChangeNeedsAck(t, 'to')).toBe(true);
+    expect(altChangeNeedsAck(t, 'to')).toBe(false);
+  });
+  it('לחיצה במקבלת מכבה רק אצלה - המוסרת ממשיכה להבהב', () => {
+    const t = { alt_changed_at: T0, alt_ack_to_at: T1 };
+    expect(altChangeNeedsAck(t, 'to')).toBe(false);
+    expect(altChangeNeedsAck(t, 'from')).toBe(true);
+  });
+  it('אישור מוסרת ישן משינוי קודם - המקבלת מהבהבת שוב', () => {
+    expect(altChangeNeedsAck({ alt_changed_at: T0, alt_ack_from_at: TM }, 'to')).toBe(true);
   });
   it('אישור ישן משינוי קודם - מהבהב שוב', () => {
     expect(altChangeNeedsAck({ alt_changed_at: T0, alt_ack_to_at: TM }, 'to')).toBe(true);
