@@ -282,6 +282,22 @@
       "he": "כבויה לעמדה",
       "en": "Off for this station"
     },
+    "pointSendOnly": {
+      "he": "מוסרת בלבד",
+      "en": "Send only"
+    },
+    "pointReceiveOnly": {
+      "he": "מקבלת בלבד",
+      "en": "Receive only"
+    },
+    "pointDirectionHint": {
+      "he": "כיוון העמדה בנקודה נקבע בניהול ← נקודות העברה",
+      "en": "The station direction at this point is set in Admin - Transfer points"
+    },
+    "pointReceiveOnlyBlocked": {
+      "he": "העמדה מקבלת בלבד בנקודה {{point}} - אי אפשר לשלוח דרכה",
+      "en": "This station only receives at {{point}} - cannot send through it"
+    },
     "pointOffHint": {
       "he": "נקודת ההעברה כבויה לעמדה הזו (ניהול ← נקודות העברה)",
       "en": "This transfer point is off for this station (Admin - Transfer points)"

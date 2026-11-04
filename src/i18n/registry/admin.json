@@ -4042,6 +4042,22 @@
       "he": "{{count}} כבויות",
       "en": "{{count}} off"
     },
+    "tpDirTitle": {
+      "he": "כיוון העמדה בנקודה",
+      "en": "Station direction at the point"
+    },
+    "tpDirBoth": {
+      "he": "שניהם",
+      "en": "Both"
+    },
+    "tpDirSend": {
+      "he": "מוסרת",
+      "en": "Sends"
+    },
+    "tpDirReceive": {
+      "he": "מקבלת",
+      "en": "Receives"
+    },
     "tpStationReturned": {
       "he": "{{count}} פ\"מים הוחזרו למוסר",
       "en": "{{count}} strips returned to the sender"

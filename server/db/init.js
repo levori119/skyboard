@@ -181,6 +181,9 @@ async function applySchemaOnce() {
   // עמדות שהנקודה **כבויה** אצלן (ניהול ← נקודות העברה). הנקודה עדיין מוצגת בעמדה
   // אבל לא רגישה. ראה server/utils/transferPointStations.js
   await sq(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS disabled_preset_ids JSONB DEFAULT '[]'`);
+  // כיוון כל עמדה בנקודה: { presetId: 'send' | 'receive' }, חסר = שניהם (מוסרת ומקבלת).
+  // ראה shared/transferPointStations.js §כיוון עמדה בנקודה
+  await sq(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS station_directions JSONB DEFAULT '{}'`);
 
   // ── Workstation presets ───────────────────────────────────────────────────
 

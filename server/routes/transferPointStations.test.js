@@ -16,7 +16,7 @@ beforeAll(async () => {
   process.env.SKYKING_LOCAL_DB = '1';
   process.env.SKYKING_LOCAL_DB_DIR = 'memory://';
   ({ default: pool } = await import('../db/pool.js'));
-  await pool.query(`CREATE TABLE sectors (id SERIAL PRIMARY KEY, name VARCHAR(100), label_he VARCHAR(100), disabled_preset_ids JSONB DEFAULT '[]', auto_accept_mode VARCHAR(12) DEFAULT 'off')`);
+  await pool.query(`CREATE TABLE sectors (id SERIAL PRIMARY KEY, name VARCHAR(100), label_he VARCHAR(100), disabled_preset_ids JSONB DEFAULT '[]', station_directions JSONB DEFAULT '{}', auto_accept_mode VARCHAR(12) DEFAULT 'off')`);
   await pool.query(`CREATE TABLE workstation_presets (id SERIAL PRIMARY KEY, name VARCHAR(100), relevant_sectors JSONB DEFAULT '[]',
     classic_transfer_points JSONB DEFAULT '[]', classic_receive_points JSONB DEFAULT '[]')`);
   await pool.query(`CREATE TABLE strips (id SERIAL PRIMARY KEY, callsign VARCHAR(50), status VARCHAR(20), workstation_preset_id INTEGER, on_map BOOLEAN DEFAULT false, in_table BOOLEAN DEFAULT false)`);
@@ -78,5 +78,39 @@ describe('כיבוי נקודה לעמדה', () => {
     expect(r.json.returned).toBe(0);
     const sec = (await pool.query('SELECT disabled_preset_ids FROM sectors WHERE id = 100')).rows[0];
     expect(sec.disabled_preset_ids).toEqual([2]);
+  });
+});
+
+describe('כיוון עמדה בנקודה - מוסרת / מקבלת / שניהם', () => {
+  it('"מקבלת בלבד": השליחה של העמדה חוזרת ונחסמת (409), והכיוון נשמר', async () => {
+    await req('PUT', '/api/sectors/100/stations/2', { enabled: true });
+    const sent = await addTransfer(null, 1);
+    const r = await req('PUT', '/api/sectors/100/stations/1', { direction: 'receive' });
+    expect(r.status).toBe(200);
+    expect(r.json.returned).toBe(1);
+    expect((await statusOf(sent.t)).reject_note).toMatch(/מקבלת בלבד/);
+    const sec = (await pool.query('SELECT station_directions FROM sectors WHERE id = 100')).rows[0];
+    expect(sec.station_directions).toEqual({ 1: 'receive' });
+    const block = await req('POST', '/api/strips/1/transfer', { toSectorId: 100, fromWorkstationId: 1 });
+    expect(block.status).toBe(409);
+  });
+
+  it('"מוסרת בלבד": העברה שמיועדת לעמדה חוזרת, וקבלה ממנה נחסמת (409)', async () => {
+    const toB = await addTransfer(null, 1, 2);
+    const r = await req('PUT', '/api/sectors/100/stations/2', { direction: 'send' });
+    expect(r.json.returned).toBe(1);
+    expect((await statusOf(toB.t)).status).toBe('rejected');
+    const open = await addTransfer(null, 3);
+    const acc = await req('POST', `/api/transfers/${open.t}/accept`, { receivingPresetId: 2 });
+    expect(acc.status).toBe(409);
+    expect(acc.json.error).toBe('transfer_point_send_only');
+  });
+
+  it('"שניהם" מנקה את הכיוון; כיוון לא חוקי - 400', async () => {
+    await req('PUT', '/api/sectors/100/stations/1', { direction: 'both' });
+    await req('PUT', '/api/sectors/100/stations/2', { direction: 'both' });
+    const sec = (await pool.query('SELECT station_directions FROM sectors WHERE id = 100')).rows[0];
+    expect(sec.station_directions).toEqual({});
+    expect((await req('PUT', '/api/sectors/100/stations/1', { direction: 'x' })).status).toBe(400);
   });
 });

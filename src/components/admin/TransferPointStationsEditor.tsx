@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { API_URL } from '../../config';
 import { tr } from '../../i18n/tr';
-import { disabledPresetIds, presetSectorIds } from '../../../shared/transferPointStations.js';
+import { disabledPresetIds, presetSectorIds, stationDirection, type StationDirection } from '../../../shared/transferPointStations.js';
 
 /**
  * **עמדות של נקודת העברה** - הדלקה / כיבוי פר-עמדה (ניהול ← נקודות העברה).
@@ -16,6 +16,23 @@ export default function TransferPointStationsEditor({ sector, presets, onChanged
   const sid = Number(sector?.id);
   const using = presets.filter(p => presetSectorIds(p).has(sid));
   const off = new Set(disabledPresetIds(sector));
+
+  // כיוון העמדה בנקודה: מוסרת / מקבלת / שניהם. חל מיד, כמו ההדלקה
+  const setDir = async (p: any, direction: StationDirection) => {
+    if (stationDirection(sector, p.id) === direction) return;
+    setBusy(Number(p.id)); setMsg(null);
+    try {
+      const r = await fetch(`${API_URL}/sectors/${sid}/stations/${p.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ direction }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j?.error || String(r.status));
+      if (j.returned > 0) setMsg(tr('admin.tpStationReturned', { count: j.returned }));
+      onChanged();
+    } catch {
+      setMsg(tr('admin.tpStationFailed'));
+    } finally { setBusy(null); }
+  };
 
   const toggle = async (p: any) => {
     const enabled = off.has(Number(p.id));
@@ -42,8 +59,15 @@ export default function TransferPointStationsEditor({ sector, presets, onChanged
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
         {using.map(p => {
           const isOn = !off.has(Number(p.id));
+          const dir = stationDirection(sector, p.id);
+          const DIRS: { v: StationDirection; label: string }[] = [
+            { v: 'both', label: `⇄ ${tr('admin.tpDirBoth')}` },
+            { v: 'send', label: `📤 ${tr('admin.tpDirSend')}` },
+            { v: 'receive', label: `📥 ${tr('admin.tpDirReceive')}` },
+          ];
           return (
-            <button key={p.id} type="button" data-testid="tp-station" data-on={isOn || undefined} disabled={busy !== null}
+            <div key={p.id} style={{ display: 'inline-flex', flexDirection: 'column', gap: '3px' }}>
+            <button type="button" data-testid="tp-station" data-on={isOn || undefined} disabled={busy !== null}
               onClick={() => toggle(p)} title={tr(isOn ? 'admin.tpStationTurnOff' : 'admin.tpStationTurnOn')}
               style={{
                 padding: '5px 10px', borderRadius: '6px', cursor: busy !== null ? 'wait' : 'pointer', fontSize: '12px', fontFamily: 'inherit',
@@ -52,6 +76,19 @@ export default function TransferPointStationsEditor({ sector, presets, onChanged
               }}>
               {isOn ? '⏻ ' : '⭘ '}{p.name}
             </button>
+            {isOn && (
+              <div role="group" aria-label={tr('admin.tpDirTitle')} style={{ display: 'flex', gap: '2px' }}>
+                {DIRS.map(o => (
+                  <button key={o.v} type="button" data-testid="tp-dir" data-dir={o.v} data-on={dir === o.v || undefined} disabled={busy !== null}
+                    onClick={() => setDir(p, o.v)}
+                    style={{ flex: 1, padding: '2px 4px', fontSize: '10px', fontFamily: 'inherit', borderRadius: '4px', cursor: busy !== null ? 'wait' : 'pointer',
+                      border: `1px solid ${dir === o.v ? '#0ea5e9' : '#334155'}`, background: dir === o.v ? '#0c4a6e' : 'transparent', color: dir === o.v ? '#e0f2fe' : '#64748b' }}>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            </div>
           );
         })}
       </div>

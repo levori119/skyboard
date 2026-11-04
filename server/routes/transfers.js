@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { isPointDisabledFor, toggleDisabled, presetSectorIds, transfersToReturn } from '../../shared/transferPointStations.js';
+import { toggleDisabled, presetSectorIds, transfersToReturn, canSendVia, canReceiveVia, setDirection, transfersToReturnOnDirection, DIRECTIONS } from '../../shared/transferPointStations.js';
 import pool from '../db/pool.js';
 import { isAutoAcceptDue } from '../utils/autoAccept.js';
 import { aircraftFaultsSubquery } from '../db/aircraftFaults.js';
@@ -202,13 +202,71 @@ export { recordTransferSentFlow, recordTransferClosedFlow };
 // ממנה שליחה, וכיבוי מחזיר למוסר את ההעברות הפתוחות שקשורות לעמדה.
 async function pointDisabledForSender(sectorId, fromPresetId) {
   if (!sectorId || !fromPresetId) return false;
-  const { rows } = await pool.query('SELECT disabled_preset_ids FROM sectors WHERE id = $1', [Number(sectorId)]);
-  return rows[0] ? isPointDisabledFor(rows[0], fromPresetId) : false;
+  const { rows } = await pool.query('SELECT disabled_preset_ids, station_directions FROM sectors WHERE id = $1', [Number(sectorId)]);
+  // כבויה, או שהעמדה "מקבלת בלבד" בנקודה הזו
+  return rows[0] ? !canSendVia(rows[0], fromPresetId) : false;
+}
+
+/** קבלה בנקודה מעמדה שהיא "מוסרת בלבד" (או שהנקודה כבויה אצלה) - נחסמת */
+async function pointBlocksReceiver(client, transferId, receivingPresetId) {
+  if (!receivingPresetId) return false;
+  const { rows } = await client.query(
+    'SELECT s.disabled_preset_ids, s.station_directions FROM strip_transfers t JOIN sectors s ON s.id = t.to_sector_id WHERE t.id = $1',
+    [transferId],
+  );
+  return rows[0] ? !canReceiveVia(rows[0], receivingPresetId) : false;
+}
+
+/**
+ * כיוון עמדה בנקודה (ניהול ← נקודות העברה): מוסרת / מקבלת / שניהם. ההעברות
+ * הפתוחות שהכיוון החדש סוגר בפני העמדה חוזרות למוסר, כמו בכיבוי.
+ */
+async function setStationDirection(req, res, sectorId, presetId, direction) {
+  const closed = [];
+  let returnNote = null;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const sec = (await client.query('SELECT * FROM sectors WHERE id = $1 FOR UPDATE', [sectorId])).rows[0];
+    if (!sec) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Sector not found' }); }
+    const next = setDirection(sec, presetId, direction);
+    await client.query('UPDATE sectors SET station_directions = $1::jsonb WHERE id = $2', [JSON.stringify(next), sectorId]);
+    const after = { ...sec, station_directions: next };
+    const presets = (await client.query('SELECT id, name, relevant_sectors, classic_transfer_points, classic_receive_points FROM workstation_presets')).rows;
+    const receivers = presets.filter(p => presetSectorIds(p).has(sectorId) && canReceiveVia(after, p.id)).map(p => Number(p.id));
+    const open = (await client.query(
+      "SELECT * FROM strip_transfers WHERE to_sector_id = $1 AND status IN ('pending','acknowledged')", [sectorId],
+    )).rows;
+    const toReturn = transfersToReturnOnDirection(open, sectorId, presetId, direction, receivers);
+    if (toReturn.length) {
+      const name = presets.find(p => Number(p.id) === presetId)?.name || String(presetId);
+      returnNote = direction === 'send'
+        ? `העמדה ${name} מוסרת בלבד בנקודת ההעברה "${sec.label_he || sec.name}"`
+        : `העמדה ${name} מקבלת בלבד בנקודת ההעברה "${sec.label_he || sec.name}"`;
+      for (const t of toReturn) {
+        const r = await closeTransferTx(client, t.id, 'rejected', { note: returnNote });
+        if (r.transfer) closed.push(r.transfer);
+      }
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch { /* connection כנראה מת */ }
+    console.error('[transfer-point station direction]', err);
+    return res.status(500).json({ error: 'Failed to set direction' });
+  } finally {
+    client.release();
+  }
+  for (const t of closed) await recordTransferClosedFlow(t, 'rejected', req.user, { note: returnNote, reason: 'transfer_point_direction' });
+  res.json({ success: true, direction, returned: closed.length });
 }
 
 router.put('/api/sectors/:id/stations/:presetId', async (req, res) => {
   const sectorId = parseInt(req.params.id, 10), presetId = parseInt(req.params.presetId, 10);
   if (!Number.isFinite(sectorId) || !Number.isFinite(presetId)) return res.status(400).json({ error: 'Invalid ids' });
+  if (req.body?.direction !== undefined) {
+    if (!DIRECTIONS.includes(req.body.direction)) return res.status(400).json({ error: 'Invalid direction' });
+    return setStationDirection(req, res, sectorId, presetId, req.body.direction);
+  }
   const enabled = req.body?.enabled === true;
   const closed = [];
   let returnNote = null;
@@ -489,6 +547,10 @@ router.post('/api/transfers/:id/accept', async (req, res) => {
   try {
     await client.query('BEGIN');
     const { receivingPresetId } = req.body || {};
+    if (await pointBlocksReceiver(client, req.params.id, receivingPresetId)) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'transfer_point_send_only' });
+    }
     const result = await acceptTransferTx(client, req.params.id, receivingPresetId, { mode: 'manual', user: req.user });
     if (result.notFound) {
       await client.query('ROLLBACK');
@@ -517,6 +579,10 @@ router.post('/api/transfers/:id/accept-to-map', async (req, res) => {
     await client.query('BEGIN');
     const transferId = req.params.id;
     const { x, y, receivingPresetId } = req.body;
+    if (await pointBlocksReceiver(client, transferId, receivingPresetId)) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'transfer_point_send_only' });
+    }
 
     const t = await lockTransfer(client, transferId);
     if (!t) {

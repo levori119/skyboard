@@ -42,6 +42,7 @@ export const DraggableNeighborPanel = ({
   onUpdateTransferPointConfig,
   allPresets = [],
   disabled = false,
+  direction = 'both',
 }: { 
   neighbor: any; 
   subSectors: any[];
@@ -77,6 +78,11 @@ export const DraggableNeighborPanel = ({
    * רגישה: לא יעד שחרור, ולא נתפסת בחיפוש נקודות לפי DOM (`neighbor-drop-zone`).
    */
   disabled?: boolean;
+  /**
+   * כיוון העמדה בנקודה (ניהול ← נקודות העברה): `send` - מוסרת בלבד, אין לה צד
+   * "מקבל"; `receive` - מקבלת בלבד, הנקודה אינה יעד שחרור אצלה.
+   */
+  direction?: 'both' | 'send' | 'receive';
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isStripDragOver, setIsStripDragOver] = useState(false);
@@ -133,7 +139,9 @@ export const DraggableNeighborPanel = ({
   }, [neighbor.id, JSON.stringify(transferPointConfig?.partner_preset_ids)]);
 
   const sectorOutgoing = outgoingTransfers.filter(t => Number(t.to_sector_id) === Number(neighbor.id));
-  const sectorIncoming = incomingTransfers.filter(t => Number(t.to_sector_id) === Number(neighbor.id));
+  const sectorIncoming = direction === 'send' ? [] : incomingTransfers.filter(t => Number(t.to_sector_id) === Number(neighbor.id));
+  // "מקבלת בלבד": אין שליחה דרך הנקודה - היא אינה יעד שחרור (כמו נקודה כבויה)
+  const noDrop = disabled || direction === 'receive';
 
   const parseAlt = (alt: string | null | undefined): number | null => {
     if (!alt) return null;
@@ -304,9 +312,9 @@ export const DraggableNeighborPanel = ({
       {/* Card container */}
       <div
         data-tp-disabled={disabled || undefined}
-        onDragOver={e => { e.preventDefault(); if (!disabled) setIsStripDragOver(true); }}
+        onDragOver={e => { e.preventDefault(); if (!noDrop) setIsStripDragOver(true); }}
         onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsStripDragOver(false); }}
-        onDrop={disabled ? (e => { e.preventDefault(); e.stopPropagation(); }) : handleStripDropOnPoint}
+        onDrop={noDrop ? (e => { e.preventDefault(); e.stopPropagation(); }) : handleStripDropOnPoint}
         title={disabled ? tr('transfers.pointOffHint') : undefined}
         style={{
         ...(disabled ? { opacity: 0.45, filter: 'grayscale(1)' } : {}),
@@ -318,6 +326,11 @@ export const DraggableNeighborPanel = ({
         boxShadow: lightMode ? '0 2px 8px rgba(0,0,0,0.12)' : '0 2px 10px rgba(0,0,0,0.5)',
         transition: 'border-color 0.15s, background 0.15s',
       }}>
+        {!disabled && direction !== 'both' && (
+          <div data-testid="tp-direction-badge" title={tr('transfers.pointDirectionHint')} style={{ fontSize: '11px', fontWeight: 'bold', padding: '2px 8px', background: lightMode ? '#e0f2fe' : '#0c2a3a', color: lightMode ? '#075985' : '#7dd3fc' }}>
+            {direction === 'send' ? `📤 ${tr('transfers.pointSendOnly')}` : `📥 ${tr('transfers.pointReceiveOnly')}`}
+          </div>
+        )}
         {disabled && (
           <div data-testid="tp-off-badge" style={{ fontSize: '11px', fontWeight: 'bold', padding: '2px 8px', background: lightMode ? '#e2e8f0' : '#1e293b', color: lightMode ? '#475569' : '#94a3b8' }}>
             ⭘ {tr('transfers.pointOff')}
@@ -326,7 +339,7 @@ export const DraggableNeighborPanel = ({
 
         {/* Header — drag zone */}
         <div
-          className={disabled ? 'neighbor-drop-zone-off' : 'neighbor-drop-zone'}
+          className={noDrop ? 'neighbor-drop-zone-off' : 'neighbor-drop-zone'}
           data-sector-id={neighbor.id}
           onPointerDown={(e) => { if (dragStripId) { e.preventDefault(); e.stopPropagation(); } else if (!tableMode) { handlePointerDown(e); } }}
           onPointerEnter={() => { if (dragStripId) setIsStripDragOver(true); }}

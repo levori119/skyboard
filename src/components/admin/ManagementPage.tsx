@@ -1,5 +1,5 @@
 import { tr } from '../../i18n/tr';
-import { disabledPresetIds } from '../../../shared/transferPointStations.js';
+import { disabledPresetIds, stationDirection } from '../../../shared/transferPointStations.js';
 import { PIN_DISPLAY_MODES } from '../../../shared/pinDisplay';
 import { pinDisplayLabel } from '../strips/MapPinLabel';
 import { DockPositionPicker } from '../shared/WindowContainer';
@@ -3313,6 +3313,10 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                               return (
                                 <span key={`tp-${p.id}`} title={title} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '2px 8px', background: c.bg, border: `1px solid ${c.bd}`, borderRadius: '10px', fontSize: '11px', color: c.fg }}>
                                   {rc && '📥'}{tf && '📤'}{!rc && !tf && '📍'} {p.name}
+                                  {/* כיוון שנקבע לעמדה בנקודה (ברירת המחדל "שניהם" לא מוצגת) */}
+                                  {stationDirection(sector, p.id) !== 'both' && (
+                                    <b style={{ marginInlineStart: '3px', color: '#7dd3fc' }}>· {tr(stationDirection(sector, p.id) === 'send' ? 'admin.tpDirSend' : 'admin.tpDirReceive')}</b>
+                                  )}
                                 </span>
                               );
                             })}

@@ -93,7 +93,7 @@ import usePinchZoom from '../../hooks/usePinchZoom';
 import { localStep, pinchZoomPan, type ZoomPanView } from '../../utils/pinchZoom';
 import { windowFrame, frameColor } from '../../utils/windowFrame';
 import { thinScroll } from '../../utils/thinScroll';
-import { isPointDisabledFor } from '../../../shared/transferPointStations.js';
+import { isPointDisabledFor, canSendVia, canReceiveVia, stationDirection } from '../../../shared/transferPointStations.js';
 import { TakeoffBadge, FormationCountBadge } from '../strips/StripCardBadges';
 import { splitSpaceSet, separatedBySpace, blockFitsSpace, separatedByGroup } from '../../utils/blockSpaces';
 import { applyAltOverrides, parseAltOverrides, refitAltToBand, blockForAlt, type AltOverrides } from '../../utils/zoneAltOverride';
@@ -558,7 +558,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // של העמדה היא תמונת מצב מהכניסה, ולכן מצב ההדלקה נלקח מהרשימה המתרעננת
   const allSectors = React.useMemo(() => {
     const fresh = new Map(allSectorsFull.map((x: any) => [Number(x.id), x]));
-    return allSectorsSnap.filter((n: any) => !isPointDisabledFor(fresh.get(Number(n.id)) ?? n, session.presetId));
+    // גם כיוון העמדה בנקודה (מוסרת / מקבלת) מהרשימה המתרעננת
+    return allSectorsSnap
+      .filter((n: any) => !isPointDisabledFor(fresh.get(Number(n.id)) ?? n, session.presetId))
+      .map((n: any) => { const f = fresh.get(Number(n.id)); return f ? { ...n, disabled_preset_ids: f.disabled_preset_ids, station_directions: f.station_directions } : n; });
   }, [allSectorsSnap, allSectorsFull, session.presetId]);
   const [sectorFormationSummaries, setSectorFormationSummaries] = useState<Record<string, { hasShakadia: boolean; armaments: { name: string; totalQty: number; aircraftNums: number[] }[] }>>({});
   const [sectorSplitModal, setSectorSplitModal] = useState<{ strip: any } | null>(null);
@@ -7135,8 +7138,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     // נקודה כבויה לעמדה (ניהול ← נקודות העברה): יורדת מהמסך, וכל שליחה
     // אליה, מכל מסלול גרירה, נעצרת כאן. השרת חוסם גם הוא (409)
     const _tpSec = [...allSectors, ...allSectorsFull].find((x: any) => Number(x.id) === Number(toSectorId));
-    if (!toWorkstationId && _tpSec && isPointDisabledFor(_tpSec, session.presetId)) {
-      setTpOffToast(tr('transfers.pointOffBlocked', { point: _tpSec.label_he || _tpSec.name || toSectorId }));
+    // וגם נקודה שהעמדה "מקבלת בלבד" בה (ניהול ← נקודות העברה ← כיוון)
+    if (!toWorkstationId && _tpSec && !canSendVia(_tpSec, session.presetId)) {
+      setTpOffToast(tr(isPointDisabledFor(_tpSec, session.presetId) ? 'transfers.pointOffBlocked' : 'transfers.pointReceiveOnlyBlocked', { point: _tpSec.label_he || _tpSec.name || toSectorId }));
       setTimeout(() => setTpOffToast(null), 3500);
       return;
     }
@@ -7374,7 +7378,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       if (Number(p.id) === Number(session.presetId)) return false;
       // עמדה שהנקודה כבויה אצלה (ניהול ← נקודות העברה) אינה יעד - קודם הוצעה בבורר
       const tp = allSectorsFull.find((x: any) => Number(x.id) === Number(toSectorId));
-      if (tp && isPointDisabledFor(tp, p.id)) return false;
+      if (tp && !canReceiveVia(tp, p.id)) return false; // כבויה אצלה, או "מוסרת בלבד\"
       const relSectors: number[] = Array.isArray(p.relevant_sectors) ? p.relevant_sectors.map(Number) : [];
       const recvSectors: number[] = (p.classic_receive_points || []).map((rp: any) => Number(rp.sector_id)).filter(Boolean);
       return relSectors.includes(Number(toSectorId)) || recvSectors.includes(Number(toSectorId));
@@ -11912,7 +11916,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <DraggableNeighborPanel
               key={n.id}
               neighbor={n}
-              disabled={isPointDisabledFor(n, session.presetId)}
+              disabled={isPointDisabledFor(n, session.presetId)} direction={stationDirection(n, session.presetId)}
               subSectors={subSectors}
               onDropOnMap={handleNeighborDropOnMap}
               isExpanded={expandedNeighbors.has(n.id)}
@@ -15130,7 +15134,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   <DraggableNeighborPanel
                     key={n.id}
                     neighbor={n}
-                    disabled={isPointDisabledFor(n, session.presetId)}
+                    disabled={isPointDisabledFor(n, session.presetId)} direction={stationDirection(n, session.presetId)}
                     subSectors={subSectors}
                     onDropOnMap={handleNeighborDropOnMap}
                     isExpanded={expandedNeighbors.has(n.id)}
@@ -18580,7 +18584,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   <DraggableNeighborPanel
                     key={n.id}
                     neighbor={n}
-                    disabled={isPointDisabledFor(n, session.presetId)}
+                    disabled={isPointDisabledFor(n, session.presetId)} direction={stationDirection(n, session.presetId)}
                     subSectors={subSectors}
                     onDropOnMap={handleNeighborDropOnMap}
                     isExpanded={expandedNeighbors.has(n.id)}

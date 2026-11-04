@@ -425,6 +425,7 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | `conflict_alt_delta` | INT | סף קונפליקט גובה ברגליים (0 = כבוי) |
 | **`auto_accept_mode`** | VARCHAR(12) | **קבלה אוטומטית של פ"מ בנקודה: `off` (ברירת מחדל) / `immediate` (ברגע השליחה) / `eta` (בתום `strip_transfers.eta_minutes`).** ראה למטה |
 | **`disabled_preset_ids`** | JSONB DEFAULT `'[]'` | **עמדות שהנקודה כבויה אצלן** (ניהול ← נקודות העברה ← עריכה). בעמדה כבויה הנקודה מוצגת אבל לא רגישה; שליחה אליה נחסמת (409 `transfer_point_disabled`), וכיבוי מחזיר למוסר את ההעברות הפתוחות שקשורות לעמדה (`closeTransferTx` כדחייה עם הערה). `PUT /api/sectors/:id/stations/:presetId`. ראה [`shared/transferPointStations.js`](shared/transferPointStations.js) |
+| **`station_directions`** | JSONB DEFAULT `'{}'` | **כיוון כל עמדה בנקודה**: `{ presetId: 'send' \| 'receive' }`, חסר = שניהם. **מוסרת** - אינה יעד בבורר העמדות ואין לה צד "מקבל"; קבלה ממנה נחסמת (409 `transfer_point_send_only`). **מקבלת** - הנקודה אינה יעד שחרור אצלה; שליחה נחסמת (409 `transfer_point_disabled`). שינוי כיוון מחזיר למוסר את ההעברות שנסגרו בפני העמדה. `PUT /api/sectors/:id/stations/:presetId` עם `{ direction }`. ראה [`shared/transferPointStations.js`](shared/transferPointStations.js) §כיוון עמדה בנקודה |
 
 ### קבלה אוטומטית (`auto_accept_mode`)
 
@@ -1747,6 +1748,7 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | `conflict_alt_delta` | INT | סף קונפליקט גובה ברגליים (0 = כבוי) |
 | **`auto_accept_mode`** | VARCHAR(12) | **קבלה אוטומטית של פ"מ בנקודה: `off` (ברירת מחדל) / `immediate` (ברגע השליחה) / `eta` (בתום `strip_transfers.eta_minutes`).** ראה למטה |
 | **`disabled_preset_ids`** | JSONB DEFAULT `'[]'` | **עמדות שהנקודה כבויה אצלן** (ניהול ← נקודות העברה ← עריכה). בעמדה כבויה הנקודה מוצגת אבל לא רגישה; שליחה אליה נחסמת (409 `transfer_point_disabled`), וכיבוי מחזיר למוסר את ההעברות הפתוחות שקשורות לעמדה (`closeTransferTx` כדחייה עם הערה). `PUT /api/sectors/:id/stations/:presetId`. ראה [`shared/transferPointStations.js`](shared/transferPointStations.js) |
+| **`station_directions`** | JSONB DEFAULT `'{}'` | **כיוון כל עמדה בנקודה**: `{ presetId: 'send' \| 'receive' }`, חסר = שניהם. **מוסרת** - אינה יעד בבורר העמדות ואין לה צד "מקבל"; קבלה ממנה נחסמת (409 `transfer_point_send_only`). **מקבלת** - הנקודה אינה יעד שחרור אצלה; שליחה נחסמת (409 `transfer_point_disabled`). שינוי כיוון מחזיר למוסר את ההעברות שנסגרו בפני העמדה. `PUT /api/sectors/:id/stations/:presetId` עם `{ direction }`. ראה [`shared/transferPointStations.js`](shared/transferPointStations.js) §כיוון עמדה בנקודה |
 
 ### קבלה אוטומטית (`auto_accept_mode`)
 

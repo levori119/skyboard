@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { disabledPresetIds, isPointDisabledFor, toggleDisabled, presetSectorIds, transfersToReturn, pointStationIds } from './transferPointStations.js';
+import { disabledPresetIds, isPointDisabledFor, toggleDisabled, presetSectorIds, transfersToReturn, pointStationIds, stationDirection, canSendVia, canReceiveVia, setDirection, transfersToReturnOnDirection } from './transferPointStations.js';
 
 describe('רשימת העמדות הכבויות', () => {
   it('עמידה לערך שבור, מחרוזת JSON וכפילויות', () => {
@@ -62,5 +62,39 @@ describe('pointStationIds - העמדות של נקודה לתפריט "עמדה"
   });
   it('בלי נקודה - ריק', () => {
     expect(pointStationIds(presets, null)).toEqual([]);
+  });
+});
+
+describe('כיוון עמדה בנקודה - מוסרת / מקבלת / שניהם', () => {
+  const sec = { id: 2742, station_directions: { 26: 'send', 21: 'receive', 5: 'junk' }, disabled_preset_ids: [9] };
+  it('ברירת מחדל שניהם; ערך שבור נחשב שניהם', () => {
+    expect(stationDirection(sec, 26)).toBe('send');
+    expect(stationDirection(sec, 21)).toBe('receive');
+    expect(stationDirection(sec, 5)).toBe('both');
+    expect(stationDirection({ station_directions: '{"3":"send"}' }, 3)).toBe('send');
+    expect(stationDirection(null, 3)).toBe('both');
+  });
+  it('שליחה וקבלה לפי הכיוון, ונקודה כבויה חוסמת את שתיהן', () => {
+    expect([canSendVia(sec, 26), canReceiveVia(sec, 26)]).toEqual([true, false]);
+    expect([canSendVia(sec, 21), canReceiveVia(sec, 21)]).toEqual([false, true]);
+    expect([canSendVia(sec, 5), canReceiveVia(sec, 5)]).toEqual([true, true]);
+    expect([canSendVia(sec, 9), canReceiveVia(sec, 9)]).toEqual([false, false]);
+  });
+  it('setDirection - "שניהם" נמחק מהמפה', () => {
+    expect(setDirection(sec, 26, 'both')).toEqual({ 21: 'receive' });
+    expect(setDirection(sec, 7, 'receive')).toEqual({ 26: 'send', 21: 'receive', 7: 'receive' });
+  });
+  it('העברות שחוזרות בשינוי כיוון', () => {
+    const open = [
+      { id: 'a', to_sector_id: 2742, from_preset_id: 26, to_preset_id: 21 },
+      { id: 'b', to_sector_id: 2742, from_preset_id: 21, to_preset_id: 26 },
+      { id: 'c', to_sector_id: 2742, from_preset_id: 21, to_preset_id: null },
+      { id: 'd', to_sector_id: 99, from_preset_id: 26, to_preset_id: null },
+    ];
+    expect(transfersToReturnOnDirection(open, 2742, 26, 'receive', [21, 26]).map(t => t.id)).toEqual(['a']);
+    // 26 הופכת ל"מוסרת": מה שמיועד אליה חוזר; בלי יעד - חוזר רק אם אין מקבל אחר
+    expect(transfersToReturnOnDirection(open, 2742, 26, 'send', [21]).map(t => t.id)).toEqual(['b', 'c']);
+    expect(transfersToReturnOnDirection(open, 2742, 26, 'send', [21, 30]).map(t => t.id)).toEqual(['b']);
+    expect(transfersToReturnOnDirection(open, 2742, 26, 'both', [21])).toEqual([]);
   });
 });

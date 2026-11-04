@@ -37,7 +37,8 @@ beforeAll(async () => {
     id SERIAL PRIMARY KEY, name VARCHAR(100) NOT NULL, relevant_sectors JSONB DEFAULT '[]',
     classic_receive_points JSONB DEFAULT '[]')`);
   await pool.query(`CREATE TABLE public.sectors (
-    id SERIAL PRIMARY KEY, name VARCHAR(100), label_he VARCHAR(100), auto_accept_mode VARCHAR(20) DEFAULT 'off')`);
+    id SERIAL PRIMARY KEY, name VARCHAR(100), label_he VARCHAR(100), auto_accept_mode VARCHAR(20) DEFAULT 'off',
+    disabled_preset_ids JSONB DEFAULT '[]', station_directions JSONB DEFAULT '{}')`);
   await pool.query(`CREATE TABLE public.airfield_points (
     id SERIAL PRIMARY KEY, name VARCHAR(100), point_type VARCHAR(10))`);
   await pool.query(`CREATE TABLE public.strips (
