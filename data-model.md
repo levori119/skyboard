@@ -289,23 +289,24 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 שאינו בדסק; שיוך מרחב לא מכניס לטבלה). **נמחק** עם השורה (הסרה מהדסק, ניקוי הקצאות העמדה).
 לוגיקה: `src/utils/deskSpace.ts`.
 
-### `strip_table_assignments.planned_alt` - גובה הדסק
+### `strip_table_assignments.planned_alt` - גובה במרחב (גובה הדסק)
 
 פ"מ יכול להיות בכמה דסקים, ובכל אחד בגובה אחר (מכינים את הדסק לפני שהפ"מ הגיע).
-בדסק שאינו מחזיק את הפ"מ, הגובה שעליו (`strips.alt`) הוא של העמדה המחזיקה - הגובה
-שבו **נקבל** אותו - והדסק מציג ועורך גובה משלו.
+**גובה המרחב הוא הגובה הפנימי של הדסק** - גם לפ"מ שאצלי: הוא הגובה הראשי לעבודה
+במרחבים של הדסק (הקונפליקטים והבלוקים), ולא משפיע על עמדות אחרות או על נקודות
+ההעברה. הגובה שעל הפ"מ (`strips.alt`) הוא גובה המסירה - זה שעמדות אחרות רואות.
 
 | עמודה | סוג | תיאור |
 |---|---|---|
-| `planned_alt` | VARCHAR(40) | גובה הדסק. NULL = לפ"מ אין גובה בדסק (מוצג בלי גובה) |
+| `planned_alt` | VARCHAR(40) | גובה המרחב. NULL = פ"מ של עמדה אחרת מוצג בלי גובה, פ"מ שאצלי - בגובה שעליו |
 | `planned_alt_to_sender` | BOOLEAN | **ישן** - בקשה לעדכן את המוסרת ב**גובה המרחב**. מתממשת רק כשאין `planned_receive_alt` |
-| `planned_receive_alt` | VARCHAR(40) | **גובה הקבלה/מסירה** של הדסק (עמודת הטבלה "גובה קבלה/מסירה"). כשתיפתח העברה אל הדסק הוא - ולא גובה המרחב - נכנס ל-`strips.alt` ומסומן בהעברה כשינוי של המקבלת (`alt_changed_at`). מתממש פעם אחת ויורד. נכתב ב-`PATCH /api/strip-table-assignments/:stripId/:presetId/receive-alt` (עם העברה פתוחה - מיד); "כן" לשאלה "לעדכן את המוסרת" קובע אותו לגובה המרחב |
+| `planned_receive_alt` | VARCHAR(40) | **גובה הקבלה** של הדסק - לפ"מ שעוד לא אצלי (עמודת הטבלה "גובה מסירה/קבלה" עם דגל "קבלה"; לפ"מ שאצלי העמודה היא גובה המסירה, `strips.alt`, עם דגל "מסירה"). כשתיפתח העברה אל הדסק הוא - ולא גובה המרחב - נכנס ל-`strips.alt` ומסומן בהעברה כשינוי של המקבלת (`alt_changed_at`). מתממש פעם אחת ויורד. נכתב ב-`PATCH /api/strip-table-assignments/:stripId/:presetId/receive-alt` (עם העברה פתוחה - מיד); "כן" לשאלה "לעדכן את המוסרת" קובע אותו לגובה המרחב |
 
 **נקרא ב-** `GET /api/strips/global` כמפה `table_alts = {preset_id: {alt, to_sender, receive_alt}}`.
 **נכתב ב-** `PATCH /api/strip-table-assignments/:stripId/:presetId/alt` (upsert; `alt: null` מוחק
 את הגובה בלי להוציא מהטבלה; `to_sender: true` עם העברה פתוחה - מתממש מיד).
-**מתממש ב-** `initiateSectorTransferTx` / `initiatePresetTransferTx`. **נמחק** בקבלת הפ"מ בדסק,
-ויחד עם השורה עצמה בהסרה מהדסק ובאיפוס הצבות. לוגיקה: `server/db/plannedReceiveAlt.js`,
+**מתממש ב-** `initiateSectorTransferTx` / `initiatePresetTransferTx`. בקבלת הפ"מ בדסק נמחקת רק
+בקשת הקבלה - גובה המרחב נשאר; הכל נמחק יחד עם השורה בהסרה מהדסק ובאיפוס הצבות. לוגיקה: `server/db/plannedReceiveAlt.js`,
 `src/utils/deskAlt.ts`.
 
 ---

@@ -70,10 +70,10 @@ describe('applyPlannedReceiveAlt - הפ"מ בנקודת ההעברה למסיר�
     expect((await openTransferTo(pool, 1, DESK))?.status).toBe('pending');
   });
 
-  it('קבלה - גובה הדסק נמחק', async () => {
-    await pool.query(`INSERT INTO strip_table_assignments VALUES (1, $1, '220', TRUE)`, [DESK]);
+  it('קבלה - בקשת הקבלה נמחקת, וגובה המרחב (הגובה הפנימי של הדסק) נשאר', async () => {
+    await pool.query(`INSERT INTO strip_table_assignments VALUES (1, $1, '220', TRUE, '300')`, [DESK]);
     await clearPlannedAlt(pool, 1, DESK);
-    expect(await assignment()).toEqual({ planned_alt: null, planned_alt_to_sender: false, planned_receive_alt: null });
+    expect(await assignment()).toEqual({ planned_alt: '220', planned_alt_to_sender: false, planned_receive_alt: null });
   });
 
   it('גובה קבלה - הוא נכנס לנקודת ההעברה, ולא גובה המרחב', async () => {

@@ -259,8 +259,24 @@
       "en": "Faults"
     },
     "handoverAlt": {
-      "he": "גובה קבלה/מסירה",
+      "he": "גובה מסירה/קבלה",
       "en": "Handover altitude"
+    },
+    "handoverReceive": {
+      "he": "קבלה",
+      "en": "Receive"
+    },
+    "handoverReceiveHint": {
+      "he": "הפ\"מ עוד לא אצלך: הגובה שאתה מבקש לקבל. ייכנס לעמדה המוסרת כשהפ\"מ יגיע לנקודת ההעברה",
+      "en": "Not with you yet: the altitude you ask to receive. It goes to the handing-over station when the formation reaches the transfer point"
+    },
+    "handoverSend": {
+      "he": "מסירה",
+      "en": "Handover"
+    },
+    "handoverSendHint": {
+      "he": "הפ\"מ אצלך: הגובה שבו הוא יימסר - הגובה שעמדות אחרות רואות",
+      "en": "With you: the altitude it is handed over at - the one other stations see"
     },
     "spaceAlt": {
       "he": "גובה במרחב",

@@ -102,7 +102,7 @@ import { TakeoffBadge, FormationCountBadge } from '../strips/StripCardBadges';
 import { splitSpaceSet, separatedBySpace, blockFitsSpace, separatedByGroup, structureSeparates } from '../../utils/blockSpaces';
 import { applyAltOverrides, parseAltOverrides, refitAltToBand, blockForAlt, type AltOverrides } from '../../utils/zoneAltOverride';
 import { recommendAltitude, stripArmaments, normalizeAltRules, stationRecBlocks, assignedAltitude, freeStart, tooCloseTo, PAIR_SEPARATION, type AltRecommendation, type RecBlock } from '../../utils/altRecommend';
-import { isForeignToDesk, deskAltEntry, withDeskAlt, handoverAltOf, sameAlt, receiveAltViolations, type ReceiveAltViolation } from '../../utils/deskAlt';
+import { isForeignToDesk, deskAltEntry, withDeskAlt, handoverAltOf, handoverModeOf, sameAlt, receiveAltViolations, type ReceiveAltViolation } from '../../utils/deskAlt';
 import { withDeskSpace, isOnDesk, deskSpaceConflict } from '../../utils/deskSpace';
 import { loadPadLayout, savePadLayout, type PadLayout } from '../../utils/freeDeskLayout';
 import FreeDeskPad from '../shared/FreeDeskPad';
@@ -5638,14 +5638,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   }, [tableMode, session.presetId, myPresetConfig]);
 
   /**
-   * פ"מ שהגובה שלו בדסק הזה הוא **גובה הדסק** ולא הגובה שעליו: מוד טבלה, הפ"מ
-   * אצל עמדה אחרת, והוא בטבלה (או שכבר יש לו גובה דסק). null = עריכה רגילה.
+   * פ"מ שהגובה שלו בדסק הזה הוא **גובה המרחב** (הגובה הפנימי של הדסק) ולא הגובה
+   * שעליו: מוד טבלה, והפ"מ בטבלה (או שכבר יש לו גובה מרחב) - גם פ"מ שאצלי. גובה
+   * המרחב לא יוצא מהדסק. null = עריכה רגילה של הגובה שעל הפ"מ.
    */
   const deskAltTarget = (stripId: string): any | null => {
     if (!tableMode || !session.presetId) return null;
     const pid = Number(session.presetId);
     const raw: any = strips.find(st => String(st.id) === String(stripId));
-    if (!raw || !isForeignToDesk(raw, pid)) return null;
+    if (!raw) return null;
     return tableOnBoard.has(raw.id) || deskAltEntry(raw, pid) ? raw : null;
   };
   /** העמדה שתמסור את הפ"מ: בהעברה פתוחה אליי - השולחת; אחרת - המחזיקה */
@@ -5685,7 +5686,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       setStrips(prev => prev.map(st => String(st.id) === String(key) ? { ...st, table_alts: raw.table_alts || {} } : st));
       setSaveFailToast(tr('ctrl.saveFailedReverted', { callsign: raw.callSign || raw.callsign || '' }));
     });
-    if (toSender !== undefined || !alt) return;
+    // השאלה על גובה הקבלה - רק לפ"מ שעוד לא אצלי. בפ"מ שאצלי גובה המרחב פנימי בלבד
+    if (toSender !== undefined || !alt || !isForeignToDesk(raw, pid)) return;
     // גובה הקבלה - של הדסק כשנקבע, ובלעדיו הגובה שעל הפ"מ (שבו הוא יגיע לנקודה).
     // כן = גובה הקבלה יהיה גובה המרחב (saveReceiveAlt); החריגה נבדקת שם
     const receiveAlt = String(prevEntry?.receive_alt || raw.alt || '');
@@ -5727,11 +5729,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const violations = receiveAltViolations(alt, myPresetConfig, senderPresetOf(raw));
     if (violations.length) setReceiveAltAsk({ stripId: String(key), label: raw.callSign || raw.callsign || String(key), receiveAlt: String(raw.alt || ''), deskAlt: alt, ask: false, violations });
   };
-  /** עריכת גובה הקבלה/מסירה: פ"מ של עמדה אחרת - של הדסק; פ"מ שאצלי - הגובה שעליו (הוא שנמסר) */
+  /**
+   * עריכת גובה המסירה/קבלה: פ"מ שעוד לא אצלי - גובה הקבלה של הדסק; פ"מ שאצלי - הגובה
+   * שעליו, שבו הוא יימסר ושעמדות אחרות רואות (לא גובה המרחב, שהוא פנימי)
+   */
   const saveHandoverAlt = (stripId: string, alt: string) => {
-    const desk = deskAltTarget(stripId);
-    if (desk) { saveReceiveAlt(desk, alt); return; }
-    void putStripAlt(stripId, alt);
+    const raw: any = strips.find(st => String(st.id) === String(stripId));
+    if (!raw) return;
+    if (tableMode && session.presetId && isForeignToDesk(raw, Number(session.presetId))) { saveReceiveAlt(raw, alt); return; }
+    optimisticStripPut(String(stripId), { alt });
   };
   /**
    * שמירת מרחב הבלוקים של הפ"מ. בדסק - של הדסק בלבד (utils/deskSpace), מיד על
@@ -17404,8 +17410,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 // אחרת נשמרת לדסק ונכנסת להעברה - לא גובה המרחב
                 case 'handover_alt': {
                   const hAlt = handoverAltOf(s);
-                  const pendingRecv = !!session.presetId && !!deskAltEntry(s, Number(session.presetId))?.receive_alt && !sameAlt(hAlt, (s as any)._receiveAlt);
-                  const hTitle = pendingRecv ? tr('ctrl.handoverAltPending') : undefined;
+                  const hMode = handoverModeOf(s);
+                  const pendingRecv = hMode === 'receive' && !!session.presetId && !!deskAltEntry(s, Number(session.presetId))?.receive_alt && !sameAlt(hAlt, (s as any)._receiveAlt);
+                  const hTitle = pendingRecv ? tr('ctrl.handoverAltPending') : tr(hMode === 'receive' ? 'strips.handoverReceiveHint' : 'strips.handoverSendHint');
+                  // דגל קבלה / מסירה - שיהיה ברור במבט מה השדה הזה עושה בפ"מ הזה
+                  const hFlag = (
+                    <span data-testid={`handover-flag-${s.id}`} style={{ flexShrink: 0, fontSize: tfz(9), fontWeight: 'bold', padding: '0 4px', borderRadius: '3px', lineHeight: 1.5,
+                      color: hMode === 'receive' ? '#22d3ee' : '#a78bfa', border: `1px solid ${hMode === 'receive' ? '#22d3ee' : '#a78bfa'}` }}>
+                      {tr(hMode === 'receive' ? 'strips.handoverReceive' : 'strips.handoverSend')}
+                    </span>
+                  );
                   if (!(s as any)._transferredOut && (col.editable === 'keyboard' || col.editable === 'both')) {
                     const openHandoverPad = () => openVK({
                       value: hAlt, mode: 'numeric', range: true, label: tr('strips.handoverAlt'),
@@ -17414,6 +17428,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     return (
                       <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
                         <div data-testid={`handover-alt-${s.id}`} title={hTitle} onClick={() => canEdit && openHandoverPad()} style={{ cursor: canEdit ? 'pointer' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, color: hAlt ? (pendingRecv ? '#f59e0b' : T.muted) : (lightMode ? '#94a3b8' : '#475569'), fontSize: tfz(12), display: 'flex', alignItems: 'center', gap: '4px', fontWeight: pendingRecv ? 'bold' : 'normal' }}>
+                          {hFlag}
                           <span>{hAlt || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{tr('strips.handoverAlt')}</span>}</span>
                           {canEdit && <VKTrigger value={hAlt} onChange={async v => { saveHandoverAlt(String(s.id), normalizeAlt(v)); }} mode="numeric" label={tr('strips.handoverAlt')} size={13} style={{ flexShrink: 0 }} />}
                         </div>
@@ -17421,7 +17436,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     );
                   }
                   return (
-                    <td key={col.key} title={hTitle} style={{ padding: '10px 12px', color: pendingRecv ? '#f59e0b' : T.muted, verticalAlign: 'top' }}>{hAlt || '—'}</td>
+                    <td key={col.key} title={hTitle} style={{ padding: '10px 12px', color: pendingRecv ? '#f59e0b' : T.muted, verticalAlign: 'top' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>{hFlag}{hAlt || '—'}</span>
+                    </td>
                   );
                 }
                 case 'alt':

@@ -1,5 +1,7 @@
 /**
- * **גובה דסק** - הגובה של פ"מ בדסק במוד טבלה, נפרד מהגובה של הפ"מ עצמו.
+ * **גובה דסק (גובה במרחב)** - הגובה הפנימי של פ"מ בדסק במוד טבלה, נפרד מהגובה של
+ * הפ"מ עצמו. הוא הגובה הראשי לעבודה במרחבים של הדסק - הקונפליקטים והבלוקים - ולא
+ * משפיע על עמדות אחרות או על נקודות ההעברה. חל גם על פ"מ שאצלי.
  *
  * פ"מ יכול להיות בכמה דסקים, ובכל אחד בגובה אחר: מכינים את הדסק עוד לפני
  * שהפ"מ הגיע. הגובה שעל הפ"מ (`strips.alt`) שייך לעמדה שמחזיקה אותו - זה הגובה
@@ -41,19 +43,31 @@ export function deskAltEntry(strip: any, presetId: number): DeskAltEntry | null 
 }
 
 /**
- * הפ"מ כפי שהדסק רואה אותו: לפ"מ של עמדה אחרת - גובה המרחב של הדסק (או ריק),
- * הגובה שעליו ב-`_receiveAlt`, וגובה הקבלה/מסירה ב-`_handoverAlt` (של הדסק
- * כשנקבע, ובלעדיו - הגובה שעל הפ"מ, שבו הוא יגיע לנקודת ההעברה).
+ * הפ"מ כפי שהדסק רואה אותו. `alt` הוא **גובה המרחב** - הגובה הפנימי של הדסק:
+ *
+ * | | גובה המרחב (`alt`) | גובה מסירה/קבלה (`_handoverAlt`) |
+ * |---|---|---|
+ * | **פ"מ של עמדה אחרת** (קבלה) | של הדסק, ובלעדיו ריק | גובה הקבלה שהדסק ביקש, ובלעדיו הגובה שעליו |
+ * | **פ"מ שאצלי** (מסירה) | של הדסק, ובלעדיו הגובה שעליו | הגובה שעליו - שבו הוא יימסר |
+ *
+ * הגובה שעל פ"מ של עמדה אחרת נשמר ב-`_receiveAlt`.
  */
 export function withDeskAlt<T extends Record<string, any>>(strip: T, presetId: number): T {
-  if (!isForeignToDesk(strip, presetId)) return strip;
   const e = deskAltEntry(strip, presetId);
-  return { ...strip, alt: e?.alt ?? '', _receiveAlt: strip.alt ?? '', _handoverAlt: e?.receive_alt || strip.alt || '' };
+  if (!isForeignToDesk(strip, presetId)) {
+    return e?.alt ? { ...strip, alt: e.alt, _handoverAlt: strip.alt ?? '', _handoverMode: 'send' } : strip;
+  }
+  return { ...strip, alt: e?.alt ?? '', _receiveAlt: strip.alt ?? '', _handoverAlt: e?.receive_alt || strip.alt || '', _handoverMode: 'receive' };
 }
 
-/** גובה הקבלה/מסירה כפי שהדסק רואה אותו. פ"מ שאצלי - הגובה שעליו */
+/** גובה המסירה/קבלה כפי שהדסק רואה אותו. פ"מ שאצלי - הגובה שעליו */
 export function handoverAltOf(strip: any): string {
   return String(strip?._handoverAlt ?? strip?.alt ?? '');
+}
+
+/** 'receive' - הפ"מ עוד לא אצלי, והשדה הוא הגובה שאני מבקש לקבל; 'send' - הוא אצלי, והשדה הוא גובה המסירה */
+export function handoverModeOf(strip: any): 'receive' | 'send' {
+  return strip?._handoverMode === 'receive' ? 'receive' : 'send';
 }
 
 /** אותו גובה ("FL120" = "120" = "12000"); שני ריקים - שווים */

@@ -3,8 +3,8 @@
  *
  * | | |
  * |---|---|
- * | **גובה במרחב** (`planned_alt`) | הגובה של הפ"מ במרחב של הדסק. לא נוגע בגובה של העמדה שמחזיקה אותו |
- * | **גובה קבלה/מסירה** (`planned_receive_alt`) | הגובה שבו הדסק רוצה לקבל את הפ"מ בנקודת ההעברה |
+ * | **גובה במרחב** (`planned_alt`) | הגובה **הפנימי** של הדסק - גם לפ"מ שאצלי. משפיע רק על הקונפליקטים והבלוקים של הדסק, לא על עמדות אחרות ולא על נקודות ההעברה |
+ * | **גובה קבלה** (`planned_receive_alt`) | לפ"מ שעוד לא אצלי: הגובה שבו הדסק מבקש לקבל אותו בנקודת ההעברה. לפ"מ שאצלי השדה הוא גובה המסירה - הגובה שעליו (`strips.alt`) |
  *
  * גובה הקבלה - ו**לא** גובה המרחב - נכנס לפ"מ ברגע שנפתחת העברה אל הדסק, כשהפ"מ
  * בנקודת ההעברה למסירה. זה יכול לקרות הרבה אחרי שהגובה נקבע, ולכן זה קורה כאן,
@@ -83,14 +83,17 @@ export async function openTransferTo(db, stripId, presetId) {
   return rows[0] || null;
 }
 
-/** הפ"מ התקבל בעמדה: מעכשיו הגובה שלו הוא האמיתי, וגבהי הדסק כבר לא רלוונטיים */
+/**
+ * הפ"מ התקבל בעמדה: בקשת הקבלה כבר לא רלוונטית - הגובה שעליו הוא עכשיו גובה
+ * המסירה שלי. **גובה המרחב נשאר**: הוא הגובה הפנימי של הדסק, גם לפ"מ שאצלי.
+ */
 export async function clearPlannedAlt(db, stripId, presetId) {
   if (!stripId || presetId == null) return;
   if (!(await hasPlannedAltColumns(db))) return;
   const withReceive = await hasColumn(db, 'planned_receive_alt');
   await db.query(
-    `UPDATE strip_table_assignments SET planned_alt = NULL, planned_alt_to_sender = FALSE${withReceive ? ', planned_receive_alt = NULL' : ''}
-      WHERE strip_id = $1 AND preset_id = $2 AND (planned_alt IS NOT NULL OR planned_alt_to_sender${withReceive ? ' OR planned_receive_alt IS NOT NULL' : ''})`,
+    `UPDATE strip_table_assignments SET planned_alt_to_sender = FALSE${withReceive ? ', planned_receive_alt = NULL' : ''}
+      WHERE strip_id = $1 AND preset_id = $2 AND (planned_alt_to_sender${withReceive ? ' OR planned_receive_alt IS NOT NULL' : ''})`,
     [stripId, presetId],
   );
 }
