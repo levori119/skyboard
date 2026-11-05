@@ -5537,6 +5537,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       const prev = autoSpaceDoneRef.current.get(k);
       const cur = s.block_space_id ? Number(s.block_space_id) : null;
       if (!all && (autoSpaceRetryAtRef.current.get(k) ?? 0) > Date.now()) continue;
+      // המרחב נשמר בשורת הדסק - פ"מ שרק נגרר ללוח עוד בלי שורה בשרת (הבקשה לדרך).
+      // מחכים לה, במקום בקשה שנדחית ב-404 וניסיון חוזר
+      if (!(Array.isArray(s.table_preset_ids) && s.table_preset_ids.map(Number).includes(Number(session.presetId)))) continue;
       if (!all) {
         if (prev) {
           if (cur !== prev.space || prev.tkey === tkey) continue; // ידני, או שלא השתנה כלום
