@@ -23,6 +23,10 @@ export const STRIP_FIELD_DEFS = [
   { key: 'numberOfFormation', label: "מ' מערך",       editableOptions: ['none', 'keyboard'] },
   { key: 'task',              label: 'משימה',         editableOptions: ['none', 'keyboard', 'both'] },
   { key: 'alt',               label: 'גובה',          editableOptions: ['none', 'keyboard', 'both'] },
+  // מוד טבלה: שני הגבהים של הפ"מ בדסק (src/utils/deskAlt.ts). "גובה במרחב" - הגובה
+  // של העמדה (כמו "גובה"); "גובה קבלה/מסירה" - הגובה בנקודת ההעברה, והוא שנכנס להעברה
+  { key: 'space_alt',         label: 'גובה במרחב',    labelKey: 'strips.spaceAlt', editableOptions: ['none', 'keyboard', 'both'] },
+  { key: 'handover_alt',      label: 'גובה קבלה/מסירה', labelKey: 'strips.handoverAlt', editableOptions: ['none', 'keyboard', 'both'] },
   { key: 'takeoffTime',       label: 'זמן המראה',     editableOptions: ['none', 'keyboard'] },
   { key: 'weapons',           label: 'חימושים',       editableOptions: ['none', 'keyboard'] },
   { key: 'targets',           label: 'מטרות',         editableOptions: ['none', 'keyboard'] },

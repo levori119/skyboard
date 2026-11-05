@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isForeignToDesk, deskAltEntry, withDeskAlt, sameAlt, levelAllowed, receiveAltViolations } from './deskAlt';
+import { isForeignToDesk, deskAltEntry, withDeskAlt, handoverAltOf, sameAlt, levelAllowed, receiveAltViolations } from './deskAlt';
 
 const ME = 7;
 
@@ -24,8 +24,22 @@ describe('withDeskAlt - הגובה כפי שהדסק רואה אותו', () => {
     const base = { id: 's1', alt: '340', workstation_preset_id: 3, table_alts: { '7': { alt: '220', to_sender: true }, '9': { alt: '150' } } };
     expect(withDeskAlt(base, ME).alt).toBe('220');
     expect(withDeskAlt(base, 9).alt).toBe('150');
-    expect(deskAltEntry(base, ME)).toEqual({ alt: '220', to_sender: true });
+    expect(deskAltEntry(base, ME)).toEqual({ alt: '220', to_sender: true, receive_alt: null });
     expect(deskAltEntry(base, 11)).toBeNull();
+  });
+
+  it('גובה קבלה/מסירה - של הדסק כשנקבע, אחרת הגובה שעל הפ"מ; גובה המרחב נפרד ממנו', () => {
+    const base = { id: 's1', alt: '340', workstation_preset_id: 3, table_alts: { '7': { alt: '220', receive_alt: '300' } } };
+    const s = withDeskAlt(base, ME);
+    expect(s.alt).toBe('220');
+    expect(handoverAltOf(s)).toBe('300');
+    expect(handoverAltOf(withDeskAlt({ ...base, table_alts: { '7': { alt: '220' } } }, ME))).toBe('340');
+    // רק גובה קבלה, בלי גובה מרחב - הרשומה קיימת והפ"מ בלי גובה במרחב
+    const onlyRecv = withDeskAlt({ ...base, table_alts: { '7': { alt: null, receive_alt: '300' } } }, ME);
+    expect(onlyRecv.alt).toBe('');
+    expect(deskAltEntry(onlyRecv, ME)?.receive_alt).toBe('300');
+    // פ"מ שאצלי - שני הגבהים הם הגובה שעליו
+    expect(handoverAltOf({ alt: '250' })).toBe('250');
   });
 
   it('פ"מ שאצלי - הגובה האמיתי, גם כשנשארה רשומת דסק', () => {

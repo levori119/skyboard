@@ -1297,6 +1297,9 @@ async function applySchemaOnce() {
   // (server/db/plannedReceiveAlt.js, src/utils/deskAlt.ts)
   await sq(`ALTER TABLE strip_table_assignments ADD COLUMN IF NOT EXISTS planned_alt VARCHAR(40)`);
   await sq(`ALTER TABLE strip_table_assignments ADD COLUMN IF NOT EXISTS planned_alt_to_sender BOOLEAN DEFAULT FALSE`);
+  // גובה הקבלה/מסירה: הגובה שבו הדסק רוצה לקבל את הפ"מ בנקודת ההעברה. הוא - ולא
+  // גובה המרחב (`planned_alt`) - נכנס לפ"מ כשנפתחת העברה אל הדסק
+  await sq(`ALTER TABLE strip_table_assignments ADD COLUMN IF NOT EXISTS planned_receive_alt VARCHAR(40)`);
   // מרחב הבלוקים של הפ"מ **בדסק הזה** - כמו הגובה, כל עמדה על אותו פ"מ במרחב
   // משלה. `strips.block_space_id` נשאר למסכים שאינם דסק (src/utils/deskSpace.ts)
   await sq(`ALTER TABLE strip_table_assignments ADD COLUMN IF NOT EXISTS block_space_id INTEGER`);

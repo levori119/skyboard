@@ -1,9 +1,15 @@
 /**
- * **גובה מתוכנן לקבלה** - דסק במוד טבלה קובע לפ"מ גובה משלו
- * (`strip_table_assignments.planned_alt`), בלי לגעת בגובה של העמדה שמחזיקה
- * אותו. כשהפקח ביקש לעדכן את העמדה המוסרת (`planned_alt_to_sender`), הגובה
- * נכנס לפ"מ ברגע שנפתחת העברה אליו - כשהפ"מ בנקודת ההעברה למסירה. זה יכול
- * לקרות הרבה אחרי שהגובה נקבע, ולכן זה קורה כאן, בשרת, ולא בדסק.
+ * **גובה מתוכנן לקבלה** - לפ"מ בדסק במוד טבלה שני גבהים:
+ *
+ * | | |
+ * |---|---|
+ * | **גובה במרחב** (`planned_alt`) | הגובה של הפ"מ במרחב של הדסק. לא נוגע בגובה של העמדה שמחזיקה אותו |
+ * | **גובה קבלה/מסירה** (`planned_receive_alt`) | הגובה שבו הדסק רוצה לקבל את הפ"מ בנקודת ההעברה |
+ *
+ * גובה הקבלה - ו**לא** גובה המרחב - נכנס לפ"מ ברגע שנפתחת העברה אל הדסק, כשהפ"מ
+ * בנקודת ההעברה למסירה. זה יכול לקרות הרבה אחרי שהגובה נקבע, ולכן זה קורה כאן,
+ * בשרת, ולא בדסק. בקשה ישנה (`planned_alt_to_sender` - "לעדכן את המוסרת בגובה
+ * המרחב", מלפני שהיה גובה קבלה) עדיין מתממשת כשאין גובה קבלה.
  *
  * הגובה מסומן בהעברה כ"שונה ע"י המקבלת" (`alt_changed_at`) - אותו מנגנון של
  * שינוי גובה בהעברה פתוחה (src/utils/transferAltChange.ts): הוא מהבהב במוסרת עד
@@ -18,13 +24,15 @@ const receiverOf = (t) => t?.to_preset_id ?? t?.to_workstation_id ?? null;
  * עודכנה (סביבת תרגול, מאגר מקומי ישן) לא תפיל אותה - בלי העמודות אין מה לממש.
  * בתוך טרנזקציה שאילתה שנכשלה מבטלת את כולה, ולכן בודקים ולא תופסים.
  */
-async function hasPlannedAltColumns(db) {
+async function hasColumn(db, column) {
   const { rows } = await db.query(
     `SELECT 1 FROM information_schema.columns
-      WHERE table_schema = current_schema() AND table_name = 'strip_table_assignments' AND column_name = 'planned_alt_to_sender'`,
+      WHERE table_schema = current_schema() AND table_name = 'strip_table_assignments' AND column_name = $1`,
+    [column],
   );
   return rows.length > 0;
 }
+const hasPlannedAltColumns = db => hasColumn(db, 'planned_alt_to_sender');
 
 /**
  * העברה נפתחה: אם הדסק המקבל ביקש לעדכן את המוסרת - הגובה שלו נכנס לפ"מ ולהעברה.
@@ -34,15 +42,28 @@ export async function applyPlannedReceiveAlt(db, transfer) {
   const presetId = receiverOf(transfer);
   if (!transfer?.id || !transfer?.strip_id || presetId == null) return { transfer, applied: false };
   if (!(await hasPlannedAltColumns(db))) return { transfer, applied: false };
-  const { rows } = await db.query(
-    `UPDATE strip_table_assignments SET planned_alt_to_sender = FALSE
-      WHERE strip_id = $1 AND preset_id = $2 AND planned_alt_to_sender
-        AND planned_alt IS NOT NULL AND planned_alt <> ''
-      RETURNING planned_alt`,
-    [transfer.strip_id, presetId],
-  );
+  const withReceive = await hasColumn(db, 'planned_receive_alt');
+  // גובה הקבלה קודם; בלעדיו - הבקשה הישנה (גובה המרחב). שתיהן מתממשות פעם אחת
+  const { rows } = withReceive
+    ? await db.query(
+      `WITH o AS (
+         SELECT strip_id, preset_id,
+                COALESCE(NULLIF(planned_receive_alt, ''), CASE WHEN planned_alt_to_sender THEN NULLIF(planned_alt, '') END) AS alt
+           FROM strip_table_assignments WHERE strip_id = $1 AND preset_id = $2 FOR UPDATE)
+       UPDATE strip_table_assignments t SET planned_alt_to_sender = FALSE, planned_receive_alt = NULL
+         FROM o WHERE t.strip_id = o.strip_id AND t.preset_id = o.preset_id AND o.alt IS NOT NULL
+       RETURNING o.alt AS alt`,
+      [transfer.strip_id, presetId],
+    )
+    : await db.query(
+      `UPDATE strip_table_assignments SET planned_alt_to_sender = FALSE
+        WHERE strip_id = $1 AND preset_id = $2 AND planned_alt_to_sender
+          AND planned_alt IS NOT NULL AND planned_alt <> ''
+        RETURNING planned_alt AS alt`,
+      [transfer.strip_id, presetId],
+    );
   if (!rows.length) return { transfer, applied: false };
-  await db.query('UPDATE strips SET alt = $1 WHERE id = $2', [rows[0].planned_alt, transfer.strip_id]);
+  await db.query('UPDATE strips SET alt = $1 WHERE id = $2', [rows[0].alt, transfer.strip_id]);
   const t = await db.query(
     `UPDATE strip_transfers SET alt_changed_at = NOW(), alt_changed_by = $2, alt_ack_from_at = NULL, alt_ack_to_at = NULL
       WHERE id = $1 RETURNING *`,
@@ -62,13 +83,14 @@ export async function openTransferTo(db, stripId, presetId) {
   return rows[0] || null;
 }
 
-/** הפ"מ התקבל בעמדה: מעכשיו הגובה שלו הוא האמיתי, וגובה הדסק כבר לא רלוונטי */
+/** הפ"מ התקבל בעמדה: מעכשיו הגובה שלו הוא האמיתי, וגבהי הדסק כבר לא רלוונטיים */
 export async function clearPlannedAlt(db, stripId, presetId) {
   if (!stripId || presetId == null) return;
   if (!(await hasPlannedAltColumns(db))) return;
+  const withReceive = await hasColumn(db, 'planned_receive_alt');
   await db.query(
-    `UPDATE strip_table_assignments SET planned_alt = NULL, planned_alt_to_sender = FALSE
-      WHERE strip_id = $1 AND preset_id = $2 AND (planned_alt IS NOT NULL OR planned_alt_to_sender)`,
+    `UPDATE strip_table_assignments SET planned_alt = NULL, planned_alt_to_sender = FALSE${withReceive ? ', planned_receive_alt = NULL' : ''}
+      WHERE strip_id = $1 AND preset_id = $2 AND (planned_alt IS NOT NULL OR planned_alt_to_sender${withReceive ? ' OR planned_receive_alt IS NOT NULL' : ''})`,
     [stripId, presetId],
   );
 }

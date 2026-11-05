@@ -9,7 +9,7 @@ let pool, applyPlannedReceiveAlt, clearPlannedAlt, openTransferTo, initiatePrese
 const DESK = 7, SENDER = 3;
 
 const stripAlt = async () => (await pool.query('SELECT alt FROM strips WHERE id = 1')).rows[0].alt;
-const assignment = async () => (await pool.query('SELECT planned_alt, planned_alt_to_sender FROM strip_table_assignments WHERE strip_id = 1 AND preset_id = $1', [DESK])).rows[0];
+const assignment = async () => (await pool.query('SELECT planned_alt, planned_alt_to_sender, planned_receive_alt FROM strip_table_assignments WHERE strip_id = 1 AND preset_id = $1', [DESK])).rows[0];
 
 beforeAll(async () => {
   process.env.SKYKING_LOCAL_DB = '1';
@@ -18,7 +18,7 @@ beforeAll(async () => {
   ({ applyPlannedReceiveAlt, clearPlannedAlt, openTransferTo } = await import('./plannedReceiveAlt.js'));
   ({ initiatePresetTransferTx } = await import('../routes/transfers.js'));
   await pool.query(`CREATE TABLE strips (id INTEGER PRIMARY KEY, alt TEXT, status TEXT)`);
-  await pool.query(`CREATE TABLE strip_table_assignments (strip_id INTEGER, preset_id INTEGER, planned_alt VARCHAR(40), planned_alt_to_sender BOOLEAN DEFAULT FALSE, PRIMARY KEY (strip_id, preset_id))`);
+  await pool.query(`CREATE TABLE strip_table_assignments (strip_id INTEGER, preset_id INTEGER, planned_alt VARCHAR(40), planned_alt_to_sender BOOLEAN DEFAULT FALSE, planned_receive_alt VARCHAR(40), PRIMARY KEY (strip_id, preset_id))`);
   await pool.query(`CREATE TABLE strip_transfers (id SERIAL PRIMARY KEY, strip_id INTEGER, from_preset_id INTEGER, to_preset_id INTEGER, to_workstation_id INTEGER,
     status TEXT, created_at TIMESTAMPTZ DEFAULT NOW(), alt_changed_at TIMESTAMPTZ, alt_changed_by INTEGER, alt_ack_from_at TIMESTAMPTZ, alt_ack_to_at TIMESTAMPTZ)`);
 }, 120_000);
@@ -73,6 +73,23 @@ describe('applyPlannedReceiveAlt - הפ"מ בנקודת ההעברה למסיר�
   it('קבלה - גובה הדסק נמחק', async () => {
     await pool.query(`INSERT INTO strip_table_assignments VALUES (1, $1, '220', TRUE)`, [DESK]);
     await clearPlannedAlt(pool, 1, DESK);
-    expect(await assignment()).toEqual({ planned_alt: null, planned_alt_to_sender: false });
+    expect(await assignment()).toEqual({ planned_alt: null, planned_alt_to_sender: false, planned_receive_alt: null });
+  });
+
+  it('גובה קבלה - הוא נכנס לנקודת ההעברה, ולא גובה המרחב', async () => {
+    await pool.query(`INSERT INTO strip_table_assignments (strip_id, preset_id, planned_alt, planned_alt_to_sender, planned_receive_alt) VALUES (1, $1, '220', FALSE, '300')`, [DESK]);
+    const t = await initiatePresetTransferTx(pool, 1, { fromPresetId: SENDER, toPresetId: DESK });
+    expect(await stripAlt()).toBe('300');
+    expect(t.alt_changed_at).toBeTruthy();
+    const a = await assignment();
+    expect(a.planned_alt).toBe('220');        // גובה המרחב של הדסק נשאר
+    expect(a.planned_receive_alt).toBe(null); // הבקשה מתממשת פעם אחת
+  });
+
+  it('גובה קבלה גובר גם על בקשה ישנה לעדכן את המוסרת בגובה המרחב', async () => {
+    await pool.query(`INSERT INTO strip_table_assignments (strip_id, preset_id, planned_alt, planned_alt_to_sender, planned_receive_alt) VALUES (1, $1, '220', TRUE, '310')`, [DESK]);
+    await initiatePresetTransferTx(pool, 1, { fromPresetId: SENDER, toPresetId: DESK });
+    expect(await stripAlt()).toBe('310');
+    expect((await assignment()).planned_alt_to_sender).toBe(false);
   });
 });

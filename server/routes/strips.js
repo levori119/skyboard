@@ -105,8 +105,9 @@ router.get('/api/strips/global', async (req, res) => {
         (SELECT COALESCE(jsonb_object_agg(preset_id::text, note), '{}'::jsonb)
            FROM strip_station_notes WHERE strip_id = s.id AND note <> '') AS station_notes,
         -- גובה הדסק פר עמדה (src/utils/deskAlt.ts)
-        (SELECT COALESCE(jsonb_object_agg(preset_id::text, jsonb_build_object('alt', planned_alt, 'to_sender', COALESCE(planned_alt_to_sender, FALSE))), '{}'::jsonb)
-           FROM strip_table_assignments WHERE strip_id = s.id AND planned_alt IS NOT NULL AND planned_alt <> '') AS table_alts,
+        (SELECT COALESCE(jsonb_object_agg(preset_id::text, jsonb_build_object('alt', planned_alt, 'to_sender', COALESCE(planned_alt_to_sender, FALSE), 'receive_alt', planned_receive_alt)), '{}'::jsonb)
+           FROM strip_table_assignments WHERE strip_id = s.id
+            AND ((planned_alt IS NOT NULL AND planned_alt <> '') OR (planned_receive_alt IS NOT NULL AND planned_receive_alt <> ''))) AS table_alts,
         -- מרחב הבלוקים פר דסק (src/utils/deskSpace.ts)
         (SELECT COALESCE(jsonb_object_agg(preset_id::text, block_space_id), '{}'::jsonb)
            FROM strip_table_assignments WHERE strip_id = s.id AND block_space_id IS NOT NULL) AS table_spaces,
@@ -1309,6 +1310,33 @@ router.patch('/api/strip-table-assignments/:stripId/:presetId/space', async (req
   } catch (err) {
     console.error('Error saving desk space:', err);
     res.status(500).json({ error: 'Failed to save desk space' });
+  }
+});
+
+// גובה הקבלה/מסירה של הדסק (`alt: null` מוחק). רק לפ"מ שבדסק. אם כבר פתוחה העברה
+// אל הדסק - נכנס מיד לפ"מ ולהעברה; אחרת - כשתיפתח (server/db/plannedReceiveAlt.js)
+router.patch('/api/strip-table-assignments/:stripId/:presetId/receive-alt', async (req, res) => {
+  const stripId = parseInt(String(req.params.stripId).replace(/^s/, ''));
+  const presetId = parseInt(req.params.presetId);
+  const raw = req.body?.alt;
+  if (isNaN(stripId) || isNaN(presetId)) return res.status(400).json({ error: 'strip id and preset id required' });
+  if (raw !== null && raw !== undefined && typeof raw !== 'string') return res.status(400).json({ error: 'alt חייב להיות מחרוזת או null' });
+  const alt = raw ? raw.trim().slice(0, 40) : null;
+  try {
+    const r = await pool.query(
+      'UPDATE strip_table_assignments SET planned_receive_alt = $3 WHERE strip_id = $1 AND preset_id = $2',
+      [stripId, presetId, alt],
+    );
+    if (!r.rowCount) return res.status(404).json({ error: 'הפ"מ אינו בדסק של העמדה' });
+    let applied = false;
+    if (alt) {
+      const open = await openTransferTo(pool, stripId, presetId);
+      if (open) applied = (await applyPlannedReceiveAlt(pool, open)).applied;
+    }
+    res.json({ success: true, applied });
+  } catch (err) {
+    console.error('Error saving receive alt:', err);
+    res.status(500).json({ error: 'Failed to save receive alt' });
   }
 });
 

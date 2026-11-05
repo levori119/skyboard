@@ -298,9 +298,10 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | עמודה | סוג | תיאור |
 |---|---|---|
 | `planned_alt` | VARCHAR(40) | גובה הדסק. NULL = לפ"מ אין גובה בדסק (מוצג בלי גובה) |
-| `planned_alt_to_sender` | BOOLEAN | הפקח ענה "כן" לעדכון העמדה המוסרת: כשתיפתח העברה אל הדסק הגובה נכנס ל-`strips.alt` ומסומן בהעברה כשינוי של המקבלת (`alt_changed_at`). מתממש פעם אחת ויורד |
+| `planned_alt_to_sender` | BOOLEAN | **ישן** - בקשה לעדכן את המוסרת ב**גובה המרחב**. מתממשת רק כשאין `planned_receive_alt` |
+| `planned_receive_alt` | VARCHAR(40) | **גובה הקבלה/מסירה** של הדסק (עמודת הטבלה "גובה קבלה/מסירה"). כשתיפתח העברה אל הדסק הוא - ולא גובה המרחב - נכנס ל-`strips.alt` ומסומן בהעברה כשינוי של המקבלת (`alt_changed_at`). מתממש פעם אחת ויורד. נכתב ב-`PATCH /api/strip-table-assignments/:stripId/:presetId/receive-alt` (עם העברה פתוחה - מיד); "כן" לשאלה "לעדכן את המוסרת" קובע אותו לגובה המרחב |
 
-**נקרא ב-** `GET /api/strips/global` כמפה `table_alts = {preset_id: {alt, to_sender}}`.
+**נקרא ב-** `GET /api/strips/global` כמפה `table_alts = {preset_id: {alt, to_sender, receive_alt}}`.
 **נכתב ב-** `PATCH /api/strip-table-assignments/:stripId/:presetId/alt` (upsert; `alt: null` מוחק
 את הגובה בלי להוציא מהטבלה; `to_sender: true` עם העברה פתוחה - מתממש מיד).
 **מתממש ב-** `initiateSectorTransferTx` / `initiatePresetTransferTx`. **נמחק** בקבלת הפ"מ בדסק,

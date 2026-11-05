@@ -102,7 +102,7 @@ import { TakeoffBadge, FormationCountBadge } from '../strips/StripCardBadges';
 import { splitSpaceSet, separatedBySpace, blockFitsSpace, separatedByGroup, structureSeparates } from '../../utils/blockSpaces';
 import { applyAltOverrides, parseAltOverrides, refitAltToBand, blockForAlt, type AltOverrides } from '../../utils/zoneAltOverride';
 import { recommendAltitude, stripArmaments, normalizeAltRules, stationRecBlocks, assignedAltitude, freeStart, tooCloseTo, PAIR_SEPARATION, type AltRecommendation, type RecBlock } from '../../utils/altRecommend';
-import { isForeignToDesk, deskAltEntry, withDeskAlt, sameAlt, receiveAltViolations, type ReceiveAltViolation } from '../../utils/deskAlt';
+import { isForeignToDesk, deskAltEntry, withDeskAlt, handoverAltOf, sameAlt, receiveAltViolations, type ReceiveAltViolation } from '../../utils/deskAlt';
 import { withDeskSpace, isOnDesk, deskSpaceConflict } from '../../utils/deskSpace';
 import { loadPadLayout, savePadLayout, type PadLayout } from '../../utils/freeDeskLayout';
 import FreeDeskPad from '../shared/FreeDeskPad';
@@ -5686,12 +5686,52 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       setSaveFailToast(tr('ctrl.saveFailedReverted', { callsign: raw.callSign || raw.callsign || '' }));
     });
     if (toSender !== undefined || !alt) return;
-    const receiveAlt = String(raw.alt || '');
+    // גובה הקבלה - של הדסק כשנקבע, ובלעדיו הגובה שעל הפ"מ (שבו הוא יגיע לנקודה).
+    // כן = גובה הקבלה יהיה גובה המרחב (saveReceiveAlt); החריגה נבדקת שם
+    const receiveAlt = String(prevEntry?.receive_alt || raw.alt || '');
+    const ask = !sameAlt(receiveAlt, alt) && !receiveAltDeclinedRef.current.has(String(key));
+    if (ask) setReceiveAltAsk({ stripId: String(key), label: raw.callSign || raw.callsign || String(key), receiveAlt, deskAlt: alt, ask: true, violations: [] });
+  };
+  /**
+   * **גובה הקבלה/מסירה** של פ"מ של עמדה אחרת - הגובה שבו הדסק רוצה לקבל אותו
+   * בנקודת ההעברה. הוא, ולא גובה המרחב, נכנס להעברה (server/db/plannedReceiveAlt.js):
+   * מיד אם כבר פתוחה העברה אליי, ואחרת כשתיפתח. מיד על המסך, השמירה ברקע.
+   */
+  const saveReceiveAlt = (raw: any, alt: string) => {
+    const pid = Number(session.presetId);
+    const key = raw.id;
+    const prevEntry = deskAltEntry(raw, pid);
+    const nextAlts: Record<string, any> = { ...(raw.table_alts || {}) };
+    const entry = { alt: prevEntry?.alt ?? null, to_sender: false, receive_alt: alt || null };
+    if (entry.alt || entry.receive_alt) nextAlts[String(pid)] = entry;
+    else delete nextAlts[String(pid)];
+    const patch = { table_alts: nextAlts };
+    pendingStripUpdatesRef.current.set(key, { ...(pendingStripUpdatesRef.current.get(key) || {}), ...patch });
+    setStrips(prev => prev.map(st => String(st.id) === String(key) ? { ...st, ...patch } : st));
+    const numId = String(key).replace(/^s/, '');
+    fetch(`${API_URL}/strip-table-assignments/${numId}/${pid}/receive-alt`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ alt: alt || null }),
+    }).then(r => {
+      if (!r.ok) throw new Error(`receive alt ${r.status}`);
+      setTimeout(() => releasePendingKeys(pendingStripUpdatesRef.current, key, patch), PENDING_RELEASE_MS);
+      // הגובה נכנס להעברה פתוחה - הפ"מ עצמו השתנה, ומשיכה מעדכנת את שני הצדדים
+      return r.json().then(j => { if (j?.applied) loadData(); });
+    }).catch(err => {
+      console.error(err);
+      if (!releasePendingKeys(pendingStripUpdatesRef.current, key, patch).length) return;
+      setStrips(prev => prev.map(st => String(st.id) === String(key) ? { ...st, table_alts: raw.table_alts || {} } : st));
+      setSaveFailToast(tr('ctrl.saveFailedReverted', { callsign: raw.callSign || raw.callsign || '' }));
+    });
+    if (!alt) return;
     const violations = receiveAltViolations(alt, myPresetConfig, senderPresetOf(raw));
-    const ask = !sameAlt(receiveAlt, alt) && !prevEntry?.to_sender && !receiveAltDeclinedRef.current.has(String(key));
-    if (ask || violations.length) {
-      setReceiveAltAsk({ stripId: String(key), label: raw.callSign || raw.callsign || String(key), receiveAlt, deskAlt: alt, ask, violations });
-    }
+    if (violations.length) setReceiveAltAsk({ stripId: String(key), label: raw.callSign || raw.callsign || String(key), receiveAlt: String(raw.alt || ''), deskAlt: alt, ask: false, violations });
+  };
+  /** עריכת גובה הקבלה/מסירה: פ"מ של עמדה אחרת - של הדסק; פ"מ שאצלי - הגובה שעליו (הוא שנמסר) */
+  const saveHandoverAlt = (stripId: string, alt: string) => {
+    const desk = deskAltTarget(stripId);
+    if (desk) { saveReceiveAlt(desk, alt); return; }
+    void putStripAlt(stripId, alt);
   };
   /**
    * שמירת מרחב הבלוקים של הפ"מ. בדסק - של הדסק בלבד (utils/deskSpace), מיד על
@@ -5873,7 +5913,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       case 'numberOfFormation': return s.numberOfFormation || '—';
       case 'sector': return sectorName;
       case 'shkadia': return s.shkadia || '—';
-      case 'alt': return String(s.alt || '—');
+      case 'alt': case 'space_alt': return String(s.alt || '—');
+      case 'handover_alt': return handoverAltOf(s) || '—';
       case 'task': return s.task || '—';
       case 'erka': return s.erka || '—';
       case 'koteret': return s.koteret || '—';
@@ -14457,7 +14498,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               {q.ask ? (
                 <>
                   <button data-testid="recv-alt-yes" autoFocus
-                    onClick={() => { const raw = strips.find(st => String(st.id) === q.stripId); close(); if (raw) saveDeskAlt(raw, q.deskAlt, true); }}
+                    onClick={() => { const raw = strips.find(st => String(st.id) === q.stripId); close(); if (raw) saveReceiveAlt(raw, q.deskAlt); }}
                     style={{ flex: 1, background: '#15803d', color: 'white', border: 'none', borderRadius: '6px', padding: '7px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>✓ {tr('ctrl.recvAltYes')}</button>
                   <button data-testid="recv-alt-no"
                     onClick={() => { receiveAltDeclinedRef.current.add(q.stripId); close(); }}
@@ -17359,7 +17400,32 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </td>
                   );
                 }
-                case 'alt': {
+                // גובה קבלה/מסירה: הגובה בנקודת ההעברה (utils/deskAlt). עריכה בפ"מ של עמדה
+                // אחרת נשמרת לדסק ונכנסת להעברה - לא גובה המרחב
+                case 'handover_alt': {
+                  const hAlt = handoverAltOf(s);
+                  const pendingRecv = !!session.presetId && !!deskAltEntry(s, Number(session.presetId))?.receive_alt && !sameAlt(hAlt, (s as any)._receiveAlt);
+                  const hTitle = pendingRecv ? tr('ctrl.handoverAltPending') : undefined;
+                  if (!(s as any)._transferredOut && (col.editable === 'keyboard' || col.editable === 'both')) {
+                    const openHandoverPad = () => openVK({
+                      value: hAlt, mode: 'numeric', range: true, label: tr('strips.handoverAlt'),
+                      onConfirm: v => saveHandoverAlt(String(s.id), normalizeAlt(v)),
+                    });
+                    return (
+                      <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
+                        <div data-testid={`handover-alt-${s.id}`} title={hTitle} onClick={() => canEdit && openHandoverPad()} style={{ cursor: canEdit ? 'pointer' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, color: hAlt ? (pendingRecv ? '#f59e0b' : T.muted) : (lightMode ? '#94a3b8' : '#475569'), fontSize: tfz(12), display: 'flex', alignItems: 'center', gap: '4px', fontWeight: pendingRecv ? 'bold' : 'normal' }}>
+                          <span>{hAlt || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{tr('strips.handoverAlt')}</span>}</span>
+                          {canEdit && <VKTrigger value={hAlt} onChange={async v => { saveHandoverAlt(String(s.id), normalizeAlt(v)); }} mode="numeric" label={tr('strips.handoverAlt')} size={13} style={{ flexShrink: 0 }} />}
+                        </div>
+                      </td>
+                    );
+                  }
+                  return (
+                    <td key={col.key} title={hTitle} style={{ padding: '10px 12px', color: pendingRecv ? '#f59e0b' : T.muted, verticalAlign: 'top' }}>{hAlt || '—'}</td>
+                  );
+                }
+                case 'alt':
+                case 'space_alt': {
                   if ((s as any)._transferredOut) {
                     return (
                       <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'middle' }}>

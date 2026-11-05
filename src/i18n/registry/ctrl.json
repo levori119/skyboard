@@ -2867,8 +2867,12 @@
       "en": "You will receive the formation at {{recv}} and you set {{desk}} - update the handing-over station with the new planned altitude?"
     },
     "recvAltAskHint": {
-      "he": "העדכון ייכנס להעברה כשהפ\"מ יגיע לנקודת ההעברה למסירה",
-      "en": "The update enters the transfer when the formation reaches the handover transfer point"
+      "he": "כן = גובה הקבלה/מסירה יהיה הגובה שקבעת. הוא ייכנס להעברה כשהפ\"מ יגיע לנקודת ההעברה למסירה; גובה המרחב לא נשלח",
+      "en": "Yes = the handover altitude becomes the one you set. It enters the transfer when the formation reaches the handover transfer point; the space altitude is not sent"
+    },
+    "handoverAltPending": {
+      "he": "גובה הקבלה שביקשת - ייכנס להעברה כשהפ\"מ יגיע לנקודת ההעברה",
+      "en": "Requested handover altitude - enters the transfer when the formation reaches the transfer point"
     },
     "recvAltNone": {
       "he": "ללא גובה",

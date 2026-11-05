@@ -9,8 +9,9 @@
  * |---|---|
  * | **התצוגה** | הגובה שהדסק קבע (`strip_table_assignments.planned_alt`), ובלעדיו - בלי גובה. גם בחלון הפ"מים |
  * | **עריכה** | נשמרת כגובה הדסק, ולא נוגעת בגובה של העמדה המחזיקה |
- * | **גובה שונה מגובה הקבלה** | שאלה: לעדכן את העמדה המוסרת? כן = כשהפ"מ יגיע לנקודת ההעברה למסירה, הגובה בהעברה מתעדכן (`planned_alt_to_sender`, `server/db/plannedReceiveAlt.js`) |
- * | **חריגה מגבהי הקבלה** | התראה כשהגובה אינו בגבהים שהוגדרו לעמדה בנקודת ההעברה (`receiveAltViolations`) |
+ * | **גובה קבלה/מסירה** | נפרד מגובה המרחב (`planned_receive_alt`): הגובה שבו הדסק רוצה לקבל את הפ"מ. הוא - ולא גובה המרחב - נכנס להעברה כשהפ"מ בנקודת ההעברה למסירה (`server/db/plannedReceiveAlt.js`) |
+ * | **גובה מרחב שונה מגובה הקבלה** | שאלה: לעדכן את העמדה המוסרת? כן = גובה הקבלה = גובה המרחב |
+ * | **חריגה מגבהי הקבלה** | התראה כשגובה הקבלה אינו בגבהים שהוגדרו לעמדה בנקודת ההעברה (`receiveAltViolations`) |
  * | **אחרי הקבלה** | הפ"מ אצלי - הגובה שלו הוא האמיתי, וגובה הדסק נמחק בשרת |
  *
  * פ"מ שאין לו עמדה מחזיקה (`workstation_preset_id` ריק) אינו "של אחר" - הגובה
@@ -20,7 +21,7 @@ import { parseAltHundreds } from './altRecommend';
 import { configRules, ruleStation } from '../../shared/transferPointAltRules.js';
 import { presetSectorIds } from '../../shared/transferPointStations.js';
 
-export interface DeskAltEntry { alt: string | null; to_sender?: boolean }
+export interface DeskAltEntry { alt: string | null; to_sender?: boolean; receive_alt?: string | null }
 
 const pidOf = (v: unknown) => (v == null || v === '' ? null : Number(v));
 
@@ -32,19 +33,27 @@ export function isForeignToDesk(strip: any, presetId: number | null | undefined)
   return holder !== Number(presetId) || strip.status === 'pending_transfer';
 }
 
-/** הרשומה של הדסק הזה על הפ"מ (גובה + האם לעדכן את המוסרת) */
+/** הרשומה של הדסק הזה על הפ"מ: גובה במרחב, גובה קבלה/מסירה, והבקשה הישנה לעדכן את המוסרת */
 export function deskAltEntry(strip: any, presetId: number): DeskAltEntry | null {
   const e = strip?.table_alts?.[String(presetId)];
-  return e && typeof e === 'object' && e.alt ? { alt: String(e.alt), to_sender: !!e.to_sender } : null;
+  if (!e || typeof e !== 'object' || (!e.alt && !e.receive_alt)) return null;
+  return { alt: e.alt ? String(e.alt) : null, to_sender: !!e.to_sender, receive_alt: e.receive_alt ? String(e.receive_alt) : null };
 }
 
 /**
- * הפ"מ כפי שהדסק רואה אותו: לפ"מ של עמדה אחרת - הגובה של הדסק (או ריק),
- * והגובה שבו נקבל אותו ב-`_receiveAlt`.
+ * הפ"מ כפי שהדסק רואה אותו: לפ"מ של עמדה אחרת - גובה המרחב של הדסק (או ריק),
+ * הגובה שעליו ב-`_receiveAlt`, וגובה הקבלה/מסירה ב-`_handoverAlt` (של הדסק
+ * כשנקבע, ובלעדיו - הגובה שעל הפ"מ, שבו הוא יגיע לנקודת ההעברה).
  */
 export function withDeskAlt<T extends Record<string, any>>(strip: T, presetId: number): T {
   if (!isForeignToDesk(strip, presetId)) return strip;
-  return { ...strip, alt: deskAltEntry(strip, presetId)?.alt ?? '', _receiveAlt: strip.alt ?? '' };
+  const e = deskAltEntry(strip, presetId);
+  return { ...strip, alt: e?.alt ?? '', _receiveAlt: strip.alt ?? '', _handoverAlt: e?.receive_alt || strip.alt || '' };
+}
+
+/** גובה הקבלה/מסירה כפי שהדסק רואה אותו. פ"מ שאצלי - הגובה שעליו */
+export function handoverAltOf(strip: any): string {
+  return String(strip?._handoverAlt ?? strip?.alt ?? '');
 }
 
 /** אותו גובה ("FL120" = "120" = "12000"); שני ריקים - שווים */

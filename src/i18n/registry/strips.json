@@ -258,6 +258,14 @@
       "he": "תקלות",
       "en": "Faults"
     },
+    "handoverAlt": {
+      "he": "גובה קבלה/מסירה",
+      "en": "Handover altitude"
+    },
+    "spaceAlt": {
+      "he": "גובה במרחב",
+      "en": "Space altitude"
+    },
     "guided": {
       "he": "נ. מכוון",
       "en": "Guided"
