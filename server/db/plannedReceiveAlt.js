@@ -4,7 +4,7 @@
  * | | |
  * |---|---|
  * | **גובה במרחב** (`planned_alt`) | הגובה **הפנימי** של הדסק - גם לפ"מ שאצלי. משפיע רק על הקונפליקטים והבלוקים של הדסק, לא על עמדות אחרות ולא על נקודות ההעברה |
- * | **גובה קבלה** (`planned_receive_alt`) | לפ"מ שעוד לא אצלי: הגובה שבו הדסק מבקש לקבל אותו בנקודת ההעברה. לפ"מ שאצלי השדה הוא גובה המסירה - הגובה שעליו (`strips.alt`) |
+ * | **גובה מסירה/קבלה** (`planned_receive_alt`) | בקבלה: הגובה שבו הדסק מבקש לקבל את הפ"מ בנקודת ההעברה. במסירה (`handover_mode = 'send'`): גובה המסירה - נכתב גם לפ"מ (`strips.alt`), ולא נכנס להעברה כבקשת קבלה. נמחק בקבלת הפ"מ |
  *
  * גובה הקבלה - ו**לא** גובה המרחב - נכנס לפ"מ ברגע שנפתחת העברה אל הדסק, כשהפ"מ
  * בנקודת ההעברה למסירה. זה יכול לקרות הרבה אחרי שהגובה נקבע, ולכן זה קורה כאן,
@@ -43,13 +43,15 @@ export async function applyPlannedReceiveAlt(db, transfer) {
   if (!transfer?.id || !transfer?.strip_id || presetId == null) return { transfer, applied: false };
   if (!(await hasPlannedAltColumns(db))) return { transfer, applied: false };
   const withReceive = await hasColumn(db, 'planned_receive_alt');
-  // גובה הקבלה קודם; בלעדיו - הבקשה הישנה (גובה המרחב). שתיהן מתממשות פעם אחת
+  const withMode = await hasColumn(db, 'handover_mode');
+  // גובה הקבלה קודם; בלעדיו - הבקשה הישנה (גובה המרחב). שתיהן מתממשות פעם אחת.
+  // במסירה (`handover_mode = 'send'`) הערך הוא גובה המסירה שלי ולא בקשת קבלה
   const { rows } = withReceive
     ? await db.query(
       `WITH o AS (
          SELECT strip_id, preset_id,
                 COALESCE(NULLIF(planned_receive_alt, ''), CASE WHEN planned_alt_to_sender THEN NULLIF(planned_alt, '') END) AS alt
-           FROM strip_table_assignments WHERE strip_id = $1 AND preset_id = $2 FOR UPDATE)
+           FROM strip_table_assignments WHERE strip_id = $1 AND preset_id = $2${withMode ? " AND COALESCE(handover_mode, 'receive') <> 'send'" : ''} FOR UPDATE)
        UPDATE strip_table_assignments t SET planned_alt_to_sender = FALSE, planned_receive_alt = NULL
          FROM o WHERE t.strip_id = o.strip_id AND t.preset_id = o.preset_id AND o.alt IS NOT NULL
        RETURNING o.alt AS alt`,

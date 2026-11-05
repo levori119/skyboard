@@ -87,6 +87,12 @@ describe('applyPlannedReceiveAlt - הפ"מ בנקודת ההעברה למסיר�
     expect(a.planned_receive_alt).toBe(null); // הבקשה מתממשת פעם אחת
   });
 
+  it('גובה מסירה (הפ"מ אצלי) - לא נכנס להעברה אליי כבקשת קבלה', async () => {
+    await pool.query(`INSERT INTO strip_table_assignments (strip_id, preset_id, planned_alt, planned_alt_to_sender, planned_receive_alt, handover_mode) VALUES (1, $1, '220', FALSE, '300', 'send')`, [DESK]);
+    await initiatePresetTransferTx(pool, 1, { fromPresetId: SENDER, toPresetId: DESK });
+    expect(await stripAlt()).toBe('340');
+  });
+
   it('גובה קבלה גובר גם על בקשה ישנה לעדכן את המוסרת בגובה המרחב', async () => {
     await pool.query(`INSERT INTO strip_table_assignments (strip_id, preset_id, planned_alt, planned_alt_to_sender, planned_receive_alt) VALUES (1, $1, '220', TRUE, '310')`, [DESK]);
     await initiatePresetTransferTx(pool, 1, { fromPresetId: SENDER, toPresetId: DESK });

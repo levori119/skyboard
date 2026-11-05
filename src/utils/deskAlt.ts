@@ -49,7 +49,7 @@ export function deskAltEntry(strip: any, presetId: number): DeskAltEntry | null 
  * | | גובה המרחב (`alt`) | גובה מסירה/קבלה (`_handoverAlt`) |
  * |---|---|---|
  * | **פ"מ של עמדה אחרת** | של הדסק, ובלעדיו ריק | תמיד **קבלה**: הגובה שהדסק ביקש, ובלעדיו הגובה שעליו |
- * | **פ"מ שאצלי** | של הדסק, ובלעדיו הגובה שעליו | לפי הדגל (`mode`): **קבלה** (ברירת המחדל - פ"מ שנגרר מחלון הפ"מים בדרך כלל מחכה לקבלה) או **מסירה** - הגובה שעליו. קבלת העברה מעבירה למסירה |
+ * | **פ"מ שאצלי** | של הדסק, ובלעדיו הגובה שעליו | לפי הדגל (`mode`): **קבלה** (ברירת המחדל - פ"מ שנגרר מחלון הפ"מים בדרך כלל מחכה לקבלה) או **מסירה** - גובה המסירה שנקבע בדסק. קבלת העברה מעבירה למסירה ומוחקת את הערך |
  *
  * הגובה שעל פ"מ של עמדה אחרת נשמר ב-`_receiveAlt`.
  */
@@ -59,7 +59,8 @@ export function withDeskAlt<T extends Record<string, any>>(strip: T, presetId: n
     const mode = e?.mode ?? 'receive';
     return {
       ...strip, alt: e?.alt || strip.alt || '', _receiveAlt: strip.alt ?? '',
-      _handoverAlt: mode === 'receive' ? (e?.receive_alt || strip.alt || '') : (strip.alt ?? ''), _handoverMode: mode,
+      // במסירה - גובה המסירה שנקבע בדסק. אחרי קבלה הוא ריק עד שנקבע (או "גובה נוכחי")
+      _handoverAlt: mode === 'receive' ? (e?.receive_alt || strip.alt || '') : (e?.receive_alt ?? ''), _handoverMode: mode,
     };
   }
   return { ...strip, alt: e?.alt ?? '', _receiveAlt: strip.alt ?? '', _handoverAlt: e?.receive_alt || strip.alt || '', _handoverMode: 'receive' };
@@ -73,6 +74,12 @@ export function handoverAltOf(strip: any): string {
 /** 'receive' - השדה הוא הגובה שאני מבקש לקבל; 'send' - גובה המסירה (הגובה שעל הפ"מ) */
 export function handoverModeOf(strip: any): 'receive' | 'send' {
   return strip?._handoverMode === 'send' ? 'send' : 'receive';
+}
+
+/** "גובה נוכחי": הגובה בבלוק כגובה מסירה - בכמה גבהים (מבנה) הנמוך מהם */
+export function lowestAlt(alt: string | null | undefined): string {
+  const r = parseAltHundreds(alt);
+  return r ? String(r.lo) : '';
 }
 
 /** אפשר להחליף קבלה/מסירה רק בפ"מ שאינו אצל עמדה אחרת - פ"מ של אחר הוא תמיד קבלה */

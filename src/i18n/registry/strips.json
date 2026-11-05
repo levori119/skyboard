@@ -262,6 +262,14 @@
       "he": "גובה מסירה/קבלה",
       "en": "Handover altitude"
     },
+    "handoverCurrent": {
+      "he": "גובה נוכחי",
+      "en": "Current altitude"
+    },
+    "handoverCurrentHint": {
+      "he": "מעתיק את הגובה שבבלוק הגבהים (גובה המרחב) לגובה המסירה. כמה גבהים - הנמוך",
+      "en": "Copies the altitude in the altitude block (space altitude) to the handover altitude. Several altitudes - the lowest"
+    },
     "handoverReceive": {
       "he": "קבלה",
       "en": "Receive"

@@ -102,7 +102,7 @@ import { TakeoffBadge, FormationCountBadge } from '../strips/StripCardBadges';
 import { splitSpaceSet, separatedBySpace, blockFitsSpace, separatedByGroup, structureSeparates } from '../../utils/blockSpaces';
 import { applyAltOverrides, parseAltOverrides, refitAltToBand, blockForAlt, type AltOverrides } from '../../utils/zoneAltOverride';
 import { recommendAltitude, stripArmaments, normalizeAltRules, stationRecBlocks, assignedAltitude, freeStart, tooCloseTo, PAIR_SEPARATION, type AltRecommendation, type RecBlock } from '../../utils/altRecommend';
-import { isForeignToDesk, deskAltEntry, withDeskAlt, handoverAltOf, handoverModeOf, canToggleHandover, sameAlt, receiveAltViolations, type ReceiveAltViolation } from '../../utils/deskAlt';
+import { isForeignToDesk, deskAltEntry, withDeskAlt, handoverAltOf, handoverModeOf, canToggleHandover, lowestAlt, sameAlt, receiveAltViolations, type ReceiveAltViolation } from '../../utils/deskAlt';
 import { withDeskSpace, isOnDesk, deskSpaceConflict } from '../../utils/deskSpace';
 import { loadPadLayout, savePadLayout, type PadLayout } from '../../utils/freeDeskLayout';
 import FreeDeskPad from '../shared/FreeDeskPad';
@@ -5421,7 +5421,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // פ"מ שנגרר לטבלה מקבל המלצה על בלוק פנוי מטבלת הבלוקים של העמדה (רביעייה =
   // 2 בלוקים סמוכים, לפי חוקי החימוש בהגדרות העמדה), והבלוקים נבחרים מראש. אם
   // אין רצף פנוי - התראה להטפיס/להנמיך פ"מ אחד כדי לפנות. src/utils/altRecommend.ts
-  const [altRec, setAltRec] = useState<{ stripId: string; label: string; formation: number; blocks: RecBlock[]; rec: AltRecommendation; selected: number[]; moved: boolean; assignStart?: number | null } | null>(null);
+  // `predictedSpace` - המרחב שהחלוקה האוטומטית תיתן לפ"מ, כשהוא עוד בלי מרחב (שורת הדסק
+  // בדרך לשרת): ההמלצה מוצעת מיד לפיו, במקום לחכות שהשיוך יגיע
+  const [altRec, setAltRec] = useState<{ stripId: string; label: string; formation: number; blocks: RecBlock[]; rec: AltRecommendation; selected: number[]; moved: boolean; assignStart?: number | null; predictedSpace?: number | null } | null>(null);
   // גובה הדסק שונה מגובה הקבלה / חורג מגבהי הקבלה בנקודת ההעברה (utils/deskAlt)
   const [receiveAltAsk, setReceiveAltAsk] = useState<{ stripId: string; label: string; receiveAlt: string; deskAlt: string; ask: boolean; violations: ReceiveAltViolation[] } | null>(null);
   // "לא" לעדכון המוסרת - לא שואלים שוב על אותו פ"מ בסשן
@@ -5454,17 +5456,38 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     });
     return { stripId, label: strip.callSign || stripId, formation, blocks, rec };
   };
+  /** המרחב של הפ"מ בדסק עכשיו (null - עוד בלי), כפי שהדסק רואה אותו */
+  const deskSpaceNow = (stripId: string): number | null => {
+    const v: any = myTableStrips.find((st: any) => String(st.id) === stripId);
+    return v?.block_space_id ? Number(v.block_space_id) : null;
+  };
   const offerAltRec = (stripId: string) => {
     if (myPresetConfig?.suggest_alt_range !== true) return;
-    const r = computeAltRec(stripId);
-    if (r) setAltRec({ ...r, selected: r.rec.blockIds, moved: false, assignStart: r.rec.start ?? null });
+    // פ"מ שרק נגרר ללוח עוד בלי מרחב: ההמלצה מחושבת מיד לפי המרחב שהחלוקה תיתן לו
+    const cur = deskSpaceNow(stripId);
+    const raw: any = strips.find(st => String(st.id) === stripId);
+    const predicted = cur == null && raw ? predictAutoSpace(raw) : null;
+    const r = computeAltRec(stripId, cur == null ? predicted : undefined);
+    if (r) setAltRec({ ...r, selected: r.rec.blockIds, moved: false, assignStart: r.rec.start ?? null, predictedSpace: predicted });
   };
   offerAltRecRef.current = offerAltRec;
   // החלון פתוח והלוח השתנה (הקצאה נוקתה, פ"מ נמחק, גובה עודכן) - ההמלצה מחושבת
   // מחדש. קודם היא נקבעה פעם אחת בפתיחה, ו"תפוס" נשאר על פ"מים שכבר לא שם
+  // מחושב מחדש **רק כשמשהו שההמלצה תלויה בו השתנה** - גבהים ומרחבים בלוח, העברות
+  // יוצאות והבלוקים - ולא בכל רינדור. כך החלון לא "חושב" שוב ושוב על אותם נתונים
+  const altRecInputsRef = useRef('');
   useEffect(() => {
-    if (!altRec) return;
-    const r = computeAltRec(altRec.stripId);
+    if (!altRec) { altRecInputsRef.current = ''; return; }
+    const cur = deskSpaceNow(altRec.stripId);
+    const space = cur ?? altRec.predictedSpace ?? null;
+    const inputs = JSON.stringify([
+      altRec.stripId, space, effectiveBlockTableId, dashboardBlocks.length,
+      myTableStrips.filter((o: any) => !tableMode || tableOnBoard.has(o.id)).map((o: any) => [o.id, o.alt, o.block_space_id]),
+      outgoingTransfers.map((t: any) => t.strip_id),
+    ]);
+    if (inputs === altRecInputsRef.current) return;
+    altRecInputsRef.current = inputs;
+    const r = computeAltRec(altRec.stripId, cur == null ? (altRec.predictedSpace ?? undefined) : undefined);
     if (!r) return;
     if (JSON.stringify(r.rec) === JSON.stringify(altRec.rec) && JSON.stringify(r.blocks) === JSON.stringify(altRec.blocks)) return;
     setAltRec(prev => {
@@ -5522,6 +5545,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // שיוך שנכשל - לא לפני הזמן הזה (בלי לירות בקשה בכל רינדור)
   const autoSpaceRetryAtRef = useRef<Map<string, number>>(new Map());
   const autoSpaceCands = () => autoAssignableSpaces(stationSplitSpaces.length > 0 ? stationSplitSpaces : presetBlockSpaces, myPresetConfig?.auto_block_space_ids);
+  /**
+   * המרחב שהחלוקה האוטומטית תיתן לפ"מ - אותה פונקציה ואותם נתונים כמו runAutoSpaces,
+   * כדי שהמלצת הגובה תוצע מיד בגרירה ולא תחכה לשיוך. null - החלוקה כבויה / אין מרחבים
+   */
+  const predictAutoSpace = (strip: any): number | null => {
+    if (!tableMode || myPresetConfig?.auto_block_space_by_target !== true) return null;
+    const cands = autoSpaceCands();
+    if (!cands.length) return null;
+    const board = myTableStrips.filter((s: any) => tableOnBoard.has(s.id));
+    const anchor = targetsAnchor([...board.map((s: any) => s.targets), strip?.targets]);
+    const axisToward = allTargetsAnchor(myTableStrips.map((s: any) => s.targets));
+    return autoSpaceFor(strip?.targets, cands, anchor, axisToward);
+  };
   /** `all` - "חשב מחדש" בטופס העזר: כל הפ"מים בלוח, גם מה ששויך ידנית */
   const runAutoSpaces = (all: boolean) => {
     const cands = autoSpaceCands();
@@ -5697,7 +5733,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
    * בנקודת ההעברה. הוא, ולא גובה המרחב, נכנס להעברה (server/db/plannedReceiveAlt.js):
    * מיד אם כבר פתוחה העברה אליי, ואחרת כשתיפתח. מיד על המסך, השמירה ברקע.
    */
-  const saveReceiveAlt = (raw: any, alt: string) => {
+  const saveReceiveAlt = (raw: any, alt: string, opts?: { send?: boolean }) => {
     const pid = Number(session.presetId);
     const key = raw.id;
     const prevEntry = deskAltEntry(raw, pid);
@@ -5723,7 +5759,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       setStrips(prev => prev.map(st => String(st.id) === String(key) ? { ...st, table_alts: raw.table_alts || {} } : st));
       setSaveFailToast(tr('ctrl.saveFailedReverted', { callsign: raw.callSign || raw.callsign || '' }));
     });
-    if (!alt) return;
+    if (!alt || opts?.send) return;
     const violations = receiveAltViolations(alt, myPresetConfig, senderPresetOf(raw));
     if (violations.length) setReceiveAltAsk({ stripId: String(key), label: raw.callSign || raw.callsign || String(key), receiveAlt: String(raw.alt || ''), deskAlt: alt, ask: false, violations });
   };
@@ -5735,8 +5771,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const raw: any = strips.find(st => String(st.id) === String(stripId));
     if (!raw) return;
     const view: any = myTableStrips.find((st: any) => String(st.id) === String(stripId)) ?? raw;
-    if (tableMode && session.presetId && handoverModeOf(view) === 'receive') { saveReceiveAlt(raw, alt); return; }
-    optimisticStripPut(String(stripId), { alt });
+    if (!tableMode || !session.presetId) { optimisticStripPut(String(stripId), { alt }); return; }
+    if (handoverModeOf(view) === 'receive') { saveReceiveAlt(raw, alt); return; }
+    // מסירה: נשמר לדסק (השדה), ונכתב לפ"מ - זה הגובה שבו הוא יימסר ושעמדות אחרות רואות
+    saveReceiveAlt(raw, alt, { send: true });
+    if (alt) optimisticStripPut(String(stripId), { alt });
   };
   /** הדגל קבלה / מסירה בשדה "גובה מסירה/קבלה" - פר דסק, רק בפ"מ שאינו אצל עמדה אחרת */
   const toggleHandoverMode = (stripId: string) => {
@@ -14383,7 +14422,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         const blk = (id: number) => { const b = byId.get(id); return b ? `${b.alt_from}-${b.alt_to}` : ''; };
         // העמדה עובדת במרחבי חלוקה - בלי מרחב הגובה מומלץ מול כל הבלוקים, והשיוך האוטומטי
         // לוקח רגע. לא שומרים המלצה עד שיש לפ"מ מרחב (בבורר למטה או מהחלוקה)
-        const spaceMissing = stationSplitSpaces.length > 0 && !myTableStrips.find((st: any) => String(st.id) === ar.stripId)?.block_space_id;
+        const spaceMissing = stationSplitSpaces.length > 0 && !myTableStrips.find((st: any) => String(st.id) === ar.stripId)?.block_space_id && !ar.predictedSpace;
         return (
           <div data-testid="alt-rec-dialog" onPointerDown={e => e.stopPropagation()}
             style={{ position: 'fixed', top: 90, left: '50%', transform: 'translateX(-50%)', zIndex: 9000, width: 360, maxWidth: 'calc(100vw - 32px)', background: T.surface, color: T.text, padding: '12px', direction: dir, boxShadow: '0 8px 32px rgba(0,0,0,0.5)', ...windowFrame('view', themeMode, 8) }}>
@@ -14393,7 +14432,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               {rule ? ` · ${tr('ctrl.altRecRule', { armament: rule.armament, target: ruleText })}` : ar.rec.reason === 'nearest' ? ` · ${tr('ctrl.altRecNearest')}` : ar.rec.reason === 'lowest' ? ` · ${tr('ctrl.altRecLowest')}` : ''}
             </div>
             {stationSplitSpaces.length > 0 && (() => {
-              const cur = myTableStrips.find((st: any) => String(st.id) === ar.stripId)?.block_space_id;
+              const cur = myTableStrips.find((st: any) => String(st.id) === ar.stripId)?.block_space_id ?? ar.predictedSpace;
               return (
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', marginBottom: '8px' }}>
                   <span style={{ color: T.muted }}>{tr('ctrl.altRecSpace')}</span>
@@ -17458,6 +17497,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           {hFlag}
                           <span>{hAlt || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{tr('strips.handoverAlt')}</span>}</span>
                           {canEdit && <VKTrigger value={hAlt} onChange={async v => { saveHandoverAlt(String(s.id), normalizeAlt(v)); }} mode="numeric" label={tr('strips.handoverAlt')} size={13} style={{ flexShrink: 0 }} />}
+                          {/* "גובה נוכחי" - הגובה שבבלוק (גובה המרחב) לגובה המסירה; כמה גבהים - הנמוך */}
+                          {canEdit && hMode === 'send' && (() => {
+                            const cur = lowestAlt(s.alt);
+                            return (
+                              <button type="button" data-testid={`handover-current-${s.id}`} disabled={!cur || sameAlt(cur, hAlt)} title={tr('strips.handoverCurrentHint')}
+                                onClick={e => { e.stopPropagation(); if (cur) saveHandoverAlt(String(s.id), cur); }}
+                                style={{ flexShrink: 0, fontSize: tfz(10), padding: '1px 6px', borderRadius: '4px', border: `1px solid ${T.border}`, background: T.surface, color: T.text, fontFamily: 'inherit',
+                                  cursor: cur && !sameAlt(cur, hAlt) ? 'pointer' : 'default', opacity: cur && !sameAlt(cur, hAlt) ? 1 : 0.45 }}>
+                                ⤓ {tr('strips.handoverCurrent')}
+                              </button>
+                            );
+                          })()}
                         </div>
                       </td>
                     );
