@@ -276,7 +276,25 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 
 **נקרא ב-** `GET /api/strips/global` כמפה `station_notes = {preset_id: note}`
 (תת-שאילתה סקלרית, לא JOIN — שני JOINים מצטברים היו מכפילים שורות).
-**נכתב ב-** `PATCH /api/strips/:id/station-note` (upsert; הערה ריקה מוחקת).
+**נכתב ב-** `PATCH /api/strips/:id/station-note` (upsert; הערה ריקה מוחקת).
+
+### `strip_table_assignments.planned_alt` - גובה הדסק
+
+פ"מ יכול להיות בכמה דסקים, ובכל אחד בגובה אחר (מכינים את הדסק לפני שהפ"מ הגיע).
+בדסק שאינו מחזיק את הפ"מ, הגובה שעליו (`strips.alt`) הוא של העמדה המחזיקה - הגובה
+שבו **נקבל** אותו - והדסק מציג ועורך גובה משלו.
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `planned_alt` | VARCHAR(40) | גובה הדסק. NULL = לפ"מ אין גובה בדסק (מוצג בלי גובה) |
+| `planned_alt_to_sender` | BOOLEAN | הפקח ענה "כן" לעדכון העמדה המוסרת: כשתיפתח העברה אל הדסק הגובה נכנס ל-`strips.alt` ומסומן בהעברה כשינוי של המקבלת (`alt_changed_at`). מתממש פעם אחת ויורד |
+
+**נקרא ב-** `GET /api/strips/global` כמפה `table_alts = {preset_id: {alt, to_sender}}`.
+**נכתב ב-** `PATCH /api/strip-table-assignments/:stripId/:presetId/alt` (upsert; `alt: null` מוחק
+את הגובה בלי להוציא מהטבלה; `to_sender: true` עם העברה פתוחה - מתממש מיד).
+**מתממש ב-** `initiateSectorTransferTx` / `initiatePresetTransferTx`. **נמחק** בקבלת הפ"מ בדסק,
+ויחד עם השורה עצמה בהסרה מהדסק ובאיפוס הצבות. לוגיקה: `server/db/plannedReceiveAlt.js`,
+`src/utils/deskAlt.ts`.
 
 ---
 

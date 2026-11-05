@@ -4,6 +4,7 @@ import pool from '../db/pool.js';
 import { isAutoAcceptDue } from '../utils/autoAccept.js';
 import { aircraftFaultsSubquery } from '../db/aircraftFaults.js';
 import { recordFlowEvent, recordAcceptedFlow, recordMergedFlow, transferNames } from '../db/stripFlowEvents.js';
+import { applyPlannedReceiveAlt, clearPlannedAlt } from '../db/plannedReceiveAlt.js';
 const router = new Router();
 
 // ─── Shared transfer read query (DRY) ──────────────────────────────────────────
@@ -181,7 +182,8 @@ export async function initiateSectorTransferTx(db, stripId, body) {
      VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
     [stripId, fromSectorId, toSectorId, workstationId, targetX || 0, targetY || 0, subSectorLabel || null, fromWorkstationId || null, resolvedToWorkstationId || null, etaMinutes || null, etaSetAt]
   );
-  return result.rows[0];
+  // הפ"מ בנקודת ההעברה: גובה שהדסק המקבל ביקש לעדכן בו את המוסרת נכנס עכשיו
+  return (await applyPlannedReceiveAlt(db, result.rows[0])).transfer;
 }
 
 /** העברה ישירה לעמדה (קלאסי / נקודת העברה זמנית) - אותו עיקרון כמו למעלה. */
@@ -192,7 +194,7 @@ export async function initiatePresetTransferTx(db, stripId, { fromPresetId, toPr
      VALUES ($1, $2, $3, 'pending') RETURNING *`,
     [stripId, fromPresetId, toPresetId]
   );
-  return result.rows[0];
+  return (await applyPlannedReceiveAlt(db, result.rows[0])).transfer;
 }
 
 export { recordTransferSentFlow, recordTransferClosedFlow };
@@ -539,6 +541,8 @@ export async function acceptTransferTx(client, transferId, receivingPresetId, fl
       [strip_id, assignedPresetId]
     );
   }
+  // הפ"מ אצלי: הגובה שלו הוא האמיתי, וגובה הדסק נמחק (server/db/plannedReceiveAlt.js)
+  if (assignedPresetId) await clearPlannedAlt(client, strip_id, assignedPresetId);
   return { notFound: false, mergedIntoId };
 }
 
@@ -623,6 +627,7 @@ router.post('/api/transfers/:id/accept-to-map', async (req, res) => {
         [strip_id, assignedPresetId]
       );
     }
+    if (assignedPresetId) await clearPlannedAlt(client, strip_id, assignedPresetId);
 
     await client.query('COMMIT');
     res.json({ success: true, mergedIntoId });

@@ -1292,6 +1292,11 @@ async function applySchemaOnce() {
     assigned_at TIMESTAMPTZ DEFAULT NOW(),
     PRIMARY KEY (strip_id, preset_id)
   )`);
+  // גובה הדסק: פ"מ של עמדה אחרת מקבל בדסק גובה משלו, בלי לגעת בגובה של העמדה
+  // המחזיקה. `planned_alt_to_sender` - לעדכן את המוסרת כשתיפתח העברה אליי
+  // (server/db/plannedReceiveAlt.js, src/utils/deskAlt.ts)
+  await sq(`ALTER TABLE strip_table_assignments ADD COLUMN IF NOT EXISTS planned_alt VARCHAR(40)`);
+  await sq(`ALTER TABLE strip_table_assignments ADD COLUMN IF NOT EXISTS planned_alt_to_sender BOOLEAN DEFAULT FALSE`);
 
   // הערה פר (פ"מ, עמדה) — שתי עמדות שמחזיקות את אותו פ"מ כותבות הערה נפרדת,
   // בלי לדרוס זו את זו. **בכוונה טבלה נפרדת מ-strip_table_assignments**: אותה

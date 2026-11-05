@@ -7,6 +7,7 @@ import { aircraftFaultsSubquery, belongsToStrip } from '../db/aircraftFaults.js'
 import { recordFlowEvent, recordMergedFlow } from '../db/stripFlowEvents.js';
 import { diffAircraftPositions } from '../utils/stripFlow.js';
 import { normalizePinDisplay } from '../../shared/pinDisplay.js';
+import { applyPlannedReceiveAlt, openTransferTo } from '../db/plannedReceiveAlt.js';
 const router = new Router();
 
 // עמודות טבלת המטוסים הניתנות לעריכה מהעמדה - נגזרות מרשימת שדות המטוס של
@@ -103,6 +104,9 @@ router.get('/api/strips/global', async (req, res) => {
            FROM strip_table_assignments WHERE strip_id = s.id) AS table_preset_ids,
         (SELECT COALESCE(jsonb_object_agg(preset_id::text, note), '{}'::jsonb)
            FROM strip_station_notes WHERE strip_id = s.id AND note <> '') AS station_notes,
+        -- גובה הדסק פר עמדה (src/utils/deskAlt.ts)
+        (SELECT COALESCE(jsonb_object_agg(preset_id::text, jsonb_build_object('alt', planned_alt, 'to_sender', COALESCE(planned_alt_to_sender, FALSE))), '{}'::jsonb)
+           FROM strip_table_assignments WHERE strip_id = s.id AND planned_alt IS NOT NULL AND planned_alt <> '') AS table_alts,
         -- "נמצא בעמדה": כל עמדה שהפ"מ נמצא בדסק שלה או שחיברה אותו לאזור.
         -- **לא** workstation_preset_id — הוא נושא גם יעד העברה, ופ"מ שממתין
         -- בנקודת העברה כבר לא "נמצא" אצל אף אחד.
@@ -191,6 +195,7 @@ router.get('/api/strips/global', async (req, res) => {
       table_preset_ids: Array.isArray(r.table_preset_ids) ? r.table_preset_ids.map(Number) : [],
       at_preset_names: Array.isArray(r.at_preset_names) ? r.at_preset_names : [],
       station_notes: (r.station_notes && typeof r.station_notes === 'object') ? r.station_notes : {},
+      table_alts: (r.table_alts && typeof r.table_alts === 'object') ? r.table_alts : {},
       aircraft_faults: Array.isArray(r.aircraft_faults) ? r.aircraft_faults : [],
       // טבלת המטוסים של הפ"מ - שורה לכל מטוס (ראה src/types/stripAircraft.ts)
       aircraft: Array.isArray(r.aircraft) ? r.aircraft : [],
@@ -1239,6 +1244,45 @@ router.patch('/api/strips/:id/station-note', async (req, res) => {
   } catch (err) {
     console.error('Error updating station note:', err);
     res.status(500).json({ error: 'Failed to update station note' });
+  }
+});
+
+// גובה הדסק לפ"מ של עמדה אחרת. `alt: null` מוחק את גובה הדסק (בלי להוציא את
+// הפ"מ מהטבלה). `to_sender` - לעדכן את העמדה המוסרת: אם כבר פתוחה העברה אליי
+// הגובה נכנס מיד, ואחרת - כשתיפתח (server/db/plannedReceiveAlt.js)
+router.patch('/api/strip-table-assignments/:stripId/:presetId/alt', async (req, res) => {
+  const stripId = parseInt(String(req.params.stripId).replace(/^s/, ''));
+  const presetId = parseInt(req.params.presetId);
+  const raw = req.body?.alt;
+  if (isNaN(stripId) || isNaN(presetId)) return res.status(400).json({ error: 'strip id and preset id required' });
+  if (raw !== null && raw !== undefined && typeof raw !== 'string') return res.status(400).json({ error: 'alt חייב להיות מחרוזת או null' });
+  const alt = raw ? raw.trim().slice(0, 40) : null;
+  const toSender = typeof req.body?.to_sender === 'boolean' ? req.body.to_sender : null;
+  try {
+    if (alt) {
+      await pool.query(
+        `INSERT INTO strip_table_assignments (strip_id, preset_id, planned_alt, planned_alt_to_sender)
+         VALUES ($1, $2, $3, COALESCE($4, FALSE))
+         ON CONFLICT (strip_id, preset_id) DO UPDATE
+           SET planned_alt = EXCLUDED.planned_alt,
+               planned_alt_to_sender = COALESCE($4, strip_table_assignments.planned_alt_to_sender)`,
+        [stripId, presetId, alt, toSender],
+      );
+    } else {
+      await pool.query(
+        'UPDATE strip_table_assignments SET planned_alt = NULL, planned_alt_to_sender = FALSE WHERE strip_id = $1 AND preset_id = $2',
+        [stripId, presetId],
+      );
+    }
+    let applied = false;
+    if (alt && toSender === true) {
+      const open = await openTransferTo(pool, stripId, presetId);
+      if (open) applied = (await applyPlannedReceiveAlt(pool, open)).applied;
+    }
+    res.json({ success: true, applied });
+  } catch (err) {
+    console.error('Error saving desk alt:', err);
+    res.status(500).json({ error: 'Failed to save desk alt' });
   }
 });
 

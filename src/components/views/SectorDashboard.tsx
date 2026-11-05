@@ -102,6 +102,7 @@ import { TakeoffBadge, FormationCountBadge } from '../strips/StripCardBadges';
 import { splitSpaceSet, separatedBySpace, blockFitsSpace, separatedByGroup, structureSeparates } from '../../utils/blockSpaces';
 import { applyAltOverrides, parseAltOverrides, refitAltToBand, blockForAlt, type AltOverrides } from '../../utils/zoneAltOverride';
 import { recommendAltitude, stripArmaments, normalizeAltRules, stationRecBlocks, assignedAltitude, freeStart, tooCloseTo, PAIR_SEPARATION, type AltRecommendation, type RecBlock } from '../../utils/altRecommend';
+import { isForeignToDesk, deskAltEntry, withDeskAlt, sameAlt, receiveAltViolations, type ReceiveAltViolation } from '../../utils/deskAlt';
 import { loadPadLayout, savePadLayout, type PadLayout } from '../../utils/freeDeskLayout';
 import FreeDeskPad from '../shared/FreeDeskPad';
 import { AimPointsSummary, AimPointsWindow } from '../strips/AimPointsTable';
@@ -5076,7 +5077,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   };
 
   // myTableStrips: query-driven strips PLUS explicit assignments PLUS strips of any unified position.
-  const myTableStrips = (() => {
+  const myTableStripsRaw = (() => {
     if (!session.presetId) return myStrips;
     const pid = Number(session.presetId);
     const querySet = new Set(myStrips.map((s: any) => s.id));
@@ -5101,6 +5102,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const base = [...myStrips, ...assigned, ...combinedStrips];
     return transferredGhosts.length ? [...base, ...transferredGhosts] : base;
   })();
+  // דסק במוד טבלה: פ"מ של עמדה אחרת מוצג בגובה **של הדסק** (ובלעדיו - בלי גובה),
+  // בטבלה, בבלוקים, בקונפליקטים ובחלון הפ"מים. הגובה שעליו הוא גובה הקבלה (utils/deskAlt)
+  const myTableStrips = tableMode && session.presetId
+    ? myTableStripsRaw.map((s: any) => withDeskAlt(s, Number(session.presetId)))
+    : myTableStripsRaw;
 
   // Full-picture strips: all strips from any preset in the same work group.
   const fullPictureStrips = (() => {
@@ -5413,6 +5419,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // 2 בלוקים סמוכים, לפי חוקי החימוש בהגדרות העמדה), והבלוקים נבחרים מראש. אם
   // אין רצף פנוי - התראה להטפיס/להנמיך פ"מ אחד כדי לפנות. src/utils/altRecommend.ts
   const [altRec, setAltRec] = useState<{ stripId: string; label: string; formation: number; blocks: RecBlock[]; rec: AltRecommendation; selected: number[]; moved: boolean; assignStart?: number | null } | null>(null);
+  // גובה הדסק שונה מגובה הקבלה / חורג מגבהי הקבלה בנקודת ההעברה (utils/deskAlt)
+  const [receiveAltAsk, setReceiveAltAsk] = useState<{ stripId: string; label: string; receiveAlt: string; deskAlt: string; ask: boolean; violations: ReceiveAltViolation[] } | null>(null);
+  // "לא" לעדכון המוסרת - לא שואלים שוב על אותו פ"מ בסשן
+  const receiveAltDeclinedRef = useRef<Set<string>>(new Set());
   const altRecBlocks = (): RecBlock[] => stationRecBlocks(
     dashboardBlocks, (myPresetConfig?.block_table_ids || []).map(Number),
     session.presetId ? Number(session.presetId) : null, effectiveBlockTableId,
@@ -5435,7 +5445,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       .map((o: any) => ({ id: String(o.id), label: o.callSign || String(o.id), alt: String(o.alt) }));
     const rec = recommendAltitude({
       blocks, formation, armaments: stripArmaments(strip),
-      rules: normalizeAltRules((myPresetConfig as any)?.alt_armament_rules), currentAlt: strip.alt || null, others,
+      // במוד טבלה הגובה שעל הפ"מ הוא של העמדה שתמסור אותו - לא נקודת מוצא להמלצה
+      rules: normalizeAltRules((myPresetConfig as any)?.alt_armament_rules), currentAlt: tableMode ? null : (strip.alt || null), others,
     });
     return { stripId, label: strip.callSign || stripId, formation, blocks, rec };
   };
@@ -5544,7 +5555,65 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tableMode, myPresetConfig?.auto_block_space_by_target]);
 
+  /**
+   * פ"מ שהגובה שלו בדסק הזה הוא **גובה הדסק** ולא הגובה שעליו: מוד טבלה, הפ"מ
+   * אצל עמדה אחרת, והוא בטבלה (או שכבר יש לו גובה דסק). null = עריכה רגילה.
+   */
+  const deskAltTarget = (stripId: string): any | null => {
+    if (!tableMode || !session.presetId) return null;
+    const pid = Number(session.presetId);
+    const raw: any = strips.find(st => String(st.id) === String(stripId));
+    if (!raw || !isForeignToDesk(raw, pid)) return null;
+    return tableOnBoard.has(raw.id) || deskAltEntry(raw, pid) ? raw : null;
+  };
+  /** העמדה שתמסור את הפ"מ: בהעברה פתוחה אליי - השולחת; אחרת - המחזיקה */
+  const senderPresetOf = (raw: any) => {
+    const numId = String(raw.id).replace(/^s/, '');
+    const inc: any = incomingTransfers.find((t: any) => String(t.strip_id) === numId);
+    const pid = inc ? (inc.from_workstation_id ?? inc.from_preset_id) : (raw.status !== 'pending_transfer' ? raw.workstation_preset_id : null);
+    return pid != null ? workstationPresets.find((p: any) => Number(p.id) === Number(pid)) : undefined;
+  };
+  /**
+   * שמירת גובה הדסק - מיד על המסך, השמירה ברקע. `toSender` - תשובה לשאלה "לעדכן
+   * את המוסרת"; בלעדיה - הבקשה הקיימת נשמרת, ואם הגובה שונה מגובה הקבלה (או
+   * חורג מגבהי הקבלה בנקודה) - שואלים.
+   */
+  const saveDeskAlt = (raw: any, alt: string, toSender?: boolean) => {
+    const pid = Number(session.presetId);
+    const key = raw.id;
+    const prevEntry = deskAltEntry(raw, pid);
+    const nextAlts: Record<string, any> = { ...(raw.table_alts || {}) };
+    if (alt) nextAlts[String(pid)] = { alt, to_sender: toSender ?? !!prevEntry?.to_sender };
+    else delete nextAlts[String(pid)];
+    const patch = { table_alts: nextAlts };
+    pendingStripUpdatesRef.current.set(key, { ...(pendingStripUpdatesRef.current.get(key) || {}), ...patch });
+    setStrips(prev => prev.map(st => String(st.id) === String(key) ? { ...st, ...patch } : st));
+    const numId = String(key).replace(/^s/, '');
+    fetch(`${API_URL}/strip-table-assignments/${numId}/${pid}/alt`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ alt: alt || null, ...(toSender !== undefined ? { to_sender: toSender } : {}) }),
+    }).then(r => {
+      if (!r.ok) throw new Error(`desk alt ${r.status}`);
+      setTimeout(() => releasePendingKeys(pendingStripUpdatesRef.current, key, patch), PENDING_RELEASE_MS);
+      // הגובה נכנס להעברה פתוחה - הפ"מ עצמו השתנה, ומשיכה מעדכנת את שני הצדדים
+      return r.json().then(j => { if (j?.applied) loadData(); });
+    }).catch(err => {
+      console.error(err);
+      if (!releasePendingKeys(pendingStripUpdatesRef.current, key, patch).length) return;
+      setStrips(prev => prev.map(st => String(st.id) === String(key) ? { ...st, table_alts: raw.table_alts || {} } : st));
+      setSaveFailToast(tr('ctrl.saveFailedReverted', { callsign: raw.callSign || raw.callsign || '' }));
+    });
+    if (toSender !== undefined || !alt) return;
+    const receiveAlt = String(raw.alt || '');
+    const violations = receiveAltViolations(alt, myPresetConfig, senderPresetOf(raw));
+    const ask = !sameAlt(receiveAlt, alt) && !prevEntry?.to_sender && !receiveAltDeclinedRef.current.has(String(key));
+    if (ask || violations.length) {
+      setReceiveAltAsk({ stripId: String(key), label: raw.callSign || raw.callsign || String(key), receiveAlt, deskAlt: alt, ask, violations });
+    }
+  };
   const putStripAlt = async (stripId: string, alt: string) => {
+    const desk = deskAltTarget(stripId);
+    if (desk) { saveDeskAlt(desk, alt); return; }
     const target = strips.find(st => String(st.id) === stripId);
     const dev = target ? computeBlockDeviation({ ...target, alt }, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false;
     optimisticStripPut(stripId, { alt, block_deviation: dev });
@@ -9700,7 +9769,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         onClick={() => {
           if (!altResetArmed) { setAltResetArmed(true); return; }
           setAltResetArmed(false);
-          for (const s of targets) optimisticStripPut(String(s.id), { alt: '', block_deviation: false });
+          for (const s of targets) {
+            const desk = deskAltTarget(String(s.id));
+            if (desk) saveDeskAlt(desk, '', false);
+            else optimisticStripPut(String(s.id), { alt: '', block_deviation: false });
+          }
         }}
         style={{ display: 'block', width: '100%', marginBottom: '6px', padding: '3px 6px', fontSize: '11px', fontWeight: 'bold', borderRadius: '5px',
           cursor: targets.length ? 'pointer' : 'default', opacity: targets.length ? 1 : 0.45,
@@ -14207,6 +14280,52 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         );
       })()}
 
+      {/* גובה קבלה - גובה הדסק שונה מהגובה שבו נקבל את הפ"מ / חורג מגבהי הקבלה (utils/deskAlt) */}
+      {receiveAltAsk && (() => {
+        const q = receiveAltAsk;
+        const close = () => setReceiveAltAsk(null);
+        const condText = (c: { alt_min: number | null; alt_max: number | null; parity: string }) =>
+          `${c.alt_min ?? ''}-${c.alt_max ?? ''}${c.parity === 'even' ? ` ${tr('shared.even')}` : c.parity === 'odd' ? ` ${tr('shared.odd')}` : ''}`;
+        const pointName = (id: number) => { const sec: any = allSectors.find((x: any) => Number(x.id) === id); return sec?.label_he || sec?.name || String(id); };
+        return (
+          <div data-testid="recv-alt-dialog" onPointerDown={e => e.stopPropagation()} onKeyDown={e => { if (e.key === 'Escape') close(); }}
+            style={{ position: 'fixed', top: 110, left: '50%', transform: 'translateX(-50%)', zIndex: 9001, width: 380, maxWidth: 'calc(100vw - 32px)', background: T.surface, color: T.text, padding: '12px', direction: dir, boxShadow: '0 8px 32px rgba(0,0,0,0.5)', ...windowFrame('view', themeMode, 8) }}>
+            <div style={{ fontSize: '15px', fontWeight: 'bold', marginBottom: '8px' }}>📐 {tr('ctrl.recvAltTitle', { label: q.label })}</div>
+            {q.ask && (
+              <>
+                <div data-testid="recv-alt-question" style={{ fontSize: '13px', lineHeight: 1.5, marginBottom: '4px' }}>
+                  {tr('ctrl.recvAltAsk', { recv: q.receiveAlt || tr('ctrl.recvAltNone'), desk: q.deskAlt })}
+                </div>
+                <div style={{ fontSize: '11px', color: T.muted, marginBottom: '8px' }}>{tr('ctrl.recvAltAskHint')}</div>
+              </>
+            )}
+            {q.violations.length > 0 && (
+              <div data-testid="recv-alt-violation" style={{ fontSize: '12px', color: '#f87171', background: 'rgba(239,68,68,0.12)', border: '1px solid #ef4444', borderRadius: '6px', padding: '6px 8px', marginBottom: '8px' }}>
+                <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>⛔ {tr('ctrl.recvAltViolation', { alt: q.deskAlt })}</div>
+                {q.violations.map(v => (
+                  <div key={v.sectorId}>{pointName(v.sectorId)}: {v.conditions.map(condText).join(' / ')}</div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {q.ask ? (
+                <>
+                  <button data-testid="recv-alt-yes" autoFocus
+                    onClick={() => { const raw = strips.find(st => String(st.id) === q.stripId); close(); if (raw) saveDeskAlt(raw, q.deskAlt, true); }}
+                    style={{ flex: 1, background: '#15803d', color: 'white', border: 'none', borderRadius: '6px', padding: '7px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>✓ {tr('ctrl.recvAltYes')}</button>
+                  <button data-testid="recv-alt-no"
+                    onClick={() => { receiveAltDeclinedRef.current.add(q.stripId); close(); }}
+                    style={{ background: 'transparent', color: T.text, border: `1px solid ${T.border}`, borderRadius: '6px', padding: '7px 14px', cursor: 'pointer', fontSize: '13px' }}>{tr('ctrl.recvAltNo')}</button>
+                </>
+              ) : (
+                <button data-testid="recv-alt-ok" autoFocus onClick={close}
+                  style={{ flex: 1, background: T.bg, color: T.text, border: `1px solid ${T.border}`, borderRadius: '6px', padding: '7px', cursor: 'pointer', fontSize: '13px' }}>{tr('ctrl.recvAltOk')}</button>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Contacts Summary — floating draggable panel */}
       {contactsSummaryOpen && (() => {
         const myPreset = workstationPresets.find(p => Number(p.id) === Number(session.presetId));
@@ -17105,6 +17224,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   if (col.editable === 'keyboard' || col.editable === 'both') {
                     const saveField = async (val: string) => {
                       const norm = normalizeAlt(val);
+                      const desk = deskAltTarget(String(s.id));
+                      if (desk) { saveDeskAlt(desk, norm); return; }
                       setStrips(prev => prev.map(st => st.id === s.id ? { ...st, alt: norm } : st));
                       await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: norm }) });
                     };
@@ -18986,7 +19107,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   if (e.key === 'Enter') {
                     const val = normalizeAlt(altUpdateValue.trim());
                     if (val) {
-                      try { await fetch(`${API_URL}/strips/${altUpdateForm.stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: val, block_deviation: false }) }); } catch {}
+                      const desk = deskAltTarget(String(altUpdateForm.stripId));
+                      if (desk) saveDeskAlt(desk, val);
+                      else try { await fetch(`${API_URL}/strips/${altUpdateForm.stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: val, block_deviation: false }) }); } catch {}
                     }
                     setAltUpdateForm(null);
                   } else if (e.key === 'Escape') {
@@ -19001,7 +19124,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   onClick={async () => {
                     const val = normalizeAlt(altUpdateValue.trim());
                     if (val) {
-                      try { await fetch(`${API_URL}/strips/${altUpdateForm.stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: val, block_deviation: false }) }); } catch {}
+                      const desk = deskAltTarget(String(altUpdateForm.stripId));
+                      if (desk) saveDeskAlt(desk, val);
+                      else try { await fetch(`${API_URL}/strips/${altUpdateForm.stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: val, block_deviation: false }) }); } catch {}
                     }
                     setAltUpdateForm(null);
                   }}

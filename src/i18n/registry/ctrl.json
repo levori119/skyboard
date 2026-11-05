@@ -2858,6 +2858,38 @@
       "he": "פחות מ-1000 רגל מ: {{labels}}",
       "en": "Less than 1000 ft from: {{labels}}"
     },
+    "recvAltTitle": {
+      "he": "גובה קבלה - {{label}}",
+      "en": "Receive altitude - {{label}}"
+    },
+    "recvAltAsk": {
+      "he": "הגובה שתקבל את הפ\"מ יהיה {{recv}} ואתה קבעת גובה {{desk}} - האם לעדכן את העמדה המוסרת בגובה המתוכנן החדש?",
+      "en": "You will receive the formation at {{recv}} and you set {{desk}} - update the handing-over station with the new planned altitude?"
+    },
+    "recvAltAskHint": {
+      "he": "העדכון ייכנס להעברה כשהפ\"מ יגיע לנקודת ההעברה למסירה",
+      "en": "The update enters the transfer when the formation reaches the handover transfer point"
+    },
+    "recvAltNone": {
+      "he": "ללא גובה",
+      "en": "no altitude"
+    },
+    "recvAltYes": {
+      "he": "כן, לעדכן",
+      "en": "Yes, update"
+    },
+    "recvAltNo": {
+      "he": "לא",
+      "en": "No"
+    },
+    "recvAltOk": {
+      "he": "הבנתי",
+      "en": "OK"
+    },
+    "recvAltViolation": {
+      "he": "הגובה {{alt}} חורג מגבהי הקבלה של העמדה בנקודת ההעברה",
+      "en": "Altitude {{alt}} is outside the station's receive altitudes at the transfer point"
+    },
     "altRecFree": {
       "he": "פנוי",
       "en": "Free"
