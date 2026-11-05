@@ -7,6 +7,10 @@
  * פוליגון - המרכז. קודם נמדד המרכז, ומרחב קדמי מוארך (שמרכזו רחוק) הפסיד
  * למרחב אחורי קומפקטי - פ"מים "נשלחו" לגזרות אחוריות, רחוק מהמטרות.
  *
+ * ובחלוקה האוטומטית - **קודם הנתיב, אחר כך העומק** (`nearestSpaceInLane`): מטרה
+ * שנמצאת מול הגזרות הדרומיות הולכת לדרומית, גם כשהקצה של הצפונית קרוב ממנה
+ * בקצת. מרחק אווירי לבד שלח את רעם (ע7) לצפון קדמי על 0.7 מייל.
+ *
  * משותף לשרת (מחשב את המרכז ב-GET /api/block-spaces) וללקוח (בוחר את הקרוב).
  */
 
@@ -102,6 +106,69 @@ export function nearestSpace(target, spaces) {
     if (d < bestD) { bestD = d; best = s; }
   }
   return best;
+}
+
+/** מרכז המרחב: המרכז שהשרת חישב, ובלעדיו - מהפוליגונים */
+function centerOf(space) {
+  if (space?.center_lat != null && space?.center_lon != null) {
+    const c = { lat: Number(space.center_lat), lon: Number(space.center_lon) };
+    if (validPt(c)) return c;
+  }
+  return spaceCenter(space?.polygons);
+}
+
+/** מרכז המרחבים קרוב מזה למטרות - אין כיוון תקיפה שאפשר לסמוך עליו */
+const MIN_AXIS_NM = 1;
+
+/**
+ * **ציר התקיפה**: ממרכז המרחבים אל מרכז המטרות (`toward`) - הכיוון שבו יוצאים
+ * מהגזרות אל המטרות. null כשאין מטרות, אין מרחב עם מיקום, או שהם באותו מקום.
+ */
+export function attackAxis(spaces, toward) {
+  if (!validPt(toward)) return null;
+  const cs = (Array.isArray(spaces) ? spaces : []).map(centerOf).filter(Boolean);
+  if (!cs.length) return null;
+  const from = { lat: cs.reduce((s, c) => s + c.lat, 0) / cs.length, lon: cs.reduce((s, c) => s + c.lon, 0) / cs.length };
+  const ref = { lat: Number(toward.lat), lon: Number(toward.lon) };
+  const k = Math.cos(rad(ref.lat)) * 60;
+  const dx = (ref.lon - from.lon) * k, dy = (ref.lat - from.lat) * 60;
+  const len = Math.hypot(dx, dy);
+  if (len < MIN_AXIS_NM) return null;
+  return { ref, k, ux: dx / len, uy: dy / len };
+}
+
+/** המיקום הצידי (NM) של נקודה ביחס לציר: ניצב לכיוון התקיפה */
+const lateralOf = (p, axis) => {
+  const x = (Number(p.lon) - axis.ref.lon) * axis.k, y = (Number(p.lat) - axis.ref.lat) * 60;
+  return y * axis.ux - x * axis.uy;
+};
+
+/** ההיסט הצידי (NM) של המטרה מהרצועה שהמרחב תופס לרוחב הציר - 0 כשהיא מולו */
+function lateralGapNm(target, space, axis) {
+  const polys = Array.isArray(space?.polygons) ? space.polygons.filter(p => Array.isArray(p) && p.length >= 3) : [];
+  const pts = polys.length ? polys.flat().filter(validPt) : [centerOf(space)].filter(Boolean);
+  if (!pts.length) return Infinity;
+  const v = pts.map(p => lateralOf(p, axis));
+  const lo = Math.min(...v), hi = Math.max(...v), t = lateralOf(target, axis);
+  return t < lo ? lo - t : t > hi ? t - hi : 0;
+}
+
+/** מרחבים שההיסט הצידי שלהם שונה בפחות מזה - באותו נתיב, והעומק מכריע ביניהם */
+const LANE_TOL_NM = 1;
+
+/**
+ * המרחב לחלוקה האוטומטית: **הנתיב** - המרחבים שהמטרה הכי מולם לרוחב ציר
+ * התקיפה (`axisToward` - מרכז המטרות) - ומתוכם הקרוב (קדמי לפני אחורי).
+ * בלי ציר - פשוט הקרוב. null כשאין מטרה או אין מרחב עם מיקום.
+ */
+export function nearestSpaceInLane(target, spaces, axisToward) {
+  if (!validPt(target)) return null;
+  const located = (Array.isArray(spaces) ? spaces : []).filter(s => Number.isFinite(distanceToSpaceNm(target, s)));
+  const axis = located.length > 1 ? attackAxis(located, axisToward) : null;
+  if (!axis) return nearestSpace(target, located);
+  const gaps = located.map(s => ({ s, gap: lateralGapNm(target, s, axis) }));
+  const min = Math.min(...gaps.map(g => g.gap));
+  return nearestSpace(target, gaps.filter(g => g.gap <= min + LANE_TOL_NM).map(g => g.s));
 }
 
 /** המרחב הרחוק מהנקודה - "גזרה אחורית רחוקה" לפ"מ בלי מטרות */

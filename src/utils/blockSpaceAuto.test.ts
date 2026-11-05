@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { firstExecTarget, firstExecIndex, autoAssignableSpaces, recommendBlockSpaceId, autoSpaceFor, targetsAnchor, firstExecKey } from './blockSpaceAuto';
+import { firstExecTarget, firstExecIndex, autoAssignableSpaces, recommendBlockSpaceId, autoSpaceFor, targetsAnchor, allTargetsAnchor, firstExecKey } from './blockSpaceAuto';
 
 // מה שנבדק: המטרה הקובעת (ראשונה לביצוע / שורה עליונה) והמרחב המומלץ לפ"מ.
 const NORTH = 'N3230.0000/E03500.0000'; // 32.5, 35.0
@@ -75,6 +75,11 @@ describe('autoSpaceFor - פ"מ בלי מטרות לגזרה האחורית הר�
     expect(autoSpaceFor([{ coord: 'N3125.0000/E03430.0000' }], spaces, anchor)).toBe(1);
     expect(autoSpaceFor([], spaces, anchor)).toBe(2);
     expect(autoSpaceFor([], spaces, null)).toBeNull();
+  });
+  it('allTargetsAnchor - מרכז כל המטרות, לא רק הקובעות', () => {
+    const a = allTargetsAnchor([[{ coord: 'N3125.0000/E03430.0000' }, { coord: 'N3135.0000/E03430.0000' }], null]);
+    expect(a!.lat).toBeCloseTo(31.5, 6);
+    expect(allTargetsAnchor([[], null])).toBeNull();
   });
   it('firstExecKey - משתנה כשהמטרה הקובעת משתנה', () => {
     expect(firstExecKey([{ coord: 'N3125.0000/E03430.0000' }])).not.toBe(firstExecKey([{ coord: 'N3126.0000/E03430.0000' }]));

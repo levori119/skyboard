@@ -1,4 +1,4 @@
-import { autoSpaceFor, autoAssignableSpaces, targetsAnchor, firstExecKey } from '../../utils/blockSpaceAuto';
+import { autoSpaceFor, autoAssignableSpaces, targetsAnchor, allTargetsAnchor, firstExecKey } from '../../utils/blockSpaceAuto';
 import AutoBlockSpacesForm from '../blocks/AutoBlockSpacesForm';
 import BlockTargetMap from '../blocks/BlockTargetMap';
 import { GROUP_HEADER_COLORS, groupHeaderStyle, loadGroupHeaderColor, saveGroupHeaderColor, type GroupHeaderColor } from '../../utils/groupHeaderPalette';
@@ -5509,7 +5509,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   };
 
   // ── חלוקה אוטומטית למרחבי בלוקים לפי מיקום המטרה (דגל עמדה) ─────────────────
-  // פ"מ על לוח הטבלה בלי מרחב → המרחב שהפוליגון שלו הכי קרוב למטרה "הראשונה לביצוע";
+  // פ"מ על לוח הטבלה בלי מרחב → בנתיב שמול המטרה "הראשונה לביצוע", המרחב הקרוב אליה;
   // בלי מטרות - הגזרה הרחוקה ממרכז המטרות (utils/blockSpaceAuto).
   // מה החלוקה האוטומטית שייכה לכל פ"מ ולפי איזו מטרה. שיוך שהפקח לא שינה מחושב
   // מחדש כשהמטרה הקובעת משתנה (קודם נקבע פעם אחת, ונשאר על מרחב שחושב ממטרה ישנה);
@@ -5522,6 +5522,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     if (!cands.length) return;
     const board = myTableStrips.filter((s: any) => tableOnBoard.has(s.id));
     const anchor = targetsAnchor(board.map((s: any) => s.targets));
+    // ציר התקיפה - מכל המטרות בטבלה (גם בצד), כדי שלא יסתובב עם כל פ"מ שעולה ללוח
+    const axisToward = allTargetsAnchor(myTableStrips.map((s: any) => s.targets));
     for (const s of board) {
       const k = String(s.id);
       const tkey = firstExecKey(s.targets);
@@ -5532,7 +5534,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           if (cur !== prev.space || prev.tkey === tkey) continue; // ידני, או שלא השתנה כלום
         } else if (cur != null) continue;
       }
-      const rec = autoSpaceFor(s.targets, cands, anchor);
+      const rec = autoSpaceFor(s.targets, cands, anchor, axisToward);
       if (rec == null) continue;
       autoSpaceDoneRef.current.set(k, { space: rec, tkey });
       if (rec !== cur) optimisticStripPut(k, { block_space_id: rec });

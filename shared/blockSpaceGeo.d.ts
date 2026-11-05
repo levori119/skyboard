@@ -7,4 +7,7 @@ export type SpaceGeo = { center_lat?: number | null; center_lon?: number | null;
 export function distanceToPolygonNm(pt: GeoPt, polygon: unknown): number;
 export function distanceToSpaceNm(target: GeoPt | null | undefined, space: SpaceGeo): number;
 export function nearestSpace<T extends SpaceGeo>(target: GeoPt | null | undefined, spaces: T[]): T | null;
+export type AttackAxis = { ref: GeoPt; k: number; ux: number; uy: number };
+export function attackAxis(spaces: SpaceGeo[], toward: GeoPt | null | undefined): AttackAxis | null;
+export function nearestSpaceInLane<T extends SpaceGeo>(target: GeoPt | null | undefined, spaces: T[], axisToward: GeoPt | null | undefined): T | null;
 export function farthestSpace<T extends SpaceGeo>(point: GeoPt | null | undefined, spaces: T[]): T | null;

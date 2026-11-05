@@ -7,12 +7,14 @@
  *
  * המטרה לא חייבת להיות **בתוך** מרחב: מהמרחב יוצאים לתקוף אותה, ולכן הפ"מ
  * משויך למרחב שהפוליגון שלו הכי קרוב - מבין המרחבים שמותר לאייש (טופס העזר
- * בעמדה). כך הגזרות הקדמיות, הקרובות למטרות, גוברות על האחוריות.
+ * בעמדה). כך הגזרות הקדמיות, הקרובות למטרות, גוברות על האחוריות. וקודם לכן
+ * **הנתיב**: המרחבים שהמטרה מולם לרוחב ציר התקיפה (ממרכז המרחבים אל מרכז כל
+ * המטרות בטבלה) - מטרה מול הגזרות הדרומיות לא תלך לצפונית שקצה שלה קרוב בקצת.
  *
  * פ"מ **בלי מטרות** משויך לגזרה האחורית הרחוקה - המרחב הרחוק ממרכז המטרות של
  * שאר הפ"מים בלוח - כדי לא לתפוס מקום בגזרות הקדמיות.
  */
-import { nearestSpace, farthestSpace } from '../../shared/blockSpaceGeo.js';
+import { nearestSpaceInLane, farthestSpace } from '../../shared/blockSpaceGeo.js';
 import { coordToLatLon, toAimPoints } from '../types/aimPoints';
 
 type SpaceLike = { id: number | string; center_lat?: number | null; center_lon?: number | null; polygons?: { lat: number; lon: number }[][] | null };
@@ -41,9 +43,14 @@ export function autoAssignableSpaces<T extends SpaceLike>(spaces: T[], allowedId
   return located.filter(s => allowed.has(Number(s.id)));
 }
 
-/** id של המרחב המומלץ לפ"מ, או null כשאין מטרה עם נ"צ או אין מרחב עם מיקום */
-export function recommendBlockSpaceId(targets: unknown, spaces: SpaceLike[]): number | null {
-  const best = nearestSpace(firstExecTarget(targets), spaces);
+type LatLon = { lat: number; lon: number };
+
+/**
+ * id של המרחב המומלץ לפ"מ, או null כשאין מטרה עם נ"צ או אין מרחב עם מיקום.
+ * `axisToward` - מרכז המטרות (`allTargetsAnchor`), שקובע את ציר התקיפה; בלעדיו - הקרוב.
+ */
+export function recommendBlockSpaceId(targets: unknown, spaces: SpaceLike[], axisToward?: LatLon | null): number | null {
+  const best = nearestSpaceInLane(firstExecTarget(targets), spaces, axisToward);
   return best ? Number(best.id) : null;
 }
 
@@ -55,11 +62,21 @@ export function targetsAnchor(targetsList: unknown[]): { lat: number; lon: numbe
 }
 
 /**
- * המרחב לפ"מ בחלוקה האוטומטית: עם מטרה - הקרוב אליה; בלי מטרה - הגזרה הרחוקה
- * ממרכז המטרות (`anchor`). null כשאין על מה להחליט.
+ * מרכז **כל** המטרות של הפ"מים (לא רק הקובעות) - יעד ציר התקיפה. יותר נקודות =
+ * ציר יציב, שלא מסתובב כשנוסף פ"מ אחד. null בלי אף מטרה עם נ"צ
  */
-export function autoSpaceFor(targets: unknown, spaces: SpaceLike[], anchor: { lat: number; lon: number } | null): number | null {
-  if (firstExecTarget(targets)) return recommendBlockSpaceId(targets, spaces);
+export function allTargetsAnchor(targetsList: unknown[]): LatLon | null {
+  const pts = targetsList.flatMap(t => toAimPoints(t).map(r => coordToLatLon(r.coord))).filter((p): p is LatLon => !!p);
+  if (!pts.length) return null;
+  return { lat: pts.reduce((s, p) => s + p.lat, 0) / pts.length, lon: pts.reduce((s, p) => s + p.lon, 0) / pts.length };
+}
+
+/**
+ * המרחב לפ"מ בחלוקה האוטומטית: עם מטרה - הנתיב שמולה והקרוב בו; בלי מטרה -
+ * הגזרה הרחוקה ממרכז המטרות (`anchor`). null כשאין על מה להחליט.
+ */
+export function autoSpaceFor(targets: unknown, spaces: SpaceLike[], anchor: LatLon | null, axisToward?: LatLon | null): number | null {
+  if (firstExecTarget(targets)) return recommendBlockSpaceId(targets, spaces, axisToward);
   const far = farthestSpace(anchor, spaces);
   return far ? Number(far.id) : null;
 }
