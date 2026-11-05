@@ -23,7 +23,8 @@ export const MaybeSettingsModal = ({ show, title, onClose, wide, children }: { s
 };
 
 // --- תא מרחב בלוקים בטבלה (local state למניעת איפוס על polling) ---
-export const BlockSpaceCellTable = ({ strip, blockSpaces, lightMode, onSaved }: { strip: any; blockSpaces: any[]; lightMode: boolean; onSaved?: (blockSpaceId: number | null) => void }) => {
+// `onSelect` - השמירה אצל המסך שמשתמש בתא (דסק: מרחב פר עמדה, src/utils/deskSpace); בלעדיו - PUT לפ"מ
+export const BlockSpaceCellTable = ({ strip, blockSpaces, lightMode, onSaved, onSelect }: { strip: any; blockSpaces: any[]; lightMode: boolean; onSaved?: (blockSpaceId: number | null) => void; onSelect?: (blockSpaceId: number | null) => void }) => {
   const { t } = useTranslation();
   const savingRef = React.useRef(false);
   const [localValue, setLocalValue] = React.useState(strip.block_space_id ? String(strip.block_space_id) : '');
@@ -40,6 +41,7 @@ export const BlockSpaceCellTable = ({ strip, blockSpaces, lightMode, onSaved }: 
       onChange={async e => {
         const val = e.target.value;
         setLocalValue(val);
+        if (onSelect) { onSelect(val ? Number(val) : null); return; }
         savingRef.current = true;
         await fetch(`${API_URL}/strips/${strip.id}`, {
           method: 'PUT',

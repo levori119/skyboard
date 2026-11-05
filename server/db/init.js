@@ -1297,6 +1297,9 @@ async function applySchemaOnce() {
   // (server/db/plannedReceiveAlt.js, src/utils/deskAlt.ts)
   await sq(`ALTER TABLE strip_table_assignments ADD COLUMN IF NOT EXISTS planned_alt VARCHAR(40)`);
   await sq(`ALTER TABLE strip_table_assignments ADD COLUMN IF NOT EXISTS planned_alt_to_sender BOOLEAN DEFAULT FALSE`);
+  // מרחב הבלוקים של הפ"מ **בדסק הזה** - כמו הגובה, כל עמדה על אותו פ"מ במרחב
+  // משלה. `strips.block_space_id` נשאר למסכים שאינם דסק (src/utils/deskSpace.ts)
+  await sq(`ALTER TABLE strip_table_assignments ADD COLUMN IF NOT EXISTS block_space_id INTEGER`);
 
   // הערה פר (פ"מ, עמדה) — שתי עמדות שמחזיקות את אותו פ"מ כותבות הערה נפרדת,
   // בלי לדרוס זו את זו. **בכוונה טבלה נפרדת מ-strip_table_assignments**: אותה
@@ -1324,6 +1327,8 @@ async function applySchemaOnce() {
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS suggest_alt_range BOOLEAN DEFAULT false`);
   // מוד טבלה: פ"מ בלי מרחב משויך אוטומטית למרחב הבלוקים הקרוב למטרה שלו
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS auto_block_space_by_target BOOLEAN DEFAULT false`);
+  // מה מוצג בדסק (מוד טבלה) כשהעמדה עולה: 'blocks' / 'target_map' / 'both'. NULL = מה שהפקח השאיר
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS desk_default_view VARCHAR(20)`);
   // המרחבים שמותר לשייך אליהם אוטומטית (טופס עזר בעמדה). NULL = כל מרחבי העמדה
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS auto_block_space_ids JSONB DEFAULT NULL`);
   // חוקי גובה לפי חימוש - בסיס להמלצת הגובה בכניסת פ"מ לעמדה (src/utils/altRecommend.ts).

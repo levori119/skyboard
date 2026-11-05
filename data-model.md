@@ -278,6 +278,17 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 (תת-שאילתה סקלרית, לא JOIN — שני JOINים מצטברים היו מכפילים שורות).
 **נכתב ב-** `PATCH /api/strips/:id/station-note` (upsert; הערה ריקה מוחקת).
 
+### `strip_table_assignments.block_space_id` - מרחב הבלוקים בדסק
+
+כמו הגובה: כל עמדה על אותו פ"מ במרחב בלוקים משלה. בדסק (מוד טבלה) הפ"מ נמצא במרחב
+**של הדסק** - בבלוקים, בקונפליקטים, בהמלצת הגובה ובחלוקה האוטומטית. NULL = בלי מרחב.
+`strips.block_space_id` נשאר למסכים שאינם דסק.
+
+**נקרא ב-** `GET /api/strips/global` כמפה `table_spaces = {preset_id: block_space_id}`.
+**נכתב ב-** `PATCH /api/strip-table-assignments/:stripId/:presetId/space` (עדכון בלבד - 404 לפ"מ
+שאינו בדסק; שיוך מרחב לא מכניס לטבלה). **נמחק** עם השורה (הסרה מהדסק, ניקוי הקצאות העמדה).
+לוגיקה: `src/utils/deskSpace.ts`.
+
 ### `strip_table_assignments.planned_alt` - גובה הדסק
 
 פ"מ יכול להיות בכמה דסקים, ובכל אחד בגובה אחר (מכינים את הדסק לפני שהפ"מ הגיע).
@@ -3552,7 +3563,8 @@ REFACTOR_LOG #045.
 | `block_tables.split_space_ids` | JSONB DEFAULT `'[]'` | **מרחבי החלוקה** של הטבלה - מזהי `block_spaces`. פ"מים באותו גובה במרחבים **שונים** מתוך החלוקה (לפי `strips.block_space_id`) **אינם בקונפליקט** |
 | `block_spaces.map_id` | INTEGER | **מיקום המרחב על המפה** - מפה מעוגנת שעליה מוגדרים האזורים שלו |
 | `block_spaces.zone_ids` | JSONB DEFAULT `'[]'` | מזהי `map_zones` שמרכיבים את המרחב. מרכז האזורים (משוקלל שטח) = מרכז המרחב, ומוחזר ב-`GET /api/block-spaces` כ-`center_lat`/`center_lon` (`shared/blockSpaceGeo.js`) |
-| `workstation_presets.auto_block_space_by_target` | BOOLEAN DEFAULT false | **חלוקה למרחבים לפי מיקום המטרה** במוד טבלה: פ"מ בלי מרחב משויך למרחב שמרכזו הכי קרוב לנ"צ המטרה "הראשונה לביצוע" (`strips.targets[].first_exec`, ובלי סימון - השורה העליונה עם נ"צ). פעם אחת לכל פ"מ - שיוך ידני לא נדרס. הלוח מקובץ לפי מרחב |
+| `workstation_presets.auto_block_space_by_target` | BOOLEAN DEFAULT false | **חלוקה למרחבים לפי מיקום המטרה** במוד טבלה: פ"מ בלי מרחב משויך - מבין המרחבים שמול המטרה "הראשונה לביצוע" לרוחב ציר התקיפה - למרחב שהפוליגון שלו הכי קרוב (`strips.targets[].first_exec`, ובלי סימון - השורה העליונה עם נ"צ); בלי מטרות - לגזרה הרחוקה. נשמר למרחב **של הדסק** (`strip_table_assignments.block_space_id`). שיוך ידני לא נדרס. הלוח מקובץ לפי מרחב |
+| `workstation_presets.desk_default_view` | VARCHAR(20) | **תצוגת הדסק בעליית העמדה** (מוד טבלה): `blocks` / `target_map` / `both`. NULL = מה שהפקח השאיר |
 | `workstation_presets.auto_block_space_ids` | JSONB DEFAULT NULL | **טופס העזר בעמדה** - המרחבים שמותר לשייך אליהם אוטומטית. NULL = כל מרחבי העמדה שיש להם מיקום; מערך (גם ריק) = רק המסומנים. המטרה לא חייבת להיות בתוך מרחב - הפ"מ הולך למרחב **המותר** הקרוב ביותר. נכתב ב-`PATCH /api/workstation-presets/:id/auto-block-spaces` |
 | `strips.targets[].first_exec` | boolean בתוך JSONB | **ראשונה לביצוע** בטבלת נקודות המכוון - שורה אחת לכל היותר |
 | `blocks.space_id` | INTEGER NULL | המרחב שהבלוק משרת. ריק = כל המרחבים. פ"מ "נמצא" רק בבלוק של המרחב שלו - לחישוב סטייה מבלוק, קונפליקט והמלצת הגובה |

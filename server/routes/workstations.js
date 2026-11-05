@@ -123,11 +123,20 @@ router.get('/api/workstation-presets/:id/config', async (req, res) => {
 // "חלוקה למרחבי בלוקים לפי מיקום המטרה" - נשמר בעדכון נפרד, רק כשהשדה נשלח,
 // כדי לא להוסיף עוד פרמטר מיקומי לשאילתא של 73 פרמטרים
 async function saveAutoBlockSpace(row, body) {
-  if (!row || body?.auto_block_space_by_target === undefined) return row;
-  const r = await pool.query(
-    'UPDATE workstation_presets SET auto_block_space_by_target = $1 WHERE id = $2 RETURNING *',
-    [body.auto_block_space_by_target === true, row.id]);
-  return r.rows[0] || row;
+  if (!row) return row;
+  if (body?.auto_block_space_by_target !== undefined) {
+    const r = await pool.query(
+      'UPDATE workstation_presets SET auto_block_space_by_target = $1 WHERE id = $2 RETURNING *',
+      [body.auto_block_space_by_target === true, row.id]);
+    row = r.rows[0] || row;
+  }
+  // תצוגת הדסק בעליית העמדה - אותו עדכון נפרד
+  if (body?.desk_default_view !== undefined) {
+    const v = ['blocks', 'target_map', 'both'].includes(body.desk_default_view) ? body.desk_default_view : null;
+    const r = await pool.query('UPDATE workstation_presets SET desk_default_view = $1 WHERE id = $2 RETURNING *', [v, row.id]);
+    row = r.rows[0] || row;
+  }
+  return row;
 }
 
 // טופס העזר בעמדה: הפעלת החלוקה האוטומטית (`enabled`) ולאילו מרחבים מותר לשייך

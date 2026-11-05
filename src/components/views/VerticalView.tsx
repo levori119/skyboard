@@ -17,6 +17,8 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
   const chartContentRef = React.useRef<HTMLDivElement>(null);
   const [chartW, setChartW] = React.useState(800);
   const [groupBy, setGroupBy] = React.useState<'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id'>(initialGroupBy);
+  // ההורה יכול להחליף את החלוקה (למשל "לעבוד לפי מרחבי בלוקים" אחרי חלוקה אוטומטית)
+  React.useEffect(() => { setGroupBy(initialGroupBy); }, [initialGroupBy]);
   const [showBlocks, setShowBlocks] = React.useState(true);
   // מפת המטרות ליד הבלוקים - לא קבועה, נדלקת בכפתור (או מתפריט התצוגה)
   const [innerTargetMap, setInnerTargetMap] = React.useState(false);

@@ -107,6 +107,9 @@ router.get('/api/strips/global', async (req, res) => {
         -- גובה הדסק פר עמדה (src/utils/deskAlt.ts)
         (SELECT COALESCE(jsonb_object_agg(preset_id::text, jsonb_build_object('alt', planned_alt, 'to_sender', COALESCE(planned_alt_to_sender, FALSE))), '{}'::jsonb)
            FROM strip_table_assignments WHERE strip_id = s.id AND planned_alt IS NOT NULL AND planned_alt <> '') AS table_alts,
+        -- מרחב הבלוקים פר דסק (src/utils/deskSpace.ts)
+        (SELECT COALESCE(jsonb_object_agg(preset_id::text, block_space_id), '{}'::jsonb)
+           FROM strip_table_assignments WHERE strip_id = s.id AND block_space_id IS NOT NULL) AS table_spaces,
         -- "נמצא בעמדה": כל עמדה שהפ"מ נמצא בדסק שלה או שחיברה אותו לאזור.
         -- **לא** workstation_preset_id — הוא נושא גם יעד העברה, ופ"מ שממתין
         -- בנקודת העברה כבר לא "נמצא" אצל אף אחד.
@@ -196,6 +199,7 @@ router.get('/api/strips/global', async (req, res) => {
       at_preset_names: Array.isArray(r.at_preset_names) ? r.at_preset_names : [],
       station_notes: (r.station_notes && typeof r.station_notes === 'object') ? r.station_notes : {},
       table_alts: (r.table_alts && typeof r.table_alts === 'object') ? r.table_alts : {},
+      table_spaces: (r.table_spaces && typeof r.table_spaces === 'object') ? r.table_spaces : {},
       aircraft_faults: Array.isArray(r.aircraft_faults) ? r.aircraft_faults : [],
       // טבלת המטוסים של הפ"מ - שורה לכל מטוס (ראה src/types/stripAircraft.ts)
       aircraft: Array.isArray(r.aircraft) ? r.aircraft : [],
@@ -1283,6 +1287,28 @@ router.patch('/api/strip-table-assignments/:stripId/:presetId/alt', async (req, 
   } catch (err) {
     console.error('Error saving desk alt:', err);
     res.status(500).json({ error: 'Failed to save desk alt' });
+  }
+});
+
+// מרחב הבלוקים של הפ"מ בדסק הזה (null = בלי מרחב). רק לפ"מ שבדסק - שיוך מרחב
+// לא מכניס פ"מ לטבלה (src/utils/deskSpace.ts)
+router.patch('/api/strip-table-assignments/:stripId/:presetId/space', async (req, res) => {
+  const stripId = parseInt(String(req.params.stripId).replace(/^s/, ''));
+  const presetId = parseInt(req.params.presetId);
+  const raw = req.body?.block_space_id;
+  if (isNaN(stripId) || isNaN(presetId)) return res.status(400).json({ error: 'strip id and preset id required' });
+  const spaceId = raw === null || raw === undefined || raw === '' ? null : parseInt(raw);
+  if (spaceId !== null && isNaN(spaceId)) return res.status(400).json({ error: 'block_space_id חייב להיות מספר או null' });
+  try {
+    const r = await pool.query(
+      'UPDATE strip_table_assignments SET block_space_id = $3 WHERE strip_id = $1 AND preset_id = $2',
+      [stripId, presetId, spaceId],
+    );
+    if (!r.rowCount) return res.status(404).json({ error: 'הפ"מ אינו בדסק של העמדה' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error saving desk space:', err);
+    res.status(500).json({ error: 'Failed to save desk space' });
   }
 });
 

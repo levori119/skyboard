@@ -2886,6 +2886,26 @@
       "he": "הבנתי",
       "en": "OK"
     },
+    "spaceModeTitle": {
+      "he": "עבודה לפי מרחבי בלוקים",
+      "en": "Work by block spaces"
+    },
+    "spaceModeAsk": {
+      "he": "החלוקה האוטומטית שייכה פ\"מים למרחבים שונים, ויש ביניהם קונפליקט גובה כי הבלוקים מוצגים כתרשים אחד. לעבוד לפי מרחבי בלוקים?",
+      "en": "Auto split placed strips in different spaces, and they conflict in altitude because the blocks are shown as one chart. Work by block spaces?"
+    },
+    "spaceModeHint": {
+      "he": "כן - הבלוקים יוצגו מופרדים לפי מרחב, ופ\"מים במרחבים שונים לא יהיו בקונפליקט. אפשר לשנות בכל רגע בכפתור החלוקה בתצוגת הבלוקים",
+      "en": "Yes - blocks are shown separated by space, and strips in different spaces do not conflict. Change it any time with the grouping button in the blocks view"
+    },
+    "spaceModeYes": {
+      "he": "כן, לפי מרחבים",
+      "en": "Yes, by spaces"
+    },
+    "spaceModeNo": {
+      "he": "לא",
+      "en": "No"
+    },
     "recvAltViolation": {
       "he": "הגובה {{alt}} חורג מגבהי הקבלה של העמדה בנקודת ההעברה",
       "en": "Altitude {{alt}} is outside the station's receive altitudes at the transfer point"

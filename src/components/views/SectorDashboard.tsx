@@ -103,6 +103,7 @@ import { splitSpaceSet, separatedBySpace, blockFitsSpace, separatedByGroup, stru
 import { applyAltOverrides, parseAltOverrides, refitAltToBand, blockForAlt, type AltOverrides } from '../../utils/zoneAltOverride';
 import { recommendAltitude, stripArmaments, normalizeAltRules, stationRecBlocks, assignedAltitude, freeStart, tooCloseTo, PAIR_SEPARATION, type AltRecommendation, type RecBlock } from '../../utils/altRecommend';
 import { isForeignToDesk, deskAltEntry, withDeskAlt, sameAlt, receiveAltViolations, type ReceiveAltViolation } from '../../utils/deskAlt';
+import { withDeskSpace, isOnDesk, deskSpaceConflict } from '../../utils/deskSpace';
 import { loadPadLayout, savePadLayout, type PadLayout } from '../../utils/freeDeskLayout';
 import FreeDeskPad from '../shared/FreeDeskPad';
 import { AimPointsSummary, AimPointsWindow } from '../strips/AimPointsTable';
@@ -4990,8 +4991,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const ids = splitSpaceSet(dashboardBlockTables, btIds);
     return dashboardBlockSpaces.filter((bs: any) => ids.has(Number(bs.id)));
   }, [myPresetConfig, dashboardBlockTables, dashboardBlockSpaces, dashboardBlocks, session.presetId]);
-  const setStripSpaceLocal = (stripId: string, blockSpaceId: number | null) =>
-    setStrips(prev => prev.map(st => String(st.id) === String(stripId) ? { ...st, block_space_id: blockSpaceId } : st));
   // If the preset defines relevant control stations, filter serials to those only
   const relevantControlStations: string[] | null = (myPresetConfig?.relevant_control_stations && myPresetConfig.relevant_control_stations.length > 0)
     ? myPresetConfig.relevant_control_stations
@@ -5104,8 +5103,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   })();
   // דסק במוד טבלה: פ"מ של עמדה אחרת מוצג בגובה **של הדסק** (ובלעדיו - בלי גובה),
   // בטבלה, בבלוקים, בקונפליקטים ובחלון הפ"מים. הגובה שעליו הוא גובה הקבלה (utils/deskAlt)
+  // וכך גם מרחב הבלוקים: פ"מ בדסק נמצא במרחב **של הדסק** (utils/deskSpace)
   const myTableStrips = tableMode && session.presetId
-    ? myTableStripsRaw.map((s: any) => withDeskAlt(s, Number(session.presetId)))
+    ? myTableStripsRaw.map((s: any) => withDeskSpace(withDeskAlt(s, Number(session.presetId)), Number(session.presetId), tableOnBoard.has(s.id)))
     : myTableStripsRaw;
 
   // Full-picture strips: all strips from any preset in the same work group.
@@ -5428,7 +5428,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     session.presetId ? Number(session.presetId) : null, effectiveBlockTableId,
   );
   const computeAltRec = (stripId: string, spaceOverride?: number | null) => {
-    const found: any = strips.find(st => String(st.id) === stripId);
+    // כפי שהדסק רואה אותו - המרחב של הדסק (utils/deskSpace)
+    const found: any = myTableStrips.find((st: any) => String(st.id) === stripId) ?? strips.find(st => String(st.id) === stripId);
     if (!found) return null;
     const strip: any = spaceOverride === undefined ? found : { ...found, block_space_id: spaceOverride };
     // מרחבי חלוקה: רק בלוקים של המרחב של הפ"מ, ופ"מ במרחב אחר אינו תופס בלוק
@@ -5524,6 +5525,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const anchor = targetsAnchor(board.map((s: any) => s.targets));
     // ציר התקיפה - מכל המטרות בטבלה (גם בצד), כדי שלא יסתובב עם כל פ"מ שעולה ללוח
     const axisToward = allTargetsAnchor(myTableStrips.map((s: any) => s.targets));
+    const assigned = new Map<string, number>();
     for (const s of board) {
       const k = String(s.id);
       const tkey = firstExecKey(s.targets);
@@ -5537,7 +5539,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       const rec = autoSpaceFor(s.targets, cands, anchor, axisToward);
       if (rec == null) continue;
       autoSpaceDoneRef.current.set(k, { space: rec, tkey });
-      if (rec !== cur) optimisticStripPut(k, { block_space_id: rec });
+      if (rec !== cur) { saveStripSpace(k, rec); assigned.set(k, rec); }
+    }
+    // חלוקה שיצרה קונפליקט בין מרחבים - נשאל אם לעבוד לפי מרחבי בלוקים (למטה)
+    if (assigned.size && !spaceAskDoneRef.current) {
+      spaceAskPendingRef.current = new Map([...(spaceAskPendingRef.current || []), ...assigned]);
     }
   };
   useEffect(() => {
@@ -5545,6 +5551,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     runAutoSpaces(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tableMode, myPresetConfig?.auto_block_space_by_target, myPresetConfig?.auto_block_space_ids, myTableStrips, tableOnBoard, stationSplitSpaces, presetBlockSpaces]);
+  // ── חלוקה אוטומטית שיצרה קונפליקט: לעבוד לפי מרחבי בלוקים? ────────────────
+  // הבלוקים מוצגים כתרשים אחד, ולכן שני פ"מים באותו גובה במרחבים שונים "מתנגשים".
+  // כן = הבלוקים מופרדים לפי מרחב (כמו הכפתור "מרחב בלוקים" בתצוגת הבלוקים), גם
+  // כשהתצוגה סגורה - הקונפליקטים מחושבים לפי אותה הפרדה. שואלים עד שעונים.
+  const spaceAskPendingRef = useRef<Map<string, number> | null>(null);
+  const spaceAskDoneRef = useRef(false);
+  const [spaceModeAsk, setSpaceModeAsk] = useState(false);
+  useEffect(() => {
+    const pend = spaceAskPendingRef.current;
+    if (!pend || spaceAskDoneRef.current) return;
+    if (verticalGroupBy === 'block_space_id') { spaceAskDoneRef.current = true; spaceAskPendingRef.current = null; return; }
+    const board = myTableStrips.filter((s: any) => tableOnBoard.has(s.id));
+    const byId = new Map(board.map((s: any) => [String(s.id), s]));
+    // מחכים שהחלוקה תגיע למסך - אחרת הבדיקה רצה על המרחבים הקודמים
+    for (const [id, sp] of pend) { const s: any = byId.get(id); if (s && Number(s.block_space_id) !== sp) return; }
+    spaceAskPendingRef.current = null;
+    if (deskSpaceConflict(board, tableConflictPairsMap)) setSpaceModeAsk(true);
+  });
   // שמירת טופס העזר - מיד על המסך, השמירה ברקע; כישלון מחזיר את הקודם
   const saveAutoSpaces = (patch: { auto_block_space_ids?: number[] | null; auto_block_space_by_target?: boolean }) => {
     if (!session.presetId) return;
@@ -5571,6 +5595,22 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     setTableCollapsedGroups(new Set());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tableMode, myPresetConfig?.auto_block_space_by_target]);
+
+  // ── תצוגת הדסק בעליית העמדה (ניהול: `desk_default_view`) ─────────────────────
+  // בלוקים / מפת מטרות / שניהם - פעם אחת לכל עלייה של העמדה, ומשם הפקח מחליף
+  // כרגיל. בלי הגדרה - מה שהפקח השאיר (מפת המטרות נשמרת פר-עמדה בדפדפן).
+  const deskViewAppliedRef = useRef<string | null>(null);
+  useEffect(() => {
+    const v = myPresetConfig?.desk_default_view;
+    if (!tableMode || !session.presetId || !myPresetConfig) return;
+    const key = String(session.presetId);
+    if (deskViewAppliedRef.current === key) return;
+    deskViewAppliedRef.current = key;
+    if (v !== 'blocks' && v !== 'target_map' && v !== 'both') return;
+    setShowVerticalView(v !== 'target_map');
+    setTargetMap(v !== 'blocks');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tableMode, session.presetId, myPresetConfig]);
 
   /**
    * פ"מ שהגובה שלו בדסק הזה הוא **גובה הדסק** ולא הגובה שעליו: מוד טבלה, הפ"מ
@@ -5628,10 +5668,40 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       setReceiveAltAsk({ stripId: String(key), label: raw.callSign || raw.callsign || String(key), receiveAlt, deskAlt: alt, ask, violations });
     }
   };
+  /**
+   * שמירת מרחב הבלוקים של הפ"מ. בדסק - של הדסק בלבד (utils/deskSpace), מיד על
+   * המסך והשמירה ברקע; כישלון מחזיר. פ"מ שאינו בדסק - המרחב של הפ"מ, כמו קודם.
+   */
+  const saveStripSpace = (stripId: string, spaceId: number | null) => {
+    const pid = session.presetId ? Number(session.presetId) : null;
+    const raw: any = strips.find(st => String(st.id) === String(stripId));
+    if (!raw) return;
+    if (!tableMode || pid == null || !isOnDesk(raw, pid, tableOnBoard.has(raw.id))) {
+      optimisticStripPut(String(stripId), { block_space_id: spaceId });
+      return;
+    }
+    const key = raw.id;
+    const patch = { table_spaces: { ...(raw.table_spaces || {}), [String(pid)]: spaceId } };
+    pendingStripUpdatesRef.current.set(key, { ...(pendingStripUpdatesRef.current.get(key) || {}), ...patch });
+    setStrips(prev => prev.map(st => String(st.id) === String(key) ? { ...st, ...patch } : st));
+    const numId = String(key).replace(/^s/, '');
+    fetch(`${API_URL}/strip-table-assignments/${numId}/${pid}/space`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ block_space_id: spaceId }),
+    }).then(r => {
+      if (!r.ok) throw new Error(`desk space ${r.status}`);
+      setTimeout(() => releasePendingKeys(pendingStripUpdatesRef.current, key, patch), PENDING_RELEASE_MS);
+    }).catch(err => {
+      console.error(err);
+      if (!releasePendingKeys(pendingStripUpdatesRef.current, key, patch).length) return;
+      setStrips(prev => prev.map(st => String(st.id) === String(key) ? { ...st, table_spaces: raw.table_spaces || {} } : st));
+      setSaveFailToast(tr('ctrl.saveFailedReverted', { callsign: raw.callSign || raw.callsign || '' }));
+    });
+  };
   const putStripAlt = async (stripId: string, alt: string) => {
     const desk = deskAltTarget(stripId);
     if (desk) { saveDeskAlt(desk, alt); return; }
-    const target = strips.find(st => String(st.id) === stripId);
+    const target = myTableStrips.find((st: any) => String(st.id) === stripId) ?? strips.find(st => String(st.id) === stripId);
     const dev = target ? computeBlockDeviation({ ...target, alt }, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false;
     optimisticStripPut(stripId, { alt, block_deviation: dev });
   };
@@ -13893,6 +13963,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           method: 'POST', headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
                             presetId: Number(session.presetId), mapIds: _mapIds,
+                            // גם הגבהים ומרחבי הבלוקים של הפ"מים של העמדה. של הדסק נמחקים עם ההקצאה
+                            resetAlts: true, resetBlockSpaces: true,
                             clearSeizures: !!answer.seizures, clearRestrictions: !!answer.restrictions,
                           })
                         });
@@ -13911,6 +13983,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         // סוג עמדה שאינו מפה ראשית: מוד הטבלה (סט מקומי שרק מתווסף מה-DB),
                         // התצוגה האזרחית, מפה 2 וחלונות המפה של דסק משימה
                         setTableOnBoard(new Set());
+                        // החלוקה האוטומטית מתחילה מחדש - ואיתה השאלה על מרחבי הבלוקים
+                        autoSpaceDoneRef.current.clear();
+                        spaceAskPendingRef.current = null;
+                        spaceAskDoneRef.current = false;
                         const _pid = Number(session.presetId);
                         if (isCivilianMode) { loadCivAssignments(_pid); loadCivStrips(_pid); }
                         reloadCurrentAssignments();
@@ -14216,17 +14292,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               {rule ? ` · ${tr('ctrl.altRecRule', { armament: rule.armament, target: ruleText })}` : ar.rec.reason === 'nearest' ? ` · ${tr('ctrl.altRecNearest')}` : ar.rec.reason === 'lowest' ? ` · ${tr('ctrl.altRecLowest')}` : ''}
             </div>
             {stationSplitSpaces.length > 0 && (() => {
-              const cur = strips.find(st => String(st.id) === ar.stripId)?.block_space_id;
+              const cur = myTableStrips.find((st: any) => String(st.id) === ar.stripId)?.block_space_id;
               return (
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', marginBottom: '8px' }}>
                   <span style={{ color: T.muted }}>{tr('ctrl.altRecSpace')}</span>
                   <select data-testid="alt-rec-space" value={cur ? String(cur) : ''}
                     onChange={async e => {
                       const id = e.target.value ? Number(e.target.value) : null;
-                      setStripSpaceLocal(ar.stripId, id);
+                      saveStripSpace(ar.stripId, id);
                       const r = computeAltRec(ar.stripId, id);
                       if (r) setAltRec({ ...r, selected: r.rec.blockIds, moved: false, assignStart: r.rec.start ?? null });
-                      try { await fetch(`${API_URL}/strips/${ar.stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_space_id: id }) }); } catch (err) { console.error(err); }
                     }}
                     style={{ flex: 1, background: T.bg, color: T.text, border: `1px solid ${T.border}`, borderRadius: '5px', padding: '4px 6px', fontSize: '12px', fontFamily: 'inherit' }}>
                     <option value="">{tr('ctrl.altRecSpaceNone')}</option>
@@ -14292,6 +14367,29 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </button>
               <button data-testid="alt-rec-skip" onClick={() => setAltRec(null)}
                 style={{ background: 'transparent', color: T.muted, border: `1px solid ${T.border}`, borderRadius: '6px', padding: '7px 12px', cursor: 'pointer', fontSize: '13px' }}>{tr('ctrl.altRecSkip')}</button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* חלוקה אוטומטית שיצרה קונפליקט בין מרחבים - לעבוד לפי מרחבי בלוקים? */}
+      {spaceModeAsk && (() => {
+        const answer = (yes: boolean) => {
+          spaceAskDoneRef.current = true;
+          setSpaceModeAsk(false);
+          if (yes) setVerticalGroupBy('block_space_id');
+        };
+        return (
+          <div data-testid="space-mode-dialog" onPointerDown={e => e.stopPropagation()} onKeyDown={e => { if (e.key === 'Escape') answer(false); }}
+            style={{ position: 'fixed', top: 110, left: '50%', transform: 'translateX(-50%)', zIndex: 9001, width: 380, maxWidth: 'calc(100vw - 32px)', background: T.surface, color: T.text, padding: '12px', direction: dir, boxShadow: '0 8px 32px rgba(0,0,0,0.5)', ...windowFrame('view', themeMode, 8) }}>
+            <div style={{ fontSize: '15px', fontWeight: 'bold', marginBottom: '8px' }}>📍 {tr('ctrl.spaceModeTitle')}</div>
+            <div style={{ fontSize: '13px', lineHeight: 1.5, marginBottom: '4px' }}>{tr('ctrl.spaceModeAsk')}</div>
+            <div style={{ fontSize: '11px', color: T.muted, marginBottom: '8px' }}>{tr('ctrl.spaceModeHint')}</div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button data-testid="space-mode-yes" autoFocus onClick={() => answer(true)}
+                style={{ flex: 1, background: '#15803d', color: 'white', border: 'none', borderRadius: '6px', padding: '7px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>✓ {tr('ctrl.spaceModeYes')}</button>
+              <button data-testid="space-mode-no" onClick={() => answer(false)}
+                style={{ background: 'transparent', color: T.text, border: `1px solid ${T.border}`, borderRadius: '6px', padding: '7px 14px', cursor: 'pointer', fontSize: '13px' }}>{tr('ctrl.spaceModeNo')}</button>
             </div>
           </div>
         );
@@ -17902,7 +18000,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       return (
                         <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
                           <BlockSpaceCellTable strip={s} blockSpaces={stationSplitSpaces.length > 0 ? stationSplitSpaces : presetBlockSpaces} lightMode={lightMode}
-                            onSaved={id => setStripSpaceLocal(String(s.id), id)} />
+                            onSelect={id => saveStripSpace(String(s.id), id)} />
                         </td>
                       );
                     }

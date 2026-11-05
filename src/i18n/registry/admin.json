@@ -2,6 +2,30 @@
   "_group": "ניהול מערכת",
   "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
   "keys": {
+    "deskViewTitle": {
+      "he": "תצוגת הדסק בעליית העמדה",
+      "en": "Desk view when the station starts"
+    },
+    "deskViewLast": {
+      "he": "מה שהפקח השאיר",
+      "en": "Controller's last choice"
+    },
+    "deskViewBlocks": {
+      "he": "בלוקים",
+      "en": "Blocks"
+    },
+    "deskViewTargetMap": {
+      "he": "מפת מטרות",
+      "en": "Target map"
+    },
+    "deskViewBoth": {
+      "he": "בלוקים ומפת מטרות",
+      "en": "Blocks and target map"
+    },
+    "deskViewHint": {
+      "he": "במוד טבלה: מה נפתח כשהעמדה עולה. אחר כך הפקח מחליף מתפריט התצוגה כרגיל.",
+      "en": "Table mode: what opens when the station starts. The controller can then switch from the View menu as usual."
+    },
     "autoSpaceTitle": {
       "he": "חלוקה למרחבי בלוקים לפי מיקום המטרה",
       "en": "Split into block spaces by target location"
@@ -15,8 +39,8 @@
       "en": "Off"
     },
     "autoSpaceHint": {
-      "he": "במוד טבלה: פ\"מ בלי מרחב משויך למרחב שמרכזו הכי קרוב לנ\"צ המטרה הראשונה לביצוע, והלוח מקובץ לפי מרחב. שיוך ידני לא נדרס. דורש מרחבים עם מיקום על המפה.",
-      "en": "Table mode: a strip without a space is assigned to the space whose center is nearest the first-to-execute target, and the board is grouped by space. Manual choices are kept. Requires spaces located on the map."
+      "he": "במוד טבלה: פ\"מ בלי מרחב משויך, מבין המרחבים שמול המטרה הראשונה לביצוע, לקרוב אליה (קדמי לפני אחורי); פ\"מ בלי מטרות - לגזרה האחורית הרחוקה. המרחב נשמר פר עמדה. שיוך ידני לא נדרס. דורש מרחבים עם מיקום על המפה.",
+      "en": "Table mode: a strip without a space is assigned, among the spaces facing its first-to-execute target, to the nearest one (front before rear); a strip without targets goes to the far rear space. The space is kept per station. Manual choices are kept. Requires spaces located on the map."
     },
     "bsMapZones": {
       "he": "מיקום על המפה (לחלוקה לפי מטרה)",
