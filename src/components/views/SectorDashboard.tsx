@@ -1,4 +1,4 @@
-import { recommendBlockSpaceId, autoAssignableSpaces } from '../../utils/blockSpaceAuto';
+import { autoSpaceFor, autoAssignableSpaces, targetsAnchor, firstExecKey } from '../../utils/blockSpaceAuto';
 import AutoBlockSpacesForm from '../blocks/AutoBlockSpacesForm';
 import BlockTargetMap from '../blocks/BlockTargetMap';
 import { GROUP_HEADER_COLORS, groupHeaderStyle, loadGroupHeaderColor, saveGroupHeaderColor, type GroupHeaderColor } from '../../utils/groupHeaderPalette';
@@ -5509,23 +5509,38 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   };
 
   // ── חלוקה אוטומטית למרחבי בלוקים לפי מיקום המטרה (דגל עמדה) ─────────────────
-  // פ"מ על לוח הטבלה בלי מרחב → המרחב שמרכזו הכי קרוב למטרה "הראשונה לביצוע".
-  // פעם אחת לכל פ"מ: מרחב שהפקח שינה או ניקה ידנית לא נדרס. פ"מ בלי נ"צ מטרה
-  // נשאר ממתין, ומשויך ברגע שמוזן לו נ"צ.
-  const autoSpaceDoneRef = useRef<Set<string>>(new Set());
+  // פ"מ על לוח הטבלה בלי מרחב → המרחב שהפוליגון שלו הכי קרוב למטרה "הראשונה לביצוע";
+  // בלי מטרות - הגזרה הרחוקה ממרכז המטרות (utils/blockSpaceAuto).
+  // מה החלוקה האוטומטית שייכה לכל פ"מ ולפי איזו מטרה. שיוך שהפקח לא שינה מחושב
+  // מחדש כשהמטרה הקובעת משתנה (קודם נקבע פעם אחת, ונשאר על מרחב שחושב ממטרה ישנה);
+  // מרחב שהפקח שינה או ניקה ידנית לא נדרס.
+  const autoSpaceDoneRef = useRef<Map<string, { space: number; tkey: string }>>(new Map());
+  const autoSpaceCands = () => autoAssignableSpaces(stationSplitSpaces.length > 0 ? stationSplitSpaces : presetBlockSpaces, myPresetConfig?.auto_block_space_ids);
+  /** `all` - "חשב מחדש" בטופס העזר: כל הפ"מים בלוח, גם מה ששויך ידנית */
+  const runAutoSpaces = (all: boolean) => {
+    const cands = autoSpaceCands();
+    if (!cands.length) return;
+    const board = myTableStrips.filter((s: any) => tableOnBoard.has(s.id));
+    const anchor = targetsAnchor(board.map((s: any) => s.targets));
+    for (const s of board) {
+      const k = String(s.id);
+      const tkey = firstExecKey(s.targets);
+      const prev = autoSpaceDoneRef.current.get(k);
+      const cur = s.block_space_id ? Number(s.block_space_id) : null;
+      if (!all) {
+        if (prev) {
+          if (cur !== prev.space || prev.tkey === tkey) continue; // ידני, או שלא השתנה כלום
+        } else if (cur != null) continue;
+      }
+      const rec = autoSpaceFor(s.targets, cands, anchor);
+      if (rec == null) continue;
+      autoSpaceDoneRef.current.set(k, { space: rec, tkey });
+      if (rec !== cur) optimisticStripPut(k, { block_space_id: rec });
+    }
+  };
   useEffect(() => {
     if (!tableMode || myPresetConfig?.auto_block_space_by_target !== true) return;
-    // רק המרחבים שסומנו בטופס העזר כניתנים לאיוש (null = כולם)
-    const cands = autoAssignableSpaces(stationSplitSpaces.length > 0 ? stationSplitSpaces : presetBlockSpaces, myPresetConfig?.auto_block_space_ids);
-    if (!cands.length) return;
-    for (const s of myTableStrips) {
-      const k = String(s.id);
-      if (!tableOnBoard.has(s.id) || s.block_space_id || autoSpaceDoneRef.current.has(k)) continue;
-      const rec = recommendBlockSpaceId(s.targets, cands);
-      if (rec == null) continue;
-      autoSpaceDoneRef.current.add(k);
-      optimisticStripPut(k, { block_space_id: rec });
-    }
+    runAutoSpaces(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tableMode, myPresetConfig?.auto_block_space_by_target, myPresetConfig?.auto_block_space_ids, myTableStrips, tableOnBoard, stationSplitSpaces, presetBlockSpaces]);
   // שמירת טופס העזר - מיד על המסך, השמירה ברקע; כישלון מחזיר את הקודם
@@ -19329,6 +19344,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             themeMode={themeMode}
             onChange={ids => saveAutoSpaces({ auto_block_space_ids: ids })}
             onToggleEnabled={on => saveAutoSpaces({ auto_block_space_by_target: on })}
+            onRecalc={() => runAutoSpaces(true)}
             onClose={() => setShowAutoSpacesForm(false)}
           />
         )}

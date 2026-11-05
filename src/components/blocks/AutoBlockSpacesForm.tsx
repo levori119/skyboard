@@ -25,10 +25,12 @@ interface Props {
   themeMode: FrameTheme;
   onChange: (ids: number[] | null) => void;
   onToggleEnabled: (on: boolean) => void;
+  /** חישוב מחדש לכל הפ"מים בלוח - גם מה ששויך ידנית או ממטרה ישנה */
+  onRecalc?: () => void;
   onClose: () => void;
 }
 
-export default function AutoBlockSpacesForm({ spaces, allowedIds, enabled, themeMode, onChange, onToggleEnabled, onClose }: Props) {
+export default function AutoBlockSpacesForm({ spaces, allowedIds, enabled, themeMode, onChange, onToggleEnabled, onRecalc, onClose }: Props) {
   const winRef = useRef<HTMLDivElement | null>(null);
   const drag = useDragPosition(winRef);
   const light = themeMode === 'light';
@@ -81,6 +83,10 @@ export default function AutoBlockSpacesForm({ spaces, allowedIds, enabled, theme
         </span>
         <button data-testid="auto-spaces-all" onClick={() => onChange(null)} style={btn}>{tr('blocks.autoSpacesAll')}</button>
         <button data-testid="auto-spaces-none" onClick={() => onChange([])} style={btn}>{tr('blocks.autoSpacesClear')}</button>
+        {onRecalc && (
+          <button data-testid="auto-spaces-recalc" disabled={!enabled} onClick={onRecalc} title={tr('blocks.autoSpacesRecalcHint')}
+            style={{ ...btn, opacity: enabled ? 1 : 0.45, cursor: enabled ? 'pointer' : 'default' }}>⟳ {tr('blocks.autoSpacesRecalc')}</button>
+        )}
       </div>
     </div>,
     document.body,

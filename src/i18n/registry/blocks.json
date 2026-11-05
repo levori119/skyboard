@@ -42,6 +42,14 @@
       "he": "מרחבים לשיוך אוטומטי",
       "en": "Auto-assign spaces"
     },
+    "autoSpacesRecalc": {
+      "he": "חשב מחדש",
+      "en": "Recalculate"
+    },
+    "autoSpacesRecalcHint": {
+      "he": "שיוך מחדש של כל הפ\"מים בלוח לפי המטרות - גם מה ששויך ידנית",
+      "en": "Reassign every formation on the board by its targets - including manual assignments"
+    },
     "autoSpacesSaveFailed": {
       "he": "שמירת המרחבים לשיוך אוטומטי נכשלה - הבחירה הקודמת חזרה",
       "en": "Saving auto-assign spaces failed - previous selection restored"

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { firstExecTarget, firstExecIndex, autoAssignableSpaces, recommendBlockSpaceId } from './blockSpaceAuto';
+import { firstExecTarget, firstExecIndex, autoAssignableSpaces, recommendBlockSpaceId, autoSpaceFor, targetsAnchor, firstExecKey } from './blockSpaceAuto';
 
 // מה שנבדק: המטרה הקובעת (ראשונה לביצוע / שורה עליונה) והמרחב המומלץ לפ"מ.
 const NORTH = 'N3230.0000/E03500.0000'; // 32.5, 35.0
@@ -57,5 +57,27 @@ describe('autoAssignableSpaces - טופס העזר', () => {
   });
   it('המטרה במרחב שאינו מותר - הפ"מ הולך למותר הקרוב ביותר', () => {
     expect(recommendBlockSpaceId([{ coord: SOUTH }], autoAssignableSpaces(all, [2]))).toBe(2);
+  });
+});
+
+describe('autoSpaceFor - פ"מ בלי מטרות לגזרה האחורית הרחוקה', () => {
+  const sq = (lat: number, lon: number) => [[{ lat, lon }, { lat, lon: lon + 0.1 }, { lat: lat + 0.1, lon: lon + 0.1 }, { lat: lat + 0.1, lon }]];
+  const spaces = [
+    { id: 1, center_lat: 31.45, center_lon: 34.35, polygons: sq(31.4, 34.3) },   // קדמי
+    { id: 2, center_lat: 31.45, center_lon: 33.65, polygons: sq(31.4, 33.6) },   // אחורי רחוק
+  ];
+  const anchor = targetsAnchor([[{ coord: 'N3125.0000/E03430.0000' }], [], [{ coord: 'N3126.0000/E03432.0000' }]]);
+  it('מרכז המטרות - רק מפ"מים עם מטרה', () => {
+    expect(anchor!.lat).toBeCloseTo(31.425, 3);
+    expect(targetsAnchor([[], null])).toBeNull();
+  });
+  it('עם מטרה - הקרוב; בלי מטרה - הרחוק ממרכז המטרות; בלי מטרות בכלל - null', () => {
+    expect(autoSpaceFor([{ coord: 'N3125.0000/E03430.0000' }], spaces, anchor)).toBe(1);
+    expect(autoSpaceFor([], spaces, anchor)).toBe(2);
+    expect(autoSpaceFor([], spaces, null)).toBeNull();
+  });
+  it('firstExecKey - משתנה כשהמטרה הקובעת משתנה', () => {
+    expect(firstExecKey([{ coord: 'N3125.0000/E03430.0000' }])).not.toBe(firstExecKey([{ coord: 'N3126.0000/E03430.0000' }]));
+    expect(firstExecKey([])).toBe('');
   });
 });
