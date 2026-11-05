@@ -1,5 +1,6 @@
 import { tr } from '../../i18n/tr';
 import { splitSpaceSet, separatedBySpace, blockFitsSpace, structureSeparates } from '../../utils/blockSpaces';
+import { stackLabels } from '../../utils/labelStack';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Strip from '../strips/Strip';
 import BlockTargetMap from '../blocks/BlockTargetMap';
@@ -16,6 +17,8 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
   const containerRef = React.useRef<HTMLDivElement>(null);
   const chartContentRef = React.useRef<HTMLDivElement>(null);
   const [chartW, setChartW] = React.useState(800);
+  // הגובה בפועל של התרשים בפיקסלים - ממנו נגזר כמה מקום תופסת תווית (STRIP_H פיקסלים)
+  const [chartPxH, setChartPxH] = React.useState(220);
   const [groupBy, setGroupBy] = React.useState<'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id'>(initialGroupBy);
   // ההורה יכול להחליף את החלוקה (למשל "לעבוד לפי מרחבי בלוקים" אחרי חלוקה אוטומטית)
   React.useEffect(() => { setGroupBy(initialGroupBy); }, [initialGroupBy]);
@@ -140,7 +143,10 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
   React.useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const obs = new ResizeObserver(entries => setChartW(Math.max(entries[0].contentRect.width - 56, 300)));
+    const obs = new ResizeObserver(entries => {
+      setChartW(Math.max(entries[0].contentRect.width - 56, 300));
+      setChartPxH(Math.max(entries[0].contentRect.height - 44, 80));
+    });
     obs.observe(el);
     return () => obs.disconnect();
   }, []);
@@ -273,16 +279,15 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
           const altGap = Math.max(a._altLo, b._altLo) - Math.min(a._altHi, b._altHi);
           if (altGap !== 0 && altGap < conflictAltDelta && !(structureSeparates(groupBy) && separatedBySpace(a, b, splitSpaces))) { p[i]._hasConflict = true; p[j]._hasConflict = true; }
         }
-        if (!a._isRange && !b._isRange) {
-          const yDiff = Math.abs(a._y - b._y);
-          if (yDiff < STRIP_H) {
-            const shift = (STRIP_H - yDiff) / 2 + 2;
-            if (a._y <= b._y) { p[i]._y -= shift; p[j]._y += shift; }
-            else { p[i]._y += shift; p[j]._y -= shift; }
-          }
-        }
       }
     }
+    // תוויות שלא עולות זו על זו: נערמות לפי הסדר סביב הגובה שלהן (utils/labelStack).
+    // פ"מ בטווח גבהים הוא מלבן לגובה הטווח - לא זז
+    const singles = p.map((s, i) => ({ s, i })).filter(x => !x.s._isRange);
+    // `_y` ביחידות התרשים (CHART_H); תווית בגובה STRIP_H פיקסלים תופסת לפי הגובה בפועל
+    const labelH = STRIP_H * CHART_H / chartPxH, labelGap = 2 * CHART_H / chartPxH;
+    const ys = stackLabels(singles.map(x => ({ x: x.s._x, y: x.s._y })), STRIP_W, labelH, labelGap, { min: labelH / 2, max: CHART_H - labelH / 2 });
+    singles.forEach((x, k) => { p[x.i]._y = ys[k]; });
     return p;
   };
 
@@ -694,8 +699,9 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
             heightVal = `${Math.max(bp - tp, 4)}%`;
           } else {
             const yPct = isDragging ? altPct(midAlt) : s._y / CHART_H * 100;
-            const halfPct = (STRIP_H / 2 / CHART_H) * 100;
-            topPct = Math.min(Math.max(yPct - halfPct, 0), 100 - (STRIP_H / CHART_H) * 100);
+            // התווית בגובה STRIP_H פיקסלים - ממורכזת לפי הגובה בפועל של התרשים
+            const halfPct = (STRIP_H / 2 / chartPxH) * 100;
+            topPct = Math.min(Math.max(yPct - halfPct, 0), 100 - (STRIP_H / chartPxH) * 100);
             heightVal = `${STRIP_H}px`;
           }
           // התראות כאות (ב/ק) על המלבן - לא צבע של כל המלבן ולא הבהוב
@@ -752,8 +758,9 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
             heightVal = `${Math.max(bp - tp, 4)}%`;
           } else {
             const yPct = isDragging ? altPct(midAlt) : altPct((s._altLo + s._altHi) / 2);
-            const halfPct = (STRIP_H / 2 / CHART_H) * 100;
-            topPct = Math.min(Math.max(yPct - halfPct, 0), 100 - (STRIP_H / CHART_H) * 100);
+            // התווית בגובה STRIP_H פיקסלים - ממורכזת לפי הגובה בפועל של התרשים
+            const halfPct = (STRIP_H / 2 / chartPxH) * 100;
+            topPct = Math.min(Math.max(yPct - halfPct, 0), 100 - (STRIP_H / chartPxH) * 100);
             heightVal = `${STRIP_H}px`;
           }
           // התראות כאות (ב/ק) על המלבן - לא צבע של כל המלבן ולא הבהוב

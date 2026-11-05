@@ -118,6 +118,10 @@
       "he": "קריאה מהירה",
       "en": "Quick reading"
     },
+    "quickEmptyHidden": {
+      "he": "פעיל - המדף ריק",
+      "en": "On - shelf is empty"
+    },
     "quickShow": {
       "he": "הצג את סרגל הקריאה המהירה",
       "en": "Show the quick reading bar"

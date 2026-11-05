@@ -1414,6 +1414,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // נזכר לעמדה באותה תבנית בדיוק כמו סרגל העמדות.
   const [showQuickRead, setShowQuickRead] = useState<boolean>(() => localStorage.getItem(`bt-reader-quick-show-${session.presetId}`) === '1');
   useEffect(() => { localStorage.setItem(`bt-reader-quick-show-${session.presetId}`, showQuickRead ? '1' : '0'); }, [showQuickRead, session.presetId]);
+  // כמה עזרים במדף הקריאה המהירה - מדף ריק לא מוצג ולא תופס חצי מהרצועה התחתונה
+  const [quickReadCount, setQuickReadCount] = useState(0);
+  const quickReadShown = showQuickRead && quickReadCount > 0;
   const readerRef = useRef<ReaderLayerHandle | null>(null);
   // הפריט בתפריט לחיץ רק כשיש מה להציג. הבחירה השמורה נשמרת גם כשהוא כבוי,
   // כך שהסרגל חוזר מעצמו כשמגדירים לעמדה עמדות בניהול.
@@ -5516,6 +5519,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // מחדש כשהמטרה הקובעת משתנה (קודם נקבע פעם אחת, ונשאר על מרחב שחושב ממטרה ישנה);
   // מרחב שהפקח שינה או ניקה ידנית לא נדרס.
   const autoSpaceDoneRef = useRef<Map<string, { space: number; tkey: string }>>(new Map());
+  // שיוך שנכשל - לא לפני הזמן הזה (בלי לירות בקשה בכל רינדור)
+  const autoSpaceRetryAtRef = useRef<Map<string, number>>(new Map());
   const autoSpaceCands = () => autoAssignableSpaces(stationSplitSpaces.length > 0 ? stationSplitSpaces : presetBlockSpaces, myPresetConfig?.auto_block_space_ids);
   /** `all` - "חשב מחדש" בטופס העזר: כל הפ"מים בלוח, גם מה ששויך ידנית */
   const runAutoSpaces = (all: boolean) => {
@@ -5531,6 +5536,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       const tkey = firstExecKey(s.targets);
       const prev = autoSpaceDoneRef.current.get(k);
       const cur = s.block_space_id ? Number(s.block_space_id) : null;
+      if (!all && (autoSpaceRetryAtRef.current.get(k) ?? 0) > Date.now()) continue;
       if (!all) {
         if (prev) {
           if (cur !== prev.space || prev.tkey === tkey) continue; // ידני, או שלא השתנה כלום
@@ -5539,7 +5545,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       const rec = autoSpaceFor(s.targets, cands, anchor, axisToward);
       if (rec == null) continue;
       autoSpaceDoneRef.current.set(k, { space: rec, tkey });
-      if (rec !== cur) { saveStripSpace(k, rec); assigned.set(k, rec); }
+      if (rec !== cur) {
+        // כשל (למשל שורת הדסק עוד לא נוצרה - הפ"מ רק נגרר ללוח) אינו "ניקוי ידני":
+        // השיוך נמחק מהזיכרון ונעשה שוב בסבב הבא. קודם הכשל הוחזר ל"ללא", והחלוקה
+        // חשבה שהפקח ניקה אותו - ולא שייכה יותר (פ"מים של עמדה אחרת נשארו בלי מרחב)
+        saveStripSpace(k, rec, { silent: true }).then(ok => {
+          if (ok) { autoSpaceRetryAtRef.current.delete(k); return; }
+          autoSpaceDoneRef.current.delete(k);
+          autoSpaceRetryAtRef.current.set(k, Date.now() + 5000);
+        });
+        assigned.set(k, rec);
+      }
     }
     // חלוקה שיצרה קונפליקט בין מרחבים - נשאל אם לעבוד לפי מרחבי בלוקים (למטה)
     if (assigned.size && !spaceAskDoneRef.current) {
@@ -5672,30 +5688,32 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
    * שמירת מרחב הבלוקים של הפ"מ. בדסק - של הדסק בלבד (utils/deskSpace), מיד על
    * המסך והשמירה ברקע; כישלון מחזיר. פ"מ שאינו בדסק - המרחב של הפ"מ, כמו קודם.
    */
-  const saveStripSpace = (stripId: string, spaceId: number | null) => {
+  const saveStripSpace = (stripId: string, spaceId: number | null, opts?: { silent?: boolean }): Promise<boolean> => {
     const pid = session.presetId ? Number(session.presetId) : null;
     const raw: any = strips.find(st => String(st.id) === String(stripId));
-    if (!raw) return;
+    if (!raw) return Promise.resolve(false);
     if (!tableMode || pid == null || !isOnDesk(raw, pid, tableOnBoard.has(raw.id))) {
       optimisticStripPut(String(stripId), { block_space_id: spaceId });
-      return;
+      return Promise.resolve(true);
     }
     const key = raw.id;
     const patch = { table_spaces: { ...(raw.table_spaces || {}), [String(pid)]: spaceId } };
     pendingStripUpdatesRef.current.set(key, { ...(pendingStripUpdatesRef.current.get(key) || {}), ...patch });
     setStrips(prev => prev.map(st => String(st.id) === String(key) ? { ...st, ...patch } : st));
     const numId = String(key).replace(/^s/, '');
-    fetch(`${API_URL}/strip-table-assignments/${numId}/${pid}/space`, {
+    return fetch(`${API_URL}/strip-table-assignments/${numId}/${pid}/space`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ block_space_id: spaceId }),
     }).then(r => {
       if (!r.ok) throw new Error(`desk space ${r.status}`);
       setTimeout(() => releasePendingKeys(pendingStripUpdatesRef.current, key, patch), PENDING_RELEASE_MS);
+      return true;
     }).catch(err => {
       console.error(err);
-      if (!releasePendingKeys(pendingStripUpdatesRef.current, key, patch).length) return;
+      if (!releasePendingKeys(pendingStripUpdatesRef.current, key, patch).length) return false;
       setStrips(prev => prev.map(st => String(st.id) === String(key) ? { ...st, table_spaces: raw.table_spaces || {} } : st));
-      setSaveFailToast(tr('ctrl.saveFailedReverted', { callsign: raw.callSign || raw.callsign || '' }));
+      if (!opts?.silent) setSaveFailToast(tr('ctrl.saveFailedReverted', { callsign: raw.callSign || raw.callsign || '' }));
+      return false;
     });
   };
   const putStripAlt = async (stripId: string, alt: string) => {
@@ -13425,7 +13443,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     onMouseLeave={e => (e.currentTarget.style.background = '')}
                   >
                     <span>📖 {tr('reader.quickToggle')}</span>
-                    {showQuickRead && <span style={{ fontSize: '10px', color: menuAcc('#60a5fa', '#2563eb') }}>{tr('ctrl.active')}</span>}
+                    {/* מדף ריק לא מוצג על המסך - אומרים למה, כדי שהפקד לא "יידלק בלי שקורה כלום" */}
+                    {showQuickRead && <span style={{ fontSize: '10px', color: menuAcc('#60a5fa', '#2563eb') }}>{quickReadCount > 0 ? tr('ctrl.active') : tr('reader.quickEmptyHidden')}</span>}
                   </div>}
                   {/* קונטיינר החלונות - זמין ב**כל** עמדה. ההגדרה בניהול קובעת
                       רק אם הוא פתוח בעליית העמדה, לא אם הוא קיים. */}
@@ -24588,7 +24607,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           approvedWorkstations={session.crewMember?.approved_workstations}
           themeMode={themeMode}
           visible={peekShown}
-          slot={bottomBarSlots(showQuickRead, peekShown).stations}
+          slot={bottomBarSlots(quickReadShown, peekShown).stations}
         />
       )}
 
@@ -24602,6 +24621,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           presetOpenMode={myPresetConfig?.reader_open_mode ?? ''}
           quickBarVisible={showQuickRead}
           stationsBarVisible={peekShown}
+          onQuickCountChange={setQuickReadCount}
         />
       )}
 

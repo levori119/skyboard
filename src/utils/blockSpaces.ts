@@ -45,13 +45,17 @@ export function blockFitsSpace(block: { space_id?: unknown }, stripSpaceId: unkn
 
 /**
  * האם שני הפ"מים בעמודות שונות של התצוגה האנכית כשהיא מקובצת (לפי מרחב, ערכה...).
- * כל עמודה היא תרשים נפרד, ולכן אין קונפליקט בין עמודות - גם לא מול עמודת
- * "ללא מרחב" (ערך ריק הוא עמודה משלו). כך חלון ההתראות מסכים עם מה שעל המסך:
- * קודם פ"מ "ללא מרחב" נצבע בקונפליקט מול כל המרחבים.
+ * כל עמודה היא תרשים נפרד, ולכן אין קונפליקט בין עמודות.
+ *
+ * חריג - **פ"מ בלי מרחב** בחלוקה לפי מרחב: הוא לא מופרד מאף מרחב, והקונפליקט שלו
+ * חל על כולם. עובדים לפי מרחבים - פ"מ בלי מרחב לא יודע לאן יטוס, וכל גובה שלו
+ * עלול להתנגש בכל מרחב (מהשטח: "אם משתמש מחק את המרחב - הקונפליקט חולש על כל
+ * המרחבים"). בשדות אחרים (ערכה...) ערך ריק הוא עמודה משלו.
  */
 export function separatedByGroup(a: Record<string, unknown>, b: Record<string, unknown>, field: string | null | undefined): boolean {
   if (!field || field === 'none') return false;
   const val = (s: Record<string, unknown>) => String(s?.[field] ?? '').trim();
+  if (field === 'block_space_id' && (!val(a) || !val(b))) return false;
   return val(a) !== val(b);
 }
 

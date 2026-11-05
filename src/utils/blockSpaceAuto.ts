@@ -77,7 +77,8 @@ export function allTargetsAnchor(targetsList: unknown[]): LatLon | null {
  */
 export function autoSpaceFor(targets: unknown, spaces: SpaceLike[], anchor: LatLon | null, axisToward?: LatLon | null): number | null {
   if (firstExecTarget(targets)) return recommendBlockSpaceId(targets, spaces, axisToward);
-  const far = farthestSpace(anchor, spaces);
+  // בלי מטרות בכלל בלוח אין "רחוק" - עדיין כל פ"מ חייב מרחב, אחרת לאן הוא יטוס
+  const far = farthestSpace(anchor, spaces) ?? spaces[0] ?? null;
   return far ? Number(far.id) : null;
 }
 

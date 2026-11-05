@@ -71,10 +71,12 @@ describe('autoSpaceFor - פ"מ בלי מטרות לגזרה האחורית הר�
     expect(anchor!.lat).toBeCloseTo(31.425, 3);
     expect(targetsAnchor([[], null])).toBeNull();
   });
-  it('עם מטרה - הקרוב; בלי מטרה - הרחוק ממרכז המטרות; בלי מטרות בכלל - null', () => {
+  it('עם מטרה - הקרוב; בלי מטרה - הרחוק ממרכז המטרות; בלי מטרות בכלל - הראשון', () => {
     expect(autoSpaceFor([{ coord: 'N3125.0000/E03430.0000' }], spaces, anchor)).toBe(1);
     expect(autoSpaceFor([], spaces, anchor)).toBe(2);
-    expect(autoSpaceFor([], spaces, null)).toBeNull();
+    // בלי מטרות בכלל - עדיין מרחב (הראשון), כי בעבודה לפי מרחבים לכל פ"מ חייב להיות
+    expect(autoSpaceFor([], spaces, null)).toBe(1);
+    expect(autoSpaceFor([], [], null)).toBeNull();
   });
   it('allTargetsAnchor - מרכז כל המטרות, לא רק הקובעות', () => {
     const a = allTargetsAnchor([[{ coord: 'N3125.0000/E03430.0000' }, { coord: 'N3135.0000/E03430.0000' }], null]);

@@ -47,8 +47,9 @@ describe('separatedByGroup - אין קונפליקט בין עמודות התצ�
     expect(separatedByGroup({ block_space_id: 7 }, { block_space_id: 9 }, 'block_space_id')).toBe(true);
     expect(separatedByGroup({ block_space_id: 7 }, { block_space_id: '7' }, 'block_space_id')).toBe(false);
   });
-  it('"ללא מרחב" היא עמודה משלה - מופרדת מכל מרחב, ושני פ"מים בלי מרחב באותה עמודה', () => {
-    expect(separatedByGroup({ block_space_id: 7 }, { block_space_id: null }, 'block_space_id')).toBe(true);
+  it('פ"מ בלי מרחב לא מופרד מאף מרחב - הקונפליקט שלו חל על כל המרחבים', () => {
+    expect(separatedByGroup({ block_space_id: 7 }, { block_space_id: null }, 'block_space_id')).toBe(false);
+    expect(separatedByGroup({ block_space_id: '' }, { block_space_id: 9 }, 'block_space_id')).toBe(false);
     expect(separatedByGroup({ block_space_id: null }, { block_space_id: undefined }, 'block_space_id')).toBe(false);
   });
   it('שדה טקסט (ערכה) - לפי הערך אחרי trim', () => {

@@ -45,12 +45,14 @@ interface Props {
   quickBarVisible: boolean;
   /** האם סרגל העמדות מוצג - קובע את חלוקת הרצועה התחתונה */
   stationsBarVisible: boolean;
+  /** כמה עזרים במדף - המסך המארח צריך לדעת אם הסרגל תופס חצי מהרצועה התחתונה */
+  onQuickCountChange?: (count: number) => void;
 }
 
 const DEFAULT_CONFIG: ReaderConfig = { openMode: 'external', officeMode: 'pdf', convertAvailable: null };
 
 const ReaderLayer = forwardRef<ReaderLayerHandle, Props>(function ReaderLayer(
-  { presetId, themeMode, presetOpenMode, quickBarVisible, stationsBarVisible }, ref,
+  { presetId, themeMode, presetOpenMode, quickBarVisible, stationsBarVisible, onQuickCountChange }, ref,
 ) {
   const [config, setConfig] = useState<ReaderConfig>(DEFAULT_CONFIG);
   const [open, setOpen] = useState<ReaderDoc[]>([]);
@@ -146,7 +148,11 @@ const ReaderLayer = forwardRef<ReaderLayerHandle, Props>(function ReaderLayer(
     } catch { /* מנותק - הרשימה תסונכרן בטעינה הבאה */ }
   };
 
-  const slots = bottomBarSlots(quickBarVisible, stationsBarVisible);
+  // מדף ריק - אין מה לקרוא, ולכן גם לא לשונית שתופסת את תחתית המסך (וסרגל
+  // העמדות מקבל את כל הרוחב). המדף מתמלא מכפתור "לקריאה מהירה" שבחלון העזר
+  const quickShown = quickBarVisible && quick.length > 0;
+  useEffect(() => { onQuickCountChange?.(quick.length); }, [quick.length, onQuickCountChange]);
+  const slots = bottomBarSlots(quickShown, stationsBarVisible);
 
   return (
     <>
@@ -169,7 +175,7 @@ const ReaderLayer = forwardRef<ReaderLayerHandle, Props>(function ReaderLayer(
         />
       ))}
 
-      {quickBarVisible && (
+      {quickShown && (
         <QuickReadBar
           items={quick}
           slot={slots.quick}
