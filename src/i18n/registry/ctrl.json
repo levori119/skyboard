@@ -2938,6 +2938,10 @@
       "he": "ללא מרחב (כל הבלוקים)",
       "en": "No space (all blocks)"
     },
+    "altRecSpaceRequired": {
+      "he": "בחר מרחב בלוקים לפני השמירה",
+      "en": "Pick a block space before saving"
+    },
     "aircraftCount": {
       "he": "{{count}} מטוסים",
       "en": "{{count}} aircraft"

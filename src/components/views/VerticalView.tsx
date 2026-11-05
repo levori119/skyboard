@@ -1075,7 +1075,8 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
             ⋮
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <BlockTargetMap strips={strips} spaces={mapSpaces ?? blockSpaces} lightMode={lightMode} />
+            {/* פ"מ בהעברה מוצג בבלוקים רק בכפתור המשולש - למפת המטרות הוא לא שייך */}
+            <BlockTargetMap strips={strips.filter((s: any) => s.status !== 'pending_transfer')} spaces={mapSpaces ?? blockSpaces} lightMode={lightMode} />
           </div>
         </>
       )}
