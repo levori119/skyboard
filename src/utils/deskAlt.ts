@@ -23,7 +23,7 @@ import { parseAltHundreds } from './altRecommend';
 import { configRules, ruleStation } from '../../shared/transferPointAltRules.js';
 import { presetSectorIds } from '../../shared/transferPointStations.js';
 
-export interface DeskAltEntry { alt: string | null; to_sender?: boolean; receive_alt?: string | null }
+export interface DeskAltEntry { alt: string | null; to_sender?: boolean; receive_alt?: string | null; mode?: 'receive' | 'send' | null }
 
 const pidOf = (v: unknown) => (v == null || v === '' ? null : Number(v));
 
@@ -38,8 +38,9 @@ export function isForeignToDesk(strip: any, presetId: number | null | undefined)
 /** הרשומה של הדסק הזה על הפ"מ: גובה במרחב, גובה קבלה/מסירה, והבקשה הישנה לעדכן את המוסרת */
 export function deskAltEntry(strip: any, presetId: number): DeskAltEntry | null {
   const e = strip?.table_alts?.[String(presetId)];
-  if (!e || typeof e !== 'object' || (!e.alt && !e.receive_alt)) return null;
-  return { alt: e.alt ? String(e.alt) : null, to_sender: !!e.to_sender, receive_alt: e.receive_alt ? String(e.receive_alt) : null };
+  if (!e || typeof e !== 'object' || (!e.alt && !e.receive_alt && !e.mode)) return null;
+  const mode = e.mode === 'receive' || e.mode === 'send' ? e.mode : null;
+  return { alt: e.alt ? String(e.alt) : null, to_sender: !!e.to_sender, receive_alt: e.receive_alt ? String(e.receive_alt) : null, mode };
 }
 
 /**
@@ -47,15 +48,19 @@ export function deskAltEntry(strip: any, presetId: number): DeskAltEntry | null 
  *
  * | | גובה המרחב (`alt`) | גובה מסירה/קבלה (`_handoverAlt`) |
  * |---|---|---|
- * | **פ"מ של עמדה אחרת** (קבלה) | של הדסק, ובלעדיו ריק | גובה הקבלה שהדסק ביקש, ובלעדיו הגובה שעליו |
- * | **פ"מ שאצלי** (מסירה) | של הדסק, ובלעדיו הגובה שעליו | הגובה שעליו - שבו הוא יימסר |
+ * | **פ"מ של עמדה אחרת** | של הדסק, ובלעדיו ריק | תמיד **קבלה**: הגובה שהדסק ביקש, ובלעדיו הגובה שעליו |
+ * | **פ"מ שאצלי** | של הדסק, ובלעדיו הגובה שעליו | לפי הדגל (`mode`): **קבלה** (ברירת המחדל - פ"מ שנגרר מחלון הפ"מים בדרך כלל מחכה לקבלה) או **מסירה** - הגובה שעליו. קבלת העברה מעבירה למסירה |
  *
  * הגובה שעל פ"מ של עמדה אחרת נשמר ב-`_receiveAlt`.
  */
 export function withDeskAlt<T extends Record<string, any>>(strip: T, presetId: number): T {
   const e = deskAltEntry(strip, presetId);
   if (!isForeignToDesk(strip, presetId)) {
-    return e?.alt ? { ...strip, alt: e.alt, _handoverAlt: strip.alt ?? '', _handoverMode: 'send' } : strip;
+    const mode = e?.mode ?? 'receive';
+    return {
+      ...strip, alt: e?.alt || strip.alt || '', _receiveAlt: strip.alt ?? '',
+      _handoverAlt: mode === 'receive' ? (e?.receive_alt || strip.alt || '') : (strip.alt ?? ''), _handoverMode: mode,
+    };
   }
   return { ...strip, alt: e?.alt ?? '', _receiveAlt: strip.alt ?? '', _handoverAlt: e?.receive_alt || strip.alt || '', _handoverMode: 'receive' };
 }
@@ -65,9 +70,14 @@ export function handoverAltOf(strip: any): string {
   return String(strip?._handoverAlt ?? strip?.alt ?? '');
 }
 
-/** 'receive' - הפ"מ עוד לא אצלי, והשדה הוא הגובה שאני מבקש לקבל; 'send' - הוא אצלי, והשדה הוא גובה המסירה */
+/** 'receive' - השדה הוא הגובה שאני מבקש לקבל; 'send' - גובה המסירה (הגובה שעל הפ"מ) */
 export function handoverModeOf(strip: any): 'receive' | 'send' {
-  return strip?._handoverMode === 'receive' ? 'receive' : 'send';
+  return strip?._handoverMode === 'send' ? 'send' : 'receive';
+}
+
+/** אפשר להחליף קבלה/מסירה רק בפ"מ שאינו אצל עמדה אחרת - פ"מ של אחר הוא תמיד קבלה */
+export function canToggleHandover(strip: any, presetId: number | null | undefined): boolean {
+  return presetId != null && !!strip && !isForeignToDesk(strip, presetId);
 }
 
 /** אותו גובה ("FL120" = "120" = "12000"); שני ריקים - שווים */

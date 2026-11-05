@@ -91,9 +91,11 @@ export async function clearPlannedAlt(db, stripId, presetId) {
   if (!stripId || presetId == null) return;
   if (!(await hasPlannedAltColumns(db))) return;
   const withReceive = await hasColumn(db, 'planned_receive_alt');
+  const withMode = await hasColumn(db, 'handover_mode');
+  // הפ"מ אצלי עכשיו - השדה "גובה מסירה/קבלה" עובר למסירה
   await db.query(
-    `UPDATE strip_table_assignments SET planned_alt_to_sender = FALSE${withReceive ? ', planned_receive_alt = NULL' : ''}
-      WHERE strip_id = $1 AND preset_id = $2 AND (planned_alt_to_sender${withReceive ? ' OR planned_receive_alt IS NOT NULL' : ''})`,
+    `UPDATE strip_table_assignments SET planned_alt_to_sender = FALSE${withReceive ? ', planned_receive_alt = NULL' : ''}${withMode ? ", handover_mode = 'send'" : ''}
+      WHERE strip_id = $1 AND preset_id = $2`,
     [stripId, presetId],
   );
 }

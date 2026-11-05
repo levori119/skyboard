@@ -278,6 +278,14 @@
       "he": "הפ\"מ אצלך: הגובה שבו הוא יימסר - הגובה שעמדות אחרות רואות",
       "en": "With you: the altitude it is handed over at - the one other stations see"
     },
+    "handoverToggleHint": {
+      "he": "לחיצה מחליפה בין קבלה למסירה",
+      "en": "Click to switch between receive and handover"
+    },
+    "handoverForeignOnly": {
+      "he": "הפ\"מ אצל עמדה אחרת - רק קבלה",
+      "en": "Held by another station - receive only"
+    },
     "spaceAlt": {
       "he": "גובה במרחב",
       "en": "Space altitude"

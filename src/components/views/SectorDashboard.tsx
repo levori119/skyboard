@@ -102,7 +102,7 @@ import { TakeoffBadge, FormationCountBadge } from '../strips/StripCardBadges';
 import { splitSpaceSet, separatedBySpace, blockFitsSpace, separatedByGroup, structureSeparates } from '../../utils/blockSpaces';
 import { applyAltOverrides, parseAltOverrides, refitAltToBand, blockForAlt, type AltOverrides } from '../../utils/zoneAltOverride';
 import { recommendAltitude, stripArmaments, normalizeAltRules, stationRecBlocks, assignedAltitude, freeStart, tooCloseTo, PAIR_SEPARATION, type AltRecommendation, type RecBlock } from '../../utils/altRecommend';
-import { isForeignToDesk, deskAltEntry, withDeskAlt, handoverAltOf, handoverModeOf, sameAlt, receiveAltViolations, type ReceiveAltViolation } from '../../utils/deskAlt';
+import { isForeignToDesk, deskAltEntry, withDeskAlt, handoverAltOf, handoverModeOf, canToggleHandover, sameAlt, receiveAltViolations, type ReceiveAltViolation } from '../../utils/deskAlt';
 import { withDeskSpace, isOnDesk, deskSpaceConflict } from '../../utils/deskSpace';
 import { loadPadLayout, savePadLayout, type PadLayout } from '../../utils/freeDeskLayout';
 import FreeDeskPad from '../shared/FreeDeskPad';
@@ -5583,15 +5583,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const spaceAskPendingRef = useRef<Map<string, number> | null>(null);
   const spaceAskDoneRef = useRef(false);
   const [spaceModeAsk, setSpaceModeAsk] = useState(false);
+  // נבדק **כל הזמן** ולא רק אחרי שיוך אוטומטי: קונפליקט בין מרחבים נוצר גם משינוי
+  // גובה או משיוך ידני (קודם השאלה עלתה רק ברגע השיוך, ואחר כך לא עלתה יותר)
   useEffect(() => {
-    const pend = spaceAskPendingRef.current;
-    if (!pend || spaceAskDoneRef.current) return;
-    if (verticalGroupBy === 'block_space_id') { spaceAskDoneRef.current = true; spaceAskPendingRef.current = null; return; }
+    if (spaceAskDoneRef.current || spaceModeAsk || !tableMode || stationSplitSpaces.length === 0) return;
+    if (verticalGroupBy === 'block_space_id') return;
     const board = myTableStrips.filter((s: any) => tableOnBoard.has(s.id));
-    const byId = new Map(board.map((s: any) => [String(s.id), s]));
-    // מחכים שהחלוקה תגיע למסך - אחרת הבדיקה רצה על המרחבים הקודמים
-    for (const [id, sp] of pend) { const s: any = byId.get(id); if (s && Number(s.block_space_id) !== sp) return; }
-    spaceAskPendingRef.current = null;
     if (deskSpaceConflict(board, tableConflictPairsMap)) setSpaceModeAsk(true);
   });
   // שמירת טופס העזר - מיד על המסך, השמירה ברקע; כישלון מחזיר את הקודם
@@ -5666,7 +5663,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const key = raw.id;
     const prevEntry = deskAltEntry(raw, pid);
     const nextAlts: Record<string, any> = { ...(raw.table_alts || {}) };
-    if (alt) nextAlts[String(pid)] = { alt, to_sender: toSender ?? !!prevEntry?.to_sender };
+    const rest = { receive_alt: prevEntry?.receive_alt ?? null, mode: prevEntry?.mode ?? null };
+    if (alt || rest.receive_alt || rest.mode) nextAlts[String(pid)] = { alt: alt || null, to_sender: toSender ?? !!prevEntry?.to_sender, ...rest };
     else delete nextAlts[String(pid)];
     const patch = { table_alts: nextAlts };
     pendingStripUpdatesRef.current.set(key, { ...(pendingStripUpdatesRef.current.get(key) || {}), ...patch });
@@ -5704,8 +5702,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const key = raw.id;
     const prevEntry = deskAltEntry(raw, pid);
     const nextAlts: Record<string, any> = { ...(raw.table_alts || {}) };
-    const entry = { alt: prevEntry?.alt ?? null, to_sender: false, receive_alt: alt || null };
-    if (entry.alt || entry.receive_alt) nextAlts[String(pid)] = entry;
+    const entry = { alt: prevEntry?.alt ?? null, to_sender: false, receive_alt: alt || null, mode: prevEntry?.mode ?? null };
+    if (entry.alt || entry.receive_alt || entry.mode) nextAlts[String(pid)] = entry;
     else delete nextAlts[String(pid)];
     const patch = { table_alts: nextAlts };
     pendingStripUpdatesRef.current.set(key, { ...(pendingStripUpdatesRef.current.get(key) || {}), ...patch });
@@ -5736,8 +5734,33 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const saveHandoverAlt = (stripId: string, alt: string) => {
     const raw: any = strips.find(st => String(st.id) === String(stripId));
     if (!raw) return;
-    if (tableMode && session.presetId && isForeignToDesk(raw, Number(session.presetId))) { saveReceiveAlt(raw, alt); return; }
+    const view: any = myTableStrips.find((st: any) => String(st.id) === String(stripId)) ?? raw;
+    if (tableMode && session.presetId && handoverModeOf(view) === 'receive') { saveReceiveAlt(raw, alt); return; }
     optimisticStripPut(String(stripId), { alt });
+  };
+  /** הדגל קבלה / מסירה בשדה "גובה מסירה/קבלה" - פר דסק, רק בפ"מ שאינו אצל עמדה אחרת */
+  const toggleHandoverMode = (stripId: string) => {
+    const pid = Number(session.presetId);
+    const raw: any = strips.find(st => String(st.id) === String(stripId));
+    if (!raw || !canToggleHandover(raw, pid)) return;
+    const view: any = myTableStrips.find((st: any) => String(st.id) === String(stripId)) ?? raw;
+    const mode = handoverModeOf(view) === 'receive' ? 'send' : 'receive';
+    const key = raw.id;
+    const prevEntry = deskAltEntry(raw, pid);
+    const patch = { table_alts: { ...(raw.table_alts || {}), [String(pid)]: { alt: prevEntry?.alt ?? null, to_sender: !!prevEntry?.to_sender, receive_alt: prevEntry?.receive_alt ?? null, mode } } };
+    pendingStripUpdatesRef.current.set(key, { ...(pendingStripUpdatesRef.current.get(key) || {}), ...patch });
+    setStrips(prev => prev.map(st => String(st.id) === String(key) ? { ...st, ...patch } : st));
+    fetch(`${API_URL}/strip-table-assignments/${String(key).replace(/^s/, '')}/${pid}/handover-mode`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }),
+    }).then(r => {
+      if (!r.ok) throw new Error(`handover mode ${r.status}`);
+      setTimeout(() => releasePendingKeys(pendingStripUpdatesRef.current, key, patch), PENDING_RELEASE_MS);
+    }).catch(err => {
+      console.error(err);
+      if (!releasePendingKeys(pendingStripUpdatesRef.current, key, patch).length) return;
+      setStrips(prev => prev.map(st => String(st.id) === String(key) ? { ...st, table_alts: raw.table_alts || {} } : st));
+      setSaveFailToast(tr('ctrl.saveFailedReverted', { callsign: raw.callSign || raw.callsign || '' }));
+    });
   };
   /**
    * שמירת מרחב הבלוקים של הפ"מ. בדסק - של הדסק בלבד (utils/deskSpace), מיד על
@@ -17411,14 +17434,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 case 'handover_alt': {
                   const hAlt = handoverAltOf(s);
                   const hMode = handoverModeOf(s);
-                  const pendingRecv = hMode === 'receive' && !!session.presetId && !!deskAltEntry(s, Number(session.presetId))?.receive_alt && !sameAlt(hAlt, (s as any)._receiveAlt);
+                  const pendingRecv = hMode === 'receive' && !!session.presetId && !!deskAltEntry(s, Number(session.presetId))?.receive_alt && !sameAlt(hAlt, (s as any)._receiveAlt ?? s.alt);
                   const hTitle = pendingRecv ? tr('ctrl.handoverAltPending') : tr(hMode === 'receive' ? 'strips.handoverReceiveHint' : 'strips.handoverSendHint');
                   // דגל קבלה / מסירה - שיהיה ברור במבט מה השדה הזה עושה בפ"מ הזה
+                  const hCanToggle = canEdit && !(s as any)._transferredOut && canToggleHandover(s, session.presetId ? Number(session.presetId) : null);
                   const hFlag = (
-                    <span data-testid={`handover-flag-${s.id}`} style={{ flexShrink: 0, fontSize: tfz(9), fontWeight: 'bold', padding: '0 4px', borderRadius: '3px', lineHeight: 1.5,
-                      color: hMode === 'receive' ? '#22d3ee' : '#a78bfa', border: `1px solid ${hMode === 'receive' ? '#22d3ee' : '#a78bfa'}` }}>
-                      {tr(hMode === 'receive' ? 'strips.handoverReceive' : 'strips.handoverSend')}
-                    </span>
+                    <button type="button" data-testid={`handover-flag-${s.id}`} disabled={!hCanToggle}
+                      title={hCanToggle ? tr('strips.handoverToggleHint') : tr('strips.handoverForeignOnly')}
+                      onClick={e => { e.stopPropagation(); if (hCanToggle) toggleHandoverMode(String(s.id)); }}
+                      style={{ flexShrink: 0, fontSize: tfz(9), fontWeight: 'bold', padding: '0 4px', borderRadius: '3px', lineHeight: 1.5, background: 'transparent', fontFamily: 'inherit',
+                        cursor: hCanToggle ? 'pointer' : 'default', color: hMode === 'receive' ? '#22d3ee' : '#a78bfa', border: `1px solid ${hMode === 'receive' ? '#22d3ee' : '#a78bfa'}` }}>
+                      {hCanToggle ? '⇄ ' : ''}{tr(hMode === 'receive' ? 'strips.handoverReceive' : 'strips.handoverSend')}
+                    </button>
                   );
                   if (!(s as any)._transferredOut && (col.editable === 'keyboard' || col.editable === 'both')) {
                     const openHandoverPad = () => openVK({

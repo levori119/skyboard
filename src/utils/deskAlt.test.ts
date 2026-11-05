@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isForeignToDesk, deskAltEntry, withDeskAlt, handoverAltOf, handoverModeOf, sameAlt, levelAllowed, receiveAltViolations } from './deskAlt';
+import { isForeignToDesk, deskAltEntry, withDeskAlt, handoverAltOf, handoverModeOf, canToggleHandover, sameAlt, levelAllowed, receiveAltViolations } from './deskAlt';
 
 const ME = 7;
 
@@ -24,7 +24,7 @@ describe('withDeskAlt - הגובה כפי שהדסק רואה אותו', () => {
     const base = { id: 's1', alt: '340', workstation_preset_id: 3, table_alts: { '7': { alt: '220', to_sender: true }, '9': { alt: '150' } } };
     expect(withDeskAlt(base, ME).alt).toBe('220');
     expect(withDeskAlt(base, 9).alt).toBe('150');
-    expect(deskAltEntry(base, ME)).toEqual({ alt: '220', to_sender: true, receive_alt: null });
+    expect(deskAltEntry(base, ME)).toEqual({ alt: '220', to_sender: true, receive_alt: null, mode: null });
     expect(deskAltEntry(base, 11)).toBeNull();
   });
 
@@ -42,16 +42,21 @@ describe('withDeskAlt - הגובה כפי שהדסק רואה אותו', () => {
     expect(handoverAltOf({ alt: '250' })).toBe('250');
   });
 
-  it('פ"מ שאצלי - גובה המרחב של הדסק (פנימי), וגובה המסירה הוא הגובה שעליו', () => {
-    const s = { id: 's1', alt: '340', workstation_preset_id: ME, status: 'active', table_alts: { '7': { alt: '220' } } };
+  it('פ"מ שאצלי - גובה המרחב של הדסק (פנימי); השדה מסירה/קבלה לפי הדגל, וברירת המחדל קבלה', () => {
+    const s = { id: 's1', alt: '340', workstation_preset_id: ME, status: 'active', table_alts: { '7': { alt: '220', receive_alt: '300' } } };
     const v = withDeskAlt(s, ME);
     expect(v.alt).toBe('220');
-    expect(handoverAltOf(v)).toBe('340');
-    expect(handoverModeOf(v)).toBe('send');
-    // בלי גובה מרחב - הגובה שעליו, בלי שינוי
-    const plain = { id: 's2', alt: '250', workstation_preset_id: ME, status: 'active' };
-    expect(withDeskAlt(plain, ME)).toBe(plain);
-    expect(handoverModeOf(plain)).toBe('send');
+    expect(handoverModeOf(v)).toBe('receive');
+    expect(handoverAltOf(v)).toBe('300');
+    const send = withDeskAlt({ ...s, table_alts: { '7': { alt: '220', receive_alt: '300', mode: 'send' } } }, ME);
+    expect(handoverModeOf(send)).toBe('send');
+    expect(handoverAltOf(send)).toBe('340');
+    // בלי גובה מרחב - הגובה שעליו
+    const plain = withDeskAlt({ id: 's2', alt: '250', workstation_preset_id: ME, status: 'active' }, ME);
+    expect(plain.alt).toBe('250');
+    expect(handoverAltOf(plain)).toBe('250');
+    expect(canToggleHandover({ workstation_preset_id: ME, status: 'active' }, ME)).toBe(true);
+    expect(canToggleHandover({ workstation_preset_id: 3 }, ME)).toBe(false);
   });
 
   it('פ"מ של עמדה אחרת - גובה קבלה', () => {

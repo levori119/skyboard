@@ -1300,6 +1300,9 @@ async function applySchemaOnce() {
   // גובה הקבלה/מסירה: הגובה שבו הדסק רוצה לקבל את הפ"מ בנקודת ההעברה. הוא - ולא
   // גובה המרחב (`planned_alt`) - נכנס לפ"מ כשנפתחת העברה אל הדסק
   await sq(`ALTER TABLE strip_table_assignments ADD COLUMN IF NOT EXISTS planned_receive_alt VARCHAR(40)`);
+  // שדה "גובה מסירה/קבלה" בפ"מ שאצלי: 'receive' / 'send' (הפקח מחליף בדגל). NULL = קבלה,
+  // כי פ"מ שנגרר לדסק מחלון הפ"מים הוא בדרך כלל פ"מ שמחכים לקבל. קבלת העברה = מסירה
+  await sq(`ALTER TABLE strip_table_assignments ADD COLUMN IF NOT EXISTS handover_mode VARCHAR(10)`);
   // מרחב הבלוקים של הפ"מ **בדסק הזה** - כמו הגובה, כל עמדה על אותו פ"מ במרחב
   // משלה. `strips.block_space_id` נשאר למסכים שאינם דסק (src/utils/deskSpace.ts)
   await sq(`ALTER TABLE strip_table_assignments ADD COLUMN IF NOT EXISTS block_space_id INTEGER`);
