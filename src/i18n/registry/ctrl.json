@@ -2827,8 +2827,8 @@
       "en": "Lowest free"
     },
     "altRecNoFree": {
-      "he": "אין {{blocks}} בלוקים פנויים בטבלת הבלוקים של העמדה",
-      "en": "No {{blocks}} free blocks in the station block table"
+      "he": "אין גובה פנוי בהפרדה של 1000 רגל בבלוקי העמדה",
+      "en": "No free altitude with 1000 ft separation in the station blocks"
     },
     "altRecMoveClimb": {
       "he": "כדי לפנות {{blocks}} בלוקים: להטפיס את {{label}} מ-{{from}} ל-{{to}}",
@@ -2849,6 +2849,14 @@
     "altRecOccupied": {
       "he": "תפוס",
       "en": "Occupied"
+    },
+    "altRecInBlock": {
+      "he": "בבלוק",
+      "en": "In block"
+    },
+    "altRecTooClose": {
+      "he": "פחות מ-1000 רגל מ: {{labels}}",
+      "en": "Less than 1000 ft from: {{labels}}"
     },
     "altRecFree": {
       "he": "פנוי",

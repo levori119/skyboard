@@ -7,10 +7,11 @@
  * | כלל | |
  * |---|---|
  * | **כמה בלוקים** | עד שלישייה - בלוק אחד. מרביעייה - בלוק לכל זוג, **סמוכים** (4 = 2 בלוקים) |
- * | **פנוי** | בלוק שאף פ"מ אחר בעמדה אינו בגובה שלו |
+ * | **פנוי** | בלוק שיש בו **גובה פנוי** בהפרדה של 1000 רגל מכל פ"מ אחר בעמדה (גם בבלוק סמוך) - לא בלוק ריק. קודם נדרש בלוק ריק, ובלוק עם פ"מ אחד בתחתיתו נחשב תפוס |
  * | **חוק חימוש** | בהגדרות העמדה (`alt_armament_rules`): חימוש ← נמוך/בינוני/גבוה (שליש מבלוקי העמדה), גובה פיזי, או טווח |
  * | **אין חוק** | הקרוב לגובה הנוכחי של הפ"מ, ואם אין לו - הנמוך הפנוי |
- * | **אין רצף פנוי** | מחפשים פ"מ **אחד** שמפריע לרצף ויכול לעבור לבלוק פנוי אחר - ומציעים להטפיס/להנמיך אותו |
+ * | **הגובה** | הנמוך הפנוי בבלוק (בחוק בגובה פיזי / גובה נוכחי - הקרוב אליו) |
+ * | **אין גובה פנוי** | מחפשים פ"מ **אחד** שמפריע לרצף ויכול לעבור לגובה פנוי בבלוק אחר - ומציעים להטפיס/להנמיך אותו |
  *
  * גבהים בבלוקים הם ב**מאות רגל** (`alt_from`/`alt_to`, כמו FL), ובחוקים ב**רגל** -
  * כפי שהם מוקלדים בהגדרות.
@@ -88,13 +89,22 @@ export interface AltMove {
   newAlt: string;
 }
 
+/** גובה שפ"מ אחר תופס, במאות רגל */
+export interface TakenAlt { lo: number; hi: number; label: string }
+
 export interface AltRecommendation {
   /** כמה בלוקים נדרשים */
   needed: number;
   /** הבלוקים המומלצים, מהנמוך לגבוה. ריק = אין המלצה */
   blockIds: number[];
-  /** הגובה שייכתב לפ"מ באישור */
+  /** הגובה שייכתב לפ"מ באישור (`assignedAltitude`) */
   alt: string;
+  /** הגובה התחתון של ההקצאה (מאות רגל) - נקודת הפתיחה של ▲▼ בחלון */
+  start?: number;
+  /** הגבהים שפ"מים אחרים תופסים - כדי שגם בחירה ידנית תתחיל בגובה פנוי */
+  taken: TakenAlt[];
+  /** בלוק שאין בו גובה פנוי למבנה (לבדו) - "תפוס" באדום; אחר - רק מי נמצא בו */
+  full: Record<number, boolean>;
   reason: 'rule' | 'nearest' | 'lowest' | 'none';
   rule?: AltArmamentRule;
   /** כדי לפנות את הבלוקים המומלצים - פ"מ אחר צריך לעבור */
@@ -148,13 +158,53 @@ export function assignedAltitude(from: number, to: number, formation: number, st
 
 const overlaps = (r: { lo: number; hi: number }, b: RecBlock) => r.lo <= b.alt_to && r.hi >= b.alt_from;
 
+/** גובה (מאות רגל) מופרד 1000 רגל לפחות מכל הגבהים התפוסים */
+const separated = (v: number, taken: { lo: number; hi: number }[]) =>
+  taken.every(t => v <= t.lo - PAIR_SEPARATION || v >= t.hi + PAIR_SEPARATION);
+
+/**
+ * **הגובה הפנוי בטווח** - הגובה התחתון של הקצאה (גובה לכל זוג, כמו
+ * `assignedAltitude`) כך שכל גבהי המבנה בתוך הטווח ובהפרדה של 1000 רגל מכל
+ * פ"מ אחר. `prefer` - הגובה שאליו שואפים (ברירת מחדל: הנמוך). null = אין.
+ */
+export function freeStart(
+  from: number, to: number, formation: number, taken: { lo: number; hi: number }[], prefer?: number | null,
+): number | null {
+  const n = Number.isFinite(formation) && formation > 0 ? Math.floor(formation) : 1;
+  const span = PAIR_SEPARATION * (Math.max(1, Math.ceil(n / 2)) - 1);
+  const maxStart = to - span;
+  if (maxStart < from) return null;
+  const want = Math.min(maxStart, Math.max(from, prefer ?? from));
+  // מועמדים: גבהים עגולים מתחתית הטווח, ממש מעל/מתחת לכל פ"מ, והגובה המבוקש
+  const cands = new Set<number>([want]);
+  for (let v = from; v <= maxStart; v += PAIR_SEPARATION) cands.add(v);
+  for (const t of taken) { cands.add(t.hi + PAIR_SEPARATION); cands.add(t.lo - PAIR_SEPARATION - span); }
+  let best: number | null = null;
+  for (const s of cands) {
+    if (s < from || s > maxStart) continue;
+    let ok = true;
+    for (let k = 0; k <= span; k += PAIR_SEPARATION) if (!separated(s + k, taken)) { ok = false; break; }
+    if (!ok) continue;
+    if (best === null || Math.abs(s - want) < Math.abs(best - want) || (Math.abs(s - want) === Math.abs(best - want) && s < best)) best = s;
+  }
+  return best;
+}
+
+/** הפ"מים שגובה ההקצאה (`alt`) קרוב אליהם פחות מ-1000 רגל - לאזהרה בחלון */
+export function tooCloseTo(alt: string, taken: TakenAlt[]): string[] {
+  const r = parseAltHundreds(alt);
+  if (!r) return [];
+  const levels: number[] = [];
+  for (let v = r.lo; v <= r.hi; v += PAIR_SEPARATION) levels.push(v);
+  return [...new Set(taken.filter(t => levels.some(v => !separated(v, [t]))).map(t => t.label))];
+}
+
 /** החוק הראשון (לפי סדר ההגדרה) שהחימוש שלו נמצא על הפ"מ */
 export function matchRule(armaments: string[], rules: AltArmamentRule[] | null | undefined): AltArmamentRule | undefined {
   const have = new Set(armaments.map(a => a.trim()).filter(Boolean));
   return (rules || []).find(r => r && have.has(String(r.armament || '').trim()));
 }
 
-const blocksAlt = (bs: RecBlock[]) => `${bs[0].alt_from}-${bs[bs.length - 1].alt_to}`;
 
 export function recommendAltitude(args: {
   blocks: RecBlock[];
@@ -170,18 +220,27 @@ export function recommendAltitude(args: {
     .map(o => ({ ...o, r: parseAltHundreds(o.alt) }))
     .filter((o): o is RecOtherStrip & { r: { lo: number; hi: number } } => !!o.r);
 
+  const taken: TakenAlt[] = others.map(o => ({ lo: o.r.lo, hi: o.r.hi, label: o.label }));
   const occupants: Record<number, string[]> = {};
   const occIds: Record<number, string[]> = {};
+  const full: Record<number, boolean> = {};
   for (const b of blocks) {
     const hit = others.filter(o => overlaps(o.r, b));
     occupants[b.id] = hit.map(o => o.label);
     occIds[b.id] = hit.map(o => o.id);
+    full[b.id] = freeStart(b.alt_from, b.alt_to, Math.min(args.formation, 3), taken) === null;
   }
-  const empty: AltRecommendation = { needed, blockIds: [], alt: '', reason: 'none', occupants };
+  const empty: AltRecommendation = { needed, blockIds: [], alt: '', reason: 'none', occupants, taken, full };
   if (blocks.length < needed) return empty;
 
   const rule = matchRule(args.armaments, args.rules);
   const cur = parseAltHundreds(args.currentAlt);
+  // הגובה שאליו שואפים בתוך החלון: גובה החוק / הגובה הנוכחי / תחתית טווח החוק / הנמוך
+  const prefer: number | null = rule?.kind === 'alt' && rule.alt_ft != null ? rule.alt_ft / 100
+    : rule?.kind === 'range' && rule.min_ft != null ? rule.min_ft / 100
+    : !rule && cur ? cur.lo : null;
+  const startIn = (win: RecBlock[], tk: { lo: number; hi: number }[] = taken) =>
+    freeStart(win[0].alt_from, win[win.length - 1].alt_to, args.formation, tk, prefer);
   const n = blocks.length;
   const bandOf = (i: number): AltRuleBand => (i < n / 3 ? 'low' : i < (2 * n) / 3 ? 'mid' : 'high');
 
@@ -206,17 +265,23 @@ export function recommendAltitude(args: {
     return i;
   };
   const reason: AltRecommendation['reason'] = rule ? 'rule' : cur ? 'nearest' : 'lowest';
+  const pick = (win: RecBlock[], s: number, extra: Partial<AltRecommendation> = {}): AltRecommendation => ({
+    needed, blockIds: win.map(b => b.id), start: s,
+    alt: assignedAltitude(win[0].alt_from, win[win.length - 1].alt_to, args.formation, s),
+    reason, rule, occupants, taken, full, ...extra,
+  });
 
   const windows = Array.from({ length: n - needed + 1 }, (_, i) => i);
-  const freeWins = windows.filter(i => blocks.slice(i, i + needed).every(b => occIds[b.id].length === 0));
+  // חלון עם גובה פנוי בהפרדה - לא חייב להיות ריק
+  const freeWins = windows.filter(i => startIn(blocks.slice(i, i + needed)) !== null);
   if (freeWins.length) {
     const best = freeWins.reduce((a, b) => (score(b) < score(a) ? b : a));
     const win = blocks.slice(best, best + needed);
-    return { needed, blockIds: win.map(b => b.id), alt: blocksAlt(win), reason, rule, occupants };
+    return pick(win, startIn(win)!);
   }
 
-  // אין רצף פנוי: פ"מ אחד בלבד מפריע לחלון, ויש לו בלוק פנוי מחוץ לחלון
-  let bestMove: { i: number; move: AltMove; cost: number } | null = null;
+  // אין גובה פנוי: פ"מ אחד בלבד מפריע לחלון, ויש לו גובה פנוי בבלוק מחוץ לחלון
+  let bestMove: { i: number; move: AltMove; cost: number; start: number } | null = null;
   for (const i of windows) {
     const win = blocks.slice(i, i + needed);
     const inWin = new Set(win.map(b => b.id));
@@ -227,18 +292,23 @@ export function recommendAltitude(args: {
     const its = blocks.filter(b => overlaps(blocker.r, b));
     if (its.length !== 1) continue; // פ"מ שתופס כמה בלוקים - הזזה שלו אינה החלטה פשוטה
     const from = its[0];
+    const rest = taken.filter((_, k) => others[k].id !== blockerId);
     for (const to of blocks) {
-      if (inWin.has(to.id) || occIds[to.id].length) continue;
+      if (inWin.has(to.id)) continue;
       const cost = score(i) * 1000 + Math.abs(to.alt_from - from.alt_from);
       if (bestMove && cost >= bestMove.cost) continue;
       // שומרים על מיקום הפ"מ בתוך הבלוק - גם גובה בודד וגם גבהי זוגות ("240-250"):
       // הכל זז באותו הפרש לבלוק החדש, בלי לחרוג ממנו. טווח של בלוק שלם עובר לבלוק שלם
       const shift = (v: number) => Math.min(to.alt_to, Math.max(to.alt_from, to.alt_from + (v - from.alt_from)));
-      const newAlt = blocker.r.lo === blocker.r.hi
-        ? String(shift(blocker.r.lo))
-        : `${shift(blocker.r.lo)}-${shift(blocker.r.hi)}`;
+      const moved = { lo: shift(blocker.r.lo), hi: shift(blocker.r.hi) };
+      // הפ"מ המוזז מופרד מכל השאר, והחלון מתפנה גם אחרי שהוא במקומו החדש
+      if (!separated(moved.lo, rest) || !separated(moved.hi, rest)) continue;
+      if (rest.some(t => moved.lo <= t.hi && moved.hi >= t.lo)) continue;
+      const s = startIn(win, [...rest, moved]);
+      if (s === null) continue;
+      const newAlt = moved.lo === moved.hi ? String(moved.lo) : `${moved.lo}-${moved.hi}`;
       bestMove = {
-        i, cost,
+        i, cost, start: s,
         move: {
           stripId: blocker.id, label: blocker.label, fromBlockId: from.id, toBlockId: to.id,
           direction: to.alt_from > from.alt_from ? 'climb' : 'descend', newAlt,
@@ -246,10 +316,7 @@ export function recommendAltitude(args: {
       };
     }
   }
-  if (bestMove) {
-    const win = blocks.slice(bestMove.i, bestMove.i + needed);
-    return { needed, blockIds: win.map(b => b.id), alt: blocksAlt(win), reason, rule, move: bestMove.move, occupants };
-  }
+  if (bestMove) return pick(blocks.slice(bestMove.i, bestMove.i + needed), bestMove.start, { move: bestMove.move });
   return { ...empty, rule };
 }
 

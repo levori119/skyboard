@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   recommendAltitude, blocksNeeded, parseAltHundreds, matchRule, stripArmaments, normalizeAltRules,
-  type RecBlock, stationRecBlocks, assignedAltitude } from './altRecommend';
+  type RecBlock, stationRecBlocks, assignedAltitude, freeStart, tooCloseTo } from './altRecommend';
 
 // שישה בלוקים של 2000 רגל: 40-60, 60-80 ... 140-160
 const B: RecBlock[] = [40, 60, 80, 100, 120, 140].map((f, i) => ({ id: i + 1, alt_from: f, alt_to: f + 20 }));
@@ -25,19 +25,42 @@ describe('blocksNeeded - בלוק לכל זוג מרביעייה', () => {
 });
 
 describe('recommendAltitude', () => {
-  it('בלי חוק ובלי גובה - הבלוק הפנוי הנמוך', () => {
+  it('בלי חוק ובלי גובה - הגובה הפנוי הנמוך, גם בבלוק שיש בו פ"מ (1000 רגל ממנו)', () => {
     const r = recommendAltitude({ ...base, others: [{ id: 'a', label: 'רעם', alt: '50' }] });
-    expect(r.blockIds).toEqual([2]);
-    expect(r.alt).toBe('60-80');
+    expect(r.blockIds).toEqual([1]);
+    expect(r.alt).toBe('40');
+    expect(r.start).toBe(40);
     expect(r.reason).toBe('lowest');
     expect(r.occupants[1]).toEqual(['רעם']);
+    expect(r.full[1]).toBe(false);
   });
 
-  it('רביעייה מקבלת 2 בלוקים סמוכים ופנויים', () => {
+  it('המקרה מהשטח: שני בלוקים, פ"מ בכל אחד - יש גובה פנוי, לא "אין בלוקים פנויים"', () => {
+    const blocks: RecBlock[] = [{ id: 1, alt_from: 340, alt_to: 390 }, { id: 2, alt_from: 210, alt_to: 250 }];
+    const others = [{ id: 'a', label: 'ברק', alt: '340' }, { id: 'b', label: 'נשר', alt: '210' }];
+    const r = recommendAltitude({ ...base, blocks, others });
+    expect(r.blockIds).toEqual([2]);
+    expect(r.alt).toBe('220');
+    expect(r.move).toBeUndefined();
+  });
+
+  it('פחות מ-1000 רגל מפ"מ אחר אינו פנוי - עולים לגובה המופרד', () => {
+    const blocks: RecBlock[] = [{ id: 1, alt_from: 210, alt_to: 250 }];
+    const r = recommendAltitude({ ...base, blocks, others: [{ id: 'a', label: 'נשר', alt: '215' }] });
+    expect(r.alt).toBe('225');
+  });
+
+  it('ההפרדה נבדקת גם מול פ"מ בבלוק סמוך', () => {
+    const blocks: RecBlock[] = [{ id: 2, alt_from: 60, alt_to: 80 }];
+    const r = recommendAltitude({ ...base, blocks, others: [{ id: 'a', label: 'רעם', alt: '55' }] });
+    expect(r.alt).toBe('65');
+  });
+
+  it('רביעייה מקבלת 2 בלוקים סמוכים ושני גבהים מופרדים', () => {
     const r = recommendAltitude({ ...base, formation: 4, others: [{ id: 'a', label: 'רעם', alt: '70' }] });
     expect(r.needed).toBe(2);
-    expect(r.blockIds).toEqual([3, 4]); // 1 פנוי לבד, 2 תפוס - הרצף הראשון הוא 3+4
-    expect(r.alt).toBe('80-120');
+    expect(r.blockIds).toEqual([1, 2]);
+    expect(r.alt).toBe('40-50');
     expect(r.move).toBeUndefined();
   });
 
@@ -48,17 +71,19 @@ describe('recommendAltitude', () => {
     expect(r.blockIds).toEqual([5]); // השליש העליון = בלוקים 5-6, הנמוך שבו
   });
 
-  it('חוק חימוש בגובה פיזי - הבלוק שמכיל אותו', () => {
+  it('חוק חימוש בגובה פיזי - הבלוק שמכיל אותו, ובגובה החוק', () => {
     const rules = [{ armament: 'קבי"ר', kind: 'alt' as const, alt_ft: 11000 }];
-    expect(recommendAltitude({ ...base, armaments: ['קבי"ר'], rules }).blockIds).toEqual([4]);
+    const r = recommendAltitude({ ...base, armaments: ['קבי"ר'], rules });
+    expect(r.blockIds).toEqual([4]);
+    expect(r.alt).toBe('110');
   });
 
-  it('חוק בטווח גבהים - בלוק בתוך הטווח, ואם הוא תפוס - הקרוב', () => {
+  it('חוק בטווח גבהים - בלוק בתוך הטווח, גם כשיש בו פ"מ ונשאר גובה פנוי', () => {
     const rules = [{ armament: 'חד', kind: 'range' as const, min_ft: 8000, max_ft: 10000 }];
     expect(recommendAltitude({ ...base, armaments: ['חד'], rules }).blockIds).toEqual([3]);
     const r = recommendAltitude({ ...base, armaments: ['חד'], rules, others: [{ id: 'x', label: 'בז', alt: '90' }] });
-    expect(r.blockIds).not.toContain(3);
-    expect([2, 4]).toContain(r.blockIds[0]);
+    expect(r.blockIds).toEqual([3]);
+    expect(['80', '100']).toContain(r.alt);
   });
 
   it('חוק שאינו תואם את החימוש - לא משפיע', () => {
@@ -70,40 +95,51 @@ describe('recommendAltitude', () => {
     const r = recommendAltitude({ ...base, currentAlt: '125' });
     expect(r.reason).toBe('nearest');
     expect(r.blockIds).toEqual([5]);
+    expect(r.alt).toBe('125');
   });
 
-  it('אין רצף פנוי לרביעייה - ממליץ להטפיס/להנמיך פ"מ אחד כדי לפנות', () => {
-    // 1 פנוי, 2 תפוס, 3 פנוי, 4 תפוס, 5 פנוי, 6 תפוס - אין שני פנויים סמוכים
-    const others = [
-      { id: 'a', label: 'רעם', alt: '70' }, { id: 'b', label: 'בז', alt: '110' }, { id: 'c', label: 'חץ', alt: '150' },
-    ];
-    const r = recommendAltitude({ ...base, formation: 4, others });
-    expect(r.blockIds).toHaveLength(2);
+  it('אין גובה פנוי לרביעייה - ממליץ להטפיס/להנמיך פ"מ אחד, ושומר על מיקומו היחסי בבלוק', () => {
+    // בלוקים של 1000 רגל: 40-50, 50-60, 60-70, 70-80. רעם ב-55 ובז ב-75 - אין רווח
+    // של 2000 רגל לשני גבהי הרביעייה
+    const blocks: RecBlock[] = [40, 50, 60, 70].map((f, i) => ({ id: i + 1, alt_from: f, alt_to: f + 10 }));
+    const others = [{ id: 'a', label: 'רעם', alt: '55' }, { id: 'b', label: 'בז', alt: '75' }];
+    const r = recommendAltitude({ ...base, blocks, formation: 4, others });
     expect(r.move).toBeDefined();
     const win = new Set(r.blockIds);
-    // הבלוק שאליו מזיזים פנוי ומחוץ לחלון, והפ"מ המוזז יושב בתוך החלון
     expect(win.has(r.move!.toBlockId)).toBe(false);
     expect(win.has(r.move!.fromBlockId)).toBe(true);
-    expect(r.move!.direction).toMatch(/climb|descend/);
+    expect(r.move!.label).toBe('רעם');
+    expect(r.move!.newAlt).toBe('65');
+    expect(r.move!.direction).toBe('climb');
+    expect(r.alt).toBe('40-50');
   });
 
-  it('הגובה החדש של הפ"מ המוזז שומר על מיקומו היחסי בבלוק', () => {
-    const blocks = B.slice(0, 3); // 40-60, 60-80, 80-100
-    const r = recommendAltitude({ ...base, blocks, formation: 4, others: [{ id: 'a', label: 'רעם', alt: '65' }] });
-    // החלון היחיד הפנוי-אחרי-הזזה: 1+2 (רעם עולה ל-3) או 2+3 (רעם יורד ל-1)
-    expect(r.move).toBeDefined();
-    expect(['45', '85']).toContain(r.move!.newAlt);
-  });
-
-  it('כל הבלוקים תפוסים - אין המלצה, ואין הזזה שיכולה לעזור', () => {
-    const others = B.map((b, i) => ({ id: String(i), label: `פ${i}`, alt: String(b.alt_from + 5) }));
+  it('כל הבלוקים מלאים - אין המלצה, ואין הזזה שיכולה לעזור', () => {
+    const others = B.map((b, i) => ({ id: String(i), label: `פ${i}`, alt: `${b.alt_from}-${b.alt_to}` }));
     const r = recommendAltitude({ ...base, others });
     expect(r.blockIds).toEqual([]);
     expect(r.reason).toBe('none');
+    expect(r.full[1]).toBe(true);
   });
 
   it('פחות בלוקים מהנדרש - אין המלצה', () => {
     expect(recommendAltitude({ ...base, blocks: [B[0]], formation: 4 }).blockIds).toEqual([]);
+  });
+});
+
+describe('freeStart / tooCloseTo', () => {
+  it('הנמוך הפנוי, הקרוב למבוקש, ו-null כשאין', () => {
+    expect(freeStart(340, 390, 2, [{ lo: 340, hi: 340 }])).toBe(350);
+    expect(freeStart(340, 390, 2, [{ lo: 340, hi: 340 }], 372)).toBe(372);
+    expect(freeStart(340, 390, 4, [{ lo: 350, hi: 350 }])).toBe(360); // 360-370
+    expect(freeStart(340, 350, 2, [{ lo: 345, hi: 345 }])).toBeNull();
+  });
+
+  it('מי קרוב פחות מ-1000 רגל לגובה שנבחר', () => {
+    const taken = [{ lo: 340, hi: 340, label: 'ברק' }, { lo: 210, hi: 210, label: 'נשר' }];
+    expect(tooCloseTo('345', taken)).toEqual(['ברק']);
+    expect(tooCloseTo('350', taken)).toEqual([]);
+    expect(tooCloseTo('200-210', taken)).toEqual(['נשר']);
   });
 });
 
