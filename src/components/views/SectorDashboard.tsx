@@ -13743,19 +13743,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     {showTargetMap && <span style={{ fontSize: '10px', color: menuAcc('#38bdf8','#0369a1') }}>{tr('ctrl.active')}</span>}
                   </div>
                   )}
-                  {/* טופס העזר של החלוקה האוטומטית למרחבים - תמיד במוד טבלה; ההפעלה עצמה בתוך הטופס */}
-                  {tableMode && (
-                  <div
-                    data-testid="menu-auto-spaces"
-                    onClick={() => { setShowAutoSpacesForm(v => !v); setShowViewMenu(false); }}
-                    style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: showAutoSpacesForm ? '#38bdf8' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: showAutoSpacesForm ? 'bold' : 'normal' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
-                    onMouseLeave={e => (e.currentTarget.style.background = '')}
-                  >
-                    <span>📍 {tr('blocks.autoSpacesOpen')}</span>
-                    {showAutoSpacesForm && <span style={{ fontSize: '10px', color: menuAcc('#38bdf8','#0369a1') }}>{tr('ctrl.active')}</span>}
-                  </div>
-                  )}
                   {/* עומס — הועבר מהסרגל העליון לתפריט התצוגה */}
                   {loadRelevant && show('loadView') && (
                     <div
@@ -14058,6 +14045,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </div>
                   ))}
                   </>}
+                  {/* מרחבים לשיוך אוטומטי - הגדרה של העמדה ולא של התצוגה (הועבר מתפריט "תצוגה").
+                      תמיד במוד טבלה; ההפעלה עצמה בתוך הטופס */}
+                  {tableMode && (
+                  <div
+                    data-testid="menu-auto-spaces"
+                    onClick={() => { setShowAutoSpacesForm(v => !v); setShowSettingsMenu(false); }}
+                    style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: showAutoSpacesForm ? menuAcc('#38bdf8','#0369a1') : menuText, borderBottom: `1px solid ${menuBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: showAutoSpacesForm ? 'bold' : 'normal' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
+                    onMouseLeave={e => (e.currentTarget.style.background = '')}
+                  >
+                    <span>📍 {tr('blocks.autoSpacesOpen')}</span>
+                    {showAutoSpacesForm && <span style={{ fontSize: '10px', color: menuAcc('#38bdf8','#0369a1') }}>{tr('ctrl.active')}</span>}
+                  </div>
+                  )}
                   {/* שידוך פ"מ בלחיצה — חלופה לגרירה (רק במסך אזורי טיסה) */}
                   {isFlightZonesMode && show('clickPairing') && (
                     <div style={{ padding: '8px 12px', borderBottom: `1px solid ${menuBorder}` }}>
