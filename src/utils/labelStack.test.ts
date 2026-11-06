@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { stackLabels } from './labelStack';
+import { stackLabels, sideLanes } from './labelStack';
 
 // מה שנבדק: תוויות פ"מים בתצוגת הבלוקים לא עולות אחת על השנייה
 const H = 22, GAP = 2;
@@ -36,5 +36,21 @@ describe('stackLabels', () => {
     const ys = stackLabels([{ x: 0, y: 5 }, { x: 0, y: 8 }, { x: 0, y: 10 }], 60, H, GAP, { min: 11, max: 400 });
     noOverlap(ys);
     expect(Math.min(...ys)).toBeGreaterThanOrEqual(11);
+  });
+});
+
+describe('sideLanes - תווית קרובה בגובה זזה הצידה, והגובה שלה נשאר מדויק', () => {
+  it('שלוש תוויות ב-1000 רגל זו מזו - כל אחת בנתיב משלה', () => {
+    const lanes = sideLanes([{ x: 0, y: 100 }, { x: 0, y: 110 }, { x: 0, y: 120 }], 60, 22, 2);
+    expect(new Set(lanes).size).toBe(3);
+  });
+  it('רחוקות בגובה - אותו נתיב (0)', () => {
+    expect(sideLanes([{ x: 0, y: 100 }, { x: 0, y: 200 }], 60, 22, 2)).toEqual([0, 0]);
+  });
+  it('לא חופפות בזמן - אותו נתיב', () => {
+    expect(sideLanes([{ x: 0, y: 100 }, { x: 100, y: 100 }], 60, 22, 2)).toEqual([0, 0]);
+  });
+  it('נתיב מתפנה חוזר לשימוש: שתיים צמודות ושלישית רחוקה מהן', () => {
+    expect(sideLanes([{ x: 0, y: 100 }, { x: 0, y: 110 }, { x: 0, y: 300 }], 60, 22, 2)).toEqual([0, 1, 0]);
   });
 });

@@ -1,6 +1,6 @@
 import { tr } from '../../i18n/tr';
 import { splitSpaceSet, separatedBySpace, blockFitsSpace, structureSeparates } from '../../utils/blockSpaces';
-import { stackLabels } from '../../utils/labelStack';
+import { sideLanes } from '../../utils/labelStack';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Strip from '../strips/Strip';
 import BlockTargetMap from '../blocks/BlockTargetMap';
@@ -258,7 +258,7 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
   const altToY = (alt: number) => (1 - (alt - minAlt) / altRange) * CHART_H;
 
   // Build segments based on groupBy
-  type Placed = typeof candidates[0] & { _x: number; _y: number; _hasConflict: boolean; _isRange: boolean };
+  type Placed = typeof candidates[0] & { _x: number; _y: number; _hasConflict: boolean; _isRange: boolean; _lane?: number };
 
   // מרחבי חלוקה של טבלאות הבלוקים: פ"מים במרחבים שונים אינם בקונפליקט
   const splitSpaces = splitSpaceSet(blockTables, new Set(relevantBlocks.map((b: any) => Number(b.block_table_id))));
@@ -281,13 +281,14 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
         }
       }
     }
-    // תוויות שלא עולות זו על זו: נערמות לפי הסדר סביב הגובה שלהן (utils/labelStack).
+    // תוויות שלא עולות זו על זו: תווית קרובה בגובה (גם ב-1000 רגל, כשהתווית גבוהה
+    // מהמרחק ביניהן על המסך) זזה **הצידה** - הגובה שלה נשאר מדויק (utils/labelStack).
     // פ"מ בטווח גבהים הוא מלבן לגובה הטווח - לא זז
     const singles = p.map((s, i) => ({ s, i })).filter(x => !x.s._isRange);
     // `_y` ביחידות התרשים (CHART_H); תווית בגובה STRIP_H פיקסלים תופסת לפי הגובה בפועל
     const labelH = STRIP_H * CHART_H / chartPxH, labelGap = 2 * CHART_H / chartPxH;
-    const ys = stackLabels(singles.map(x => ({ x: x.s._x, y: x.s._y })), STRIP_W, labelH, labelGap, { min: labelH / 2, max: CHART_H - labelH / 2 });
-    singles.forEach((x, k) => { p[x.i]._y = ys[k]; });
+    const lanes = sideLanes(singles.map(x => ({ x: x.s._x, y: x.s._y })), STRIP_W, labelH, labelGap);
+    singles.forEach((x, k) => { p[x.i]._lane = lanes[k]; });
     return p;
   };
 
@@ -314,23 +315,31 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
     // Sort by altitude descending (highest first)
     const sorted = [...list].sort((a, b) => b._altLo - a._altLo);
     // columns: array of altitude-occupied intervals
-    const colIntervals: { lo: number; hi: number }[][] = [];
+    // עמודה נפרדת גם כשהגבהים לא חופפים אבל **התוויות** כן: תווית בגובה STRIP_H פיקסלים,
+    // ובשני פ"מים ב-1000 רגל היא גבוהה מהמרחק ביניהם על המסך - אחד זז הצידה
+    const labelAlt = (STRIP_H + 2) * altRange / Math.max(chartPxH, 1);
+    const visual = (x: { _altLo: number; _altHi: number }) => x._altLo !== x._altHi
+      ? { lo: x._altLo, hi: x._altHi }
+      : { lo: x._altLo - labelAlt / 2, hi: x._altHi + labelAlt / 2 };
+    const colIntervals: { lo: number; hi: number; vlo: number; vhi: number }[][] = [];
     const colMap = new Map<string, number>();
     for (const s of sorted) {
       let placed = false;
+      const v = visual(s);
       for (let c = 0; c < colIntervals.length; c++) {
         const hasOverlap = colIntervals[c].some(iv =>
-          s._altLo < iv.hi + conflictAltDelta && iv.lo < s._altHi + conflictAltDelta
+          (s._altLo < iv.hi + conflictAltDelta && iv.lo < s._altHi + conflictAltDelta) ||
+          (v.lo < iv.vhi && iv.vlo < v.hi)
         );
         if (!hasOverlap) {
-          colIntervals[c].push({ lo: s._altLo, hi: s._altHi });
+          colIntervals[c].push({ lo: s._altLo, hi: s._altHi, vlo: v.lo, vhi: v.hi });
           colMap.set(String(s.id), c);
           placed = true;
           break;
         }
       }
       if (!placed) {
-        colIntervals.push([{ lo: s._altLo, hi: s._altHi }]);
+        colIntervals.push([{ lo: s._altLo, hi: s._altHi, vlo: v.lo, vhi: v.hi }]);
         colMap.set(String(s.id), colIntervals.length - 1);
       }
     }
@@ -525,6 +534,11 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
   const gridLine = lightMode ? '#e2e8f0' : '#1e293b';
   const textColor = lightMode ? '#64748b' : '#94a3b8';
   const boldTextColor = lightMode ? '#1e293b' : '#e2e8f0';
+  // תוויות הפ"מים: רקע אטום וטקסט בניגודיות מלאה עליו (גם הגובה - לא אפור)
+  const labelBg = lightMode ? '#ffffff' : '#0f172a';
+  const labelRangeBg = lightMode ? '#dbeafe' : '#1e3a5f';
+  const labelText = lightMode ? '#0f172a' : '#f8fafc';
+  const labelAirText = lightMode ? '#1d4ed8' : '#93c5fd';
 
   const MIN_CHART_W = 160;
   const segCount = orderedSegments.length;
@@ -707,16 +721,17 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
           // התראות כאות (ב/ק) על המלבן - לא צבע של כל המלבן ולא הבהוב
           const isConflict = s._hasConflict;
           const borderColor = s.airborne ? '#3b82f6' : (lightMode ? '#475569' : '#94a3b8');
-          const textMainColor = s.airborne ? '#3b82f6' : boldTextColor;
-          const normalBg = s._isRange ? (lightMode ? 'rgba(59,130,246,0.12)' : 'rgba(59,130,246,0.18)')
-            : (lightMode ? '#ffffff' : '#0f172a');
+          const textMainColor = s.airborne ? labelAirText : labelText;
+          // רקע אטום (100%) - הקווים והבלוקים מתחת לא נראים דרך הטקסט
+          const normalBg = s._isRange ? labelRangeBg : labelBg;
           return (
             <div key={s.id}
               data-testid={`vv-strip-${s.id}`}
               title={`${getFormationDisplayName(s)}${sq ? ' / ' + sq : ''} | גובה: ${normalizeAlt(s.alt || '')}${isDeviation ? ' ⚠️ חריגה מבלוק' : ''}${isConflict ? ' ⚠️ חפיפת גובה' : ''}`}
               onContextMenu={onStripContextMenu ? (e) => { e.preventDefault(); e.stopPropagation(); onStripContextMenu(s.id, e.clientX, e.clientY); } : undefined}
               style={{
-                position: 'absolute', left: `${Math.max(xPct, 0)}%`, top: `${topPct}%`,
+                // נתיב צידי (`_lane`) - תווית שהייתה עולה על שכנה קרובה בגובה זזה ימינה ברוחב תווית
+                position: 'absolute', left: `${Math.max(xPct, 0) + ((s as any)._lane || 0) * (wPct + 0.3)}%`, top: `${topPct}%`,
                 width: `${wPct}%`, height: heightVal,
                 background: normalBg, boxShadow: s._isRange ? undefined : '0 1px 3px rgba(0,0,0,0.35)',
                 border: `2px solid ${isDragging ? '#f59e0b' : borderColor}`, borderRadius: 4,
@@ -739,7 +754,7 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
                 style={{ flex: 1, overflow: 'hidden', padding: '2px 4px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', cursor: onUpdateStripAlt ? 'grab' : 'default', touchAction: 'none', userSelect: 'none' }}>
                 <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: `${stripFontSize + 1}px`, lineHeight: 1.3, display: 'flex', gap: '5px', alignItems: 'center' }}>
                   <span style={{ fontWeight: 800, color: textMainColor, flexShrink: 0 }}>{getFormationDisplayName(s) || '—'}{sq ? ` / ${sq}` : ''}</span>
-                  {s.alt && <span style={{ fontSize: `${stripFontSize}px`, fontWeight: 'bold', color: textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{normalizeAlt(s.alt)}</span>}
+                  {s.alt && <span style={{ fontSize: `${stripFontSize}px`, fontWeight: 'bold', color: labelText, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{normalizeAlt(s.alt)}</span>}
                   {alertBadges(isDeviation && !isDeviationAcknowledged, isDeviationAcknowledged, isConflict)}
                 </div>
               </div>
@@ -766,10 +781,9 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
           // התראות כאות (ב/ק) על המלבן - לא צבע של כל המלבן ולא הבהוב
           const ntConflict = !!s._hasConflict;
           const borderColor = s.airborne ? '#3b82f6' : (lightMode ? '#475569' : '#94a3b8');
-          const textMainColor = s.airborne ? '#3b82f6' : boldTextColor;
-          const normalBg = s._isRange
-            ? (lightMode ? 'rgba(59,130,246,0.12)' : 'rgba(59,130,246,0.18)')
-            : (lightMode ? '#ffffff' : '#0f172a');
+          const textMainColor = s.airborne ? labelAirText : labelText;
+          // רקע אטום (100%) - הקווים והבלוקים מתחת לא נראים דרך הטקסט
+          const normalBg = s._isRange ? labelRangeBg : labelBg;
           return (
             <div key={s.id}
               data-testid={`vv-strip-${s.id}`}
@@ -801,7 +815,7 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
                 style={{ flex: 1, overflow: 'hidden', padding: '2px 4px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', direction: 'rtl', cursor: onUpdateStripAlt ? 'grab' : 'default', touchAction: 'none', userSelect: 'none' }}>
                 <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: `${stripFontSize + 1}px`, lineHeight: 1.3, display: 'flex', gap: '5px', alignItems: 'center' }}>
                   <span style={{ fontWeight: 800, color: textMainColor, flexShrink: 0 }}>{getFormationDisplayName(s) || '—'}{sq ? ` / ${sq}` : ''}</span>
-                  {s.alt && <span style={{ fontSize: `${stripFontSize}px`, fontWeight: 'bold', color: textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{normalizeAlt(s.alt)}</span>}
+                  {s.alt && <span style={{ fontSize: `${stripFontSize}px`, fontWeight: 'bold', color: labelText, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{normalizeAlt(s.alt)}</span>}
                   {alertBadges(isDeviation && !isDeviationAcknowledged, isDeviationAcknowledged, ntConflict)}
                 </div>
               </div>

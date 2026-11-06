@@ -43,3 +43,28 @@ export function stackLabels(
   }
   return ys;
 }
+
+/**
+ * **נתיב צידי** לכל תווית: תוויות שחופפות בזמן (`x`, ברוחב `w`) וקרובות בגובה
+ * (פחות מ-`h + gap` - למשל שני פ"מים ב-1000 רגל, כשהתווית גבוהה מהמרחק ביניהם
+ * על המסך) נדחקות **הצידה** ולא למעלה או למטה: הגובה על המסך נשאר הגובה האמיתי.
+ * 0 = במקום; 1 = תווית אחת ימינה, וכן הלאה. נתיב שהתפנה חוזר לשימוש.
+ */
+export function sideLanes(items: { x: number; y: number }[], w: number, h: number, gap = 2): number[] {
+  const lanes = new Array(items.length).fill(0);
+  const order = items.map((_, i) => i).sort((a, b) => items[a].y - items[b].y || items[a].x - items[b].x || a - b);
+  const placed: number[] = [];
+  for (const i of order) {
+    const taken = new Set<number>();
+    for (const j of placed) {
+      if (Math.abs(items[i].y - items[j].y) >= h + gap) continue;
+      if (!(items[i].x < items[j].x + w && items[j].x < items[i].x + w)) continue;
+      taken.add(lanes[j]);
+    }
+    let lane = 0;
+    while (taken.has(lane)) lane++;
+    lanes[i] = lane;
+    placed.push(i);
+  }
+  return lanes;
+}
