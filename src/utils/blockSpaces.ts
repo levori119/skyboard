@@ -67,3 +67,14 @@ export function separatedByGroup(a: Record<string, unknown>, b: Record<string, u
 export function structureSeparates(groupBy: string | null | undefined): boolean {
   return !!groupBy && groupBy !== 'none';
 }
+
+/**
+ * **חובה לבחור טבלת בלוקים**: העמדה עובדת לפי מרחבי בלוקים (טבלה עם מרחבי חלוקה, או
+ * שיוך מרחב אוטומטי), לעמדה כמה טבלאות בלוקים, ואף אחת לא נבחרה. בלי בחירה אין
+ * טבלה אחת שמולה נקבעים המרחב, החריגה וההמלצה - ולכן העמדה פותחת חלון שאי אפשר
+ * לסגור בלי לבחור. טבלה אחת בלבד - נבחרת מעצמה ואין מה לשאול
+ */
+export function mustPickBlockTable(args: { bySpaces: boolean; activeTableId: number | null | undefined; tableIds: unknown[] }): boolean {
+  if (!args.bySpaces || args.activeTableId != null) return false;
+  return new Set((args.tableIds || []).map(Number).filter(Number.isFinite)).size > 1;
+}

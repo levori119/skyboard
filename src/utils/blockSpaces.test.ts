@@ -69,3 +69,16 @@ describe('structureSeparates - הפרדת מרחב/בלוק רק כשיש חלו
     expect(structureSeparates('erka')).toBe(true);
   });
 });
+
+describe('mustPickBlockTable - חובה לבחור טבלת בלוקים', () => {
+  it('לפי מרחבים, כמה טבלאות ולא נבחרה - חובה', async () => {
+    const { mustPickBlockTable } = await import('./blockSpaces');
+    expect(mustPickBlockTable({ bySpaces: true, activeTableId: null, tableIds: [9, 10] })).toBe(true);
+  });
+  it('נבחרה טבלה / טבלה אחת / לא לפי מרחבים - לא', async () => {
+    const { mustPickBlockTable } = await import('./blockSpaces');
+    expect(mustPickBlockTable({ bySpaces: true, activeTableId: 9, tableIds: [9, 10] })).toBe(false);
+    expect(mustPickBlockTable({ bySpaces: true, activeTableId: null, tableIds: [9, 9] })).toBe(false);
+    expect(mustPickBlockTable({ bySpaces: false, activeTableId: null, tableIds: [9, 10] })).toBe(false);
+  });
+});

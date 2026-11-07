@@ -102,10 +102,10 @@ import { windowFrame, frameColor } from '../../utils/windowFrame';
 import { thinScroll } from '../../utils/thinScroll';
 import { isPointDisabledFor, canSendVia, canReceiveVia, stationDirection } from '../../../shared/transferPointStations.js';
 import { TakeoffBadge, FormationCountBadge } from '../strips/StripCardBadges';
-import { splitSpaceSet, separatedBySpace, blockFitsSpace, separatedByGroup, structureSeparates } from '../../utils/blockSpaces';
+import { splitSpaceSet, separatedBySpace, blockFitsSpace, separatedByGroup, structureSeparates, mustPickBlockTable } from '../../utils/blockSpaces';
 import { applyAltOverrides, parseAltOverrides, refitAltToBand, blockForAlt, type AltOverrides } from '../../utils/zoneAltOverride';
 import { recommendAltitude, stripArmaments, normalizeAltRules, stationRecBlocks, assignedAltitude, freeStart, tooCloseTo, PAIR_SEPARATION, type AltRecommendation, type RecBlock } from '../../utils/altRecommend';
-import { isForeignToDesk, deskAltEntry, withDeskAlt, handoverAltOf, handoverModeOf, canToggleHandover, lowestAlt, sameAlt, receiveAltViolations, type ReceiveAltViolation } from '../../utils/deskAlt';
+import { isForeignToDesk, deskAltEntry, withDeskAlt, handoverAltOf, handoverModeOf, canToggleHandover, lowestAlt, sameAlt, receiveAltViolations, senderAlertsOff, type ReceiveAltViolation } from '../../utils/deskAlt';
 import { withDeskSpace, isOnDesk, deskSpaceConflict } from '../../utils/deskSpace';
 import { loadPadLayout, savePadLayout, type PadLayout } from '../../utils/freeDeskLayout';
 import FreeDeskPad from '../shared/FreeDeskPad';
@@ -5422,6 +5422,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // Effective block table for deviation alerts: explicit selection takes priority;
   // if none selected but only one relevant table exists, use it automatically so alerts fire without manual activation.
   const effectiveBlockTableId: number | null = activeBlockTableId ?? (miniViewBlockTableIds.length === 1 ? miniViewBlockTableIds[0] as number : null);
+  // עבודה לפי מרחבי בלוקים, כמה טבלאות ולא נבחרה אחת - חלון חובה לבחירה (utils/blockSpaces)
+  const blockTablePickRequired = !isGroundMode && mustPickBlockTable({
+    bySpaces: stationSplitSpaces.length > 0 || myPresetConfig?.auto_block_space_by_target === true,
+    activeTableId: activeBlockTableId, tableIds: miniViewBlockTableIds,
+  });
 
   // ── המלצת גובה בכניסת פ"מ לטבלת העמדה ─────────────────────────────────
   // פ"מ שנגרר לטבלה מקבל המלצה על בלוק פנוי מטבלת הבלוקים של העמדה (רביעייה =
@@ -5720,6 +5725,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     if (!raw) return null;
     return tableOnBoard.has(raw.id) || deskAltEntry(raw, pid) ? raw : null;
   };
+  /** הועבר אליי (העברה פתוחה אל העמדה) או סומן "אצלי" - בלי התראות העמדה המוסרת */
+  const senderAlertsMuted = (raw: any): boolean => {
+    const numId = String(raw.id).replace(/^s/, '');
+    const toMe = incomingTransfers.some((t: any) => String(t.strip_id) === numId);
+    return senderAlertsOff(raw, session.presetId ? Number(session.presetId) : null, toMe);
+  };
   /** העמדה שתמסור את הפ"מ: בהעברה פתוחה אליי - השולחת; אחרת - המחזיקה */
   const senderPresetOf = (raw: any) => {
     const numId = String(raw.id).replace(/^s/, '');
@@ -5737,8 +5748,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const key = raw.id;
     const prevEntry = deskAltEntry(raw, pid);
     const nextAlts: Record<string, any> = { ...(raw.table_alts || {}) };
-    const rest = { receive_alt: prevEntry?.receive_alt ?? null, mode: prevEntry?.mode ?? null };
-    if (alt || rest.receive_alt || rest.mode) nextAlts[String(pid)] = { alt: alt || null, to_sender: toSender ?? !!prevEntry?.to_sender, ...rest };
+    const rest = { receive_alt: prevEntry?.receive_alt ?? null, mode: prevEntry?.mode ?? null, mine: !!prevEntry?.mine };
+    if (alt || rest.receive_alt || rest.mode || rest.mine) nextAlts[String(pid)] = { alt: alt || null, to_sender: toSender ?? !!prevEntry?.to_sender, ...rest };
     else delete nextAlts[String(pid)];
     const patch = { table_alts: nextAlts };
     pendingStripUpdatesRef.current.set(key, { ...(pendingStripUpdatesRef.current.get(key) || {}), ...patch });
@@ -5759,7 +5770,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       setSaveFailToast(tr('ctrl.saveFailedReverted', { callsign: raw.callSign || raw.callsign || '' }));
     });
     // השאלה על גובה הקבלה - רק לפ"מ שעוד לא אצלי. בפ"מ שאצלי גובה המרחב פנימי בלבד
-    if (toSender !== undefined || !alt || !isForeignToDesk(raw, pid)) return;
+    if (toSender !== undefined || !alt || !isForeignToDesk(raw, pid) || senderAlertsMuted(raw)) return;
     // גובה הקבלה - של הדסק כשנקבע, ובלעדיו הגובה שעל הפ"מ (שבו הוא יגיע לנקודה).
     // כן = גובה הקבלה יהיה גובה המרחב (saveReceiveAlt); החריגה נבדקת שם
     const receiveAlt = String(prevEntry?.receive_alt || raw.alt || '');
@@ -5776,8 +5787,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const key = raw.id;
     const prevEntry = deskAltEntry(raw, pid);
     const nextAlts: Record<string, any> = { ...(raw.table_alts || {}) };
-    const entry = { alt: prevEntry?.alt ?? null, to_sender: false, receive_alt: alt || null, mode: prevEntry?.mode ?? null };
-    if (entry.alt || entry.receive_alt || entry.mode) nextAlts[String(pid)] = entry;
+    const entry = { alt: prevEntry?.alt ?? null, to_sender: false, receive_alt: alt || null, mode: prevEntry?.mode ?? null, mine: !!prevEntry?.mine };
+    if (entry.alt || entry.receive_alt || entry.mode || entry.mine) nextAlts[String(pid)] = entry;
     else delete nextAlts[String(pid)];
     const patch = { table_alts: nextAlts };
     pendingStripUpdatesRef.current.set(key, { ...(pendingStripUpdatesRef.current.get(key) || {}), ...patch });
@@ -5797,7 +5808,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       setStrips(prev => prev.map(st => String(st.id) === String(key) ? { ...st, table_alts: raw.table_alts || {} } : st));
       setSaveFailToast(tr('ctrl.saveFailedReverted', { callsign: raw.callSign || raw.callsign || '' }));
     });
-    if (!alt || opts?.send) return;
+    if (!alt || opts?.send || senderAlertsMuted(raw)) return;
     const violations = receiveAltViolations(alt, myPresetConfig, senderPresetOf(raw));
     if (violations.length) setReceiveAltAsk({ stripId: String(key), label: raw.callSign || raw.callsign || String(key), receiveAlt: String(raw.alt || ''), deskAlt: alt, ask: false, violations });
   };
@@ -5824,13 +5835,36 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const mode = handoverModeOf(view) === 'receive' ? 'send' : 'receive';
     const key = raw.id;
     const prevEntry = deskAltEntry(raw, pid);
-    const patch = { table_alts: { ...(raw.table_alts || {}), [String(pid)]: { alt: prevEntry?.alt ?? null, to_sender: !!prevEntry?.to_sender, receive_alt: prevEntry?.receive_alt ?? null, mode } } };
+    const patch = { table_alts: { ...(raw.table_alts || {}), [String(pid)]: { alt: prevEntry?.alt ?? null, to_sender: !!prevEntry?.to_sender, receive_alt: prevEntry?.receive_alt ?? null, mode, mine: !!prevEntry?.mine } } };
     pendingStripUpdatesRef.current.set(key, { ...(pendingStripUpdatesRef.current.get(key) || {}), ...patch });
     setStrips(prev => prev.map(st => String(st.id) === String(key) ? { ...st, ...patch } : st));
     fetch(`${API_URL}/strip-table-assignments/${String(key).replace(/^s/, '')}/${pid}/handover-mode`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }),
     }).then(r => {
       if (!r.ok) throw new Error(`handover mode ${r.status}`);
+      setTimeout(() => releasePendingKeys(pendingStripUpdatesRef.current, key, patch), PENDING_RELEASE_MS);
+    }).catch(err => {
+      console.error(err);
+      if (!releasePendingKeys(pendingStripUpdatesRef.current, key, patch).length) return;
+      setStrips(prev => prev.map(st => String(st.id) === String(key) ? { ...st, table_alts: raw.table_alts || {} } : st));
+      setSaveFailToast(tr('ctrl.saveFailedReverted', { callsign: raw.callSign || raw.callsign || '' }));
+    });
+  };
+  /** הדגל "אצלי" - פר דסק, בפ"מ של עמדה אחרת. מיד על המסך, השמירה ברקע; כשל מחזיר */
+  const toggleMineFlag = (stripId: string) => {
+    const pid = Number(session.presetId);
+    const raw: any = strips.find(st => String(st.id) === String(stripId));
+    if (!raw || !session.presetId) return;
+    const key = raw.id;
+    const prevEntry = deskAltEntry(raw, pid);
+    const mine = !prevEntry?.mine;
+    const patch = { table_alts: { ...(raw.table_alts || {}), [String(pid)]: { alt: prevEntry?.alt ?? null, to_sender: !!prevEntry?.to_sender, receive_alt: prevEntry?.receive_alt ?? null, mode: prevEntry?.mode ?? null, mine } } };
+    pendingStripUpdatesRef.current.set(key, { ...(pendingStripUpdatesRef.current.get(key) || {}), ...patch });
+    setStrips(prev => prev.map(st => String(st.id) === String(key) ? { ...st, ...patch } : st));
+    fetch(`${API_URL}/strip-table-assignments/${String(key).replace(/^s/, '')}/${pid}/mine`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mine }),
+    }).then(r => {
+      if (!r.ok) throw new Error(`mine flag ${r.status}`);
       setTimeout(() => releasePendingKeys(pendingStripUpdatesRef.current, key, patch), PENDING_RELEASE_MS);
     }).catch(err => {
       console.error(err);
@@ -14604,6 +14638,42 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         );
       })()}
 
+      {/* בחירת טבלת בלוקים - חובה: עובדים לפי מרחבי בלוקים ולעמדה כמה טבלאות. אין סגירה
+          בלי בחירה (גם לא Esc) - בלי טבלה אין מול מה לקבוע מרחב, חריגה והמלצת גובה */}
+      {blockTablePickRequired && (
+        <div data-testid="block-table-pick-overlay" style={{ position: 'fixed', inset: 0, zIndex: 9500, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+          <div data-testid="block-table-pick" role="dialog" aria-modal="true"
+            style={{ width: 440, maxWidth: '100%', maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', background: T.surface, color: T.text, padding: '14px', direction: dir, boxShadow: '0 8px 32px rgba(0,0,0,0.5)', ...windowFrame('view', themeMode, 8) }}>
+            <div style={{ fontSize: '15px', fontWeight: 'bold', marginBottom: '6px' }}>▦ {tr('ctrl.btPickTitle')}</div>
+            <div style={{ fontSize: '12px', color: T.muted, marginBottom: '10px', lineHeight: 1.5 }}>{tr('ctrl.btPickHint')}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {miniViewBlockTableIds.map((id: any) => {
+                const bt: any = dashboardBlockTables.find((x: any) => Number(x.id) === Number(id));
+                const pid = session.presetId ? Number(session.presetId) : null;
+                const blocks = dashboardBlocks.filter((b: any) => Number(b.block_table_id) === Number(id))
+                  .sort((a: any, b: any) => Number(a.alt_from) - Number(b.alt_from));
+                return (
+                  <button key={String(id)} type="button" data-testid={`block-table-pick-${id}`} onClick={() => setActiveBlockTableId(Number(id))}
+                    style={{ textAlign: 'start', padding: '10px 12px', background: T.bg, color: T.text, border: `1px solid ${T.borderLight}`, borderRadius: '6px', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <div style={{ fontSize: '14px', fontWeight: 'bold' }}>{bt?.name || `#${id}`}{bt?.category ? <span style={{ fontWeight: 'normal', color: T.muted, fontSize: '12px' }}> · {bt.category}</span> : null}</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
+                      {blocks.map((b: any) => {
+                        const mine = pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid);
+                        return (
+                          <span key={b.id} style={{ fontSize: '11px', padding: '1px 6px', borderRadius: '4px', direction: 'ltr', border: `1px solid ${b.color || T.border}`, background: mine ? (b.color || '#3b82f6') + '33' : 'transparent', fontWeight: mine ? 'bold' : 'normal' }}>
+                            {b.alt_from}-{b.alt_to}{b.mission ? ` ${b.mission}` : ''}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* גובה קבלה - גובה הדסק שונה מהגובה שבו נקבל את הפ"מ / חורג מגבהי הקבלה (utils/deskAlt) */}
       {receiveAltAsk && (() => {
         const q = receiveAltAsk;
@@ -17555,6 +17625,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       {hCanToggle ? '⇄ ' : ''}{tr(hMode === 'receive' ? 'strips.handoverReceive' : 'strips.handoverSend')}
                     </button>
                   );
+                  // דגל "אצלי" - רק בפ"מ של עמדה אחרת: הפ"מ באחריותי, ועדכון גובה לא מקפיץ את התראות המוסרת
+                  const mineOn = !!session.presetId && !!deskAltEntry(s, Number(session.presetId))?.mine;
+                  const mineFlag = canEdit && !(s as any)._transferredOut && session.presetId && isForeignToDesk(s, Number(session.presetId)) ? (
+                    <button type="button" data-testid={`mine-flag-${s.id}`} aria-pressed={mineOn}
+                      title={tr(mineOn ? 'strips.mineFlagOnHint' : 'strips.mineFlagHint')}
+                      onClick={e => { e.stopPropagation(); toggleMineFlag(String(s.id)); }}
+                      style={{ flexShrink: 0, fontSize: tfz(9), fontWeight: 'bold', padding: '0 4px', borderRadius: '3px', lineHeight: 1.5, fontFamily: 'inherit', cursor: 'pointer',
+                        background: mineOn ? '#15803d' : 'transparent', color: mineOn ? '#ffffff' : T.muted, border: `1px solid ${mineOn ? '#22c55e' : T.border}` }}>
+                      {mineOn ? '✓ ' : ''}{tr('strips.mineFlag')}
+                    </button>
+                  ) : null;
                   if (!(s as any)._transferredOut && (col.editable === 'keyboard' || col.editable === 'both')) {
                     const openHandoverPad = () => openVK({
                       value: hAlt, mode: 'numeric', range: true, label: tr('strips.handoverAlt'),
@@ -17563,7 +17644,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     return (
                       <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
                         <div data-testid={`handover-alt-${s.id}`} title={hTitle} onClick={() => canEdit && openHandoverPad()} style={{ cursor: canEdit ? 'pointer' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, color: hAlt ? (pendingRecv ? '#f59e0b' : T.muted) : (lightMode ? '#94a3b8' : '#475569'), fontSize: tfz(12), display: 'flex', alignItems: 'center', gap: '4px', fontWeight: pendingRecv ? 'bold' : 'normal' }}>
-                          {hFlag}
+                          {hFlag}{mineFlag}
                           <span>{hAlt || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{tr('strips.handoverAlt')}</span>}</span>
                           {canEdit && <VKTrigger value={hAlt} onChange={async v => { saveHandoverAlt(String(s.id), normalizeAlt(v)); }} mode="numeric" label={tr('strips.handoverAlt')} size={13} style={{ flexShrink: 0 }} />}
                           {/* "גובה נוכחי" - הגובה שבבלוק (גובה המרחב) לגובה המסירה; כמה גבהים - הנמוך */}
@@ -17584,7 +17665,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   }
                   return (
                     <td key={col.key} title={hTitle} style={{ padding: '10px 12px', color: pendingRecv ? '#f59e0b' : T.muted, verticalAlign: 'top' }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>{hFlag}{hAlt || '—'}</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>{hFlag}{mineFlag}{hAlt || '—'}</span>
                     </td>
                   );
                 }

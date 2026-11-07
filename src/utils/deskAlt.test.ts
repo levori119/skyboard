@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isForeignToDesk, deskAltEntry, withDeskAlt, handoverAltOf, handoverModeOf, canToggleHandover, lowestAlt, sameAlt, levelAllowed, receiveAltViolations } from './deskAlt';
+import { isForeignToDesk, deskAltEntry, withDeskAlt, handoverAltOf, handoverModeOf, canToggleHandover, lowestAlt, sameAlt, levelAllowed, receiveAltViolations, senderAlertsOff } from './deskAlt';
 
 const ME = 7;
 
@@ -24,7 +24,7 @@ describe('withDeskAlt - הגובה כפי שהדסק רואה אותו', () => {
     const base = { id: 's1', alt: '340', workstation_preset_id: 3, table_alts: { '7': { alt: '220', to_sender: true }, '9': { alt: '150' } } };
     expect(withDeskAlt(base, ME).alt).toBe('220');
     expect(withDeskAlt(base, 9).alt).toBe('150');
-    expect(deskAltEntry(base, ME)).toEqual({ alt: '220', to_sender: true, receive_alt: null, mode: null });
+    expect(deskAltEntry(base, ME)).toEqual({ alt: '220', to_sender: true, receive_alt: null, mode: null, mine: false });
     expect(deskAltEntry(base, 11)).toBeNull();
   });
 
@@ -130,5 +130,24 @@ describe('receiveAltViolations - חריגה מגבהי הקבלה בנקודת �
   it('בלי גובה / בלי עמדה - אין חריגה', () => {
     expect(receiveAltViolations('', me)).toEqual([]);
     expect(receiveAltViolations('140', null)).toEqual([]);
+  });
+});
+
+describe('senderAlertsOff - הועבר אליי / דגל "אצלי"', () => {
+  const foreign = { workstation_preset_id: 3, status: 'active' };
+  it('הועבר אליי - בלי התראות המוסרת', () => {
+    expect(senderAlertsOff(foreign, ME, true)).toBe(true);
+  });
+  it('דגל "אצלי" בדסק שלי - בלי התראות; בדסק אחר - לא חל', () => {
+    const s = { ...foreign, table_alts: { [String(ME)]: { mine: true }, '9': { mine: false } } };
+    expect(senderAlertsOff(s, ME, false)).toBe(true);
+    expect(senderAlertsOff(s, 9, false)).toBe(false);
+  });
+  it('בלי העברה ובלי דגל - ההתראות כרגיל', () => {
+    expect(senderAlertsOff(foreign, ME, false)).toBe(false);
+    expect(senderAlertsOff({ ...foreign, table_alts: { [String(ME)]: { alt: '200' } } }, ME, false)).toBe(false);
+  });
+  it('דגל לבד (בלי גובה) הוא רשומה של הדסק', () => {
+    expect(deskAltEntry({ table_alts: { [String(ME)]: { mine: true } } }, ME)).toMatchObject({ mine: true, alt: null });
   });
 });

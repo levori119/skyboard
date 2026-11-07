@@ -15,6 +15,7 @@
  * | **גובה מרחב שונה מגובה הקבלה** | שאלה: לעדכן את העמדה המוסרת? כן = גובה הקבלה = גובה המרחב |
  * | **חריגה מגבהי הקבלה** | התראה כשגובה הקבלה אינו בגבהים שהוגדרו לעמדה בנקודת ההעברה (`receiveAltViolations`) |
  * | **אחרי הקבלה** | הפ"מ אצלי - הגובה שלו הוא האמיתי, וגובה הדסק נמחק בשרת |
+ * | **הועבר אליי / דגל "אצלי"** | הפ"מ באחריותי: עדכון גובה **לא** שואל על המוסרת ולא מתריע על גבהי הקבלה (`senderAlertsOff`) |
  *
  * פ"מ שאין לו עמדה מחזיקה (`workstation_preset_id` ריק) אינו "של אחר" - הגובה
  * שלו נערך ישירות, כמו קודם.
@@ -23,7 +24,7 @@ import { parseAltHundreds } from './altRecommend';
 import { configRules, ruleStation } from '../../shared/transferPointAltRules.js';
 import { presetSectorIds } from '../../shared/transferPointStations.js';
 
-export interface DeskAltEntry { alt: string | null; to_sender?: boolean; receive_alt?: string | null; mode?: 'receive' | 'send' | null }
+export interface DeskAltEntry { alt: string | null; to_sender?: boolean; receive_alt?: string | null; mode?: 'receive' | 'send' | null; mine?: boolean }
 
 const pidOf = (v: unknown) => (v == null || v === '' ? null : Number(v));
 
@@ -38,9 +39,19 @@ export function isForeignToDesk(strip: any, presetId: number | null | undefined)
 /** הרשומה של הדסק הזה על הפ"מ: גובה במרחב, גובה קבלה/מסירה, והבקשה הישנה לעדכן את המוסרת */
 export function deskAltEntry(strip: any, presetId: number): DeskAltEntry | null {
   const e = strip?.table_alts?.[String(presetId)];
-  if (!e || typeof e !== 'object' || (!e.alt && !e.receive_alt && !e.mode)) return null;
+  if (!e || typeof e !== 'object' || (!e.alt && !e.receive_alt && !e.mode && !e.mine)) return null;
   const mode = e.mode === 'receive' || e.mode === 'send' ? e.mode : null;
-  return { alt: e.alt ? String(e.alt) : null, to_sender: !!e.to_sender, receive_alt: e.receive_alt ? String(e.receive_alt) : null, mode };
+  return { alt: e.alt ? String(e.alt) : null, to_sender: !!e.to_sender, receive_alt: e.receive_alt ? String(e.receive_alt) : null, mode, mine: !!e.mine };
+}
+
+/**
+ * הפ"מ כבר באחריותי, ולכן עדכון גובה **לא** מקפיץ את התראות העמדה המוסרת ("לעדכן
+ * את המוסרת?", חריגה מגבהי הקבלה): הוא **הועבר אליי** (העברה פתוחה אל העמדה), או
+ * שהפקח סימן עליו את הדגל **"אצלי"** בדסק
+ */
+export function senderAlertsOff(strip: any, presetId: number | null | undefined, transferredToMe: boolean): boolean {
+  if (transferredToMe) return true;
+  return presetId != null && !!deskAltEntry(strip, Number(presetId))?.mine;
 }
 
 /**

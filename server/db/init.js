@@ -1306,6 +1306,9 @@ async function applySchemaOnce() {
   // שדה "גובה מסירה/קבלה" בפ"מ שאצלי: 'receive' / 'send' (הפקח מחליף בדגל). NULL = קבלה,
   // כי פ"מ שנגרר לדסק מחלון הפ"מים הוא בדרך כלל פ"מ שמחכים לקבל. קבלת העברה = מסירה
   await sq(`ALTER TABLE strip_table_assignments ADD COLUMN IF NOT EXISTS handover_mode VARCHAR(10)`);
+  // דגל "אצלי" של הדסק: הפקח סימן שהפ"מ כבר באחריותו, גם לפני שההעברה הגיעה -
+  // עדכון גובה לא שואל "לעדכן את המוסרת?" ולא מתריע על גבהי הקבלה (src/utils/deskAlt.ts)
+  await sq(`ALTER TABLE strip_table_assignments ADD COLUMN IF NOT EXISTS marked_mine BOOLEAN DEFAULT FALSE`);
   // מרחב הבלוקים של הפ"מ **בדסק הזה** - כמו הגובה, כל עמדה על אותו פ"מ במרחב
   // משלה. `strips.block_space_id` נשאר למסכים שאינם דסק (src/utils/deskSpace.ts)
   await sq(`ALTER TABLE strip_table_assignments ADD COLUMN IF NOT EXISTS block_space_id INTEGER`);

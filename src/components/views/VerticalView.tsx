@@ -827,6 +827,12 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
       {/* Alt range suggestion banner */}
       {altSuggestion && (() => {
         const sg = altSuggestion;
+        // חלון אחד ולא אחד לכל מרחב: renderChartContent רץ פעם לכל עמודה בחלוקה,
+        // והחלון היה מוצג בכולן (בעמודה בלי הפ"מ - באמצע הגובה). מוצג רק בעמודה
+        // הראשונה שמכילה את הפ"מ (פ"מ בלי מרחב מופיע בכמה), ובלעדיה - בעמודה הראשונה
+        const hasStrip = (arr: any[]) => arr.some(p => String(p.id) === String(sg.stripId));
+        const owner = segments.find(seg => hasStrip(seg.placed));
+        if (owner ? owner.placed !== placed : !isFirst) return null;
         const strip = placed.find(p => String(p.id) === String(sg.stripId));
         const yPct = strip ? altPct((strip._altLo + strip._altHi) / 2) : 50;
         const clampedY = Math.max(5, Math.min(90, yPct));

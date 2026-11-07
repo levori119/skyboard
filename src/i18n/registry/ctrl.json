@@ -2926,6 +2926,14 @@
       "he": "פחות מ-1000 רגל מ: {{labels}}",
       "en": "Less than 1000 ft from: {{labels}}"
     },
+    "btPickTitle": {
+      "he": "בחר טבלת בלוקים לעבודה",
+      "en": "Choose the block table to work with"
+    },
+    "btPickHint": {
+      "he": "העמדה עובדת לפי מרחבי בלוקים, ומשויכות לה כמה טבלאות. לפי הטבלה שתיבחר נקבעים המרחב של כל פ\"מ, החריגה מבלוק והמלצת הגובה. אפשר להחליף אחר כך מחלון הבלוקים",
+      "en": "The workstation works by block spaces and has several block tables. The chosen table sets each formation's space, block deviation and altitude recommendation. You can switch later from the blocks window"
+    },
     "recvAltTitle": {
       "he": "גובה קבלה - {{label}}",
       "en": "Receive altitude - {{label}}"

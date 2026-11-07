@@ -307,6 +307,7 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | `planned_alt_to_sender` | BOOLEAN | **ישן** - בקשה לעדכן את המוסרת ב**גובה המרחב**. מתממשת רק כשאין `planned_receive_alt` |
 | `planned_receive_alt` | VARCHAR(40) | **גובה הקבלה** של הדסק - לפ"מ שעוד לא אצלי (עמודת הטבלה "גובה מסירה/קבלה" עם דגל "קבלה"; לפ"מ שאצלי העמודה היא גובה המסירה, `strips.alt`, עם דגל "מסירה"). כשתיפתח העברה אל הדסק הוא - ולא גובה המרחב - נכנס ל-`strips.alt` ומסומן בהעברה כשינוי של המקבלת (`alt_changed_at`). מתממש פעם אחת ויורד. נכתב ב-`PATCH /api/strip-table-assignments/:stripId/:presetId/receive-alt` (עם העברה פתוחה - מיד); "כן" לשאלה "לעדכן את המוסרת" קובע אותו לגובה המרחב |
 | `handover_mode` | VARCHAR(10) | הדגל בשדה "גובה מסירה/קבלה" לפ"מ שאינו אצל עמדה אחרת: `receive` / `send`. NULL = קבלה (פ"מ שנגרר לדסק מחלון הפ"מים בדרך כלל מחכה לקבלה). קבלת העברה קובעת `send` ומוחקת את `planned_receive_alt`. במסירה `planned_receive_alt` הוא **גובה המסירה** (נכתב גם ל-`strips.alt`; כפתור "גובה נוכחי" מעתיק את גובה המרחב, בכמה גבהים - הנמוך) ולא נכנס להעברה כבקשת קבלה. נכתב ב-`PATCH /api/strip-table-assignments/:stripId/:presetId/handover-mode`. פ"מ של עמדה אחרת - תמיד קבלה |
+| `marked_mine` | BOOLEAN | דגל **"אצלי"** של הדסק בפ"מ של עמדה אחרת: הפ"מ כבר באחריותי, ולכן עדכון גובה לא שואל "לעדכן את המוסרת?" ולא מתריע על גבהי הקבלה. אותו פטור חל אוטומטית כשיש העברה פתוחה אל העמדה (`senderAlertsOff` ב-src/utils/deskAlt.ts). מוחזר ב-`table_alts[preset].mine`; נכתב ב-`PATCH /api/strip-table-assignments/:stripId/:presetId/mine` |
 
 **נקרא ב-** `GET /api/strips/global` כמפה `table_alts = {preset_id: {alt, to_sender, receive_alt, mode}}`.
 **נכתב ב-** `PATCH /api/strip-table-assignments/:stripId/:presetId/alt` (upsert; `alt: null` מוחק
@@ -3578,3 +3579,5 @@ REFACTOR_LOG #045.
 | `blocks.space_id` | INTEGER NULL | המרחב שהבלוק משרת. ריק = כל המרחבים. פ"מ "נמצא" רק בבלוק של המרחב שלו - לחישוב סטייה מבלוק, קונפליקט והמלצת הגובה |
 
 > שני השדות נכתבים ב-PUT **רק כשהם נשלחים** - צייר הבלוקים ששומר גובה בלבד לא מאפס את המרחב. הלוגיקה: [`src/utils/blockSpaces.ts`](src/utils/blockSpaces.ts).
+
+> **בחירת טבלת בלוקים - חובה** (`mustPickBlockTable`): עמדה שעובדת לפי מרחבי בלוקים (טבלה עם `split_space_ids`, או `auto_block_space_by_target`) ויש לה **כמה** טבלאות בלוקים - כשאף טבלה לא נבחרה, נפתח חלון עם כל הטבלאות (בלוקי העמדה מודגשים) ואי אפשר לסגור אותו בלי לבחור. טבלה אחת - נבחרת מעצמה. הבחירה עצמה מקומית לעמדה (לא ב-DB), ולכן החלון חוזר בכל עליית עמדה ובכל ביטול בחירה.

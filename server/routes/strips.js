@@ -105,9 +105,9 @@ router.get('/api/strips/global', async (req, res) => {
         (SELECT COALESCE(jsonb_object_agg(preset_id::text, note), '{}'::jsonb)
            FROM strip_station_notes WHERE strip_id = s.id AND note <> '') AS station_notes,
         -- גובה הדסק פר עמדה (src/utils/deskAlt.ts)
-        (SELECT COALESCE(jsonb_object_agg(preset_id::text, jsonb_build_object('alt', planned_alt, 'to_sender', COALESCE(planned_alt_to_sender, FALSE), 'receive_alt', planned_receive_alt, 'mode', handover_mode)), '{}'::jsonb)
+        (SELECT COALESCE(jsonb_object_agg(preset_id::text, jsonb_build_object('alt', planned_alt, 'to_sender', COALESCE(planned_alt_to_sender, FALSE), 'receive_alt', planned_receive_alt, 'mode', handover_mode, 'mine', COALESCE(marked_mine, FALSE))), '{}'::jsonb)
            FROM strip_table_assignments WHERE strip_id = s.id
-            AND ((planned_alt IS NOT NULL AND planned_alt <> '') OR (planned_receive_alt IS NOT NULL AND planned_receive_alt <> '') OR handover_mode IS NOT NULL)) AS table_alts,
+            AND ((planned_alt IS NOT NULL AND planned_alt <> '') OR (planned_receive_alt IS NOT NULL AND planned_receive_alt <> '') OR handover_mode IS NOT NULL OR marked_mine IS TRUE)) AS table_alts,
         -- מרחב הבלוקים פר דסק (src/utils/deskSpace.ts)
         (SELECT COALESCE(jsonb_object_agg(preset_id::text, block_space_id), '{}'::jsonb)
            FROM strip_table_assignments WHERE strip_id = s.id AND block_space_id IS NOT NULL) AS table_spaces,
@@ -1357,6 +1357,26 @@ router.patch('/api/strip-table-assignments/:stripId/:presetId/handover-mode', as
   } catch (err) {
     console.error('Error saving handover mode:', err);
     res.status(500).json({ error: 'Failed to save handover mode' });
+  }
+});
+
+// דגל "אצלי" של הדסק - הפ"מ באחריותי עוד לפני שההעברה הגיעה: עדכון גובה לא
+// שואל "לעדכן את המוסרת?" ולא מתריע על גבהי הקבלה (src/utils/deskAlt.ts)
+router.patch('/api/strip-table-assignments/:stripId/:presetId/mine', async (req, res) => {
+  const stripId = parseInt(String(req.params.stripId).replace(/^s/, ''));
+  const presetId = parseInt(req.params.presetId);
+  if (isNaN(stripId) || isNaN(presetId)) return res.status(400).json({ error: 'strip id and preset id required' });
+  if (typeof req.body?.mine !== 'boolean') return res.status(400).json({ error: 'mine חייב להיות true או false' });
+  try {
+    const r = await pool.query(
+      'UPDATE strip_table_assignments SET marked_mine = $3 WHERE strip_id = $1 AND preset_id = $2',
+      [stripId, presetId, req.body.mine],
+    );
+    if (!r.rowCount) return res.status(404).json({ error: 'הפ"מ אינו בדסק של העמדה' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error saving mine flag:', err);
+    res.status(500).json({ error: 'Failed to save mine flag' });
   }
 });
 

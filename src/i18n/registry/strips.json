@@ -294,6 +294,18 @@
       "he": "הפ\"מ אצל עמדה אחרת - רק קבלה",
       "en": "Held by another station - receive only"
     },
+    "mineFlag": {
+      "he": "אצלי",
+      "en": "Mine"
+    },
+    "mineFlagHint": {
+      "he": "סמן שהפ\"מ כבר באחריותך - עדכון גובה לא ישאל על העמדה המוסרת ולא יתריע על גבהי הקבלה",
+      "en": "Mark the formation as already yours - an altitude update will not ask about the handing-over station or warn about receive altitudes"
+    },
+    "mineFlagOnHint": {
+      "he": "הפ\"מ מסומן אצלך - לחץ לביטול הסימון",
+      "en": "The formation is marked as yours - click to unmark"
+    },
     "spaceAlt": {
       "he": "גובה במרחב",
       "en": "Space altitude"
