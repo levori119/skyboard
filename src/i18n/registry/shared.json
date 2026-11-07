@@ -549,6 +549,22 @@
     "dragToMove": {
       "he": "גרור להזזה",
       "en": "Drag to move"
+    },
+    "update": {
+      "he": "עדכון",
+      "en": "Update"
+    },
+    "create": {
+      "he": "צור",
+      "en": "Create"
+    },
+    "addNew": {
+      "he": "הוספה",
+      "en": "Add"
+    },
+    "saveAction": {
+      "he": "שמירה",
+      "en": "Save"
     }
   }
 }

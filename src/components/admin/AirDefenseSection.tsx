@@ -10,6 +10,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { tr } from '../../i18n/tr';
 import { API_URL } from '../../config';
 import { customConfirm } from '../shared/ConfirmModal';
+import { FormTitleBar } from '../shared/FormTitleActions';
 import {
   AD_KINDS, apertureDeg, isFullCircle, qualityBand, validateSystemInput,
   type AdSystemInput,
@@ -227,6 +228,8 @@ export const AirDefenseSection = () => {
       />
     </div>
   );
+  // תווית אחת לכפתור התחתון ולכפתור שבכותרת הטופס
+  const systemSaveLabel = editingId ? tr('airDefense.updateSystem') : tr('airDefense.addSystem');
 
   return (
     <div>
@@ -284,9 +287,9 @@ export const AirDefenseSection = () => {
 
             {/* ── טופס המערכת ── */}
             <div style={{ flex: '1 1 380px', minWidth: '340px', background: '#0f172a', border: '1px solid #1e3a5f', borderRadius: '10px', padding: '14px' }}>
-              <div style={{ color: '#7dd3fc', fontWeight: 'bold', marginBottom: '10px' }}>
-                {editingId ? `${tr('shared.edit')} - ${form.name}` : tr('airDefense.newSystem')}
-              </div>
+              <FormTitleBar title={editingId ? `${tr('shared.edit')} - ${form.name}` : tr('airDefense.newSystem')} marginBottom={10}
+                titleStyle={{ color: '#7dd3fc', fontSize: '16px' }}
+                save={{ onSave: save, label: systemSaveLabel, color: '#2563eb' }} />
 
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
                 {field('name', tr('airDefense.name'), { flex: '1 1 180px' })}
@@ -356,7 +359,7 @@ export const AirDefenseSection = () => {
 
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button onClick={save} style={S.btn('#2563eb')}>
-                  {editingId ? tr('airDefense.updateSystem') : tr('airDefense.addSystem')}
+                  {systemSaveLabel}
                 </button>
                 {editingId && <button onClick={reset} style={S.btn('#334155')}>{tr('shared.cancel')}</button>}
               </div>

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { tr } from '../../i18n/tr';
+import { TitleSaveButton } from '../shared/FormTitleActions';
 import { DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
 import { sgGenId } from '../../utils/stripGrid';
 import { isFreePlacement, parseCommaList } from '../../utils/stripControls';
@@ -183,20 +184,29 @@ export const StripFieldDialog = ({ initial, onClose, onSaved }: {
       onClose();
     } finally { setSaving(false); }
   };
+  // נעילה ותווית אחת לכפתור התחתון ולכפתור שבכותרת (FormTitleActions)
+  const hasLabel = !!String(draft.label || '').trim();
+  const saveLabel = saving ? tr('shared.saving') : tr('shared.save');
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 10060, display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'rtl' }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: '#0a1628', border: '1px solid #78350f', borderRadius: '12px', padding: '18px', width: 'min(92vw, 460px)', maxHeight: '85vh', overflowY: 'auto', color: '#e2e8f0' }}>
-        <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#fbbf24', marginBottom: '12px' }}>
-          {initial?.id ? tr('admin.editField') : tr('admin.newField')}
+      {/* הכותרת מחוץ לאזור הגלילה - "שמור" שבה נשאר גלוי גם כשהטופס ארוך */}
+      <div onClick={e => e.stopPropagation()} style={{ background: '#0a1628', border: '1px solid #78350f', borderRadius: '12px', width: 'min(92vw, 460px)', maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', color: '#e2e8f0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 18px 10px', borderBottom: '1px solid #1e293b', flexShrink: 0 }}>
+          <div style={{ flex: 1, minWidth: 0, fontSize: '15px', fontWeight: 'bold', color: '#fbbf24' }}>
+            {initial?.id ? tr('admin.editField') : tr('admin.newField')}
+          </div>
+          <TitleSaveButton onSave={save} label={saveLabel} disabled={saving || !hasLabel} color="#b45309" testId="strip-field-save-top" />
         </div>
+        <div style={{ overflowY: 'auto', padding: '12px 18px 18px', minHeight: 0 }}>
         <StripFieldForm draft={draft} onChange={setDraft} />
         <div style={{ display: 'flex', gap: '8px', marginTop: '16px', justifyContent: 'flex-end' }}>
           <button onClick={onClose} style={{ padding: '7px 16px', background: 'transparent', border: '1px solid #334155', borderRadius: '6px', color: '#94a3b8', cursor: 'pointer', fontSize: '13px' }}>{tr('shared.cancel')}</button>
-          <button onClick={save} disabled={saving || !String(draft.label || '').trim()}
-            style={{ padding: '7px 20px', background: String(draft.label || '').trim() ? '#b45309' : '#334155', border: 'none', borderRadius: '6px', color: 'white', cursor: String(draft.label || '').trim() ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold' }}>
-            {saving ? tr('shared.saving') : tr('shared.save')}
+          <button onClick={save} disabled={saving || !hasLabel}
+            style={{ padding: '7px 20px', background: hasLabel ? '#b45309' : '#334155', border: 'none', borderRadius: '6px', color: 'white', cursor: hasLabel ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold' }}>
+            {saveLabel}
           </button>
+        </div>
         </div>
       </div>
     </div>

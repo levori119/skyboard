@@ -5,6 +5,7 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { API_URL } from '../../config';
 import { sc } from '../../utils/scale';
 import { customConfirm } from '../shared/ConfirmModal';
+import { FormTitleBar } from '../shared/FormTitleActions';
 import { VKTrigger } from '../../VirtualKeyboard';
 import type { QGroup } from '../../types';
 import { emptyQGroup, hasConditions } from '../../utils/queryBuilder';
@@ -729,6 +730,8 @@ export const TableModesManager = () => {
   };
 
   const fieldDef = (key: string) => STRIP_FIELD_DEFS.find(f => f.key === key) || null;
+  // תווית אחת לכפתור התחתון ולכפתור שבכותרת הטופס
+  const modeSaveLabel = editing ? tr('shared.update') : tr('shared.saveAction');
 
   return (
     <div>
@@ -736,7 +739,8 @@ export const TableModesManager = () => {
 
       {/* Form */}
       <div style={{ background: '#0f172a', borderRadius: '8px', padding: '20px', marginBottom: '24px' }}>
-        <h3 style={{ margin: '0 0 14px 0', fontSize: '15px', color: '#94a3b8' }}>{editing ? `עריכה: ${editing.name}` : 'מוד חדש'}</h3>
+        <FormTitleBar title={editing ? `עריכה: ${editing.name}` : 'מוד חדש'} titleStyle={{ fontWeight: 'normal' }}
+          save={{ onSave: save, label: modeSaveLabel, disabled: !form.name.trim() }} />
         <input
           value={form.name}
           onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
@@ -971,7 +975,7 @@ export const TableModesManager = () => {
 
         <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
           <button onClick={save} disabled={!form.name.trim()} style={{ padding: '10px 24px', background: form.name.trim() ? '#059669' : '#334155', color: 'white', border: 'none', borderRadius: '6px', cursor: form.name.trim() ? 'pointer' : 'not-allowed', fontSize: '14px', fontWeight: 'bold' }}>
-            {editing ? 'עדכון' : 'שמירה'}
+            {modeSaveLabel}
           </button>
           {editing && (
             <button onClick={() => { setEditing(null); setForm({ name: '', columns: [], frozenColumns: 0 }); }} style={{ padding: '10px 20px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
@@ -3086,7 +3090,9 @@ export const ClosuresManager = () => {
       {/* Form */}
       {showForm && (
         <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', padding: '16px', marginBottom: '16px' }}>
-          <div style={{ fontWeight: 'bold', color: '#93c5fd', fontSize: '13px', marginBottom: '12px' }}>{editId ? 'עריכת סגירה' : 'סגירה חדשה'}</div>
+          <FormTitleBar title={editId ? 'עריכת סגירה' : 'סגירה חדשה'} background="#1e293b" marginBottom={12}
+            titleStyle={{ color: '#93c5fd', fontSize: '13px' }}
+            save={{ onSave: save, label: tr('shared.save2'), color: '#16a34a' }} />
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '12px' }}>
             <div>{lbl('שם *')}{inp({ value: form.name, onChange: e => setForm(f => ({ ...f, name: e.target.value })), placeholder: 'שם הסגירה' })}</div>
             <div>{lbl('קטגוריה')}{inp({ value: form.category, onChange: e => setForm(f => ({ ...f, category: e.target.value })), placeholder: 'למשל: TRA, DANGER...' })}</div>

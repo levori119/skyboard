@@ -27,6 +27,7 @@ import DataWindowsAdmin from '../dataWindows/DataWindowsAdmin';
 import { dwNormalize, type DataWindowDef } from '../../utils/dataWindows';
 import { CRITICAL_BLINK_CLASS, SIGNAL_SEVERITIES, normSeverity, severityPaint, type SignalSeverity } from '../../utils/signalSeverity';
 import { SettingsModal, MaybeSettingsModal } from '../shared/Modals';
+import { FormTitleBar } from '../shared/FormTitleActions';
 import { BlockVisualPainter } from '../blocks/BlockVisualPainter';
 import { GroundMarkerSVG, renderGroundSvgIcon, getElemDisplayStateOpts, GROUND_SVG_ICON_KEYS, ALL_MAZAA_STATUSES, AIR_DEFENSE_STATUSES, YABA_AIR_DEFENSE_STATUSES } from '../ground/groundShared';
 import { AidsManager, ClosuresManager, DefaultNamesManager, GeneralSettingsManager, SerialsAdminTab, StripGridEditor, StripWindowAdmin, SuggestionsManager, TableModesManager, UnitsManager, WorkGroupsManager } from './managers';
@@ -882,6 +883,27 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
       console.error('Failed to save sector:', err);
     }
   };
+  // תווית אחת לכפתור התחתון ולכפתור שבכותרת - שלא יתפצלו (FormTitleActions)
+  const sectorSaveLabel = editingSector ? tr('shared.update') : tr('shared.addNew');
+
+  // שמירת מודלי העריכה של מרחב / טבלה / בלוק. היו inline בכפתור התחתון;
+  // הוצאו כדי שגם כפתור הכותרת יקרא **לאותה** פונקציה.
+  const saveBlockSpaceEdit = async () => {
+    if (!editingBlockSpace || !blockSpaceForm.name.trim()) return;
+    await fetch(`${API_URL}/block-spaces/${editingBlockSpace.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: blockSpaceForm.name, parent_base_id: blockSpaceForm.parent_base_id || null, map_id: blockSpaceForm.map_id, zone_ids: blockSpaceForm.zone_ids }) });
+    setBlockSpaceForm({ name: '', parent_base_id: '', map_id: null, zone_ids: [] }); setEditingBlockSpace(null); loadData();
+  };
+  const saveBlockTableEdit = async () => {
+    if (!editingBlockTable || !blockTableForm.name.trim()) return;
+    const payload = { name: blockTableForm.name, block_space_id: blockTableForm.block_space_id || null, note: blockTableForm.note || null, category: blockTableForm.category || null, parent_base_id: blockTableForm.parent_base_id || null, split_space_ids: blockTableForm.split_space_ids };
+    await fetch(`${API_URL}/block-tables/${editingBlockTable.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    setBlockTableForm({ name: '', block_space_id: '', note: '', category: '', parent_base_id: '', split_space_ids: [] }); setEditingBlockTable(null); loadData();
+  };
+  const saveBlockEdit = async () => {
+    if (!editingBlock) return;
+    await fetch(`${API_URL}/blocks/${editingBlock.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt_from: Number(blockForm.alt_from), alt_to: Number(blockForm.alt_to), mission: blockForm.mission, color: blockForm.color, workstations: blockForm.workstations, platforms: blockForm.platforms, note: blockForm.note, space_id: blockForm.space_id || null }) });
+    setEditingBlock(null); loadData();
+  };
 
   const editSector = (sector: any) => {
     setEditingSector(sector);
@@ -1366,7 +1388,7 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
               <div style={{ borderRadius: '8px', padding: '0', marginBottom: '20px' }}>
                 {/* סרגל עליון דביק: שמירה + חיווי מצב. נשאר גלוי בגלילה, כדי שלא צריך
                     לגלול לתחתית הטופס הארוך כדי לשמור או לדעת אם יש מה לשמור */}
-                <div data-testid="preset-top-bar" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', margin: '0 0 15px 0', position: 'sticky', top: '-28px', zIndex: 5, background: '#0f172a', padding: '10px 0', borderBottom: '1px solid #1e293b' }}>
+                <div data-testid="preset-top-bar" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', margin: '0 0 15px 0', position: 'sticky', top: 0, zIndex: 5, background: '#0f172a', padding: '10px 0', borderBottom: '1px solid #1e293b' }}>
                   <h3 style={{ margin: 0, fontSize: '16px', color: '#94a3b8' }}>
                     {editingPreset ? 'עריכת עמדה' : 'עמדה חדשה'}
                   </h3>
@@ -3228,11 +3250,13 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                 show={!!editingSector}
                 title={`עריכת נקודת העברה: ${editingSector?.label_he || editingSector?.name || ''}`}
                 onClose={() => { setEditingSector(null); setSectorForm({ name: '', label_he: '', category: '', notes: '', conflict_alt_delta: 500, auto_accept_mode: 'off' }); }}
+                save={{ onSave: saveSector, label: sectorSaveLabel }}
               >
               <div style={{ background: editingSector ? 'transparent' : '#0f172a', borderRadius: '8px', padding: editingSector ? '0' : '20px', marginBottom: '20px' }}>
-                <h3 style={{ margin: '0 0 15px 0', fontSize: '16px', color: '#94a3b8' }}>
-                  {editingSector ? 'עריכת נקודת העברה' : 'נקודת העברה חדשה'}
-                </h3>
+                {/* במודל (עריכה) כפתור השמירה כבר בכותרת המודל - כאן רק בטופס ההוספה שבדף */}
+                <FormTitleBar title={editingSector ? 'עריכת נקודת העברה' : 'נקודת העברה חדשה'}
+                  titleStyle={{ fontSize: '16px', fontWeight: 'normal' }} marginBottom={15}
+                  sticky={!editingSector} save={editingSector ? undefined : { onSave: saveSector, label: sectorSaveLabel }} />
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                   <div>
                     <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>{tr('admin.kvd2')}</label>
@@ -3327,7 +3351,7 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                     onClick={saveSector}
                     style={{ padding: '10px 25px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}
                   >
-                    {editingSector ? 'עדכון' : 'הוספה'}
+                    {sectorSaveLabel}
                   </button>
                   {editingSector && (
                     <button
@@ -4284,7 +4308,8 @@ CHARLIE,1,301,`}
                 </div>
                 {/* Block space edit modal */}
                 {editingBlockSpace && (
-                  <SettingsModal title={`עריכת מרחב: ${editingBlockSpace.name}`} onClose={() => { setEditingBlockSpace(null); setBlockSpaceForm({ name: '', parent_base_id: '', map_id: null, zone_ids: [] }); }}>
+                  <SettingsModal title={`עריכת מרחב: ${editingBlockSpace.name}`} onClose={() => { setEditingBlockSpace(null); setBlockSpaceForm({ name: '', parent_base_id: '', map_id: null, zone_ids: [] }); }}
+                    save={{ onSave: saveBlockSpaceEdit, label: tr('shared.save'), color: '#1d4ed8' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                       <div>
                         <label style={{ display: 'block', marginBottom: '6px', color: '#94a3b8', fontSize: '13px' }}>{tr('admin.shmHmrchb2')}</label>
@@ -4304,11 +4329,7 @@ CHARLIE,1,301,`}
                         onChange={(map_id, zone_ids) => setBlockSpaceForm(f => ({ ...f, map_id, zone_ids }))}
                       />
                       <div style={{ display: 'flex', gap: '10px' }}>
-                        <button onClick={async () => {
-                          if (!blockSpaceForm.name.trim()) return;
-                          await fetch(`${API_URL}/block-spaces/${editingBlockSpace.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: blockSpaceForm.name, parent_base_id: blockSpaceForm.parent_base_id || null, map_id: blockSpaceForm.map_id, zone_ids: blockSpaceForm.zone_ids }) });
-                          setBlockSpaceForm({ name: '', parent_base_id: '', map_id: null, zone_ids: [] }); setEditingBlockSpace(null); loadData();
-                        }} style={{ flex: 1, background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '7px', padding: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>{tr('shared.save')}</button>
+                        <button onClick={saveBlockSpaceEdit} style={{ flex: 1, background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '7px', padding: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>{tr('shared.save')}</button>
                         <button onClick={() => { setEditingBlockSpace(null); setBlockSpaceForm({ name: '', parent_base_id: '', map_id: null, zone_ids: [] }); }} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '7px', padding: '10px 16px', cursor: 'pointer', fontSize: '14px' }}>{tr('shared.cancel')}</button>
                       </div>
                     </div>
@@ -4369,7 +4390,8 @@ CHARLIE,1,301,`}
                 </div>
                 {/* Block table edit modal */}
                 {editingBlockTable && (
-                  <SettingsModal title={`עריכת טבלה: ${editingBlockTable.name}`} onClose={() => { setEditingBlockTable(null); setBlockTableForm({ name: '', block_space_id: '', note: '', category: '', parent_base_id: '', split_space_ids: [] }); }}>
+                  <SettingsModal title={`עריכת טבלה: ${editingBlockTable.name}`} onClose={() => { setEditingBlockTable(null); setBlockTableForm({ name: '', block_space_id: '', note: '', category: '', parent_base_id: '', split_space_ids: [] }); }}
+                    save={{ onSave: saveBlockTableEdit, label: tr('admin.shmvrShynvyym') }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                         <div style={{ flex: 1, minWidth: '140px' }}>
@@ -4423,12 +4445,7 @@ CHARLIE,1,301,`}
                           style={{ width: '100%', padding: '9px 12px', background: '#1e293b', border: '1px solid #475569', borderRadius: '7px', color: 'white', fontSize: '13px', resize: 'vertical', boxSizing: 'border-box' }} />
                       </div>
                       <div style={{ display: 'flex', gap: '10px' }}>
-                        <button onClick={async () => {
-                          if (!blockTableForm.name.trim()) return;
-                          const payload = { name: blockTableForm.name, block_space_id: blockTableForm.block_space_id || null, note: blockTableForm.note || null, category: blockTableForm.category || null, parent_base_id: blockTableForm.parent_base_id || null, split_space_ids: blockTableForm.split_space_ids };
-                          await fetch(`${API_URL}/block-tables/${editingBlockTable.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                          setBlockTableForm({ name: '', block_space_id: '', note: '', category: '', parent_base_id: '', split_space_ids: [] }); setEditingBlockTable(null); loadData();
-                        }} style={{ flex: 1, background: '#059669', color: 'white', border: 'none', borderRadius: '7px', padding: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>{tr('admin.shmvrShynvyym')}</button>
+                        <button onClick={saveBlockTableEdit} style={{ flex: 1, background: '#059669', color: 'white', border: 'none', borderRadius: '7px', padding: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>{tr('admin.shmvrShynvyym')}</button>
                         <button onClick={() => { setEditingBlockTable(null); setBlockTableForm({ name: '', block_space_id: '', note: '', category: '', parent_base_id: '', split_space_ids: [] }); }} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '7px', padding: '10px 16px', cursor: 'pointer', fontSize: '14px' }}>{tr('shared.cancel')}</button>
                       </div>
                     </div>
@@ -4630,6 +4647,8 @@ CHARLIE,1,301,`}
               if (createdDoc?.id) openEditBdh(createdDoc);
               else setEditingBdh(null);
             };
+            // תווית אחת לכפתור התחתון ולכפתור שבראש העורך
+            const bdhSaveLabel = editingBdh?._new ? (isChecklistTab ? tr('admin.createChecklist') : tr('admin.createBdh')) : `💾 ${tr('admin.shmvrShynvyym')}`;
 
             const inputStyle = { width: '100%', padding: '8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl' as const, boxSizing: 'border-box' as const };
             const labelStyle = { display: 'block' as const, color: '#94a3b8', fontSize: '11px', marginBottom: '4px' };
@@ -4660,6 +4679,9 @@ CHARLIE,1,301,`}
                 {/* Editor */}
                 {editingBdh ? (
                   <div style={{ flex: 1, minWidth: 0 }}>
+                    <FormTitleBar title={bdhForm.name} background="#1e293b" marginBottom={8}
+                      titleStyle={{ fontSize: '14px', color: '#e2e8f0' }}
+                      save={{ onSave: saveBdh, label: bdhSaveLabel }} />
                     <div style={{ display: 'flex', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
                       <div style={{ flex: 1, minWidth: '140px' }}>
                         <label style={labelStyle}>{isChecklistTab ? tr('admin.checklistName') : tr('admin.shmHbdCh')}</label>
@@ -4786,7 +4808,7 @@ CHARLIE,1,301,`}
                     </div>
 
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={saveBdh} style={{ flex: 1, background: '#059669', color: 'white', border: 'none', borderRadius: '7px', padding: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>{editingBdh._new ? (isChecklistTab ? tr('admin.createChecklist') : tr('admin.createBdh')) : `💾 ${tr('admin.shmvrShynvyym')}`}</button>
+                      <button onClick={saveBdh} style={{ flex: 1, background: '#059669', color: 'white', border: 'none', borderRadius: '7px', padding: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>{bdhSaveLabel}</button>
                       {!editingBdh._new && <button onClick={async () => { if (!await customConfirm(isChecklistTab ? tr('admin.deleteChecklistConfirm') : tr('admin.deleteBdhConfirm'))) return; await fetch(`${API_URL}/bdh/${editingBdh.id}`, { method: 'DELETE' }); await loadData(); setEditingBdh(null); }} style={{ background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '7px', padding: '10px 14px', cursor: 'pointer', fontSize: '13px' }}>🗑️</button>}
                       <button onClick={() => setEditingBdh(null)} style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '7px', padding: '10px 14px', cursor: 'pointer', fontSize: '13px' }}>{tr('shared.cancel')}</button>
                     </div>
@@ -4959,9 +4981,9 @@ CHARLIE,1,301,`}
 
                 {/* Right: form */}
                 <div style={{ flex: 1, background: '#0f172a', borderRadius: '8px', padding: '18px', border: '1px solid #1e293b' }}>
-                  <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#93c5fd', marginBottom: '14px' }}>
-                    {editingClassicTable ? `עריכת תבנית: ${editingClassicTable.name}` : 'תבנית חדשה'}
-                  </div>
+                  <FormTitleBar title={editingClassicTable ? `עריכת תבנית: ${editingClassicTable.name}` : 'תבנית חדשה'}
+                    titleStyle={{ color: '#93c5fd' }}
+                    save={{ onSave: saveTable, label: editingClassicTable ? tr('strips.update') : tr('shared.save'), color: '#1d4ed8' }} />
                   <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start', marginBottom: '12px' }}>
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       <div>
@@ -5106,7 +5128,7 @@ CHARLIE,1,301,`}
                     <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
                       <button onClick={saveTable}
                         style={{ padding: '8px 20px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
-                        {editingClassicTable ? 'עדכן' : 'שמור'}
+                        {editingClassicTable ? tr('strips.update') : tr('shared.save')}
                       </button>
                       {editingClassicTable && (
                         <button onClick={() => deleteTable(editingClassicTable.id)}
@@ -5126,7 +5148,8 @@ CHARLIE,1,301,`}
           })()}
 
           {activeTab === 'blocks' && editingBlock && (
-            <SettingsModal title={`עריכת בלוק: ${editingBlock.alt_from}–${editingBlock.alt_to} ${editingBlock.mission ? '(' + editingBlock.mission + ')' : ''}`} onClose={() => setEditingBlock(null)}>
+            <SettingsModal title={`עריכת בלוק: ${editingBlock.alt_from}-${editingBlock.alt_to} ${editingBlock.mission ? '(' + editingBlock.mission + ')' : ''}`} onClose={() => setEditingBlock(null)}
+              save={{ onSave: saveBlockEdit, label: tr('admin.shmvrShynvyym') }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -5181,10 +5204,7 @@ CHARLIE,1,301,`}
                   <input value={(blockForm.platforms as string[]).join(',')} onChange={e => setBlockForm(f => ({ ...f, platforms: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))} placeholder={tr('admin.lmshlF16F')} style={{ width: '100%', padding: '8px', background: '#1e293b', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box' }} />
                 </div>
                 <div style={{ display: 'flex', gap: '10px', paddingTop: '4px' }}>
-                  <button onClick={async () => {
-                    await fetch(`${API_URL}/blocks/${editingBlock.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt_from: Number(blockForm.alt_from), alt_to: Number(blockForm.alt_to), mission: blockForm.mission, color: blockForm.color, workstations: blockForm.workstations, platforms: blockForm.platforms, note: blockForm.note, space_id: blockForm.space_id || null }) });
-                    setEditingBlock(null); loadData();
-                  }} style={{ flex: 1, background: '#059669', color: 'white', border: 'none', borderRadius: '7px', padding: '11px', cursor: 'pointer', fontSize: '15px', fontWeight: 'bold' }}>{tr('admin.shmvrShynvyym')}</button>
+                  <button onClick={saveBlockEdit} style={{ flex: 1, background: '#059669', color: 'white', border: 'none', borderRadius: '7px', padding: '11px', cursor: 'pointer', fontSize: '15px', fontWeight: 'bold' }}>{tr('admin.shmvrShynvyym')}</button>
                   <button onClick={() => setEditingBlock(null)} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '7px', padding: '11px 18px', cursor: 'pointer', fontSize: '14px' }}>{tr('shared.cancel')}</button>
                 </div>
               </div>
@@ -8081,7 +8101,8 @@ CHARLIE,1,301,`}
 
               {showBaseStatusForm && (
                 <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '10px', padding: '18px', marginBottom: '20px', direction: 'rtl' }}>
-                  <h3 style={{ margin: '0 0 14px 0', fontSize: '15px', color: '#fcd34d' }}>{editingBaseStatus ? '✎ עריכת בסיס' : '+ בסיס חדש'}</h3>
+                  <FormTitleBar title={editingBaseStatus ? '✎ עריכת בסיס' : '+ בסיס חדש'} titleStyle={{ color: '#fcd34d', fontWeight: 'normal' }}
+                    save={{ onSave: saveBaseStatus, label: tr('shared.save2'), color: '#d97706' }} />
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                     <div style={{ gridColumn: '1 / -1' }}>
                       <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>{tr('admin.bsys')}</label>
@@ -8276,7 +8297,9 @@ CHARLIE,1,301,`}
 
               {showAviationBaseForm && (
                 <div style={{ background: '#1e293b', padding: '16px', borderRadius: '8px', marginBottom: '16px', border: '1px solid #334155' }}>
-                  <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#94a3b8' }}>{editingAviationBase ? 'עריכת בסיס' : 'בסיס חדש'}</h3>
+                  <FormTitleBar title={editingAviationBase ? 'עריכת בסיס' : 'בסיס חדש'} background="#1e293b" marginBottom={12}
+                    titleStyle={{ fontSize: '14px', fontWeight: 'normal' }}
+                    save={{ onSave: saveAviationBase, label: tr('shared.save') }} />
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: '8px', marginBottom: '8px' }}>
                     <input type="text" placeholder={tr('admin.shmHbsys2')} value={aviationBaseForm.name}
                       onChange={e => setAviationBaseForm(p => ({ ...p, name: e.target.value }))}
@@ -8446,6 +8469,15 @@ CHARLIE,1,301,`}
             { icon: '🛡️', label: 'ביטחון' },
           ];
           const ET_STATUS_OPTS = ['דולק', 'כבוי', 'מנצנץ', 'נוסע', 'עומד', 'פתוח', 'סגור'];
+          // שמירת עריכת סוג אלמנט - כפתור הכותרת והכפתור התחתון קוראים לאותה פונקציה
+          const saveElementTypeEdit = async () => {
+            if (!editingElementType) return;
+            const form = elementTypeFormRef.current;
+            await fetch(`${API_URL}/airfield-element-types/${editingElementType.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+            fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {});
+            setEditingElementType(null);
+            setElementTypeFormAndRef({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [], open_icon: '', close_icon: '', can_have_route: false, status_icons: {} });
+          };
           const IconPicker = () => (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div>
@@ -8697,7 +8729,9 @@ CHARLIE,1,301,`}
 
                   {editingElementType ? (
                     <div style={{ padding: '14px', background: '#1e1040', borderRadius: '8px', border: '2px solid #7c3aed', display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
-                      <div style={{ color: '#c4b5fd', fontSize: '13px', fontWeight: 'bold' }}>{tr('admin.editType')} {editingElementType.name}</div>
+                      <FormTitleBar title={<>{tr('admin.editType')} {editingElementType.name}</>} background="#1e1040" marginBottom={0}
+                        titleStyle={{ color: '#c4b5fd', fontSize: '13px' }}
+                        save={{ onSave: saveElementTypeEdit, label: tr('shared.save'), color: '#7c3aed' }} />
                       <input value={elementTypeForm.name} onChange={e => setElementTypeFormAndRef(p => ({ ...p, name: e.target.value }))} placeholder={tr('admin.shmHsvg')}
                         style={{ padding: '7px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl' }} />
                       <div>
@@ -8712,7 +8746,7 @@ CHARLIE,1,301,`}
                       </div>
                       {CanChangeStatusSection()}
                       <div style={{ display: 'flex', gap: '8px' }}>
-                        <button type="button" onClick={async () => { const form = elementTypeFormRef.current; await fetch(`${API_URL}/airfield-element-types/${editingElementType.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) }); fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {}); setEditingElementType(null); setElementTypeFormAndRef({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [], open_icon: '', close_icon: '', can_have_route: false, status_icons: {} }); }}
+                        <button type="button" onClick={saveElementTypeEdit}
                           style={{ flex: 1, padding: '8px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>{tr('shared.save')}</button>
                         <button type="button" onClick={() => { setEditingElementType(null); setElementTypeFormAndRef({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [], open_icon: '', close_icon: '', can_have_route: false, status_icons: {} }); }}
                           style={{ padding: '8px 16px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>{tr('shared.cancel')}</button>
