@@ -1,9 +1,10 @@
 // עורך תצוגת העמודה במוד טבלה - נפתח מתחת לשורת העמודה בניהול (כפתור 🎨).
 //
 // שלושה חלקים, כולם נשמרים בתוך הגדרת העמודה (table_modes.columns):
-//   • שורה שנייה  - שדה נוסף שמוצג מתחת לשדה העמודה באותו תא
 //   • עיצוב תצוגה - כללים לפי ערך: משבצת / עיגול / קו תחתון... בצבע שנבחר
 //   • תצוגה        - טקסט / אייקון / אייקון וטקסט, ומיפוי ערך → אייקון
+//   • שורה שנייה  - שדה נוסף שמוצג מתחת לשדה העמודה באותו תא. **מקופל** בפתיחה:
+//                   🎨 מעצב את השורה הראשונה, והשנייה (ועיצובה) רק אחרי שפותחים אותה
 //
 // אותו עורך משמש גם לשורה השנייה עצמה (בלי חלק "שורה שנייה"), כדי שגם לה
 // יהיו עיצוב ואייקון משלה. ראה TABLE_MODE_DISPLAY_SPEC.md
@@ -35,6 +36,8 @@ export default function TableColumnDisplayEditor({ col, onChange, catalogFields,
 }) {
   const icons = useDisplayIcons(true);
   const [secondOpen, setSecondOpen] = useState(false);
+  // חלק "שורה שנייה" מקופל בפתיחת העורך - נפתח רק כשהמשתמש פותח אותו
+  const [secondSection, setSecondSection] = useState(false);
   const rules: CellDecorRule[] = Array.isArray(col.decor) ? col.decor : [];
   const mode = columnDisplayMode(col);
   const iconMap: Record<string, string> = col.iconMap || {};
@@ -65,80 +68,6 @@ export default function TableColumnDisplayEditor({ col, onChange, catalogFields,
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBlockStart: '8px' }}
       // העורך יושב בתוך שורה שנגררת לסידור - בלי זה כל לחיצה בו מתחילה גרירה
       draggable onDragStart={e => { e.preventDefault(); e.stopPropagation(); }}>
-
-      {/* ── שורה שנייה ─────────────────────────────────────────────── */}
-      {allowSecond && (
-        <div style={box} data-sk="second">
-          <div style={sectionTitle}>{tr('tableDisplay.secondLine')}</div>
-          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <select
-              value={second?.key || ''}
-              onChange={e => {
-                const key = e.target.value;
-                if (!key) { onChange({ second: null }); return; }
-                const def = STRIP_FIELD_DEFS.find(f => f.key === key);
-                const cat = catalogFields.find(f => f.key === key);
-                onChange({ second: {
-                  key, field: key,
-                  label: def ? fieldDefLabel(def) : (cat?.label || key),
-                  editable: 'none',
-                  isCustom: !!cat,
-                } });
-              }}
-              style={inputStyle}
-            >
-              <option value="">{tr('tableDisplay.noSecondLine')}</option>
-              <optgroup label={tr('tableDisplay.systemFields')}>
-                {STRIP_FIELD_DEFS.filter(f => f.key !== (col.key || col.field)).map(f => (
-                  <option key={f.key} value={f.key}>{fieldDefLabel(f)}</option>
-                ))}
-              </optgroup>
-              {catalogFields.length > 0 && (
-                <optgroup label={tr('tableDisplay.customFields')}>
-                  {catalogFields.filter(f => f.key !== (col.key || col.field)).map(f => (
-                    <option key={f.key} value={f.key}>{f.label || f.key}</option>
-                  ))}
-                </optgroup>
-              )}
-            </select>
-            {second && (
-              <>
-                <input
-                  value={second.label ?? ''}
-                  onChange={e => onChange({ second: { ...second, label: e.target.value } })}
-                  placeholder={tr('tableDisplay.secondLineTitle')}
-                  style={{ ...inputStyle, flex: 1, minWidth: '120px' }}
-                />
-                {/* שדה מהקטלוג נערך לפי סוגו (כמו בעמודה רגילה) - בלי בורר */}
-                {!secondIsCatalog && (
-                  <select
-                    value={second.editable || 'none'}
-                    onChange={e => onChange({ second: { ...second, editable: e.target.value } })}
-                    style={inputStyle}
-                  >
-                    {(secondDef?.editableOptions || ['none']).filter((o: string) => o !== 'handwriting' || !(secondDef?.editableOptions || []).includes('both')).map((opt: string) => (
-                      <option key={opt} value={opt}>{EDITABLE_LABELS[opt]}</option>
-                    ))}
-                  </select>
-                )}
-                <button onClick={() => setSecondOpen(o => !o)} style={{ ...smallBtn, background: secondOpen ? '#334155' : smallBtn.background }}>
-                  🎨 {tr('tableDisplay.secondLineDisplay')}
-                </button>
-              </>
-            )}
-          </div>
-          {second && secondOpen && (
-            <div style={{ borderInlineStart: '2px solid #334155', paddingInlineStart: '8px', marginBlockStart: '6px' }}>
-              <TableColumnDisplayEditor
-                col={second}
-                onChange={changes => onChange({ second: { ...second, ...changes } })}
-                catalogFields={catalogFields}
-                allowSecond={false}
-              />
-            </div>
-          )}
-        </div>
-      )}
 
       {/* ── עיצוב תצוגה ────────────────────────────────────────────── */}
       <div style={box} data-sk="decor">
@@ -244,6 +173,90 @@ export default function TableColumnDisplayEditor({ col, onChange, catalogFields,
           </>
         )}
       </div>
+
+      {/* ── שורה שנייה ─────────────────────────────────────────────── */}
+      {/* השורה השנייה מקופלת: 🎨 מעצב את השורה הראשונה בלבד, והשנייה נפתחת רק בלחיצה עליה */}
+      {allowSecond && !secondSection && (
+        <button data-testid="second-line-toggle" onClick={() => setSecondSection(true)}
+          style={{ ...smallBtn, alignSelf: 'flex-start', color: second ? '#93c5fd' : '#e2e8f0' }}>
+          {second ? `↳ ${tr('tableDisplay.secondLine')}: ${second.label || second.key} ▾` : `+ ${tr('tableDisplay.addSecondLine')}`}
+        </button>
+      )}
+      {allowSecond && secondSection && (
+        <div style={box} data-sk="second">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={sectionTitle}>{tr('tableDisplay.secondLine')}</div>
+            <button data-testid="second-line-collapse" onClick={() => { setSecondSection(false); setSecondOpen(false); }} title={tr('tableDisplay.collapseSecondLine')} style={{ ...smallBtn, padding: '0 6px' }}>▴</button>
+          </div>
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <select
+              value={second?.key || ''}
+              onChange={e => {
+                const key = e.target.value;
+                if (!key) { onChange({ second: null }); return; }
+                const def = STRIP_FIELD_DEFS.find(f => f.key === key);
+                const cat = catalogFields.find(f => f.key === key);
+                onChange({ second: {
+                  key, field: key,
+                  label: def ? fieldDefLabel(def) : (cat?.label || key),
+                  editable: 'none',
+                  isCustom: !!cat,
+                } });
+              }}
+              style={inputStyle}
+            >
+              <option value="">{tr('tableDisplay.noSecondLine')}</option>
+              <optgroup label={tr('tableDisplay.systemFields')}>
+                {STRIP_FIELD_DEFS.filter(f => f.key !== (col.key || col.field)).map(f => (
+                  <option key={f.key} value={f.key}>{fieldDefLabel(f)}</option>
+                ))}
+              </optgroup>
+              {catalogFields.length > 0 && (
+                <optgroup label={tr('tableDisplay.customFields')}>
+                  {catalogFields.filter(f => f.key !== (col.key || col.field)).map(f => (
+                    <option key={f.key} value={f.key}>{f.label || f.key}</option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+            {second && (
+              <>
+                <input
+                  value={second.label ?? ''}
+                  onChange={e => onChange({ second: { ...second, label: e.target.value } })}
+                  placeholder={tr('tableDisplay.secondLineTitle')}
+                  style={{ ...inputStyle, flex: 1, minWidth: '120px' }}
+                />
+                {/* שדה מהקטלוג נערך לפי סוגו (כמו בעמודה רגילה) - בלי בורר */}
+                {!secondIsCatalog && (
+                  <select
+                    value={second.editable || 'none'}
+                    onChange={e => onChange({ second: { ...second, editable: e.target.value } })}
+                    style={inputStyle}
+                  >
+                    {(secondDef?.editableOptions || ['none']).filter((o: string) => o !== 'handwriting' || !(secondDef?.editableOptions || []).includes('both')).map((opt: string) => (
+                      <option key={opt} value={opt}>{EDITABLE_LABELS[opt]}</option>
+                    ))}
+                  </select>
+                )}
+                <button onClick={() => setSecondOpen(o => !o)} style={{ ...smallBtn, background: secondOpen ? '#334155' : smallBtn.background }}>
+                  🎨 {tr('tableDisplay.secondLineDisplay')}
+                </button>
+              </>
+            )}
+          </div>
+          {second && secondOpen && (
+            <div style={{ borderInlineStart: '2px solid #334155', paddingInlineStart: '8px', marginBlockStart: '6px' }}>
+              <TableColumnDisplayEditor
+                col={second}
+                onChange={changes => onChange({ second: { ...second, ...changes } })}
+                catalogFields={catalogFields}
+                allowSecond={false}
+              />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

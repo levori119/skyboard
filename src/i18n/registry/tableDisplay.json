@@ -9,6 +9,8 @@
     "customFields": { "he": "שדות מותאמים", "en": "Custom fields" },
     "secondLineTitle": { "he": "כותרת השורה השנייה", "en": "Second line title" },
     "secondLineDisplay": { "he": "עיצוב השורה השנייה", "en": "Second line style" },
+    "addSecondLine": { "he": "שורה שנייה", "en": "Second line" },
+    "collapseSecondLine": { "he": "קפל את השורה השנייה", "en": "Collapse second line" },
     "lockSecond": { "he": "כתיבה פעילה בשורה השנייה - לחץ לנעילה", "en": "Second line editable - click to lock" },
     "unlockSecond": { "he": "לחץ לאפשר עריכה בשורה השנייה", "en": "Click to allow editing the second line" },
     "decorTitle": { "he": "עיצוב תצוגה", "en": "Display style" },
