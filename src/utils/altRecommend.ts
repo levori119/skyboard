@@ -8,7 +8,8 @@
  * |---|---|
  * | **כמה בלוקים** | עד שלישייה - בלוק אחד. מרביעייה - בלוק לכל זוג, **סמוכים** (4 = 2 בלוקים) |
  * | **פנוי** | בלוק שיש בו **גובה פנוי** בהפרדה של 1000 רגל מכל פ"מ אחר בעמדה (גם בבלוק סמוך) - לא בלוק ריק. קודם נדרש בלוק ריק, ובלוק עם פ"מ אחד בתחתיתו נחשב תפוס |
- * | **חוק חימוש** | בהגדרות העמדה (`alt_armament_rules`): חימוש ← נמוך/בינוני/גבוה (שליש מבלוקי העמדה), גובה פיזי, או טווח |
+ * | **חוק חימוש** | בהגדרות העמדה (`alt_armament_rules`): חימוש ← נמוך/בינוני/גבוה (שליש מבלוקי העמדה), גובה פיזי, טווח, או **טבלת עדיפויות גבהים** |
+ * | **עדיפות גבהים** | "עדיפות חימושים" בהגדרות המבצעיות של העמדה: הגבהים המועדפים ליציאה לתקיפה לפי הסדר. הראשון שפנוי **בדיוק** בבלוקים שלי; אחרת הגובה הפנוי הקרוב לעדיפות הראשונה שבבלוקים שלי; ואם אף גובה מהטבלה אינו בבלוקים שלי - הבלוק עם הגובה הקרוב לגובה הנדרש (העדיפות הראשונה) |
  * | **אין חוק** | הקרוב לגובה הנוכחי של הפ"מ, ואם אין לו - הנמוך הפנוי |
  * | **הגובה** | הנמוך הפנוי בבלוק (בחוק בגובה פיזי / גובה נוכחי - הקרוב אליו) |
  * | **אין גובה פנוי** | מחפשים פ"מ **אחד** שמפריע לרצף ויכול לעבור לגובה פנוי בבלוק אחר - ומציעים להטפיס/להנמיך אותו |
@@ -65,7 +66,9 @@ export type AltRuleBand = 'low' | 'mid' | 'high';
 
 export interface AltArmamentRule {
   armament: string;
-  kind: 'band' | 'alt' | 'range';
+  kind: 'band' | 'alt' | 'range' | 'priority';
+  /** עדיפות גבהים ברגל, לפי הסדר - הראשון הוא הגובה הנדרש */
+  alts_ft?: number[];
   band?: AltRuleBand;
   /** גובה פיזי ברגל */
   alt_ft?: number | null;
@@ -107,6 +110,10 @@ export interface AltRecommendation {
   full: Record<number, boolean>;
   reason: 'rule' | 'nearest' | 'lowest' | 'none';
   rule?: AltArmamentRule;
+  /** בעדיפות גבהים: הגובה מהטבלה (רגל) שלפיו הוקצה */
+  ruleAlt?: number;
+  /** בעדיפות גבהים: אף גובה מהטבלה אינו בבלוקים שלי - הוקצה הבלוק הקרוב */
+  outOfBlocks?: boolean;
   /** כדי לפנות את הבלוקים המומלצים - פ"מ אחר צריך לעבור */
   move?: AltMove;
   /** אילו בלוקים תפוסים ועל ידי מי - לתצוגה */
@@ -272,6 +279,33 @@ export function recommendAltitude(args: {
   });
 
   const windows = Array.from({ length: n - needed + 1 }, (_, i) => i);
+
+  // ── עדיפות גבהים: הראשון שפנוי בדיוק, אחרת הקרוב לעדיפות שבבלוקים, אחרת הבלוק הקרוב ──
+  if (rule?.kind === 'priority' && rule.alts_ft?.length) {
+    const alts = rule.alts_ft;
+    const winOf = (i: number) => blocks.slice(i, i + needed);
+    const holds = (a: number) => windows.filter(i => { const w = winOf(i); return a >= w[0].alt_from && a <= w[w.length - 1].alt_to; });
+    for (const ft of alts) {
+      const a = ft / 100;
+      for (const i of holds(a)) {
+        const w = winOf(i);
+        if (freeStart(w[0].alt_from, w[w.length - 1].alt_to, args.formation, taken, a) === a) return pick(w, a, { ruleAlt: ft });
+      }
+    }
+    for (const ft of alts) {
+      const a = ft / 100;
+      let best: { i: number; s: number } | null = null;
+      for (const i of holds(a)) {
+        const w = winOf(i);
+        const s = freeStart(w[0].alt_from, w[w.length - 1].alt_to, args.formation, taken, a);
+        if (s !== null && (!best || Math.abs(s - a) < Math.abs(best.s - a))) best = { i, s };
+      }
+      if (best) return pick(winOf(best.i), best.s, { ruleAlt: ft });
+    }
+    // אף גובה מהטבלה לא פנוי בבלוקים שלי - הבלוק הקרוב לגובה הנדרש (כמו חוק גובה פיזי)
+    const sub = recommendAltitude({ ...args, rules: [{ armament: rule.armament, kind: 'alt', alt_ft: alts[0] }] });
+    return { ...sub, rule, ruleAlt: alts[0], outOfBlocks: !alts.some(ft => holds(ft / 100).length > 0) };
+  }
   // חלון עם גובה פנוי בהפרדה - לא חייב להיות ריק
   const freeWins = windows.filter(i => startIn(blocks.slice(i, i + needed)) !== null);
   if (freeWins.length) {
@@ -346,6 +380,11 @@ export function normalizeAltRules(raw: unknown): AltArmamentRule[] {
     if (r.kind === 'alt' && num(r.alt_ft) != null) return [{ armament, kind: 'alt', alt_ft: num(r.alt_ft) }];
     if (r.kind === 'range' && (num(r.min_ft) != null || num(r.max_ft) != null)) {
       return [{ armament, kind: 'range', min_ft: num(r.min_ft), max_ft: num(r.max_ft) }];
+    }
+    if (r.kind === 'priority' && Array.isArray(r.alts_ft)) {
+      // גובה שהוקלד במאות ("240") נשמר ברגל, כמו שאר החוקים
+      const alts = [...new Set(r.alts_ft.map(num).filter((v: number | null): v is number => v != null && v > 0).map((v: number) => (v < 1000 ? v * 100 : v)))] as number[];
+      if (alts.length) return [{ armament, kind: 'priority', alts_ft: alts }];
     }
     return [];
   });

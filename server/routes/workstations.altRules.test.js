@@ -61,3 +61,26 @@ describe('workstation_presets.alt_armament_rules', () => {
     expect(JSON.parse(row.alt_armament_rules)).toEqual([]);
   });
 });
+
+// "עדיפות חימושים" בהגדרות המבצעיות של העמדה - שומר רק את החוקים, בלי שאר הטופס
+describe('PATCH /api/workstation-presets/:id/alt-armament-rules', () => {
+  it('שומר את החוקים ולא נוגע בשאר העמדה', async () => {
+    const c = await req('POST', '/api/workstation-presets', { name: 'עמדת עדיפות', suggest_alt_range: true });
+    const rules = [{ armament: 'ברד כבד 84', kind: 'priority', alts_ft: [24000, 20000] }];
+    const r = await req('PATCH', `/api/workstation-presets/${c.json.id}/alt-armament-rules`, { rules });
+    expect(r.status).toBe(200);
+    const row = (await pool.query('SELECT * FROM workstation_presets WHERE id = $1', [c.json.id])).rows[0];
+    expect(JSON.parse(row.alt_armament_rules)).toEqual(rules);
+    expect(row.name).toBe('עמדת עדיפות');
+    expect(row.suggest_alt_range).toBe('true');
+  });
+
+  it('לא מערך - 400; עמדה שלא קיימת - 404; חוק בלי חימוש נזרק', async () => {
+    expect((await req('PATCH', '/api/workstation-presets/1/alt-armament-rules', { rules: 'x' })).status).toBe(400);
+    expect((await req('PATCH', '/api/workstation-presets/999999/alt-armament-rules', { rules: [] })).status).toBe(404);
+    const c = await req('POST', '/api/workstation-presets', { name: 'ניקוי' });
+    await req('PATCH', `/api/workstation-presets/${c.json.id}/alt-armament-rules`, { rules: [{ armament: '', kind: 'alt', alt_ft: 1 }, { armament: 'חד', kind: 'alt', alt_ft: 12000 }] });
+    const row = (await pool.query('SELECT alt_armament_rules FROM workstation_presets WHERE id = $1', [c.json.id])).rows[0];
+    expect(JSON.parse(row.alt_armament_rules)).toEqual([{ armament: 'חד', kind: 'alt', alt_ft: 12000 }]);
+  });
+});

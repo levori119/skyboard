@@ -11,6 +11,7 @@ import type { AltArmamentRule } from '../../utils/altRecommend';
  * - **נמוך / בינוני / גבוה** - שליש מבלוקי העמדה (נגזר אוטומטית מהטבלה)
  * - **גובה פיזי** ברגל - הבלוק שמכיל אותו
  * - **טווח גבהים** ברגל - בלוק בתוך הטווח
+ * - **עדיפות גבהים** - רשימת גבהים לפי עדיפות (נערכת גם בעמדה: הגדרות מבצעיות - עדיפות חימושים)
  *
  * הסדר הוא העדיפות: פ"מ עם כמה חימושים מקבל את החוק הראשון שתואם.
  */
@@ -47,6 +48,7 @@ export default function AltRulesEditor({ rules, onChange }: { rules: AltArmament
             <option value="band">{tr('admin.altRulesKindBand')}</option>
             <option value="alt">{tr('admin.altRulesKindAlt')}</option>
             <option value="range">{tr('admin.altRulesKindRange')}</option>
+            <option value="priority">{tr('admin.altRulesKindPriority')}</option>
           </select>
           {r.kind === 'band' && (
             <select value={r.band || 'low'} aria-label={tr('admin.altRulesKindBand')} onChange={e => set(i, { band: e.target.value as AltArmamentRule['band'] })} style={box}>
@@ -66,6 +68,13 @@ export default function AltRulesEditor({ rules, onChange }: { rules: AltArmament
             <input type="number" step={500} value={r.max_ft ?? ''} placeholder={tr('admin.altRulesTo')} aria-label={tr('admin.altRulesTo')}
               onChange={e => set(i, { max_ft: num(e.target.value) })} style={{ ...box, width: 80 }} />
           </>)}
+          {r.kind === 'priority' && (
+            // לא מבוקר: רשימה מנורמלת הייתה מוחקת את הפסיק ברגע שהוקלד. נקרא ביציאה מהשדה
+            <input key={`${i}-${(r.alts_ft || []).join(',')}`} defaultValue={(r.alts_ft || []).join(', ')} placeholder="24000, 20000"
+              title={tr('admin.altRulesPriorityHint')} aria-label={tr('admin.altRulesKindPriority')}
+              onBlur={e => set(i, { alts_ft: e.target.value.split(/[,\s]+/).map(v => Number(v)).filter(v => Number.isFinite(v) && v > 0) })}
+              style={{ ...box, width: 150 }} />
+          )}
           <button type="button" onClick={() => move(i, -1)} disabled={i === 0} title={tr('admin.altRulesUp')} style={small}>▲</button>
           <button type="button" onClick={() => move(i, 1)} disabled={i === rules.length - 1} title={tr('admin.altRulesDown')} style={small}>▼</button>
           <button type="button" onClick={() => onChange(rules.filter((_, j) => j !== i))} title={tr('shared.delete3')}

@@ -142,6 +142,25 @@ async function saveAutoBlockSpace(row, body) {
 // טופס העזר בעמדה: הפעלת החלוקה האוטומטית (`enabled`) ולאילו מרחבים מותר לשייך
 // פ"מ לפי מיקום המטרה (`ids`: null = כל מרחבי העמדה; מערך, גם ריק = רק המסומנים).
 // כל שדה מתעדכן רק כשנשלח.
+// "עדיפות חימושים" בהגדרות המבצעיות של העמדה: חוקי הגובה לפי חימוש (`alt_armament_rules`) -
+// אותו שדה שבטופס העמדה בניהול, נשמר לבדו כדי שהעמדה לא תשלח את כל הטופס.
+// הנרמול המלא בצד הלקוח (src/utils/altRecommend.ts normalizeAltRules); כאן רק חוק בלי חימוש נזרק
+router.patch('/api/workstation-presets/:id/alt-armament-rules', async (req, res) => {
+  try {
+    const raw = req.body?.rules;
+    if (!Array.isArray(raw)) return res.status(400).json({ error: 'rules חייב להיות מערך' });
+    const rules = raw.filter(r => r && typeof r === 'object' && String(r.armament ?? '').trim()).slice(0, 200);
+    const r = await pool.query(
+      'UPDATE workstation_presets SET alt_armament_rules = $1 WHERE id = $2 RETURNING id, alt_armament_rules',
+      [JSON.stringify(rules), req.params.id]);
+    if (!r.rows.length) return res.status(404).json({ error: 'עמדה לא נמצאה' });
+    res.json(r.rows[0]);
+  } catch (err) {
+    console.error('Error saving alt armament rules:', err);
+    res.status(500).json({ error: 'Failed to save alt armament rules' });
+  }
+});
+
 router.patch('/api/workstation-presets/:id/auto-block-spaces', async (req, res) => {
   try {
     const raw = req.body?.ids;

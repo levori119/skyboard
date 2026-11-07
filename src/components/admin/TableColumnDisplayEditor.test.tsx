@@ -27,16 +27,24 @@ describe('DisplayIcon', () => {
 });
 
 describe('TableColumnDisplayEditor', () => {
-  it('עמודה רגילה - שלושת החלקים: שורה שנייה, עיצוב, הצגת הערך', () => {
+  // 🎨 מעצב את השורה הראשונה: עיצוב והצגת הערך פתוחים, והשורה השנייה מקופלת לכפתור
+  it('עמודה רגילה - עיצוב והצגת הערך, והשורה השנייה מקופלת עד שפותחים אותה', () => {
     const html = renderToStaticMarkup(<TableColumnDisplayEditor col={{ key: 'callSign' }} onChange={noop} catalogFields={[]} />);
-    expect(html).toContain('data-sk="second"');
     expect(html).toContain('data-sk="decor"');
     expect(html).toContain('data-sk="display"');
+    expect(html).toContain('data-testid="second-line-toggle"');
+    expect(html.includes('data-sk="second"')).toBe(false);
+  });
+  it('עמודה עם שורה שנייה - הכפתור המקופל מציג את שמה, בלי לפתוח את העורך שלה', () => {
+    const html = renderToStaticMarkup(<TableColumnDisplayEditor col={{ key: 'callSign', second: { key: 'sq', label: 'טייסת' } }} onChange={noop} catalogFields={[]} />);
+    expect(html).toContain('טייסת');
+    expect(html.includes('data-sk="second"')).toBe(false);
   });
   it('עורך השורה השנייה עצמה - בלי שורה שלישית', () => {
     const html = renderToStaticMarkup(<TableColumnDisplayEditor col={{ key: 'sq' }} onChange={noop} catalogFields={[]} allowSecond={false} />);
     expect(html).toContain('data-sk="decor"');
     expect(html.includes('data-sk="second"')).toBe(false);
+    expect(html.includes('second-line-toggle')).toBe(false);
   });
   it('כלל עיצוב מוצג עם דוגמה חיה בצבע שלו', () => {
     const html = renderToStaticMarkup(

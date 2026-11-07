@@ -2422,6 +2422,66 @@
       "he": "⚙ הגדרות עמדה",
       "en": "⚙ Workstation settings"
     },
+    "opsSettings": {
+      "he": "🎯 הגדרות מבצעיות",
+      "en": "\ud83c\udfaf Operational settings"
+    },
+    "armPriorityOpen": {
+      "he": "עדיפות חימושים",
+      "en": "Armament priority"
+    },
+    "armPriorityTitle": {
+      "he": "עדיפות חימושים - גובה מועדף ליציאה לתקיפה",
+      "en": "Armament priority - preferred attack altitude"
+    },
+    "armPriorityHint": {
+      "he": "לכל חימוש - טבלת גבהים לפי עדיפות. המלצת הגובה לוקחת את הראשון שפנוי בבלוקים שלי. אם אף גובה מהטבלה אינו בבלוקים שלי - את הבלוק עם הגובה הקרוב לגובה הנדרש (הראשון). סדר החימושים קובע מי גובר בפ\"מ עם כמה חימושים",
+      "en": "Per armament - a table of altitudes by priority. The altitude recommendation takes the first one free in my blocks. If none of them is in my blocks - the block with the altitude closest to the required one (the first). The armament order decides which wins on a formation with several armaments"
+    },
+    "armPriorityAltRecOff": {
+      "he": "המלצת הגובה כבויה בעמדה זו (ניהול - הגדרות עמדה). העדיפויות יישמרו, אבל ישפיעו רק אחרי שתופעל",
+      "en": "Altitude recommendation is off at this workstation (admin - workstation settings). The priorities are saved but take effect only once it is on"
+    },
+    "armPriorityNone": {
+      "he": "אין עדיפויות - ההמלצה לפי הגובה הפנוי הנמוך",
+      "en": "No priorities - the recommendation takes the lowest free altitude"
+    },
+    "armPriorityArmament": {
+      "he": "חימוש",
+      "en": "Armament"
+    },
+    "armPriorityPick": {
+      "he": "בחר חימוש",
+      "en": "Pick armament"
+    },
+    "armPriorityAlts": {
+      "he": "גובה מועדף ליציאה לתקיפה, לפי עדיפות",
+      "en": "Preferred attack altitude, by priority"
+    },
+    "armPriorityAltN": {
+      "he": "עדיפות {{n}}",
+      "en": "Priority {{n}}"
+    },
+    "armPriorityAddAlt": {
+      "he": "גובה",
+      "en": "Altitude"
+    },
+    "armPriorityAdd": {
+      "he": "חימוש",
+      "en": "Armament"
+    },
+    "armPriorityFeetHint": {
+      "he": "גבהים ברגל. גובה במאות (240) נשמר כ-24000. חימוש בלי בחירה או בלי גבהים לא נשמר",
+      "en": "Altitudes in feet. An altitude in hundreds (240) is saved as 24000. An armament without a choice or altitudes is not saved"
+    },
+    "armPriorityFromAdmin": {
+      "he": "(נקבע בניהול: {{text}})",
+      "en": "(set in admin: {{text}})"
+    },
+    "armPrioritySaveFailed": {
+      "he": "שמירת עדיפות החימושים נכשלה - הוחזר המצב הקודם",
+      "en": "Saving the armament priority failed - reverted"
+    },
     "workstationsOnSector": {
       "he": "עמדות על סקטור",
       "en": "workstations on sector"
@@ -2817,6 +2877,14 @@
     "altRecRule": {
       "he": "חוק חימוש: {{armament}} - {{target}}",
       "en": "Armament rule: {{armament}} - {{target}}"
+    },
+    "altRecPriority": {
+      "he": "{{alt}} רגל (עדיפות {{n}})",
+      "en": "{{alt}} ft (priority {{n}})"
+    },
+    "altRecOutOfBlocks": {
+      "he": "{{alt}} רגל אינו בבלוקים שלי - הוקצה הבלוק הקרוב",
+      "en": "{{alt}} ft is not in my blocks - the closest block was assigned"
     },
     "altRecNearest": {
       "he": "הקרוב לגובה הנוכחי",

@@ -214,3 +214,62 @@ describe('assignedAltitude - הגובה בהקצאה, לא כל הבלוק', () 
     expect(assignedAltitude(210, 250, 2, 100)).toBe('210');
   });
 });
+
+// ── עדיפות חימושים: טבלת עדיפויות גבהים ליציאה לתקיפה (kind: 'priority') ──
+describe('recommendAltitude - עדיפות גבהים לחימוש', () => {
+  const pr = (alts_ft: number[]) => [{ armament: 'ברד כבד 84', kind: 'priority' as const, alts_ft }];
+  const arm = ['ברד כבד 84'];
+
+  it('העדיפות הראשונה בבלוק שלי ופנויה - בדיוק בה', () => {
+    const r = recommendAltitude({ ...base, armaments: arm, rules: pr([13000, 9000]) });
+    expect(r.blockIds).toEqual([5]);
+    expect(r.alt).toBe('130');
+    expect(r.reason).toBe('rule');
+    expect(r.ruleAlt).toBe(13000);
+    expect(r.outOfBlocks).toBeFalsy();
+  });
+
+  it('העדיפות הראשונה תפוסה - השנייה, גם כשיש גובה פנוי ליד הראשונה', () => {
+    const others = [{ id: 'a', label: 'רעם', alt: '130' }];
+    const r = recommendAltitude({ ...base, armaments: arm, rules: pr([13000, 9000]), others });
+    expect(r.alt).toBe('90');
+    expect(r.blockIds).toEqual([3]);
+    expect(r.ruleAlt).toBe(9000);
+  });
+
+  it('אף עדיפות לא פנויה בדיוק - הגובה הפנוי הקרוב לעדיפות הראשונה שבבלוקים שלי', () => {
+    const others = [{ id: 'a', label: 'רעם', alt: '130' }, { id: 'b', label: 'ברק', alt: '90' }];
+    const r = recommendAltitude({ ...base, armaments: arm, rules: pr([13000, 9000]), others });
+    expect(r.blockIds).toEqual([5]);
+    expect(r.alt).toBe('120');
+    expect(r.ruleAlt).toBe(13000);
+  });
+
+  it('אף גובה מהטבלה אינו בבלוקים שלי - הבלוק עם הגובה הקרוב לגובה הנדרש', () => {
+    const r = recommendAltitude({ ...base, armaments: arm, rules: pr([25000, 30000]) });
+    expect(r.blockIds).toEqual([6]);
+    expect(r.alt).toBe('160');
+    expect(r.outOfBlocks).toBe(true);
+    expect(r.ruleAlt).toBe(25000);
+  });
+
+  it('מתחת לכל הבלוקים - הבלוק הנמוך, בתחתיתו', () => {
+    const r = recommendAltitude({ ...base, armaments: arm, rules: pr([2000]) });
+    expect(r.blockIds).toEqual([1]);
+    expect(r.alt).toBe('40');
+    expect(r.outOfBlocks).toBe(true);
+  });
+
+  it('רביעייה - שני בלוקים סמוכים שמכילים את העדיפות, הזוג התחתון בה', () => {
+    const r = recommendAltitude({ ...base, formation: 4, armaments: arm, rules: pr([10000]) });
+    expect(r.alt).toBe('100-110');
+    expect(r.blockIds).toContain(4);
+  });
+
+  it('normalizeAltRules - עדיפות נשמרת, גבהים במאות הופכים לרגל, ריקה נזרקת', () => {
+    expect(normalizeAltRules([
+      { armament: 'ברד', kind: 'priority', alts_ft: [24000, '200', '', 'x'] },
+      { armament: 'ריק', kind: 'priority', alts_ft: [] },
+    ])).toEqual([{ armament: 'ברד', kind: 'priority', alts_ft: [24000, 20000] }]);
+  });
+});

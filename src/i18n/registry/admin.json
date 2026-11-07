@@ -4022,6 +4022,14 @@
       "he": "טווח גבהים",
       "en": "Altitude range"
     },
+    "altRulesKindPriority": {
+      "he": "עדיפות גבהים",
+      "en": "Altitude priority"
+    },
+    "altRulesPriorityHint": {
+      "he": "גבהים ברגל לפי עדיפות, מופרדים בפסיק",
+      "en": "Altitudes in feet by priority, comma separated"
+    },
     "altRulesLow": {
       "he": "נמוך",
       "en": "Low"

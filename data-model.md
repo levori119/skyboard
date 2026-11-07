@@ -3555,7 +3555,7 @@ REFACTOR_LOG #045.
 
 | עמודה | סוג | תיאור |
 |---|---|---|
-| `alt_armament_rules` | JSONB DEFAULT `'[]'` | **חוקי המלצת הגובה** של העמדה, לפי סדר עדיפות: `[{armament, kind, band?, alt_ft?, min_ft?, max_ft?}]`. `kind` = `band` (`low`/`mid`/`high` = שליש מבלוקי העמדה) / `alt` (גובה פיזי ברגל) / `range` (טווח ברגל). פעיל רק כש-`suggest_alt_range` דולק. מנורמל ב-`normalizeAltRules` (חוק בלי חימוש או בלי ערך נזרק). ראה [ALT_RECOMMEND_SPEC.md](ALT_RECOMMEND_SPEC.md) |
+| `alt_armament_rules` | JSONB DEFAULT `'[]'` | **חוקי המלצת הגובה** של העמדה, לפי סדר עדיפות: `[{armament, kind, band?, alt_ft?, min_ft?, max_ft?, alts_ft?}]`. `kind` = `band` (`low`/`mid`/`high` = שליש מבלוקי העמדה) / `alt` (גובה פיזי ברגל) / `range` (טווח ברגל) / `priority` (**עדיפות גבהים** - `alts_ft` רשימת גבהים ברגל לפי עדיפות: הראשון שפנוי בדיוק בבלוקים שלי, אחרת הקרוב לעדיפות שבבלוקים, ואם אף אחד אינו בבלוקים שלי - הבלוק הקרוב לגובה הנדרש). נערך בניהול וגם בעמדה (הגדרות מבצעיות - עדיפות חימושים, `PATCH /api/workstation-presets/:id/alt-armament-rules`). פעיל רק כש-`suggest_alt_range` דולק. מנורמל ב-`normalizeAltRules` (חוק בלי חימוש או בלי ערך נזרק). ראה [ALT_RECOMMEND_SPEC.md](ALT_RECOMMEND_SPEC.md) |
 
 ---
 

@@ -1,5 +1,6 @@
 import { autoSpaceFor, autoAssignableSpaces, targetsAnchor, allTargetsAnchor, firstExecKey } from '../../utils/blockSpaceAuto';
 import AutoBlockSpacesForm from '../blocks/AutoBlockSpacesForm';
+import ArmamentPriorityForm from '../blocks/ArmamentPriorityForm';
 import BlockTargetMap from '../blocks/BlockTargetMap';
 import { GROUP_HEADER_COLORS, groupHeaderStyle, loadGroupHeaderColor, saveGroupHeaderColor, type GroupHeaderColor } from '../../utils/groupHeaderPalette';
 import React, { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback, useSyncExternalStore } from 'react';
@@ -1580,6 +1581,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [showFullPicture, setShowFullPicture] = useState(false);
   const [showViewMenu, setShowViewMenu] = useState(false);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+  // תפריט "הגדרות מבצעיות" (מרחבים לשיוך אוטומטי, עדיפות חימושים) וטופס עדיפות החימושים
+  const [showOpsMenu, setShowOpsMenu] = useState(false);
+  const [showArmPriorityForm, setShowArmPriorityForm] = useState(false);
   const [posClearToast, setPosClearToast] = useState<string | null>(null);
   const [signalOpenTick, setSignalOpenTick] = useState(0);
   const [showGroundLayers, setShowGroundLayers] = useState(true); // toggle the GroundView 🗂 שכבות panel from תצוגה
@@ -5641,6 +5645,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     }).then(r => { if (!r.ok) throw new Error(`auto-block-spaces ${r.status}`); })
       .catch(err => { console.error(err); apply(prev); setSaveFailToast(tr('blocks.autoSpacesSaveFailed')); });
+  };
+  /** "עדיפות חימושים": חוקי הגובה לפי חימוש של העמדה. מיד על המסך, השמירה ברקע; כשל מחזיר */
+  const saveAltRules = (rules: any[]) => {
+    if (!session.presetId) return;
+    const prev = (myPresetConfig as any)?.alt_armament_rules ?? [];
+    const apply = (v: any[]) => setLivePresetConfig((p: any) => ({ ...(p ?? myPresetConfig ?? {}), alt_armament_rules: v }));
+    apply(rules);
+    fetch(`${API_URL}/workstation-presets/${session.presetId}/alt-armament-rules`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rules }),
+    }).then(r => { if (!r.ok) throw new Error(`alt-armament-rules ${r.status}`); })
+      .catch(err => { console.error(err); apply(prev); setSaveFailToast(tr('ctrl.armPrioritySaveFailed')); });
   };
   // ...והלוח מחולק למרחבים: קיבוץ לפי מרחב, פעם אחת כשהמנגנון פעיל ואין קיבוץ אחר
   const autoSpaceGroupedRef = useRef(false);
@@ -13961,7 +13976,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           <div style={{ position: 'relative' }}>
             <button
               data-help="settingsMenu" className="bt-tb"
-              onClick={() => { setShowSettingsMenu(v => !v); setShowViewMenu(false); setShowAlertsMenu(false); setShowUserMenu(false); }}
+              onClick={() => { setShowSettingsMenu(v => !v); setShowOpsMenu(false); setShowViewMenu(false); setShowAlertsMenu(false); setShowUserMenu(false); }}
               style={{ background: showSettingsMenu ? '#475569' : '#334155', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
             >
               {tr('ctrl.workstationSettings')} {showSettingsMenu ? '▲' : '▼'}
@@ -14045,20 +14060,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </div>
                   ))}
                   </>}
-                  {/* מרחבים לשיוך אוטומטי - הגדרה של העמדה ולא של התצוגה (הועבר מתפריט "תצוגה").
-                      תמיד במוד טבלה; ההפעלה עצמה בתוך הטופס */}
-                  {tableMode && (
-                  <div
-                    data-testid="menu-auto-spaces"
-                    onClick={() => { setShowAutoSpacesForm(v => !v); setShowSettingsMenu(false); }}
-                    style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: showAutoSpacesForm ? menuAcc('#38bdf8','#0369a1') : menuText, borderBottom: `1px solid ${menuBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: showAutoSpacesForm ? 'bold' : 'normal' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
-                    onMouseLeave={e => (e.currentTarget.style.background = '')}
-                  >
-                    <span>📍 {tr('blocks.autoSpacesOpen')}</span>
-                    {showAutoSpacesForm && <span style={{ fontSize: '10px', color: menuAcc('#38bdf8','#0369a1') }}>{tr('ctrl.active')}</span>}
-                  </div>
-                  )}
                   {/* שידוך פ"מ בלחיצה — חלופה לגרירה (רק במסך אזורי טיסה) */}
                   {isFlightZonesMode && show('clickPairing') && (
                     <div style={{ padding: '8px 12px', borderBottom: `1px solid ${menuBorder}` }}>
@@ -14162,6 +14163,52 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </div>
             )}
           </div>
+
+          {/* ── תפריט הגדרות מבצעיות - איך העמדה מחלקת ומקצה (מרחבים, גבהים לפי חימוש).
+              הופרד מ"הגדרות עמדה" (התראות/התנהגות): אלה החלטות מבצעיות של המשמרת ── */}
+          {!isGroundMode && (
+          <div style={{ position: 'relative' }}>
+            <button
+              data-testid="ops-settings-menu" className="bt-tb"
+              onClick={() => { setShowOpsMenu(v => !v); setShowSettingsMenu(false); setShowViewMenu(false); setShowAlertsMenu(false); setShowUserMenu(false); }}
+              style={{ background: showOpsMenu ? '#475569' : '#334155', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
+            >
+              {tr('ctrl.opsSettings')} {showOpsMenu ? '▲' : '▼'}
+            </button>
+            {showOpsMenu && (
+              <>
+                <div onClick={() => setShowOpsMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
+                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', zIndex: 3000, minWidth: '220px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: dir, overflow: 'hidden' }}
+                  onClick={e => e.stopPropagation()}>
+                  {/* מרחבים לשיוך אוטומטי - תמיד במוד טבלה; ההפעלה עצמה בתוך הטופס */}
+                  {tableMode && (
+                  <div
+                    data-testid="menu-auto-spaces"
+                    onClick={() => { setShowAutoSpacesForm(v => !v); setShowOpsMenu(false); }}
+                    style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: showAutoSpacesForm ? menuAcc('#38bdf8','#0369a1') : menuText, borderBottom: `1px solid ${menuBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: showAutoSpacesForm ? 'bold' : 'normal' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
+                    onMouseLeave={e => (e.currentTarget.style.background = '')}
+                  >
+                    <span>📍 {tr('blocks.autoSpacesOpen')}</span>
+                    {showAutoSpacesForm && <span style={{ fontSize: '10px', color: menuAcc('#38bdf8','#0369a1') }}>{tr('ctrl.active')}</span>}
+                  </div>
+                  )}
+                  {/* עדיפות חימושים - גבהים מועדפים ליציאה לתקיפה לפי חימוש (utils/altRecommend) */}
+                  <div
+                    data-testid="menu-armament-priority"
+                    onClick={() => { setShowArmPriorityForm(v => !v); setShowOpsMenu(false); }}
+                    style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: showArmPriorityForm ? menuAcc('#38bdf8','#0369a1') : menuText, borderBottom: `1px solid ${menuBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: showArmPriorityForm ? 'bold' : 'normal' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
+                    onMouseLeave={e => (e.currentTarget.style.background = '')}
+                  >
+                    <span>🎯 {tr('ctrl.armPriorityOpen')}</span>
+                    {showArmPriorityForm && <span style={{ fontSize: '10px', color: menuAcc('#38bdf8','#0369a1') }}>{tr('ctrl.active')}</span>}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+          )}
 
           {/* Floating vehicle requests panel */}
           {showVehiclePanel && isGroundMode && (
@@ -14419,6 +14466,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         const shiftStart = (d: number) => setAltRec(prev => prev ? { ...prev, assignStart: curStart + d * PAIR_SEPARATION } : prev);
         const rule = ar.rec.rule;
         const ruleText = rule ? (rule.kind === 'band' ? tr(rule.band === 'high' ? 'admin.altRulesHigh' : rule.band === 'mid' ? 'admin.altRulesMid' : 'admin.altRulesLow')
+          // עדיפות גבהים: באיזה גובה מהטבלה, ואם אף אחד מהם אינו בבלוקים שלי - שזה הבלוק הקרוב
+          : rule.kind === 'priority' ? (ar.rec.outOfBlocks
+            ? tr('ctrl.altRecOutOfBlocks', { alt: ar.rec.ruleAlt ?? '' })
+            : tr('ctrl.altRecPriority', { alt: ar.rec.ruleAlt ?? '', n: Math.max(1, (rule.alts_ft || []).indexOf(ar.rec.ruleAlt as number) + 1) }))
           : rule.kind === 'alt' ? `${rule.alt_ft} ${tr('admin.altRulesFeet')}` : `${rule.min_ft ?? ''}-${rule.max_ft ?? ''} ${tr('admin.altRulesFeet')}`) : '';
         const blk = (id: number) => { const b = byId.get(id); return b ? `${b.alt_from}-${b.alt_to}` : ''; };
         // העמדה עובדת במרחבי חלוקה - בלי מרחב הגובה מומלץ מול כל הבלוקים, והשיוך האוטומטי
@@ -19639,6 +19690,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             onToggleEnabled={on => saveAutoSpaces({ auto_block_space_by_target: on })}
             onRecalc={() => runAutoSpaces(true)}
             onClose={() => setShowAutoSpacesForm(false)}
+          />
+        )}
+
+        {showArmPriorityForm && (
+          <ArmamentPriorityForm
+            rules={normalizeAltRules((myPresetConfig as any)?.alt_armament_rules)}
+            armamentOptions={[...new Set(strips.flatMap(st => stripArmaments(st)))]}
+            altRecOn={myPresetConfig?.suggest_alt_range === true}
+            themeMode={themeMode}
+            onSave={saveAltRules}
+            onClose={() => setShowArmPriorityForm(false)}
           />
         )}
 
