@@ -22,17 +22,27 @@ interface VKContextType {
   openVK: (config: VKConfig) => void;
   closeVK: () => void;
   isOpen: boolean;
+  /**
+   * האם יש מקלדת וירטואלית בעץ הזה. מחוץ ל-`VirtualKeyboardProvider` (תצוגה
+   * מקדימה בניהול, בדיקות) `openVK` אינו עושה דבר - ורכיב שפותח מקלדת בלחיצה
+   * חייב לדעת את זה, אחרת הלחיצה "נדלקת" בלי שקורה כלום.
+   */
+  available: boolean;
 }
 
 const VKContext = createContext<VKContextType>({
   openVK: () => {},
   closeVK: () => {},
   isOpen: false,
+  available: false,
 });
 
 export const useVK = () => useContext(VKContext);
 
-const _vkScale = parseFloat(document.documentElement.style.getPropertyValue('--s') || '1') || 1;
+// בלי `document` (רינדור בצד שרת בבדיקות) הסקייל הוא 1 - אחרת כל רכיב שמייבא
+// את `useVK` (כמו `StripControl`) היה נופל כבר בייבוא
+const _vkScale = typeof document === 'undefined' ? 1
+  : parseFloat(document.documentElement.style.getPropertyValue('--s') || '1') || 1;
 const sc = (n: number): number => Math.round(n * _vkScale);
 
 const HEB_ROWS: string[][] = [
@@ -346,7 +356,7 @@ export function VirtualKeyboardProvider({ children }: { children: React.ReactNod
   }, []);
 
   return (
-    <VKContext.Provider value={{ openVK, closeVK, isOpen: vkConfig !== null }}>
+    <VKContext.Provider value={{ openVK, closeVK, isOpen: vkConfig !== null, available: true }}>
       {children}
       {vkConfig && (
         <VirtualKeyboardPanel config={vkConfig} onClose={closeVK} />

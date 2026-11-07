@@ -3654,6 +3654,58 @@
       "he": "מקלדת + כתב יד",
       "en": "Keyboard + handwriting"
     },
+    "fieldDataType": {
+      "he": "סוג נתון",
+      "en": "Data type"
+    },
+    "fieldDataTypeText": {
+      "he": "טקסט",
+      "en": "Text"
+    },
+    "fieldDataTypeInteger": {
+      "he": "מספר שלם",
+      "en": "Whole number"
+    },
+    "fieldDataTypeDecimal": {
+      "he": "מספר עשרוני",
+      "en": "Decimal number"
+    },
+    "fieldDataTypeTime": {
+      "he": "שעה",
+      "en": "Time"
+    },
+    "fieldDataTypeDate": {
+      "he": "תאריך",
+      "en": "Date"
+    },
+    "fieldDataTypeDatetime": {
+      "he": "תאריך ושעה",
+      "en": "Date and time"
+    },
+    "fieldDataTypeHintNumber": {
+      "he": "בסטריפ נפתח לוח ספרות, וערך שאינו מספר נדחה",
+      "en": "On the strip a number pad opens, and a non-number is rejected"
+    },
+    "fieldDataTypeHintTime": {
+      "he": "בסטריפ נפתח לוח ספרות: 1430 נשמר כ-14:30",
+      "en": "On the strip a number pad opens: 1430 is saved as 14:30"
+    },
+    "fieldDataTypeHintDate": {
+      "he": "בסטריפ נפתח בורר תאריך. נשמר כ-YYYY-MM-DD",
+      "en": "On the strip a date picker opens. Saved as YYYY-MM-DD"
+    },
+    "fieldDataTypeHintDatetime": {
+      "he": "בסטריפ נפתח בורר תאריך ושעה. נשמר כ-YYYY-MM-DD HH:MM",
+      "en": "On the strip a date and time picker opens. Saved as YYYY-MM-DD HH:MM"
+    },
+    "fieldDataTypeHandwritingWarn": {
+      "he": "בכתב יד הערך נשמר כציור, ולכן סוג הנתון לא נאכף. כדי שייאכף - בחר מקלדת או מקלדת + כתב יד",
+      "en": "Handwriting is saved as a drawing, so the data type is not enforced. To enforce it, choose keyboard or keyboard + handwriting"
+    },
+    "fieldDataTypeBothNote": {
+      "he": "הסוג נאכף בהקלדה בלבד - כתב יד נשמר כציור",
+      "en": "The type is enforced only when typing - handwriting is saved as a drawing"
+    },
     "controlDefault": {
       "he": "ברירת מחדל (ב\"מ)",
       "en": "Default value"

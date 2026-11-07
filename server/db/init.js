@@ -1459,6 +1459,9 @@ async function applySchemaOnce() {
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
   )`);
+  // סוג הנתון של שדה (text/integer/decimal/time/date/datetime). NULL = טקסט,
+  // ולכן שדות ותיקים ממשיכים בדיוק כמו קודם. CIV_STRIP_CONTROLS.md §2.4
+  await sq(`ALTER TABLE strip_field_defs ADD COLUMN IF NOT EXISTS data_type VARCHAR(20)`);
 
   // ── ערכי פקדים פנימיים ללוח ────────────────────────────────────────────────
   // פקד שהוגדר `scope='window'` שומר את ערכו על **(פ"מ, עמדה)**, ולכן אותו פ"מ

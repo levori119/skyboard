@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { tr } from '../../i18n/tr';
+import { useVK } from '../../VirtualKeyboard';
 import { clampMenuPos } from '../../utils/queryBuilder';
 import { ensureSGBlinkStyle } from '../../utils/stripGrid';
 import StripInkPad from '../shared/StripInkPad';
-import type { StripControl as StripControlDef, StripControlValue } from '../../types/stripControls';
+import type { StripControl as StripControlDef, StripControlValue, StripFieldDataType } from '../../types/stripControls';
 import {
   controlDisplayText, isHandwritingValue, nextButtonValue, normalizeControlValue,
   resolveControlStyle, toggleFlagValue, toggleMultiValue,
+  fieldDataType, fieldEditKind, fieldNativeInputValue, normalizeFieldInput,
 } from '../../utils/stripControls';
 import { handleCellEditKeyDown, editableCellUnderline, tableCellScroll, TABLE_CELL_MAX_LINES } from '../../utils/tableCellEdit';
 
@@ -26,6 +28,18 @@ const ensureControlStyle = () => {
   document.head.appendChild(el);
   _ctlStyleInjected = true;
 };
+
+/** הצורה שהפקח צריך להקליד, לכל סוג נתון שאינו טקסט (CIV_STRIP_CONTROLS.md §2.4) */
+const FORMAT_HINT_KEY: Record<Exclude<StripFieldDataType, 'text'>, string> = {
+  integer: 'strips.fieldFormatInteger',
+  decimal: 'strips.fieldFormatDecimal',
+  time: 'strips.fieldFormatTime',
+  date: 'strips.fieldFormatDate',
+  datetime: 'strips.fieldFormatDatetime',
+};
+
+/** כמה זמן הפקד מסומן באדום אחרי ערך שנדחה */
+const INVALID_FLASH_MS = 2500;
 
 /**
  * פקד בודד על הסטריפ. **רכיב אחד לחמשת הסוגים** - כפתור, שדה, דגל, תפריט יחיד
@@ -51,6 +65,12 @@ export const StripControl = ({ control, value, onChange, lightMode, readOnly, va
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
   const [editing, setEditing] = useState(false);
   const [inkOpen, setInkOpen] = useState(false);
+  // ערך שנדחה בגלל סוג הנתון: הפקד מסומן באדום לרגע, עם הצורה הנדרשת.
+  // דחייה שקטה הייתה נראית לפקח כמו שמירה שלא עבדה
+  const [invalidHint, setInvalidHint] = useState<string | null>(null);
+  const invalidTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (invalidTimer.current) clearTimeout(invalidTimer.current); }, []);
+  const vk = useVK();
 
   ensureControlStyle();
   const rule = resolveControlStyle(control, value);
@@ -72,6 +92,39 @@ export const StripControl = ({ control, value, onChange, lightMode, readOnly, va
 
   // שדה טקסט בטבלה, ורק כשאין לו צבע מותנה - שם הקופסה הצבועה **היא** המסר
   const underlineOnly = variant === 'table' && control.type === 'field' && !rule?.bg;
+
+  // ── סוג הנתון של שדה ─────────────────────────────────────────────────────
+  // טקסט (וכל שדה ותיק בלי סוג) = בדיוק ההתנהגות של היום
+  const dataType = fieldDataType(control);
+  const editKind = fieldEditKind(dataType, vk.available);
+  const formatHint = dataType === 'text' ? '' : tr(FORMAT_HINT_KEY[dataType]);
+  const invalidText = formatHint ? tr('strips.fieldInvalidValue', { format: formatHint }) : '';
+  const flashInvalid = () => {
+    setInvalidHint(invalidText);
+    if (invalidTimer.current) clearTimeout(invalidTimer.current);
+    invalidTimer.current = setTimeout(() => setInvalidHint(null), INVALID_FLASH_MS);
+  };
+  const typedValue = isHandwritingValue(value) ? '' : String(value ?? '');
+
+  /** שמירת ערך מוקלד דרך סוג הנתון. `false` = נדחה, והערך הקודם נשאר */
+  const commitTyped = (raw: string): boolean => {
+    const res = normalizeFieldInput(dataType, raw);
+    if (!res.ok) { flashInvalid(); return false; }
+    onChange(res.value);
+    return true;
+  };
+
+  /**
+   * לוח הספרות של העמדה - כמו בשדה הגובה: בעט על Cintiq תיבת טקסט מחייבת
+   * מקלדת פיזית. ערך שנדחה פותח את הלוח שוב **עם מה שהוקלד** והסבר בכותרת,
+   * כדי שהפקח יתקן במקום שבו הוא כבר מסתכל ולא יקליד הכל מחדש.
+   */
+  const openNumpad = (initial: string, error = false) => vk.openVK({
+    value: initial,
+    mode: 'numeric',
+    label: error ? invalidText : `${control.label || ''} (${formatHint})`.trim(),
+    onConfirm: raw => { if (!commitTyped(raw)) openNumpad(raw, true); },
+  });
 
   const text = controlDisplayText(control, value);
   const ink = control.type === 'field' && isHandwritingValue(value) ? String(value) : '';
@@ -100,6 +153,7 @@ export const StripControl = ({ control, value, onChange, lightMode, readOnly, va
     overflow: 'hidden',
     whiteSpace: 'nowrap',
     position: 'relative',
+    ...(invalidHint ? { outline: '2px solid #ef4444', outlineOffset: '-1px' } : {}),
     ...(underlineOnly
       ? {
           background: 'transparent', border: 'none', borderRadius: 0,
@@ -132,6 +186,7 @@ export const StripControl = ({ control, value, onChange, lightMode, readOnly, va
     if (control.type === 'select' || control.type === 'multiselect') return openMenu(e);
     // שדה: מצב הקלט קובע מה נפתח. ב"גם וגם" הלחיצה היא מקלדת, והעט נפתח מהאייקון
     if (control.input === 'handwriting') return setInkOpen(true);
+    if (editKind === 'numpad') return openNumpad(typedValue);
     setEditing(true);
   };
 
@@ -146,7 +201,8 @@ export const StripControl = ({ control, value, onChange, lightMode, readOnly, va
         data-strip-control={control.key}
         data-strip-control-readonly={readOnly ? '1' : '0'}
         className={`sk-ctl${readOnly ? ' sk-ctl-ro' : ''}`}
-        title={control.label || undefined}
+        title={invalidHint || control.label || undefined}
+        data-strip-control-type={dataType}
         onClick={activate}
         onPointerDown={e => e.stopPropagation()}
         // הכרטיס עצמו נגרר ב-HTML5 drag, שמתחיל מ-`mousedown`. בלי לעצור אותו
@@ -158,7 +214,44 @@ export const StripControl = ({ control, value, onChange, lightMode, readOnly, va
       >
         {/* הפקד מציג **ערך** בלבד. שם השדה, אם הודלק, יושב לצדו כפריט נפרד
             שנגרר למקומו - כך הערך תמיד נראה ולא נדחק על ידי הכותרת */}
-        {editing ? (
+        {editing && editKind !== 'text' ? (
+          /* שדה עם סוג נתון: תאריך / תאריך ושעה - בורר הדפדפן, שעובד בעט
+             ובאצבע. מספר ושעה כשאין לוח ספרות (מחוץ לעמדה) - קלט במקום עם
+             `inputMode`, כך שמקלדת המגע של מערכת ההפעלה נפתחת על ספרות. */
+          <input
+            // eslint-disable-next-line jsx-a11y/no-autofocus
+            autoFocus
+            type={editKind === 'date' ? 'date' : editKind === 'datetime' ? 'datetime-local' : 'text'}
+            inputMode={dataType === 'decimal' ? 'decimal' : editKind === 'inline' ? 'numeric' : undefined}
+            placeholder={editKind === 'inline' ? formatHint : undefined}
+            defaultValue={editKind === 'inline' ? typedValue : fieldNativeInputValue(dataType, typedValue)}
+            // בלי preventDefault (בשונה מ-swallow): בבורר תאריך הוא חוסם את פתיחת הלוח
+            onClick={e => e.stopPropagation()}
+            // בורר: הלוח נפתח מיד, כדי שבעט תספיק לחיצה אחת ולא שתיים. הלחיצה על
+            // הפקד היא ה-user activation ש-showPicker דורש; דפדפן שאינו תומך -
+            // הקלט פשוט נשאר פתוח להקלדה
+            onFocus={e => {
+              if (editKind !== 'date' && editKind !== 'datetime') return;
+              try { (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); } catch { /* ignore */ }
+            }}
+            onPointerDown={e => e.stopPropagation()}
+            onBlur={e => {
+              setEditing(false);
+              // `badInput` = בורר שמולא חלקית. הדפדפן מחזיר אז `''`, ושמירה
+              // שלו הייתה **מוחקת** את הערך הקיים בלי שהפקח ביקש
+              if (e.target.validity?.badInput) { flashInvalid(); return; }
+              commitTyped(e.target.value);
+            }}
+            onKeyDown={e => {
+              if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
+            }}
+            style={{
+              flex: 1, minWidth: 0, background: 'rgba(0,0,0,0.15)', border: 'none',
+              borderBottom: `1px solid ${fg}`, color: fg, font: 'inherit', outline: 'none',
+              padding: 0, colorScheme: lightMode ? 'light' : 'dark',
+            }}
+          />
+        ) : editing ? (
           /* בטבלה השדה הוא textarea ולא input: תא בטבלה מחזיק כמה שורות
              (הערה, פירוט), ו-ALT+ENTER יורד שורה. על הסטריפ המשבצת גבוהה
              שורה אחת, ושם השדה נשאר חד-שורתי. */

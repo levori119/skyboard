@@ -3,11 +3,13 @@ import { tr } from '../../i18n/tr';
 import { TitleSaveButton } from '../shared/FormTitleActions';
 import { DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
 import { sgGenId } from '../../utils/stripGrid';
-import { isFreePlacement, parseCommaList } from '../../utils/stripControls';
+import {
+  dataTypeEnforcedIn, fieldDataType, fieldNativeInputValue, isFreePlacement, normalizeFieldInput, parseCommaList,
+} from '../../utils/stripControls';
 import { createStripField, updateStripField, useStripFieldCatalog } from '../../utils/stripFieldCatalog';
 import {
-  CONTROL_TYPES_WITH_VALUES, STRIP_CONTROL_TYPES,
-  type StripControl, type StripControlRef, type StripControlType,
+  CONTROL_TYPES_WITH_VALUES, STRIP_CONTROL_TYPES, STRIP_FIELD_DATA_TYPES,
+  type StripControl, type StripControlRef, type StripControlType, type StripFieldDataType,
 } from '../../types/stripControls';
 
 const BOX: React.CSSProperties = { background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', padding: '4px 7px', width: '100%', boxSizing: 'border-box' };
@@ -42,6 +44,78 @@ const CommaListInput = ({ values, onChange, placeholder }: {
   );
 };
 
+/** מה קורה בסטריפ לכל סוג נתון - שורת ההסבר מתחת לבורר הסוג */
+const DATA_TYPE_HINT_KEY: Partial<Record<StripFieldDataType, string>> = {
+  integer: 'admin.fieldDataTypeHintNumber',
+  decimal: 'admin.fieldDataTypeHintNumber',
+  time: 'admin.fieldDataTypeHintTime',
+  date: 'admin.fieldDataTypeHintDate',
+  datetime: 'admin.fieldDataTypeHintDatetime',
+};
+
+const FORMAT_KEY: Partial<Record<StripFieldDataType, string>> = {
+  integer: 'strips.fieldFormatInteger',
+  decimal: 'strips.fieldFormatDecimal',
+};
+
+/**
+ * ב"מ של שדה עם סוג נתון. **הכלל זהה לעריכה בסטריפ** (`normalizeFieldInput`):
+ * שעה / תאריך / תאריך ושעה - בורר הדפדפן; מספר - הקלדה שנבדקת בכל הקשה.
+ * ערך לא תקין אינו מגיע ל-`defaultValue` בכלל - הב"מ נשאר האחרון התקין,
+ * ושורה אדומה מסבירה מה נדרש. כך אי-אפשר לשמור ב"מ שהשדה עצמו היה דוחה.
+ */
+const TypedDefaultInput = ({ dataType, value, onChange }: {
+  dataType: Exclude<StripFieldDataType, 'text'>;
+  value: unknown;
+  onChange: (next: string) => void;
+}) => {
+  const current = value == null ? '' : String(value);
+  const [draft, setDraft] = useState(current);
+  const [bad, setBad] = useState(false);
+  const typing = useRef(false);
+  useEffect(() => { if (!typing.current) { setDraft(current); setBad(false); } }, [current]);
+
+  if (dataType === 'time' || dataType === 'date' || dataType === 'datetime') {
+    return (
+      <input
+        type={dataType === 'datetime' ? 'datetime-local' : dataType}
+        value={fieldNativeInputValue(dataType, current)}
+        onChange={e => {
+          // בורר שמולא חלקית מחזיר '' עם `badInput` - לא מוחקים בגללו את הב"מ
+          if (e.target.validity?.badInput) return;
+          const r = normalizeFieldInput(dataType, e.target.value);
+          if (r.ok) onChange(r.value);
+        }}
+        style={{ ...BOX, colorScheme: 'dark' }}
+      />
+    );
+  }
+
+  return (
+    <>
+      <input
+        value={draft}
+        inputMode={dataType === 'decimal' ? 'decimal' : 'numeric'}
+        placeholder={tr('admin.controlDefaultPlaceholder')}
+        onFocus={() => { typing.current = true; }}
+        onBlur={() => { typing.current = false; setDraft(current); setBad(false); }}
+        onChange={e => {
+          setDraft(e.target.value);
+          const r = normalizeFieldInput(dataType, e.target.value);
+          setBad(!r.ok);
+          if (r.ok) onChange(r.value);
+        }}
+        style={{ ...BOX, ...(bad ? { borderColor: '#ef4444' } : {}) }}
+      />
+      {bad && (
+        <div style={{ fontSize: '10px', color: '#f87171', marginTop: '3px' }}>
+          {tr('strips.fieldInvalidValue', { format: tr(FORMAT_KEY[dataType] || '') })}
+        </div>
+      )}
+    </>
+  );
+};
+
 /**
  * טופס ההגדרה של שדה מותאם - **אותו טופס** בעורך הסטריפ ובמוד הטבלה, כי זו
  * אותה הגדרה בקטלוג. אין כאן שדה "מפתח": המפתח הוא מזהה טכני שהשרת מייצר,
@@ -54,6 +128,14 @@ export const StripFieldForm = ({ draft, onChange }: {
   const type = (draft.type || 'field') as StripControlType;
   const withValues = CONTROL_TYPES_WITH_VALUES.includes(type);
   const set = (changes: Partial<StripControl>) => onChange({ ...draft, ...changes });
+  const dataType: StripFieldDataType = type === 'field' && draft.dataType ? draft.dataType : 'text';
+  // החלפת סוג: ב"מ שאינו תקין בסוג החדש מתאפס, ותקין מנורמל - אחרת היה
+  // נשמר ב"מ שהשדה עצמו דוחה ("CLR" בשדה מספרי)
+  const changeDataType = (next: StripFieldDataType) => {
+    const r = normalizeFieldInput(next, typeof draft.defaultValue === 'string' ? draft.defaultValue : '');
+    set({ dataType: next, defaultValue: r.ok ? r.value : '' });
+  };
+  const inputMode = draft.input || 'keyboard';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
@@ -89,13 +171,37 @@ export const StripFieldForm = ({ draft, onChange }: {
       )}
 
       {type === 'field' && (
-        <div>
-          <label style={LBL}>{tr('admin.controlInputMode')}</label>
-          <select value={draft.input || 'keyboard'} onChange={e => set({ input: e.target.value as any })} style={BOX}>
-            <option value="keyboard">{tr('admin.controlInputKeyboard')}</option>
-            <option value="handwriting">{tr('admin.controlInputHandwriting')}</option>
-            <option value="both">{tr('admin.controlInputBoth')}</option>
-          </select>
+        <div style={{ display: 'flex', gap: '7px' }}>
+          <div style={{ flex: 1 }}>
+            <label style={LBL}>{tr('admin.controlInputMode')}</label>
+            <select value={inputMode} onChange={e => set({ input: e.target.value as any })} style={BOX}>
+              <option value="keyboard">{tr('admin.controlInputKeyboard')}</option>
+              <option value="handwriting">{tr('admin.controlInputHandwriting')}</option>
+              <option value="both">{tr('admin.controlInputBoth')}</option>
+            </select>
+          </div>
+          {/* סוג הנתון: מה מותר להקליד בשדה ובאיזו צורה הוא נשמר (§2.4) */}
+          <div style={{ flex: 1 }}>
+            <label style={LBL}>{tr('admin.fieldDataType')}</label>
+            <select value={dataType} onChange={e => changeDataType(e.target.value as StripFieldDataType)} style={BOX} data-field-data-type>
+              {STRIP_FIELD_DATA_TYPES.map(t => <option key={t.type} value={t.type}>{tr(t.labelKey)}</option>)}
+            </select>
+          </div>
+        </div>
+      )}
+
+      {/* מה הסוג עושה בסטריפ - ובכתב יד, למה הוא **לא** עושה דבר. סוג שנבחר
+          בלי שום השפעה נראה למנהל בדיוק כמו פיצ'ר שבור */}
+      {type === 'field' && dataType !== 'text' && (
+        <div style={{ fontSize: '10px', lineHeight: 1.4, marginTop: '-3px' }}>
+          {dataTypeEnforcedIn(inputMode) ? (
+            <span style={{ color: '#64748b' }}>
+              {tr(DATA_TYPE_HINT_KEY[dataType] || '')}
+              {inputMode === 'both' && <> · {tr('admin.fieldDataTypeBothNote')}</>}
+            </span>
+          ) : (
+            <span style={{ color: '#fbbf24' }} data-field-data-type-warn>{tr('admin.fieldDataTypeHandwritingWarn')}</span>
+          )}
         </div>
       )}
 
@@ -112,6 +218,8 @@ export const StripFieldForm = ({ draft, onChange }: {
             onChange={next => set({ defaultValue: next })}
             placeholder={tr('admin.controlDefaultPlaceholder')}
           />
+        ) : dataType !== 'text' ? (
+          <TypedDefaultInput dataType={dataType} value={draft.defaultValue} onChange={next => set({ defaultValue: next })} />
         ) : (
           <input
             value={String(draft.defaultValue ?? '')}
@@ -219,6 +327,12 @@ export const StripFieldBadge = ({ field }: { field: StripControl }) => (
     <span style={{ fontSize: '10px', color: '#cbd5e1', background: '#1e293b', borderRadius: '3px', padding: '1px 5px', whiteSpace: 'nowrap' }}>
       {tr(STRIP_CONTROL_TYPES.find(t => t.type === field.type)?.labelKey || '') || field.type}
     </span>
+    {/* סוג הנתון, רק כשאינו טקסט - שדה טקסט נראה בדיוק כמו קודם */}
+    {fieldDataType(field) !== 'text' && (
+      <span data-badge-data-type={fieldDataType(field)} style={{ fontSize: '10px', color: '#a5f3fc', background: '#164e63', borderRadius: '3px', padding: '1px 5px', whiteSpace: 'nowrap' }}>
+        {tr(STRIP_FIELD_DATA_TYPES.find(t => t.type === fieldDataType(field))?.labelKey || '')}
+      </span>
+    )}
     <span style={{ fontSize: '10px', color: field.scope === 'global' ? '#86efac' : '#fcd34d', background: field.scope === 'global' ? '#14532d' : '#78350f', borderRadius: '3px', padding: '1px 5px', whiteSpace: 'nowrap' }}>
       {field.scope === 'global' ? tr('admin.controlScopeGlobal') : tr('admin.controlScopeWindow')}
     </span>

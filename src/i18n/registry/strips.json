@@ -410,6 +410,30 @@
       "he": "- ריק -",
       "en": "- empty -"
     },
+    "fieldFormatInteger": {
+      "he": "מספר שלם",
+      "en": "a whole number"
+    },
+    "fieldFormatDecimal": {
+      "he": "מספר",
+      "en": "a number"
+    },
+    "fieldFormatTime": {
+      "he": "שעה (HH:MM)",
+      "en": "a time (HH:MM)"
+    },
+    "fieldFormatDate": {
+      "he": "תאריך (DD/MM/YYYY)",
+      "en": "a date (DD/MM/YYYY)"
+    },
+    "fieldFormatDatetime": {
+      "he": "תאריך ושעה (DD/MM/YYYY HH:MM)",
+      "en": "a date and time (DD/MM/YYYY HH:MM)"
+    },
+    "fieldInvalidValue": {
+      "he": "ערך לא תקין - נדרש {{format}}",
+      "en": "Invalid value - expected {{format}}"
+    },
     "civFl": {
       "he": "FL",
       "en": "FL"

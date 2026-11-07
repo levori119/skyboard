@@ -18,6 +18,25 @@ export type StripControlScope = 'window' | 'global';
 /** מצב הקלט של פקד מסוג שדה */
 export type StripControlInput = 'keyboard' | 'handwriting' | 'both';
 
+/**
+ * **סוג הנתון** של פקד מסוג שדה - מה מותר להקליד בו ובאיזו צורה הוא נשמר.
+ * `text` הוא ברירת המחדל, וגם מה ששדה ותיק (בלי סוג) מקבל - כך הוא ממשיך
+ * להתנהג בדיוק כמו קודם. הצורה השמורה (CIV_STRIP_CONTROLS.md §2.4):
+ * `integer` "42" · `decimal` "3.5" · `time` "HH:MM" · `date` "YYYY-MM-DD" ·
+ * `datetime` "YYYY-MM-DD HH:MM" - פורמט ממוין, כך שהשוואת מחרוזות היא גם
+ * השוואת ערכים.
+ */
+export type StripFieldDataType = 'text' | 'integer' | 'decimal' | 'time' | 'date' | 'datetime';
+
+export const STRIP_FIELD_DATA_TYPES: { type: StripFieldDataType; labelKey: string }[] = [
+  { type: 'text',     labelKey: 'admin.fieldDataTypeText' },
+  { type: 'integer',  labelKey: 'admin.fieldDataTypeInteger' },
+  { type: 'decimal',  labelKey: 'admin.fieldDataTypeDecimal' },
+  { type: 'time',     labelKey: 'admin.fieldDataTypeTime' },
+  { type: 'date',     labelKey: 'admin.fieldDataTypeDate' },
+  { type: 'datetime', labelKey: 'admin.fieldDataTypeDatetime' },
+];
+
 /** מחרוזת (כפתור/שדה/תפריט יחיד), בוליאני (דגל) או מערך (תפריט מרובה) */
 export type StripControlValue = string | boolean | string[];
 
@@ -92,6 +111,8 @@ export interface StripControl {
   values?: string[];
   /** שדה בלבד: מקלדת / כתב יד / שניהם */
   input?: StripControlInput;
+  /** שדה בלבד: סוג הנתון. חסר = `text` */
+  dataType?: StripFieldDataType;
   /** ב"מ - הערך שהפקד מציג כשאין לו ערך שמור */
   defaultValue?: StripControlValue;
   scope: StripControlScope;

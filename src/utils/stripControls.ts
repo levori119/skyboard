@@ -5,8 +5,9 @@
 
 import type {
   StripControl, StripControlRef, StripControlType, StripControlValue, StripControlStyleRule,
+  StripControlInput, StripFieldDataType,
 } from '../types/stripControls';
-import { CONTROL_MATCH_ANY, CONTROL_FIELD_PREFIX } from '../types/stripControls';
+import { CONTROL_MATCH_ANY, CONTROL_FIELD_PREFIX, STRIP_FIELD_DATA_TYPES } from '../types/stripControls';
 import type { SGNode, SGCell, SGSplit } from '../types/stripGrid';
 
 /** השוואת ערכים: לא תלוית רישיות ורווחים, כדי שהגדרה ידנית לא תחטיא */
@@ -240,4 +241,132 @@ export function controlKeyFromField(field: string): string | null {
  */
 export function globalControls(catalog: StripControl[] | null | undefined): StripControl[] {
   return (catalog || []).filter(f => f?.scope === 'global' && f.key);
+}
+
+// ─── סוג הנתון של שדה (CIV_STRIP_CONTROLS.md §2.4) ───────────────────────────
+
+const KNOWN_DATA_TYPES = new Set<string>(STRIP_FIELD_DATA_TYPES.map(t => t.type));
+
+/**
+ * סוג הנתון האפקטיבי. שדה ותיק בלי סוג, סוג לא מוכר, או פקד שאינו שדה
+ * (סוג שנשאר מהגדרה קודמת) - כולם `text`, כלומר ההתנהגות של היום.
+ */
+export function fieldDataType(control: Pick<StripControl, 'type' | 'dataType'> | null | undefined): StripFieldDataType {
+  if (control?.type !== 'field') return 'text';
+  return control.dataType && KNOWN_DATA_TYPES.has(control.dataType) ? control.dataType : 'text';
+}
+
+export type FieldInputResult = { ok: true; value: string } | { ok: false };
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+/** "1430" / "7:05" / "14.30" / "9" → "HH:MM", או `null` */
+function parseTime(s: string): string | null {
+  let h: number; let m: number;
+  const sep = s.replace(/[.,h]/g, ':').match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (sep) { h = Number(sep[1]); m = Number(sep[2]); }
+  else if (/^\d{3,4}$/.test(s)) { h = Number(s.slice(0, -2)); m = Number(s.slice(-2)); }
+  else if (/^\d{1,2}$/.test(s)) { h = Number(s); m = 0; }
+  else return null;
+  if (h > 23 || m > 59) return null;
+  return `${pad2(h)}:${pad2(m)}`;
+}
+
+/** "2026-11-07" / "7/11/2026" / "7.11.26" (יום-חודש-שנה) → "YYYY-MM-DD", או `null` */
+function parseDate(s: string): string | null {
+  let y: number; let mo: number; let d: number;
+  const iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  const dmy = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4}|\d{2})$/);
+  if (iso) { y = Number(iso[1]); mo = Number(iso[2]); d = Number(iso[3]); }
+  else if (dmy) { d = Number(dmy[1]); mo = Number(dmy[2]); y = Number(dmy[3]); if (dmy[3].length === 2) y += 2000; }
+  else return null;
+  // בדיקה מול לוח השנה עצמו: 31/11 ו-29/02 בשנה פשוטה "מתגלגלים" בחודש
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return null;
+  return `${y}-${pad2(mo)}-${pad2(d)}`;
+}
+
+/** מסיר אפסים מובילים מחלק שלם ("007" → "7", "" → "0") */
+const trimIntZeros = (digits: string) => digits.replace(/^0+(?=\d)/, '') || '0';
+
+/**
+ * קלט גולמי (הקלדה, לוח ספרות, בורר הדפדפן) → הצורה השמורה של הסוג, או
+ * דחייה. ריק הוא תמיד חוקי - זה ניקוי השדה. טקסט עובר כמות שהוא, כולל
+ * רווחים: זו ההתנהגות של היום ואין סיבה לשנות אותה.
+ */
+export function normalizeFieldInput(dataType: StripFieldDataType, raw: unknown): FieldInputResult {
+  const str = raw == null ? '' : String(raw);
+  if (dataType === 'text') return { ok: true, value: str };
+  const s = str.trim();
+  if (s === '') return { ok: true, value: '' };
+
+  if (dataType === 'integer') {
+    const m = s.match(/^([+-]?)(\d+)$/);
+    if (!m) return { ok: false };
+    const digits = trimIntZeros(m[2]);
+    return { ok: true, value: m[1] === '-' && digits !== '0' ? `-${digits}` : digits };
+  }
+
+  if (dataType === 'decimal') {
+    const m = s.replace(',', '.').match(/^([+-]?)(\d*)(?:\.(\d*))?$/);
+    if (!m || (m[2] === '' && !m[3])) return { ok: false };
+    const int = trimIntZeros(m[2]);
+    const frac = m[3] || '';
+    const body = frac ? `${int}.${frac}` : int;
+    const zero = /^[0.]+$/.test(body);
+    return { ok: true, value: m[1] === '-' && !zero ? `-${body}` : body };
+  }
+
+  if (dataType === 'time') {
+    const t = parseTime(s);
+    return t ? { ok: true, value: t } : { ok: false };
+  }
+
+  if (dataType === 'date') {
+    const d = parseDate(s);
+    return d ? { ok: true, value: d } : { ok: false };
+  }
+
+  // datetime: שני חלקים, תאריך ושעה - מופרדים ב-T (מה שבורר הדפדפן מחזיר) או ברווח
+  const parts = s.split(/[T\s]+/);
+  if (parts.length !== 2) return { ok: false };
+  const d = parseDate(parts[0]);
+  const t = parseTime(parts[1]);
+  return d && t ? { ok: true, value: `${d} ${t}` } : { ok: false };
+}
+
+/**
+ * ערך שמור → הצורה ש-`<input type="date|time|datetime-local">` מקבל. ערך ישן
+ * שאינו בצורה החוקית (נכתב לפני שנקבע סוג) נפתח ריק - הדפדפן היה מתעלם ממנו
+ * בכל מקרה, והערך עצמו לא נמחק עד שהפקח שומר ערך חדש.
+ */
+export function fieldNativeInputValue(dataType: StripFieldDataType, value: unknown): string {
+  const s = value == null ? '' : String(value);
+  if (dataType === 'date') return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '';
+  if (dataType === 'time') return /^\d{2}:\d{2}$/.test(s) ? s : '';
+  if (dataType === 'datetime') return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(s) ? s.replace(' ', 'T') : '';
+  return s;
+}
+
+/**
+ * מה נפתח בלחיצה על השדה:
+ * `text` - עריכה במקום (היום) · `numpad` - לוח הספרות של העמדה ·
+ * `inline` - קלט מספרי במקום, כשאין לוח ספרות (מחוץ לעמדה) ·
+ * `date`/`datetime` - בורר הדפדפן.
+ *
+ * שעה עוברת בלוח הספרות ולא בבורר: "1430" בארבע הקשות מהיר מכל בורר, וזו
+ * בדיוק הצורה שבה פקח כותב שעה.
+ */
+export function fieldEditKind(
+  dataType: StripFieldDataType,
+  numpadAvailable: boolean,
+): 'text' | 'numpad' | 'inline' | 'date' | 'datetime' {
+  if (dataType === 'date' || dataType === 'datetime') return dataType;
+  if (dataType === 'integer' || dataType === 'decimal' || dataType === 'time') return numpadAvailable ? 'numpad' : 'inline';
+  return 'text';
+}
+
+/** כתב יד נשמר כציור (`data:image`), ולכן סוג הנתון אינו נאכף בו */
+export function dataTypeEnforcedIn(input: StripControlInput | undefined): boolean {
+  return input !== 'handwriting';
 }

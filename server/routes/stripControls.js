@@ -28,6 +28,8 @@ const stripIdNum = (v) => {
 const FIELD_TYPES = new Set(['button', 'field', 'flag', 'select', 'multiselect']);
 const INPUT_MODES = new Set(['keyboard', 'handwriting', 'both']);
 const SCOPES = new Set(['window', 'global']);
+/** סוג הנתון של שדה (CIV_STRIP_CONTROLS.md §2.4). חסר / לא מוכר = טקסט */
+const DATA_TYPES = new Set(['text', 'integer', 'decimal', 'time', 'date', 'datetime']);
 
 /** שורת DB → הצורה שהלקוח עובד בה (`StripControl`) */
 const toFieldDef = (r) => ({
@@ -36,6 +38,8 @@ const toFieldDef = (r) => ({
   label: r.label || '',
   type: r.type,
   input: r.input_mode || 'keyboard',
+  // שורה ותיקה (לפני העמודה) היא NULL - וטקסט הוא בדיוק ההתנהגות שהייתה לה
+  dataType: r.type === 'field' && DATA_TYPES.has(r.data_type) ? r.data_type : 'text',
   scope: r.scope,
   values: Array.isArray(r.values_json) ? r.values_json : [],
   defaultValue: r.default_value,
@@ -47,6 +51,9 @@ const readFieldBody = (b = {}) => ({
   label: String(b.label ?? '').slice(0, 120),
   type: FIELD_TYPES.has(b.type) ? b.type : 'field',
   input: INPUT_MODES.has(b.input) ? b.input : 'keyboard',
+  // לסוג נתון יש משמעות רק בשדה. בפקד אחר הוא נשמר כטקסט, כדי שסוג שנשאר
+  // מהגדרה קודמת לא "יחזור לחיים" אם הפקד יוחזר לשדה בעתיד בלי שנבחר מחדש
+  dataType: b.type === 'field' && DATA_TYPES.has(b.dataType) ? b.dataType : 'text',
   scope: SCOPES.has(b.scope) ? b.scope : 'global',
   values: Array.isArray(b.values) ? b.values.map(v => String(v)).filter(v => v.trim() !== '') : [],
   defaultValue: b.defaultValue ?? null,
@@ -70,10 +77,10 @@ router.post('/api/strip-field-defs', async (req, res) => {
     // המפתח נוצר בשרת מרצף ייעודי ואינו נחשף למנהל: הוא מזהה טכני, ושתי
     // עמדות שמוסיפות שדה באותו רגע לא יכולות לקבל את אותו מפתח
     const r = await pool.query(
-      `INSERT INTO strip_field_defs (key, label, type, input_mode, scope, values_json, default_value, styles_json)
-       VALUES ('fld_' || nextval('strip_field_key_seq'), $1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb)
+      `INSERT INTO strip_field_defs (key, label, type, input_mode, scope, values_json, default_value, styles_json, data_type)
+       VALUES ('fld_' || nextval('strip_field_key_seq'), $1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb, $8)
        RETURNING *`,
-      [f.label, f.type, f.input, f.scope, JSON.stringify(f.values), JSON.stringify(f.defaultValue), JSON.stringify(f.styles)]
+      [f.label, f.type, f.input, f.scope, JSON.stringify(f.values), JSON.stringify(f.defaultValue), JSON.stringify(f.styles), f.dataType]
     );
     res.json(toFieldDef(r.rows[0]));
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
@@ -85,9 +92,9 @@ router.put('/api/strip-field-defs/:id', async (req, res) => {
     const r = await pool.query(
       `UPDATE strip_field_defs
           SET label=$1, type=$2, input_mode=$3, scope=$4, values_json=$5::jsonb,
-              default_value=$6::jsonb, styles_json=$7::jsonb, updated_at=NOW()
-        WHERE id=$8 RETURNING *`,
-      [f.label, f.type, f.input, f.scope, JSON.stringify(f.values), JSON.stringify(f.defaultValue), JSON.stringify(f.styles), req.params.id]
+              default_value=$6::jsonb, styles_json=$7::jsonb, data_type=$8, updated_at=NOW()
+        WHERE id=$9 RETURNING *`,
+      [f.label, f.type, f.input, f.scope, JSON.stringify(f.values), JSON.stringify(f.defaultValue), JSON.stringify(f.styles), f.dataType, req.params.id]
     );
     if (!r.rows.length) return res.status(404).json({ error: 'Not found' });
     res.json(toFieldDef(r.rows[0]));

@@ -33,6 +33,14 @@ beforeAll(async () => {
     control_key VARCHAR(64) NOT NULL, value JSONB, updated_at TIMESTAMPTZ DEFAULT NOW(),
     PRIMARY KEY (strip_id, preset_id, control_key))`);
   await pool.query(`INSERT INTO workstation_presets (id, name) VALUES (21, 'בת"ק עזה')`);
+  // קטלוג השדות - כפי שהוא ב-init.js, כולל עמודת סוג הנתון
+  await pool.query(`CREATE SEQUENCE strip_field_key_seq`);
+  await pool.query(`CREATE TABLE strip_field_defs (
+    id SERIAL PRIMARY KEY, key VARCHAR(64) NOT NULL UNIQUE, label VARCHAR(120) NOT NULL DEFAULT '',
+    type VARCHAR(20) NOT NULL DEFAULT 'field', input_mode VARCHAR(20) DEFAULT 'keyboard',
+    scope VARCHAR(10) NOT NULL DEFAULT 'global', values_json JSONB DEFAULT '[]', default_value JSONB,
+    styles_json JSONB DEFAULT '[]', data_type VARCHAR(20),
+    created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW())`);
 
   const app = express();
   app.use(express.json());
@@ -92,5 +100,42 @@ describe('ערך פנימי ללוח (strip_control_values)', () => {
   it('מזהה שאינו פ"מ נדחה ב-400', async () => {
     const { status } = await req('PUT', '/api/strip-control-values', { strip_id: 'sxyz', preset_id: 21, control_key: KEY, value: 'x' });
     expect(status).toBe(400);
+  });
+});
+
+// ─── סוג הנתון של שדה בקטלוג (CIV_STRIP_CONTROLS.md §2.4) ────────────────────
+describe('קטלוג השדות - סוג נתון', () => {
+  it('שדה נוצר עם סוג נתון, והסוג נקרא חזרה ב-GET', async () => {
+    const created = await req('POST', '/api/strip-field-defs', { label: 'שעת המראה', type: 'field', dataType: 'time', defaultValue: '' });
+    expect(created.status).toBe(200);
+    expect(created.json.dataType).toBe('time');
+    const list = await req('GET', '/api/strip-field-defs');
+    expect(list.json.find(f => f.id === created.json.id).dataType).toBe('time');
+  });
+
+  it('עדכון משנה את הסוג', async () => {
+    const created = await req('POST', '/api/strip-field-defs', { label: 'כמות', type: 'field', dataType: 'text' });
+    const upd = await req('PUT', `/api/strip-field-defs/${created.json.id}`, { ...created.json, dataType: 'integer' });
+    expect(upd.status).toBe(200);
+    expect(upd.json.dataType).toBe('integer');
+  });
+
+  it('שדה בלי סוג (ותיק, או לקוח ישן) = טקסט', async () => {
+    const created = await req('POST', '/api/strip-field-defs', { label: 'הערה', type: 'field' });
+    expect(created.json.dataType).toBe('text');
+    // שורה ותיקה שנכתבה לפני העמודה - NULL ב-DB
+    await pool.query(`INSERT INTO strip_field_defs (key, label, type) VALUES ('legacy_1', 'ישן', 'field')`);
+    const list = await req('GET', '/api/strip-field-defs');
+    expect(list.json.find(f => f.key === 'legacy_1').dataType).toBe('text');
+  });
+
+  it('סוג לא מוכר נשמר כטקסט ולא נשמר שבור', async () => {
+    const created = await req('POST', '/api/strip-field-defs', { label: 'x', type: 'field', dataType: 'banana' });
+    expect(created.json.dataType).toBe('text');
+  });
+
+  it('לפקד שאינו שדה אין סוג נתון', async () => {
+    const created = await req('POST', '/api/strip-field-defs', { label: 'מצב', type: 'button', values: ['A'], dataType: 'integer' });
+    expect(created.json.dataType).toBe('text');
   });
 });
