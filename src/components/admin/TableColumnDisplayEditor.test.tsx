@@ -61,3 +61,22 @@ describe('TableColumnDisplayEditor', () => {
     expect(html).toContain('<svg');
   });
 });
+
+describe('TableColumnDisplayEditor - כלל "זמן מעכשיו"', () => {
+  it('כל כלל מציע בורר בין התאמת ערך לזמן מעכשיו', () => {
+    const html = renderToStaticMarkup(
+      <TableColumnDisplayEditor col={{ key: 'takeoffTime', decor: [{ id: 'r1', match: '*', shape: 'box', color: '#ef4444' }] }} onChange={noop} catalogFields={[]} />,
+    );
+    expect(html).toContain('data-sk="decor-cond"');
+    expect(html).toContain('value="timeFromNow"');
+  });
+  it('כלל זמן - יותר/פחות מ, כמות ויחידה במקום שדה הערך', () => {
+    const html = renderToStaticMarkup(
+      <TableColumnDisplayEditor col={{ key: 'takeoffTime', decor: [{ id: 'r1', match: '*', cond: 'timeFromNow', cmp: 'gt', amount: 45, unit: 'h', shape: 'box', color: '#ef4444' }] }} onChange={noop} catalogFields={[]} />,
+    );
+    expect(html).toContain('data-sk="decor-time"');
+    expect(html).toContain('value="45"');
+    expect(html).toContain('<option value="gt" selected="">');
+    expect(html).toContain('<option value="h" selected="">');
+  });
+});

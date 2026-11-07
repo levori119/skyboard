@@ -20,10 +20,25 @@ export type CellShape = 'none' | 'box' | 'rounded' | 'circle' | 'underline' | 'd
 /** הצורות שהעורך מציע, לפי הסדר שבו הן מוצגות */
 export const CELL_SHAPES: CellShape[] = ['box', 'rounded', 'circle', 'underline', 'double', 'fill', 'none'];
 
+/** סוג התנאי של כלל: התאמת ערך (ברירת המחדל, כל כלל ישן) או זמן מעכשיו */
+export type DecorCond = 'value' | 'timeFromNow';
+export type DecorCmp = 'gt' | 'lt';
+export type DecorTimeUnit = 's' | 'm' | 'h';
+export const DECOR_CMPS: DecorCmp[] = ['gt', 'lt'];
+export const DECOR_TIME_UNITS: DecorTimeUnit[] = ['s', 'm', 'h'];
+const UNIT_MS: Record<DecorTimeUnit, number> = { s: 1000, m: 60_000, h: 3_600_000 };
+
 export interface CellDecorRule {
   id: string;
-  /** ערך מפורש, `*` = כל ערך שאינו ריק, `''` = ריק. אותם כללים של העיצוב המותנה בפקדים */
+  /** ערך מפורש, `*` = כל ערך שאינו ריק, `''` = ריק. אותם כללים של העיצוב המותנה בפקדים.
+   *  בכלל "זמן מעכשיו" - לא נקרא */
   match: string;
+  /** חסר = `value` (התאמת ערך), כך שכללים שנשמרו לפני התוספת מתנהגים כמו קודם */
+  cond?: DecorCond;
+  /** כלל זמן: (זמן התא - עכשיו) יותר מ / פחות מ amount×unit. חיובי = בעתיד, שלילי = עבר */
+  cmp?: DecorCmp;
+  amount?: number;
+  unit?: DecorTimeUnit;
   shape: CellShape;
   /** צבע הצורה (מסגרת / קו / רקע) */
   color: string;
@@ -85,12 +100,105 @@ function isNoopRule(r: CellDecorRule): boolean {
   return (r.shape === 'none' || !r.shape) && !r.bold && !(r.scale && r.scale !== 1) && !r.textColor;
 }
 
-export function resolveCellDecor(rules: CellDecorRule[] | null | undefined, rawValue: unknown): CellDecorRule | null {
+// ── זמן בתא ────────────────────────────────────────────────────────────
+// הפורמטים שהמערכת מייצרת: שעת המראה מוצגת `HH:MM` (שעה מקומית), ושדה מותאם
+// מסוג שעה / תאריך / תאריך ושעה נשמר `HH:MM` / `YYYY-MM-DD` / `YYYY-MM-DD HH:MM`.
+// ולצידם ISO מלא (עם או בלי אזור זמן), למקרה ששדה מחזיר אותו כמו שהוא.
+const RE_CLOCK = /^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(Z)?$/i;
+const RE_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+const RE_DATETIME = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$/;
+const RE_ISO_TZ = /^\d{4}-\d{2}-\d{2}T\d{1,2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/i;
+const HALF_DAY_MS = 12 * 3_600_000;
+
+function validClock(h: number, m: number, s: number): boolean {
+  return h >= 0 && h <= 23 && m >= 0 && m <= 59 && s >= 0 && s <= 59;
+}
+
+/** תאריך מקומי - null כשהתאריך לא קיים (30/02 שהיה "מתגלגל" ל-02/03) */
+function localDate(y: number, mo: number, d: number, h = 0, mi = 0, s = 0): number | null {
+  const dt = new Date(y, mo - 1, d, h, mi, s);
+  if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null;
+  return dt.getTime();
+}
+
+/**
+ * ערך התא כרגע בזמן (epoch ms), או null כשאינו זמן.
+ *
+ * שעה בלי תאריך (`HH:MM`, `HH:MM:SS`) - המופע **הקרוב** שלה לעכשיו, בטווח ±12 שעות:
+ * ב-23:50 הערך 00:10 הוא מחר (בעוד 20 דקות) ולא היום (לפני 23:40 שעות), וב-00:10
+ * הערך 23:50 הוא אתמול. `Z` בסוף השעה = UTC; בלעדיו שעה מקומית, כמו שהטבלה מציגה.
+ * תאריך בלבד = תחילת היום המקומי.
+ */
+export function parseCellTime(rawValue: unknown, now: number): number | null {
+  const v = normalizeCellValue(rawValue);
+  if (!v) return null;
+
+  let m = RE_CLOCK.exec(v);
+  if (m) {
+    const h = Number(m[1]); const mi = Number(m[2]); const s = Number(m[3] || 0);
+    if (!validClock(h, mi, s)) return null;
+    const base = new Date(now);
+    // הזזה ביום קלנדרי ולא ב-24 שעות - כדי שלא תזוז בשעה ביום מעבר שעון קיץ/חורף
+    const at = (dayShift: number) => (m![4]
+      ? Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate() + dayShift, h, mi, s)
+      : new Date(base.getFullYear(), base.getMonth(), base.getDate() + dayShift, h, mi, s).getTime());
+    const t = at(0);
+    if (t - now > HALF_DAY_MS) return at(-1);
+    if (t - now <= -HALF_DAY_MS) return at(1);
+    return t;
+  }
+
+  m = RE_DATE.exec(v);
+  if (m) return localDate(Number(m[1]), Number(m[2]), Number(m[3]));
+
+  m = RE_DATETIME.exec(v);
+  if (m) {
+    const h = Number(m[4]); const mi = Number(m[5]); const s = Number(m[6] || 0);
+    if (!validClock(h, mi, s)) return null;
+    return localDate(Number(m[1]), Number(m[2]), Number(m[3]), h, mi, s);
+  }
+
+  if (RE_ISO_TZ.test(v)) {
+    const t = Date.parse(v);
+    return Number.isFinite(t) ? t : null;
+  }
+  return null;
+}
+
+/** "מעכשיו" חתום: זמן התא פחות עכשיו. חיובי = בעתיד, שלילי = כבר עבר. null כשאינו זמן */
+export function timeFromNowMs(rawValue: unknown, now: number): number | null {
+  const t = parseCellTime(rawValue, now);
+  return t === null ? null : t - now;
+}
+
+/**
+ * האם הכלל מתאים לערך. כלל "זמן מעכשיו" משווה את ההפרש החתום (השוואה חדה):
+ *   "פחות מ-10 דקות" = עד 10 דקות מעכשיו, **כולל מה שכבר עבר** (המראה שאיחרה)
+ *   "יותר מ-1 שעה"   = רחוק יותר משעה בעתיד
+ *   כמות שלילית      = לפני: "פחות מ -30 דקות" = עבר לפני יותר מחצי שעה
+ */
+export function decorRuleMatches(rule: CellDecorRule, rawValue: unknown, now: number): boolean {
+  if (rule.cond === 'timeFromNow') {
+    if (rule.amount === undefined || rule.amount === null) return false;
+    const amount = Number(rule.amount);
+    if (!Number.isFinite(amount)) return false;
+    const diff = timeFromNowMs(rawValue, now);
+    if (diff === null) return false;
+    const limit = amount * (UNIT_MS[rule.unit as DecorTimeUnit] ?? UNIT_MS.m);
+    return rule.cmp === 'gt' ? diff > limit : diff < limit;
+  }
+  return controlValueMatches('button', normalizeCellValue(rawValue), rule.match ?? CONTROL_MATCH_ANY);
+}
+
+/**
+ * `now` מוזרק לבדיקות. בעמדה ברירת המחדל מספיקה: SectorDashboard מתרנדר כל שנייה
+ * (`rwNow`), ולכן כלל זמן מתעדכן עם השעון גם בלי שום שינוי בנתון.
+ */
+export function resolveCellDecor(rules: CellDecorRule[] | null | undefined, rawValue: unknown, now: number = Date.now()): CellDecorRule | null {
   if (!Array.isArray(rules) || rules.length === 0) return null;
-  const value = normalizeCellValue(rawValue);
   for (const rule of rules) {
     if (!rule || isNoopRule(rule)) continue;
-    if (controlValueMatches('button', value, rule.match ?? CONTROL_MATCH_ANY)) return rule;
+    if (decorRuleMatches(rule, rawValue, now)) return rule;
   }
   return null;
 }

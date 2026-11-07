@@ -1,7 +1,7 @@
 // עורך תצוגת העמודה במוד טבלה - נפתח מתחת לשורת העמודה בניהול (כפתור 🎨).
 //
 // שלושה חלקים, כולם נשמרים בתוך הגדרת העמודה (table_modes.columns):
-//   • עיצוב תצוגה - כללים לפי ערך: משבצת / עיגול / קו תחתון... בצבע שנבחר
+//   • עיצוב תצוגה - כללים לפי ערך (או לפי זמן מעכשיו): משבצת / עיגול / קו תחתון... בצבע שנבחר
 //   • תצוגה        - טקסט / אייקון / אייקון וטקסט, ומיפוי ערך → אייקון
 //   • שורה שנייה  - שדה נוסף שמוצג מתחת לשדה העמודה באותו תא. **מקופל** בפתיחה:
 //                   🎨 מעצב את השורה הראשונה, והשנייה (ועיצובה) רק אחרי שפותחים אותה
@@ -12,8 +12,9 @@ import React, { useState } from 'react';
 import { tr } from '../../i18n/tr';
 import {
   CELL_SHAPES, CELL_SCALES, CELL_DISPLAY_MODES, DECOR_COLORS, BUILTIN_DISPLAY_ICONS,
+  DECOR_CMPS, DECOR_TIME_UNITS,
   cellDecorStyle, columnDisplayMode, newDecorRule,
-  type CellDecorRule, type CellShape, type CellDisplayMode,
+  type CellDecorRule, type CellShape, type CellDisplayMode, type DecorCmp, type DecorTimeUnit,
 } from '../../utils/tableCellDisplay';
 import { useDisplayIcons } from '../../utils/displayIcons';
 import DisplayIcon from '../shared/DisplayIcon';
@@ -84,13 +85,45 @@ export default function TableColumnDisplayEditor({ col, onChange, catalogFields,
                 <button onClick={() => moveRule(idx, -1)} disabled={idx === 0} title={tr('tableDisplay.moveUp')} style={{ ...smallBtn, padding: '0 5px', fontSize: '10px', opacity: idx === 0 ? 0.3 : 1 }}>▲</button>
                 <button onClick={() => moveRule(idx, 1)} disabled={idx === rules.length - 1} title={tr('tableDisplay.moveDown')} style={{ ...smallBtn, padding: '0 5px', fontSize: '10px', opacity: idx === rules.length - 1 ? 0.3 : 1 }}>▼</button>
               </span>
-              <input
-                value={rule.match}
-                onChange={e => updateRule(rule.id, { match: e.target.value })}
-                placeholder={tr('tableDisplay.matchPlaceholder')}
-                title={tr('tableDisplay.matchHint')}
-                style={{ ...inputStyle, width: '110px' }}
-              />
+              {/* סוג התנאי: ערך התא, או זמן התא ביחס לעכשיו */}
+              <select
+                data-sk="decor-cond"
+                value={rule.cond === 'timeFromNow' ? 'timeFromNow' : 'value'}
+                onChange={e => updateRule(rule.id, e.target.value === 'timeFromNow'
+                  ? { cond: 'timeFromNow', cmp: rule.cmp || 'lt', amount: rule.amount ?? 10, unit: rule.unit || 'm' }
+                  : { cond: 'value' })}
+                title={tr('tableDisplay.condHint')}
+                style={inputStyle}
+              >
+                <option value="value">{tr('tableDisplay.cond_value')}</option>
+                <option value="timeFromNow">{tr('tableDisplay.cond_timeFromNow')}</option>
+              </select>
+              {rule.cond === 'timeFromNow' ? (
+                <span data-sk="decor-time" title={tr('tableDisplay.timeHint')} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <select value={rule.cmp || 'lt'} onChange={e => updateRule(rule.id, { cmp: e.target.value as DecorCmp })} style={inputStyle}>
+                    {DECOR_CMPS.map(c => <option key={c} value={c}>{tr(`tableDisplay.cmp_${c}`)}</option>)}
+                  </select>
+                  {/* שלילי = לפני (כבר עבר) */}
+                  <input
+                    type="number"
+                    value={rule.amount ?? ''}
+                    onChange={e => updateRule(rule.id, { amount: e.target.value === '' ? undefined : Number(e.target.value) })}
+                    style={{ ...inputStyle, width: '64px' }}
+                  />
+                  <select value={rule.unit || 'm'} onChange={e => updateRule(rule.id, { unit: e.target.value as DecorTimeUnit })} style={inputStyle}>
+                    {DECOR_TIME_UNITS.map(u => <option key={u} value={u}>{tr(`tableDisplay.unit_${u}`)}</option>)}
+                  </select>
+                  <span style={{ fontSize: '11px', color: '#94a3b8' }}>{tr('tableDisplay.fromNow')}</span>
+                </span>
+              ) : (
+                <input
+                  value={rule.match}
+                  onChange={e => updateRule(rule.id, { match: e.target.value })}
+                  placeholder={tr('tableDisplay.matchPlaceholder')}
+                  title={tr('tableDisplay.matchHint')}
+                  style={{ ...inputStyle, width: '110px' }}
+                />
+              )}
               {/* הצורות כדוגמה חיה - רואים את התוצאה לפני שבוחרים */}
               <div style={{ display: 'flex', gap: '3px' }}>
                 {CELL_SHAPES.map((shape: CellShape) => (
@@ -126,7 +159,7 @@ export default function TableColumnDisplayEditor({ col, onChange, catalogFields,
                 )}
               </label>
               <span style={{ marginInlineStart: 'auto', padding: '2px 8px', background: '#1e293b', borderRadius: '4px', color: '#e2e8f0', fontSize: '13px' }}>
-                <span style={cellDecorStyle(rule)}>{rule.match && rule.match !== '*' ? rule.match : tr('tableDisplay.sample')}</span>
+                <span style={cellDecorStyle(rule)}>{rule.cond !== 'timeFromNow' && rule.match && rule.match !== '*' ? rule.match : tr('tableDisplay.sample')}</span>
               </span>
               <button onClick={() => setRules(rules.filter(r => r.id !== rule.id))} style={{ ...smallBtn, background: '#7f1d1d', border: 'none', color: '#fecaca' }}>✕</button>
             </div>
