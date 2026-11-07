@@ -463,14 +463,21 @@ router.put('/api/presets/:id/aid-group', async (req, res) => {
 });
 
 // --- Table Modes API ---
+const parseJsonArr = (v) => Array.isArray(v) ? v : (typeof v === 'string' ? (() => { try { const a = JSON.parse(v); return Array.isArray(a) ? a : []; } catch { return []; } })() : []);
+/** המוד כפי שהלקוח צורך אותו - `frozenColumns` ו-`sortSpec` בשמות camelCase */
+const tableModeOut = (r) => ({ ...r, columns: parseJsonArr(r.columns), frozenColumns: r.frozen_columns || 0, sortSpec: parseJsonArr(r.sort_spec) });
+/** סדר המיון שנשלח: רמות עם שדה, בלי כפילות, כיוון asc/desc. null - לא נשלח (לא נוגעים) */
+const sortSpecIn = (raw) => {
+  if (!Array.isArray(raw)) return null;
+  const seen = new Set();
+  return raw.map(r => ({ key: String(r?.key ?? '').trim(), dir: r?.dir === 'desc' ? 'desc' : 'asc' }))
+    .filter(r => r.key && !seen.has(r.key) && seen.add(r.key)).slice(0, 20);
+};
+
 router.get('/api/table-modes', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM table_modes ORDER BY name');
-    res.json(result.rows.map(r => ({
-      ...r,
-      columns: Array.isArray(r.columns) ? r.columns : (typeof r.columns === 'string' ? JSON.parse(r.columns) : []),
-      frozenColumns: r.frozen_columns || 0
-    })));
+    res.json(result.rows.map(tableModeOut));
   } catch (err) {
     console.error('Error fetching table modes:', err);
     res.status(500).json({ error: 'Failed to fetch table modes' });
@@ -479,13 +486,12 @@ router.get('/api/table-modes', async (req, res) => {
 
 router.post('/api/table-modes', async (req, res) => {
   try {
-    const { name, columns, frozenColumns } = req.body;
+    const { name, columns, frozenColumns, sortSpec } = req.body;
     const result = await pool.query(
-      'INSERT INTO table_modes (name, columns, frozen_columns) VALUES ($1, $2, $3) RETURNING *',
-      [name, JSON.stringify(columns || []), frozenColumns || 0]
+      'INSERT INTO table_modes (name, columns, frozen_columns, sort_spec) VALUES ($1, $2, $3, $4) RETURNING *',
+      [name, JSON.stringify(columns || []), frozenColumns || 0, JSON.stringify(sortSpecIn(sortSpec) || [])]
     );
-    const row = result.rows[0];
-    res.json({ ...row, columns: Array.isArray(row.columns) ? row.columns : JSON.parse(row.columns || '[]'), frozenColumns: row.frozen_columns || 0 });
+    res.json(tableModeOut(result.rows[0]));
   } catch (err) {
     console.error('Error creating table mode:', err);
     res.status(500).json({ error: 'Failed to create table mode' });
@@ -494,14 +500,15 @@ router.post('/api/table-modes', async (req, res) => {
 
 router.put('/api/table-modes/:id', async (req, res) => {
   try {
-    const { name, columns, frozenColumns } = req.body;
+    const { name, columns, frozenColumns, sortSpec } = req.body;
+    // לקוח שלא שולח sortSpec (גרסה ישנה) לא מוחק את סדר המיון שנקבע
+    const spec = sortSpecIn(sortSpec);
     const result = await pool.query(
-      'UPDATE table_modes SET name = $1, columns = $2, frozen_columns = $3 WHERE id = $4 RETURNING *',
-      [name, JSON.stringify(columns || []), frozenColumns || 0, req.params.id]
+      'UPDATE table_modes SET name = $1, columns = $2, frozen_columns = $3, sort_spec = COALESCE($5::jsonb, sort_spec) WHERE id = $4 RETURNING *',
+      [name, JSON.stringify(columns || []), frozenColumns || 0, req.params.id, spec ? JSON.stringify(spec) : null]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Table mode not found' });
-    const row = result.rows[0];
-    res.json({ ...row, columns: Array.isArray(row.columns) ? row.columns : JSON.parse(row.columns || '[]'), frozenColumns: row.frozen_columns || 0 });
+    res.json(tableModeOut(result.rows[0]));
   } catch (err) {
     console.error('Error updating table mode:', err);
     res.status(500).json({ error: 'Failed to update table mode' });

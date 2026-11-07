@@ -18,6 +18,8 @@ import StripControlsEditor, { StripFieldBadge, StripFieldDialog } from './StripC
 import StripControl from '../classic/StripControl';
 import { useStripFieldCatalog } from '../../utils/stripFieldCatalog';
 import TableColumnDisplayEditor from './TableColumnDisplayEditor';
+import TableSortSpecEditor from './TableSortSpecEditor';
+import { normalizeSortSpec, type TableSortLevel } from '../../utils/tableSort';
 import DisplayIconsManager from './DisplayIconsManager';
 import { hasSecondLine, columnDisplayMode } from '../../utils/tableCellDisplay';
 import { isFreePlacement, pointToCellPercent } from '../../utils/stripControls';
@@ -600,7 +602,8 @@ const SubTableColumnsEditor = ({ tableKey, columns, onChange, showEditable = tru
 export const TableModesManager = () => {
   const [modes, setModes] = useState<any[]>([]);
   const [editing, setEditing] = useState<any | null>(null);
-  const [form, setForm] = useState({ name: '', columns: [] as any[], frozenColumns: 0 });
+  // sortSpec - סדר המיון בעמדה לפי עדיפות (utils/tableSort.ts)
+  const [form, setForm] = useState({ name: '', columns: [] as any[], frozenColumns: 0, sortSpec: [] as TableSortLevel[] });
   const [dragColIdx, setDragColIdx] = useState<number | null>(null);
   const [dragOverColIdx, setDragOverColIdx] = useState<number | null>(null);
   const [tableMenuOpen, setTableMenuOpen] = useState(false);
@@ -621,7 +624,7 @@ export const TableModesManager = () => {
 
   const startNew = () => {
     setEditing(null);
-    setForm({ name: '', columns: [], frozenColumns: 0 });
+    setForm({ name: '', columns: [], frozenColumns: 0, sortSpec: [] });
   };
 
   const startEdit = (mode: any) => {
@@ -636,7 +639,7 @@ export const TableModesManager = () => {
         isCustom: c.isCustom || (c.key || c.field || '').startsWith('custom_'),
       };
     });
-    setForm({ name: mode.name, columns: cols, frozenColumns: mode.frozenColumns || 0 });
+    setForm({ name: mode.name, columns: cols, frozenColumns: mode.frozenColumns || 0, sortSpec: normalizeSortSpec(mode.sortSpec) });
   };
 
   /**
@@ -698,7 +701,11 @@ export const TableModesManager = () => {
   };
 
   const removeCol = (idx: number) => {
-    setForm(f => ({ ...f, columns: f.columns.filter((_, i) => i !== idx) }));
+    // עמודה שהוסרה יוצאת גם מסדר המיון - אחרת הלוח היה ממוין לפי שדה שאינו מוצג בו
+    setForm(f => {
+      const gone = f.columns[idx]?.key || f.columns[idx]?.field;
+      return { ...f, columns: f.columns.filter((_, i) => i !== idx), sortSpec: f.sortSpec.filter(l => l.key !== gone) };
+    });
   };
 
   const handleColDrop = (targetIdx: number) => {
@@ -719,7 +726,7 @@ export const TableModesManager = () => {
     const url = editing ? `${API_URL}/table-modes/${editing.id}` : `${API_URL}/table-modes`;
     await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
     setEditing(null);
-    setForm({ name: '', columns: [], frozenColumns: 0 });
+    setForm({ name: '', columns: [], frozenColumns: 0, sortSpec: [] });
     loadModes();
   };
 
@@ -973,12 +980,19 @@ export const TableModesManager = () => {
           </div>
         </div>
 
+        {/* סדר המיון בעמדה - לפי עמודות המוד (לא טבלאות בן) */}
+        <TableSortSpecEditor
+          spec={form.sortSpec}
+          fields={form.columns.filter((c: any) => !c.isTable && (c.key || c.field)).map((c: any) => ({ key: c.key || c.field, label: c.label || c.key || c.field }))}
+          onChange={sortSpec => setForm(f => ({ ...f, sortSpec }))}
+        />
+
         <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
           <button onClick={save} disabled={!form.name.trim()} style={{ padding: '10px 24px', background: form.name.trim() ? '#059669' : '#334155', color: 'white', border: 'none', borderRadius: '6px', cursor: form.name.trim() ? 'pointer' : 'not-allowed', fontSize: '14px', fontWeight: 'bold' }}>
             {modeSaveLabel}
           </button>
           {editing && (
-            <button onClick={() => { setEditing(null); setForm({ name: '', columns: [], frozenColumns: 0 }); }} style={{ padding: '10px 20px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
+            <button onClick={() => { setEditing(null); setForm({ name: '', columns: [], frozenColumns: 0, sortSpec: [] }); }} style={{ padding: '10px 20px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
               {tr('shared.cancel')}
             </button>
           )}

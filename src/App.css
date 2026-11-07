@@ -909,6 +909,20 @@ body.light-mode tr.sk-row-b .frozen-col-last { background: #dde8f0 !important; }
   font-size: 15px !important;
 }
 
+/* ── מוד טבלה: עמודות ברוחב התוכן, והכל למעלה ולצד שמאל ──────────────────────
+   עמודת המילוי (.sk-tm-filler, width:100%) לוקחת את כל הרוחב העודף, ולכן כל
+   עמודה אחרת יורדת לרוחב ה-min-content שלה. nowrap הופך את המינימום הזה לכל
+   הטקסט בשורה אחת - העמודה צרה ככל האפשר ושום טקסט לא נחתך או נשבר.
+   "שמאל" = הסוף (end), כדי שבאנגלית (LTR) זה יתהפך יחד עם הטבלה.
+   select/textarea ברוחב 100% תורמים 0 לרוחב העמודה - בלי min-width הם היו
+   מתכווצים לרוחב הכותרת ומסתירים את הערך */
+table.sk-tm-fit > thead > tr > th,
+table.sk-tm-fit > tbody > tr[data-strip-id] > td { vertical-align: top !important; }
+table.sk-tm-fit > thead > tr > th { white-space: nowrap; }
+table.sk-tm-fit > tbody > tr[data-strip-id] > td { white-space: nowrap; text-align: end; }
+table.sk-tm-fit > tbody > tr[data-strip-id] > td select { min-width: max-content; }
+table.sk-tm-fit > tbody > tr[data-strip-id] > td textarea { min-width: 14em; white-space: pre-wrap; }
+
 /* ── מוד טבלה עם קיבוץ: תיבת הקבוצה ─────────────────────────────────────────
    כל השורות שתחת כותרת קבוצה (רווח, פ"מ, טבלאות בן) נכנסות למסגרת אחת: פס
    בשני הצדדים ורצפה מתחת לשורה האחרונה - כך הקבוצה נקראת כיחידה אחת.

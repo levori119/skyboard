@@ -50,6 +50,18 @@
     "iconNotImage": { "he": "הקובץ אינו תמונה", "en": "The file is not an image" },
     "iconTooLarge": { "he": "התמונה גדולה מדי - עד כ-300KB", "en": "Image too large - up to about 300KB" },
     "iconSaveFailed": { "he": "שמירת האייקון נכשלה", "en": "Saving the icon failed" },
-    "deleteIconConfirm": { "he": "למחוק את האייקון? עמודות שמשתמשות בו יציגו טקסט", "en": "Delete the icon? Columns using it will show text" }
+    "deleteIconConfirm": { "he": "למחוק את האייקון? עמודות שמשתמשות בו יציגו טקסט", "en": "Delete the icon? Columns using it will show text" },
+    "sortTitle": { "he": "סדר מיון בעמדה", "en": "Sort order at the station" },
+    "sortHint": { "he": "הרמה הראשונה קובעת, השנייה מכריעה בין פ\"מים ששווים בראשונה, וכן הלאה. לחיצה של הפקח על כותרת עמודה גוברת על הסדר הזה", "en": "The first level decides, the second breaks ties in the first, and so on. A click on a column header at the station overrides this order" },
+    "sortNone": { "he": "אין סדר מיון - הפ\"מים בסדר שבו נכנסו ללוח", "en": "No sort order - strips in the order they entered the board" },
+    "sortLevel": { "he": "{{n}}.", "en": "{{n}}." },
+    "sortPickField": { "he": "בחר שדה", "en": "Pick a field" },
+    "sortAsc": { "he": "↑ עולה", "en": "↑ Ascending" },
+    "sortDesc": { "he": "↓ יורד", "en": "↓ Descending" },
+    "sortAdd": { "he": "+ רמת מיון", "en": "+ Sort level" },
+    "sortUp": { "he": "העלה עדיפות", "en": "Raise priority" },
+    "sortDown": { "he": "הורד עדיפות", "en": "Lower priority" },
+    "sortRemove": { "he": "הסר רמה", "en": "Remove level" },
+    "sortDefaultTip": { "he": "מיון ברירת מחדל מהניהול - רמה {{n}}", "en": "Default sort from admin - level {{n}}" }
   }
 }

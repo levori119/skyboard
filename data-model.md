@@ -118,6 +118,11 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 העיצוב יושבים בתוך `table_modes.columns` (JSONB) - בלי עמודות חדשות. ראה
 [TABLE_MODE_DISPLAY_SPEC.md](TABLE_MODE_DISPLAY_SPEC.md) §5.
 
+**`table_modes.sort_spec`** (JSONB, ברירת מחדל `[]`) - סדר המיון של המוד בעמדה:
+`[{ "key": "task", "dir": "asc" }, { "key": "alt", "dir": "desc" }]` לפי עדיפות. ה-API
+מחזיר אותו כ-`sortSpec`; `PUT` בלי `sortSpec` לא נוגע בו (לקוח ישן לא מוחק).
+ראה [TABLE_MODE_DISPLAY_SPEC.md](TABLE_MODE_DISPLAY_SPEC.md) §7.
+
 ## טבלת `strips` — פ"מ (פלוגת מטוסים)
 
 | עמודה | סוג | תיאור |

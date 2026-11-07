@@ -31,6 +31,7 @@ import type { CrewMember, WorkstationSession, QGroup, TempZoneSeizure } from '..
 import { evaluateQuery, emptyQGroup, hasConditions, clampMenuPos } from '../../utils/queryBuilder';
 import { catalogByKey, readControlValue, controlDisplayText } from '../../utils/stripControls';
 import { resolveCellDecor, cellDecorStyle, resolveCellIcon, columnDisplayMode, hasSecondLine } from '../../utils/tableCellDisplay';
+import { normalizeSortSpec, compareBySortSpec, type TableSortLevel } from '../../utils/tableSort';
 import { useDisplayIcons } from '../../utils/displayIcons';
 import DisplayIcon from '../shared/DisplayIcon';
 import { canChangeElementStatus, displayStateOptions, nextServiceability, serviceabilityStyle } from '../../utils/elementStatus';
@@ -6078,19 +6079,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
   };
 
+  // סדר המיון של הלוח: לחיצת הפקח על כותרת גוברת, ובלעדיה - סדר ברירת המחדל שנקבע
+  // למוד בניהול (רמות לפי עדיפות, utils/tableSort.ts). ריק - הסדר הידני של הגרירה
+  const modeSortSpec: TableSortLevel[] = tableMode
+    ? normalizeSortSpec(availableTableModes.find(tm => tm.id === selectedTableModeId)?.sortSpec) : [];
+  const tableSortSpec: TableSortLevel[] = tableSortKey ? [{ key: tableSortKey, dir: tableSortDir }] : modeSortSpec;
+  const tableSortCmp = compareBySortSpec<any>(tableSortSpec, getStripFieldValue);
+
   const tableDisplayItems: any[] = (() => {
     const visStrips = showFullPicture
       ? fullPictureStrips.filter((s: any) => showPendingTransfer || s.status !== 'pending_transfer')
       : myTableStrips.filter(s => tableOnBoard.has(s.id) && tableShowsPending(s));
     if (!tableGroupByKey) {
-      if (tableSortKey) {
-        return [...visStrips].sort((a, b) => {
-          const av = getStripFieldValue(a, tableSortKey);
-          const bv = getStripFieldValue(b, tableSortKey);
-          const cmp = av.localeCompare(bv, 'he');
-          return tableSortDir === 'asc' ? cmp : -cmp;
-        });
-      }
+      if (tableSortSpec.length) return [...visStrips].sort(tableSortCmp);
       return tableDisplayStrips;
     }
     const grouped: Record<string, any[]> = {};
@@ -6110,14 +6111,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       items.push({ _type: 'groupHeader', groupKey: gk, count: grouped[gk].length, collapsed: isCollapsed });
       if (!isCollapsed) {
         let grpStrips = grouped[gk];
-        if (tableSortKey) {
-          grpStrips = [...grpStrips].sort((a, b) => {
-            const av = getStripFieldValue(a, tableSortKey);
-            const bv = getStripFieldValue(b, tableSortKey);
-            const cmp = av.localeCompare(bv, 'he');
-            return tableSortDir === 'asc' ? cmp : -cmp;
-          });
-        }
+        if (tableSortSpec.length) grpStrips = [...grpStrips].sort(tableSortCmp);
         // _grp / _grpLast - לתחימת הקבוצה (רקע, פס בצד ורצפה) סביב כל השורות שלה
         grpStrips.forEach((s, gi) => items.push({ ...s, _type: 'strip', _grp: gk, _grpLast: gi === grpStrips.length - 1 }));
       }
@@ -7234,7 +7228,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   drawingModeRef.current = drawingMode;
   tableGroupByKeyRef.current = tableGroupByKey || null;
   tableSortBySectorRef.current = tableSortBySector;
-  tableSortKeyRef.current = tableSortKey || null;
+  // כל מיון חוסם סידור ידני - גם ברירת המחדל מהניהול, לא רק לחיצה על כותרת
+  tableSortKeyRef.current = tableSortSpec.length ? (tableSortKey || 'mode') : null;
   myTableStripsRef.current = myTableStrips;
   getStripGroupValueRef.current = (strip: any) => tableGroupByKey ? getStripFieldValue(strip, tableGroupByKey) : '';
   tableReorderRowRef.current = (dragId: string, targetId: string) => {
@@ -18648,12 +18643,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const STRIP_GAP_PX = 9;
             // במוד הטבלאי מצטרפים שני תאים במקום עמודות הפ"מ: הזהות (או"ק
             // וטייסת) והטבלה עצמה
-            const totalColSpan = columns.length + 2 + (showFullPicture ? 1 : 0) + (isTabular ? 2 : 0);
+            // עמודות ברוחב התוכן (App.css - .sk-tm-fit): עמודת מילוי ריקה בסוף לוקחת את
+            // כל הרוחב העודף, ולכן כל עמודה יורדת לרוחב הטקסט שלה בשורה אחת - צרה ככל
+            // האפשר ושום טקסט לא נחתך. לא במוד הטבלאי: שם טבלת הבן ממלאת את הרוחב
+            const fitCols = !isTabular;
+            const totalColSpan = columns.length + 2 + (showFullPicture ? 1 : 0) + (isTabular ? 2 : 0) + (fitCols ? 1 : 0);
 
             return (
               <>
               <table
                 ref={setTableElRef}
+                className={fitCols ? 'sk-tm-fit' : undefined}
                 style={{ width: hasFrozen ? 'max-content' : '100%', minWidth: '100%', borderCollapse: 'collapse', fontSize: `${tableFontSize}px`, direction: dir,
                   // צבע תיבת הקבוצה - אותו גוון של כותרת הקבוצה (ראה .sk-grp ב-App.css)
                   ['--sk-grp' as any]: groupHeaderStyle(grpColor, themeMode).solid,
@@ -18692,8 +18692,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       const isLastFrozen = isFrozen && colIdx === frozenCount - 1;
                       const frozenRight = isFrozen ? (tableStickyOffsets[colIdx + 2] ?? undefined) : undefined;
                       return (
-                        <th key={colKey} className={isFrozen ? (isLastFrozen ? 'frozen-col-last' : 'frozen-col') : undefined} style={{ padding: '8px 12px', textAlign: 'start', color: isGrouped ? '#a78bfa' : isSorted ? '#38bdf8' : (T.muted), borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, minWidth: '80px', userSelect: 'none', zIndex: isFrozen ? 12 : 10, fontSize: tfz(11), background: 'inherit', ...(isFrozen ? { insetInlineStart: frozenRight, background: lightMode ? '#e2e8f0' : '#1e293b', borderInlineEnd: isLastFrozen ? '2px solid #7c3aed' : undefined } : {}) }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-start' }}>
+                        <th key={colKey} className={isFrozen ? (isLastFrozen ? 'frozen-col-last' : 'frozen-col') : undefined} style={{ padding: fitCols ? '8px 8px' : '8px 12px', textAlign: fitCols ? 'end' : 'start', color: isGrouped ? '#a78bfa' : isSorted ? '#38bdf8' : (T.muted), borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, minWidth: fitCols ? 0 : '80px', userSelect: 'none', zIndex: isFrozen ? 12 : 10, fontSize: tfz(11), background: 'inherit', ...(isFrozen ? { insetInlineStart: frozenRight, background: lightMode ? '#e2e8f0' : '#1e293b', borderInlineEnd: isLastFrozen ? '2px solid #7c3aed' : undefined } : {}) }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: fitCols ? 'flex-end' : 'flex-start' }}>
                             {hasSecondLine(col) ? (
                               // שתי שורות בכותרת, באותו סדר של התא: השדה הראשי
                               // ומתחתיו השדה השני (או"ק / טייסת)
@@ -18717,6 +18717,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             ) : <span>{col.label}</span>}
                             {isGrouped && <span style={{ fontSize: tfz(9), background: '#4c1d95', color: '#c4b5fd', padding: '1px 4px', borderRadius: '3px' }}>⊞</span>}
                             {isSorted && <span style={{ fontSize: tfz(11) }}>{tableSortDir === 'asc' ? '↑' : '↓'}</span>}
+                            {/* מיון ברירת המחדל מהניהול: חץ ומספר הרמה, עמום - כדי שהפקח ידע לפי מה הלוח מסודר */}
+                            {!tableSortKey && (() => {
+                              const lvl = modeSortSpec.findIndex(l => l.key === colKey);
+                              if (lvl < 0) return null;
+                              return (
+                                <span data-testid="table-default-sort" title={tr('tableDisplay.sortDefaultTip', { n: lvl + 1 })} style={{ fontSize: tfz(10), opacity: 0.7, whiteSpace: 'nowrap' }}>
+                                  {modeSortSpec[lvl].dir === 'asc' ? '↑' : '↓'}{modeSortSpec.length > 1 ? lvl + 1 : ''}
+                                </span>
+                              );
+                            })()}
                             {/* נעילת הכתיבה היא של עמודת פ"מ רגילה בלבד. עמודת
                                 טבלת בן **אינה** נעולה: ההגדרה בניהול קובעת אילו
                                 שדות פתוחים, וכפתור כאן היה מתג שאינו שולט בכלום. */}
@@ -18787,6 +18797,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         {tr('ctrl.whoseDesk')}
                       </th>
                     )}
+                    {fitCols && <th aria-hidden className="sk-tm-filler" style={{ width: '100%', padding: 0, position: 'sticky', top: 0, zIndex: 9, background: 'inherit', borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}` }} />}
                     <th style={{ position: 'sticky', left: 0, top: 0, zIndex: 16, width: 0, padding: 0, background: lightMode ? '#e2e8f0' : '#1e293b', border: 'none' }} />
                   </tr>
                 </thead>
@@ -18962,7 +18973,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             setTableDragRow(null); setTableDragOverRow(null);
                             return;
                           }
-                          if (tableDragRow && tableDragRow !== s.id && !tableSortBySector && !tableSortKey) {
+                          if (tableDragRow && tableDragRow !== s.id && !tableSortBySector && !tableSortSpec.length) {
                             const sameGroup = !tableGroupByKey || (() => {
                               const dragStrip = myTableStrips.find((x: any) => String(x.id) === String(tableDragRow));
                               const tgtStrip = myTableStrips.find((x: any) => String(x.id) === String(s.id));
@@ -19034,10 +19045,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         </td>
                         <td
                           className={hasFrozen ? 'frozen-col' : undefined}
-                          style={{ padding: '6px 4px', color: '#475569', textAlign: 'center', cursor: (tableSortBySector || tableSortKey) ? 'default' : 'grab', fontSize: tfz(16), verticalAlign: 'middle', touchAction: 'none', ...(stickyLead ? { position: 'sticky' as const, insetInlineStart: tableStickyOffsets[1] ?? 0, background: rowBg ?? 'inherit', zIndex: 3 } : {}) }}
+                          style={{ padding: '6px 4px', color: '#475569', textAlign: 'center', cursor: (tableSortBySector || tableSortSpec.length > 0) ? 'default' : 'grab', fontSize: tfz(16), verticalAlign: 'middle', touchAction: 'none', ...(stickyLead ? { position: 'sticky' as const, insetInlineStart: tableStickyOffsets[1] ?? 0, background: rowBg ?? 'inherit', zIndex: 3 } : {}) }}
                           onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setTableRowCtxMenu({ stripId: s.id, x: e.clientX, y: e.clientY }); }}
                           onPointerDown={e => {
-                            if (tableSortBySector || tableSortKey) return;
+                            if (tableSortBySector || tableSortSpec.length > 0) return;
                             e.preventDefault();
                             e.stopPropagation();
                             const label = s.callSign || String(s.id);
@@ -19200,6 +19211,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             </td>
                           );
                         })()}
+                        {fitCols && <td aria-hidden className="sk-tm-filler" style={{ width: '100%', padding: 0 }} />}
                         <td style={{ position: 'sticky', left: 0, zIndex: 9, width: 0, padding: 0, border: 'none', background: 'transparent', overflow: 'visible', verticalAlign: 'middle' }}>
                           {isPendingTransfer && (
                             <div style={{ position: 'absolute', left: 2, top: '50%', transform: 'translateY(-50%)', width: 0, height: 0, borderTop: '16px solid transparent', borderBottom: '16px solid transparent', borderRight: '26px solid #22c55e', zIndex: 50, filter: 'drop-shadow(0 0 5px rgba(34,197,94,0.7))', pointerEvents: 'none' }} />
