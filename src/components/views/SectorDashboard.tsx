@@ -1,6 +1,7 @@
 import { autoSpaceFor, autoAssignableSpaces, targetsAnchor, allTargetsAnchor, firstExecKey } from '../../utils/blockSpaceAuto';
 import AutoBlockSpacesForm from '../blocks/AutoBlockSpacesForm';
 import ArmamentPriorityForm from '../blocks/ArmamentPriorityForm';
+import { TitleSaveButton } from '../shared/FormTitleActions';
 import BlockTargetMap from '../blocks/BlockTargetMap';
 import { GROUP_HEADER_COLORS, groupHeaderStyle, loadGroupHeaderColor, saveGroupHeaderColor, type GroupHeaderColor } from '../../utils/groupHeaderPalette';
 import React, { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback, useSyncExternalStore } from 'react';
@@ -5656,6 +5657,27 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rules }),
     }).then(r => { if (!r.ok) throw new Error(`alt-armament-rules ${r.status}`); })
       .catch(err => { console.error(err); apply(prev); setSaveFailToast(tr('ctrl.armPrioritySaveFailed')); });
+  };
+  // ── חלון NOTAM/ATIS של סטטוס בסיס: עריכה רק לעמדה שזה בסיס האם שלה, ושמירה אחת
+  //    לשני הכפתורים (בכותרת ולמטה - components/shared/FormTitleActions)
+  const bsInfoCanEdit = (): boolean => {
+    if (!bsInfoModal) return false;
+    const isParentBase = parentBaseId !== null && Number(bsInfoModal.bs.id) === parentBaseId;
+    return bsInfoModal.mode === 'atis' ? (canUpdateAtis && isParentBase) : (canUpdateNotam && isParentBase);
+  };
+  const saveBsInfo = async () => {
+    if (!bsInfoModal) return;
+    const field = bsInfoModal.mode === 'notam' ? 'notam_text' : 'atis_text';
+    const body: any = {};
+    body[field] = bsInfoEditText || null;
+    const updated = await fetch(`${API_URL}/base-statuses/${bsInfoModal.bs.id}/${bsInfoModal.mode}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    }).then(r => r.ok ? r.json() : null).catch(() => null);
+    if (updated) {
+      setBaseStatuses(prev => prev.map(b => b.id === updated.id ? updated : b));
+      setLiveBaseStatuses(prev => prev.map(b => b.id === updated.id ? updated : b));
+    }
+    setBsInfoModal(null);
   };
   // ...והלוח מחולק למרחבים: קיבוץ לפי מרחב, פעם אחת כשהמנגנון פעיל ואין קיבוץ אחר
   const autoSpaceGroupedRef = useRef(false);
@@ -22612,6 +22634,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 {bsInfoModal.mode === 'notam' ? 'הודעות לטייסים — ריכוז NOTAM' : 'מידע מטאו ושדה — ATIS'}
               </div>
             </div>
+            {bsInfoCanEdit() && (
+              <span onPointerDown={e => e.stopPropagation()}>
+                <TitleSaveButton onSave={saveBsInfo} label={tr('shared.save')} color={bsInfoModal.mode === 'notam' ? '#92400e' : '#0c4a6e'} testId="bs-info-save-top" />
+              </span>
+            )}
             <button onPointerDown={e => e.stopPropagation()} onClick={() => { setBsInfoModal(null); if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); setAtisSpeaking(false); } }} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '15px', lineHeight: 1, padding: '0', flexShrink: 0 }}>✕</button>
           </div>
           <div style={{ overflowY: 'auto', padding: '10px 12px', flex: 1 }}>
@@ -22724,8 +22751,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               }
 
               /* ── Manual text (editable only for the workstation whose parent base this is) ── */
-              const isParentBase = parentBaseId !== null && Number(bsInfoModal.bs.id) === parentBaseId;
-              const canEdit = bsInfoModal.mode === 'atis' ? (canUpdateAtis && isParentBase) : (canUpdateNotam && isParentBase);
+              const canEdit = bsInfoCanEdit();
               return (
                 <>
                   {!canEdit && (
@@ -22764,19 +22790,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       {canEdit ? 'ביטול' : 'סגור'}
                     </button>
                     {canEdit && (
-                      <button onClick={async () => {
-                        const field = bsInfoModal.mode === 'notam' ? 'notam_text' : 'atis_text';
-                        const body: any = {};
-                        body[field] = bsInfoEditText || null;
-                        const updated = await fetch(`${API_URL}/base-statuses/${bsInfoModal.bs.id}/${bsInfoModal.mode}`, {
-                          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
-                        }).then(r => r.ok ? r.json() : null).catch(() => null);
-                        if (updated) {
-                          setBaseStatuses(prev => prev.map(b => b.id === updated.id ? updated : b));
-                          setLiveBaseStatuses(prev => prev.map(b => b.id === updated.id ? updated : b));
-                        }
-                        setBsInfoModal(null);
-                      }}
+                      <button onClick={saveBsInfo}
                         style={{ padding: '7px 20px', background: bsInfoModal.mode === 'notam' ? '#92400e' : '#0c4a6e', color: 'white', border: `1px solid ${bsInfoModal.mode === 'notam' ? '#f59e0b' : '#38bdf8'}`, borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
                         {tr('shared.save')}
                       </button>
