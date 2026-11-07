@@ -74,6 +74,17 @@
   border-radius: 6px;
 }
 
+/* הגעה לאזור (utils/zoneArrival) - התמונ"א זיהתה את הפ"מ באזור והפקח עוד לא אישר.
+   ירוק כמו סטטוס "באזור", ובכוונה **לא** תלוי במתג "השהה הבהוב" של הפינים:
+   זו התראה שמחכה לפעולה, לא קישוט. נפסק בלחיצה על הפ"מ */
+@keyframes zone-arrival-flash {
+  0%, 100% { box-shadow: 0 0 6px 2px #22c55e99; opacity: 1; }
+  50%      { box-shadow: 0 0 18px 8px #22c55ecc; opacity: 0.45; }
+}
+.zone-arrival-flash {
+  animation: zone-arrival-flash 0.8s ease-in-out infinite;
+}
+
 /* Ring pulse for heading */
 @keyframes fzring-heading {
   0%, 100% { box-shadow: 0 0 8px 3px #f59e0b99, 0 0 18px 7px #f59e0b44; }

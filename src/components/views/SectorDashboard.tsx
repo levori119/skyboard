@@ -90,6 +90,7 @@ import { ageSec as airPictureAge, prepare as prepareAirTracks, filtersOf as airF
 import { trackAtMapPoint, blockForAltitude } from '../../airPicture/dropHit';
 import { useZoneWatch, type ZoneWatchMap as ZoneWatchMapInput, type ZoneWatchOffender } from '../../airPicture/useZoneWatch';
 import { blockAltFeet, type WatchZone as ZoneWatchZone, type WatchAssignment as ZoneWatchAssignment } from '../../airPicture/zoneWatch';
+import { zoneArrivalPhase, arrivalAckAfterStatus, zoneCornerPoint, enrouteStackIndex, type ZoneArrivalPhase } from '../../utils/zoneArrival';
 /** הפניה קבועה - מערך ריק חדש בכל רינדור היה מפיל memo של צרכני ההדגשה. */
 const EMPTY_ZW_OFFENDERS: ZoneWatchOffender[] = [];
 import { unionZones } from '../../utils/zoneUnion';
@@ -2750,11 +2751,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     { mapId: effMap2Id || null, anchor: map2GeoAnchor, zones: zwZones(map2Zones), assignments: zwAssignments(map2Assignments) },
   ], [currentMapId, mapGeoAnchor, mapZones, stripZoneAssignments, effMap2Id, map2GeoAnchor, map2Zones, map2Assignments, strips, session?.presetId]); // eslint-disable-line react-hooks/exhaustive-deps
   const applyZoneWatchStatus = React.useCallback(async (stripId: number, status: string) => {
-    setStripZoneAssignments(prev => prev.map(a => Number(a.strip_id) === stripId ? { ...a, status } : a));
-    setMap2Assignments(prev => prev.map(a => Number(a.strip_id) === stripId ? { ...a, status } : a));
+    // `auto` - "באזור" שהמנוע זיהה ממתין לאישור הפקח: הפין מוגדל ומהבהב (utils/zoneArrival)
+    const zone_arrival_ack = arrivalAckAfterStatus(status, true);
+    setStripZoneAssignments(prev => prev.map(a => Number(a.strip_id) === stripId ? { ...a, status, zone_arrival_ack } : a));
+    setMap2Assignments(prev => prev.map(a => Number(a.strip_id) === stripId ? { ...a, status, zone_arrival_ack } : a));
     try {
       await fetch(`${API_URL}/strip-zone-assignments/${stripId}/status`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, auto: true }),
       });
     } catch {}
   }, []);
@@ -4035,6 +4038,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       if (fzPairMode) { fzPairPick(dragId, true, dragLabel); return; }
       const cycleStatuses = ['בדרך לאזור', 'באזור', 'עוזב אזור'];
       const existing = fzAssignmentsAll().find((a: StripZoneAssignment) => a.strip_id === dragId);
+      // פ"מ שהתמונ"א זיהתה באזור ומהבהב: הלחיצה היא "סימנתי באזור", לא מחזור סטטוס
+      if (existing && zoneArrivalPhase({ hasZone: existing.zone_id != null, airborne: !!fzStripById(Number(existing.strip_id))?.airborne, status: existing.status, ack: existing.zone_arrival_ack }) === 'arrived') {
+        ackZoneArrival(Number(existing.strip_id));
+        return;
+      }
       if (existing) {
         const curIdx = cycleStatuses.indexOf(existing.status);
         const nextStatus = cycleStatuses[(curIdx + 1) % cycleStatuses.length];
@@ -6391,6 +6399,34 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       const res = await fetch(`${API_URL}/strip-zone-assignments?map_id=${mapId}`);
       if (res.ok) setStripZoneAssignments(applyPendingAssignments(await res.json(), mapId, pendingAsgnRef.current, Date.now()));
     } catch {}
+  };
+  // ── הגעה לאזור (utils/zoneArrival) ──────────────────────────────────────
+  // השלב של כל פ"מ ומקומו בערימת הפינה, פר רשימת שיוכים (מפה ראשית / שנייה /
+  // חלון דסק משימה). מטמון לפי הפניית הרשימה: הלולאה של הפינים קוראת לכל פין
+  // והחישוב רץ רק כשהרשימה או הפ"מים באמת השתנו
+  const fzArrivalCacheRef = useRef(new WeakMap<object, { strips: any[]; phase: Map<number, ZoneArrivalPhase>; stack: Map<number, number> }>());
+  const fzArrivalFor = (list: StripZoneAssignment[]) => {
+    const hit = fzArrivalCacheRef.current.get(list);
+    if (hit && hit.strips === strips) return hit;
+    const byId = new Map<number, any>(strips.map((s: any) => [parseInt(String(s.id).replace(/^s/, ''), 10), s]));
+    const phase = new Map<number, ZoneArrivalPhase>();
+    const enroute: { stripId: number; zoneId: number }[] = [];
+    for (const a of list) {
+      const p = zoneArrivalPhase({ hasZone: a.zone_id != null, airborne: !!byId.get(Number(a.strip_id))?.airborne, status: a.status, ack: a.zone_arrival_ack });
+      phase.set(Number(a.strip_id), p);
+      if (p === 'enroute' && a.zone_id != null) enroute.push({ stripId: Number(a.strip_id), zoneId: a.zone_id });
+    }
+    const v = { strips, phase, stack: enrouteStackIndex(enroute) };
+    fzArrivalCacheRef.current.set(list, v);
+    return v;
+  };
+  // הפקח לחץ על פ"מ מהבהב - "באזור" ידני הוא האישור, והפין חוזר לתצוגה הרגילה
+  const ackZoneArrival = (stripId: number) => {
+    patchAssignmentLocal(stripId, { zone_arrival_ack: true, status: 'באזור' });
+    setMap2Assignments(prev => prev.map(a => Number(a.strip_id) === Number(stripId) ? { ...a, zone_arrival_ack: true, status: 'באזור' } : a));
+    fetch(`${API_URL}/strip-zone-assignments/${stripId}/status`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'באזור' }),
+    }).catch(() => {});
   };
   // ── דסק משימה: השיוכים לאזורים יושבים בחלונות המפה (mdSlots) ──────────────
   // בדסק אין מפה ראשית (currentMapId ריק), ולכן כל מסלול שקרא/רענן את
@@ -12020,6 +12056,49 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 },
                 title: tr('ctrl.menu'),
               };
+              // ── הגעה לאזור: המריא → או"ק קטן ובהיר בפינת האזור; התמונ"א זיהתה
+              //    אותו באזור → מוגדל ומהבהב עד שהפקח לוחץ (utils/zoneArrival) ──
+              const _arrival = fzArrivalFor(stripZoneAssignments);
+              const arrPhase = _arrival.phase.get(Number(a.strip_id)) ?? 'normal';
+              if (arrPhase !== 'normal') {
+                const arrived = arrPhase === 'arrived';
+                const rtl = dir === 'rtl';
+                const corner = arrived ? null : zoneCornerPoint(poly, rtl);
+                const smallFs = Math.max(6, (fzPinFontSize * 0.75) / mapZoom);
+                const bigFs = Math.max(11, (fzPinFontSize * 1.7) / mapZoom);
+                const stackN = _arrival.stack.get(Number(a.strip_id)) ?? 0;
+                const lx = corner ? ib.left + (corner.x / 100) * ib.width : pixX;
+                const ly = corner ? ib.top + (corner.y / 100) * ib.height + stackN * smallFs * 1.35 : pixY;
+                const arrTitle = [callLabel + (a.zone_name ? ` - ${a.zone_name}` : ''), arrived ? tr('ctrl.zoneArrivedHint') : tr('ctrl.zoneEnrouteHint')].join('\n');
+                return (
+                  <div
+                    key={`fzpin-${a.strip_id}`}
+                    data-testid={`fz-arrival-${a.strip_id}`}
+                    data-arrival={arrPhase}
+                    className={arrived ? 'zone-arrival-flash' : undefined}
+                    onPointerDown={startFzPinDrag}
+                    onContextMenu={e => { e.preventDefault(); e.stopPropagation(); }}
+                    title={arrTitle}
+                    style={{
+                      position: 'absolute', left: lx, top: ly,
+                      // בפינה הטקסט נפרש פנימה לאזור: בעברית שמאלה מהפינה הימנית
+                      transform: corner ? (rtl ? 'translate(-100%, 0)' : 'none') : 'translate(-50%, -50%)',
+                      zIndex: arrived ? 48 : 43, cursor: 'pointer', userSelect: 'none', touchAction: 'none', pointerEvents: 'all',
+                      whiteSpace: 'nowrap', direction: dir, lineHeight: 1.15,
+                      fontSize: arrived ? bigFs : smallFs, fontWeight: arrived ? 'bold' : 'normal',
+                      color: arrived ? (lightMode ? '#14532d' : '#bbf7d0') : (lightMode ? '#64748b' : '#e2e8f0'),
+                      background: arrived ? (lightMode ? 'rgba(220,252,231,0.92)' : 'rgba(5,46,22,0.88)') : 'transparent',
+                      border: arrived ? `${Math.max(1, 2 / mapZoom)}px solid #22c55e` : 'none',
+                      borderRadius: arrived ? `${5 / mapZoom}px` : 0,
+                      padding: arrived ? `${1 / mapZoom}px ${5 / mapZoom}px` : 0,
+                      textShadow: !arrived && !lightMode ? '0 0 3px rgba(0,0,0,0.9)' : undefined,
+                      opacity: isDraggingThisPin ? 0.25 : (arrived ? 1 : 0.7),
+                    }}
+                  >
+                    {callLabel}{arrived && <span style={{ marginInlineStart: `${4 / mapZoom}px` }}>✓</span>}
+                  </div>
+                );
+              }
               return (
                 <div
                   key={`fzpin-${a.strip_id}`}

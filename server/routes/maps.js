@@ -600,7 +600,7 @@ router.post('/api/strip-zone-assignments', async (req, res) => {
     const r = await pool.query(`
       INSERT INTO strip_zone_assignments (strip_id, zone_id, altitude_range_id, altitude_range_ids, status, note, coordination_note, is_coordinated, pos_x, pos_y, requested_zone_ids, map_id, preset_id, updated_at)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())
-      ON CONFLICT (strip_id) DO UPDATE SET zone_id=$2, altitude_range_id=$3, altitude_range_ids=$4, status=$5, note=$6, coordination_note=$7, is_coordinated=$8, pos_x=$9, pos_y=$10, requested_zone_ids=$11, map_id=$12, preset_id=COALESCE($13, strip_zone_assignments.preset_id), updated_at=NOW()
+      ON CONFLICT (strip_id) DO UPDATE SET zone_arrival_ack = CASE WHEN strip_zone_assignments.zone_id IS DISTINCT FROM $2 OR $5 <> 'באזור' THEN TRUE ELSE strip_zone_assignments.zone_arrival_ack END, zone_id=$2, altitude_range_id=$3, altitude_range_ids=$4, status=$5, note=$6, coordination_note=$7, is_coordinated=$8, pos_x=$9, pos_y=$10, requested_zone_ids=$11, map_id=$12, preset_id=COALESCE($13, strip_zone_assignments.preset_id), updated_at=NOW()
       RETURNING *`, [strip_id, zone_id || null, singleAlt, JSON.stringify(altIds), status || 'planned', note || '', coordination_note || '', is_coordinated === true, pos_x ?? null, pos_y ?? null, JSON.stringify(requested_zone_ids || []), map_id || null, preset_id ? parseInt(preset_id) : null]);
     res.json(r.rows[0]);
   } catch (err) { console.error(err); res.status(500).json({ error: 'Failed' }); }
@@ -623,11 +623,14 @@ router.delete('/api/strip-zone-assignments/:strip_id', async (req, res) => {
 // בעמדה אחרת. כאן משתנה שדה אחד, ורשומה שכבר נותקה מהאזור אינה נוצרת מחדש.
 router.patch('/api/strip-zone-assignments/:strip_id/status', async (req, res) => {
   try {
-    const { status } = req.body;
+    const { status, auto } = req.body;
     if (typeof status !== 'string' || !status.trim()) return res.status(400).json({ error: 'status required' });
+    // `auto` = הכתיבה ממנוע הזיהוי. "באזור" אוטומטי ממתין לאישור הפקח (הפין מהבהב);
+    // כל כתיבה אחרת - כולל "באזור" ידני, שהוא האישור עצמו - מאשרת (utils/zoneArrival)
+    const ack = !(auto === true && status.trim() === 'באזור');
     const r = await pool.query(
-      'UPDATE strip_zone_assignments SET status = $1, updated_at = NOW() WHERE strip_id = $2 RETURNING strip_id, status',
-      [status.trim(), req.params.strip_id]
+      'UPDATE strip_zone_assignments SET status = $1, zone_arrival_ack = $3, updated_at = NOW() WHERE strip_id = $2 RETURNING strip_id, status, zone_arrival_ack',
+      [status.trim(), req.params.strip_id, ack]
     );
     if (r.rowCount === 0) return res.status(404).json({ error: 'Not found' });
     res.json(r.rows[0]);

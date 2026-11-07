@@ -211,6 +211,8 @@ export interface StripZoneAssignment {
   requested_zone_ids?: number[];
   map_id?: number | null;
   extra_zones?: { id: number; zone_id: number; zone_name: string | null; zone_color: string | null }[];
+  /** false = התמונ"א זיהתה "באזור" והפקח עוד לא אישר - הפין מוגדל ומהבהב (utils/zoneArrival) */
+  zone_arrival_ack?: boolean;
 }
 
 // ─── Ground / Aircraft ────────────────────────────────────────────────────────

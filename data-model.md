@@ -932,6 +932,7 @@ COALESCE(last_seen, entered_at) > NOW() - INTERVAL '240 seconds'
 | `requested_zone_ids` | JSONB | אזורים מבוקשים נוספים |
 | `map_id` | INT | מפה (לפ"מ ללא אזור) |
 | `preset_id` | INT → workstation_presets (SET NULL) | **העמדה שחיברה את הפ"מ לאזור.** מרכיב של "נמצא בעמדה" (ראה §`at_preset_names`). עדכון שמגיע בלי הערך משמר את הקיים (`COALESCE`), כדי שעריכת הערה לא תמחק את המחזיק |
+| `zone_arrival_ack` | BOOLEAN DEFAULT TRUE | **הגעה לאזור - אושרה.** `false` = מנוע הזיהוי כתב `באזור` (`PATCH .../status` עם `auto:true`) והפקח עוד לא לחץ: הפין מוגדל ומהבהב. כל כתיבה ידנית של סטטוס, וכל החלפת אזור ב-POST, מחזירות ל-`true`. ברירת המחדל `TRUE` כדי ששורות קיימות לא יהבהבו בעלייה. ראה [src/utils/zoneArrival.ts](src/utils/zoneArrival.ts) |
 
 > **חריגה מבלוק:** פ"מ נחשב חורג אם גובהו (`strips.alt`) אינו נופל באף `zone_altitude_ranges`
 > של האזור, **או** אם ה-`altitude_range_id` שלו אינו ב-`map_zones.active_alt_range_ids` (מוגבל).

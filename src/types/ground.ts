@@ -55,6 +55,7 @@ export interface StripZoneAssignment {
   requested_zone_ids?: number[]; map_id?: number | null;
   extra_zones?: { id: number; zone_id: number; zone_name: string | null; zone_color: string | null }[];
   group_polygon?: [number, number][] | null; // פוליגון-איחוד מותאם ידנית (עריכת נקודות); null = איחוד אוטומטי
+  zone_arrival_ack?: boolean; // false = התמונ"א זיהתה "באזור" והפקח עוד לא אישר - הפין מוגדל ומהבהב (utils/zoneArrival)
 }
 
 export type VectorLine = { id: string; points: { x: number; y: number }[]; color: string; width: number; };

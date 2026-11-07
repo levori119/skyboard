@@ -2622,6 +2622,14 @@
       "he": "אזור",
       "en": "Zone"
     },
+    "zoneEnrouteHint": {
+      "he": "המריא - בדרך לאזור",
+      "en": "Airborne - en route to the zone"
+    },
+    "zoneArrivedHint": {
+      "he": "התמונה האווירית זיהתה אותו באזור - לחץ כדי לסמן \"באזור\"",
+      "en": "The air picture detected it in the zone - tap to mark \"in zone\""
+    },
     "zoneRestricted": {
       "he": "מוגבל",
       "en": "Restricted"

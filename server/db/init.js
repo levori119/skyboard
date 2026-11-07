@@ -1281,6 +1281,9 @@ async function applySchemaOnce() {
   await sq(`ALTER TABLE strips ALTER COLUMN pin_display TYPE VARCHAR(16)`); // widen legacy VARCHAR(8) — 'handwrite' is 9 chars
   // פוליגון-איחוד מותאם ידנית לפ"מ המחובר לכמה אזורים (עריכה בגרירת נקודות). null = איחוד אוטומטי מהאזורים
   await sq(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS group_polygon JSONB`);
+  // הגעה לאזור: false = התמונ"א זיהתה "באזור" והפקח עוד לא אישר (הפין מוגדל ומהבהב).
+  // ברירת מחדל TRUE - שורות קיימות לא יתחילו להבהב בעלייה (src/utils/zoneArrival.ts)
+  await sq(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS zone_arrival_ack BOOLEAN DEFAULT TRUE`);
   await sq(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS polygon_geo TEXT DEFAULT '[]'`);
   await sq(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS parent_zone_id INTEGER REFERENCES map_zones(id) ON DELETE SET NULL`);
   await sq(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS enabled BOOLEAN NOT NULL DEFAULT true`);
