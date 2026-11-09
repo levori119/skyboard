@@ -210,6 +210,9 @@ async function applySchemaOnce() {
   // סדר המיון של המוד בעמדה - [{ key, dir: 'asc'|'desc' }] לפי עדיפות (src/utils/tableSort.ts).
   // ברירת המחדל של הלוח; לחיצה של הפקח על כותרת גוברת עליו
   await sq(`ALTER TABLE table_modes ADD COLUMN IF NOT EXISTS sort_spec JSONB DEFAULT '[]'`);
+  // סקין הטבלה כולה - רווחים, מסגרת הפ"מ, זברה וכותרת (src/utils/tableSkin.ts).
+  // 'classic' = המראה של היום, ולכן מוד קיים לא משתנה
+  await sq(`ALTER TABLE table_modes ADD COLUMN IF NOT EXISTS skin VARCHAR(30) DEFAULT 'classic'`);
   // טבלת האייקונים של מוד הטבלה - תמונות שהועלו בניהול, ומוצגות בתא במקום
   // ערכו (למשל סוג מטוס). האייקונים המובנים (צלליות המטוסים) חיים בקוד ולא כאן.
   // המיפוי ערך → אייקון יושב על העמודה עצמה (table_modes.columns[].iconMap).

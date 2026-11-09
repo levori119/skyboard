@@ -123,6 +123,11 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 מחזיר אותו כ-`sortSpec`; `PUT` בלי `sortSpec` לא נוגע בו (לקוח ישן לא מוחק).
 ראה [TABLE_MODE_DISPLAY_SPEC.md](TABLE_MODE_DISPLAY_SPEC.md) §7.
 
+**`table_modes.skin`** (VARCHAR(30), ברירת מחדל `'classic'`) - המראה של הטבלה כולה:
+`classic` / `calm` / `compact` / `ledger` (רווח בין פ"מים, מסגרת, זברה, כותרת). ערך
+לא מוכר לא נשמר; `PUT` בלי `skin` לא נוגע בו. ראה
+[TABLE_MODE_DISPLAY_SPEC.md](TABLE_MODE_DISPLAY_SPEC.md) §8.
+
 ## טבלת `strips` — פ"מ (פלוגת מטוסים)
 
 | עמודה | סוג | תיאור |

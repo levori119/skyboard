@@ -854,8 +854,20 @@ body.light-mode #map-area table tbody tr.sk-strip-gap > td {
 /* רצפת המסגרת של הפ"מ (ושל טבלת הבן האחרונה שנפרסה לו) חייבת להיות בצבע
    הזיהוי של המסגרת, אבל התמות כופות border-bottom-color על **כל** tbody tr -
    ולכן נאכף כאן בחזרה. המחלקה נדלקת רק כשאין צבע מצב (גרירה/קונפליקט) שגובר. */
-body.ocean-mode #map-area table tbody tr.sk-frame-floor { border-bottom-color: #22d3ee !important; }
-body.light-mode #map-area table tbody tr.sk-frame-floor { border-bottom-color: #0e7490 !important; }
+/* --sk-frame - צבע המסגרת לפי סקין הטבלה (utils/tableSkin.ts); בלעדיו - צבע הזיהוי */
+body.ocean-mode #map-area table tbody tr.sk-frame-floor { border-bottom-color: var(--sk-frame, #22d3ee) !important; }
+body.light-mode #map-area table tbody tr.sk-frame-floor { border-bottom-color: var(--sk-frame, #0e7490) !important; }
+
+/* סקין הטבלה (table_modes.skin, utils/tableSkin.ts). צבעי המצב לא נוגעים כאן.
+   ריפוד אחיד לתאי הפ"מ - במקום ריפוד שונה לכל סוג תא */
+#map-area table.sk-skin-pad > tbody > tr[data-strip-id] > td {
+  padding-top: var(--sk-cell-py) !important;
+  padding-bottom: var(--sk-cell-py) !important;
+}
+/* כותרת שקטה: רקע הלוח וקו דק - הכותרת היא מסגרת, לא נתון */
+#map-area table.sk-skin-quiet-head > thead > tr,
+#map-area table.sk-skin-quiet-head > thead > tr > th { background: var(--sk-head-bg) !important; }
+#map-area table.sk-skin-quiet-head > thead > tr > th { border-bottom-width: 1px !important; font-weight: 600; letter-spacing: 0.02em; }
 
 /* שורות הרווח מזיזות את מיקום הפ"מ בתוך ה-tbody, ולכן הזברה של השורות
    נקבעת במחלקה מפורשת (sk-row-a/sk-row-b מ-SectorDashboard) במקום

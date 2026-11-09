@@ -32,6 +32,7 @@ import { evaluateQuery, emptyQGroup, hasConditions, clampMenuPos } from '../../u
 import { catalogByKey, readControlValue, controlDisplayText } from '../../utils/stripControls';
 import { resolveCellDecor, cellDecorStyle, resolveCellIcon, columnDisplayMode, hasSecondLine } from '../../utils/tableCellDisplay';
 import { normalizeSortSpec, compareBySortSpec, type TableSortLevel } from '../../utils/tableSort';
+import { tableSkinOf, isTableSkinId } from '../../utils/tableSkin';
 import { useDisplayIcons } from '../../utils/displayIcons';
 import DisplayIcon from '../shared/DisplayIcon';
 import { canChangeElementStatus, displayStateOptions, nextServiceability, serviceabilityStyle } from '../../utils/elementStatus';
@@ -17390,6 +17391,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {/* Table Mode */}
           {!isGroundMode && !isMissionDeskMode && !isClassicMode && !isCivilianMode && tableMode && (() => {
             const activeMode = availableTableModes.find(tm => tm.id === selectedTableModeId);
+            // סקין הטבלה כולה (utils/tableSkin.ts). צבעי המצב לא תלויים בו
+            const skin = tableSkinOf((activeMode as any)?.skin);
+            const skinId = isTableSkinId((activeMode as any)?.skin) ? (activeMode as any).skin : 'classic';
+            // מסגרת הפ"מ: בצבע הזיהוי (קלאסי) או בקו השקט של התמה
+            const FRAME_ACC = skin.frame === 'accent' ? SUB_ACC : T.border;
+            const FRAME_W = skin.frameW;
             const baseColumns: any[] = activeMode?.columns && activeMode.columns.length > 0
               ? activeMode.columns
               : [
@@ -18800,7 +18807,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
             // רווח דק בין פ"מ לפ"מ: שורה ריקה בצבע הלוח, אחרי הפ"מ ואחרי
             // טבלאות הבן שנפרסו לו - כך כל פ"מ נקרא כיחידה אחת ולא כרצף שורות.
-            const STRIP_GAP_PX = 9;
+            const STRIP_GAP_PX = skin.gapPx;
             // במוד הטבלאי מצטרפים שני תאים במקום עמודות הפ"מ: הזהות (או"ק
             // וטייסת) והטבלה עצמה
             // עמודות ברוחב התוכן (App.css - .sk-tm-fit): עמודת מילוי ריקה בסוף לוקחת את
@@ -18813,8 +18820,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <>
               <table
                 ref={setTableElRef}
-                className={fitCols ? 'sk-tm-fit' : undefined}
+                className={[fitCols ? 'sk-tm-fit' : '', `sk-skin-${skinId}`, skin.cellPadY != null ? 'sk-skin-pad' : '', skin.quietHeader ? 'sk-skin-quiet-head' : ''].filter(Boolean).join(' ')}
                 style={{ width: hasFrozen ? 'max-content' : '100%', minWidth: '100%', borderCollapse: 'collapse', fontSize: `${tableFontSize}px`, direction: dir,
+                  // הסקין (App.css - .sk-skin-*): ריפוד התא, צבע רצפת המסגרת וצבע הכותרת השקטה
+                  ['--sk-cell-py' as any]: `${skin.cellPadY ?? 0}px`,
+                  ['--sk-frame' as any]: FRAME_ACC,
+                  ['--sk-head-bg' as any]: T.surface,
                   // צבע תיבת הקבוצה - אותו גוון של כותרת הקבוצה (ראה .sk-grp ב-App.css)
                   ['--sk-grp' as any]: groupHeaderStyle(grpColor, themeMode).solid,
                   ['--sk-grp-head-bg' as any]: groupHeaderStyle(grpColor, themeMode).bg,
@@ -19096,7 +19107,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       : isRowConflictFlashing ? (lightMode ? '#fef2f2' : '#3b0000')
                       : (isRowDeviation && !isRowDeviationAck) ? undefined
                       : isPendingTransfer ? (isEven ? (lightMode ? '#dde6f5' : '#2d3344') : (lightMode ? '#d4dde8' : '#252b3a'))
-                      : (isEven ? (T.surface) : (lightMode ? '#f1f5f9' : '#000000'));
+                      : (isEven || !skin.zebra ? (T.surface) : (lightMode ? '#f1f5f9' : '#000000'));
                     // קיבוץ: כל השורות של הפ"מ (רווח, הפ"מ, טבלאות הבן) נכנסות לתיבת הקבוצה,
                     // והרצפה שלה יושבת על השורה האחרונה של הפ"מ האחרון בקבוצה
                     const grpCls = (s as any)._grp != null ? 'sk-grp' : '';
@@ -19112,7 +19123,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       </tr>
                       <tr
                         data-strip-id={s.id}
-                        className={[isRowConflictFlashing ? 'alt-conflict-flash' : (isRowDeviation && !isRowDeviationAck ? 'block-deviation-flash' : ''), acceptFlashIds.includes(String(s.id)) ? 'accept-green-flash' : '', (s as any)._transferredOut ? 'transfer-out-flash' : '', isPlainRow ? (isEven ? 'sk-row-a' : 'sk-row-b') : '', hasFrameFloor ? 'sk-frame-floor' : '', grpCls, grpLastMain ? 'sk-grp-last' : ''].filter(Boolean).join(' ') || undefined}
+                        className={[isRowConflictFlashing ? 'alt-conflict-flash' : (isRowDeviation && !isRowDeviationAck ? 'block-deviation-flash' : ''), acceptFlashIds.includes(String(s.id)) ? 'accept-green-flash' : '', (s as any)._transferredOut ? 'transfer-out-flash' : '', isPlainRow ? (isEven || !skin.zebra ? 'sk-row-a' : 'sk-row-b') : '', hasFrameFloor ? 'sk-frame-floor' : '', grpCls, grpLastMain ? 'sk-grp-last' : ''].filter(Boolean).join(' ') || undefined}
                         draggable
                         onDragStart={e => { e.dataTransfer.setData('text/strip-id-for-transfer', s.id); setTableDragRow(s.id); }}
                         onDragOver={e => {
@@ -19160,10 +19171,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           // כאן, ורצפה על הטבלה האחרונה) מקיפה את **שניהם יחד**, וקו
                           // כאן - גם ירוק של קונפליקט פתור - חוצה אותה לשתיים ומציג
                           // את הטבלאות כאילו אינן חלק מהפ"מ.
-                          borderBottom: hasOpenSubTable ? 'none' : `2px solid ${frameFloorState ?? SUB_ACC}`,
+                          borderBottom: hasOpenSubTable ? 'none' : (frameFloorState ? `2px solid ${frameFloorState}` : `${FRAME_W}px solid ${FRAME_ACC}`),
                           // גג המסגרת. **לכל** פ"מ יש מסגרת - פרוס או לא - כדי שכל
                           // פ"מ ייקרא כיחידה אחת, והשורה לא תשנה צורה כשפורסים טבלה.
-                          borderTop: `2px solid ${SUB_ACC}`,
+                          borderTop: `${FRAME_W}px solid ${FRAME_ACC}`,
                           outline: isRowConflictFlashing ? '1px solid #ef4444' : undefined,
                           opacity: isPendingTransfer ? 0.6 : (tableDragRow === s.id ? 0.5 : 1),
                           transition: 'background 0.1s'
@@ -19172,7 +19183,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         <td style={{ padding: '1px 0', whiteSpace: 'nowrap', verticalAlign: 'middle', background: rowBg ?? (lightMode ? '#e2e8f0' : '#1e293b'), position: 'sticky', insetInlineStart: tableStickyOffsets[0] ?? 0, zIndex: 5, width: '16px', minWidth: '16px', maxWidth: '16px',
                           // דופן המסגרת בצד הפ"מ. על התא הדביק - כך היא נשארת
                           // גלויה גם כשגוללים את הטבלה לצדדים.
-                          borderInlineStart: `2px solid ${SUB_ACC}` }}>
+                          borderInlineStart: `${FRAME_W}px solid ${FRAME_ACC}` }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', alignItems: 'center' }}>
                             <span
                               title={isRowConflictPartial ? 'קונפליקט חלקי — לחץ לפתרון' : isRowAltConflict ? 'קונפליקט גובה — לחץ לפתרון' : isRowConflictResolved ? 'קונפליקט פתור — לחץ לצפייה' : ''}
@@ -19399,18 +19410,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             background: lightMode ? '#eef7fa' : '#07222c',
                             // רצפת המסגרת - רק אחרי הטבלה האחרונה שנפרסה. צבע מצב
                             // (גרירה/קונפליקט) יורד לכאן, כי כאן רצפת היחידה כולה.
-                            borderBottom: isLastOpen ? `2px solid ${frameFloorState ?? SUB_ACC}` : 'none',
+                            borderBottom: isLastOpen ? (frameFloorState ? `2px solid ${frameFloorState}` : `${FRAME_W}px solid ${FRAME_ACC}`) : 'none',
                           }}>
                             {/* ההזחה נעשית ב-colSpan ולא בפיקסלים: תא ריק שמכסה
                                 בדיוק את העמודות שלפני האו"ק, ולכן הטבלה מתחילה
                                 **בקו של האו"ק** בכל רוחב עמודות ובכל קונפיגורציה. */}
                             {subTableIndentCols > 0 && (
-                              <td colSpan={subTableIndentCols} style={{ padding: 0, borderInlineStart: `2px solid ${SUB_ACC}` }} />
+                              <td colSpan={subTableIndentCols} style={{ padding: 0, borderInlineStart: `${FRAME_W}px solid ${FRAME_ACC}` }} />
                             )}
                             <td colSpan={totalColSpan - subTableIndentCols}
                                 style={{ padding: '2px 0 6px', direction: dir,
                                   // בלי תא הזחה (אין עמודת או"ק) הדופן יושבת כאן
-                                  ...(subTableIndentCols > 0 ? {} : { borderInlineStart: `2px solid ${SUB_ACC}` }) }}>
+                                  ...(subTableIndentCols > 0 ? {} : { borderInlineStart: `${FRAME_W}px solid ${FRAME_ACC}` }) }}>
                               {renderSubBlock(s, col, { sticky: { anchor: subBlockAnchor, width: subBlockWidth } })}
                             </td>
                           </tr>

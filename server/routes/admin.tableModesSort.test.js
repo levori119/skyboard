@@ -16,7 +16,7 @@ beforeAll(async () => {
   process.env.SKYKING_LOCAL_DB_DIR = 'memory://';
   ({ default: pool } = await import('../db/pool.js'));
   await pool.query(`CREATE TABLE table_modes (id SERIAL PRIMARY KEY, name VARCHAR(100) NOT NULL, columns JSONB DEFAULT '[]',
-    frozen_columns INTEGER DEFAULT 0, sort_spec JSONB DEFAULT '[]', created_at TIMESTAMPTZ DEFAULT NOW())`);
+    frozen_columns INTEGER DEFAULT 0, sort_spec JSONB DEFAULT '[]', skin VARCHAR(30) DEFAULT 'classic', created_at TIMESTAMPTZ DEFAULT NOW())`);
   const { default: router } = await import('./admin.js');
   const { listen } = await import('../listen.js');
   const app = express();
@@ -53,5 +53,18 @@ describe('table_modes.sort_spec', () => {
 
   it('מוד שלא קיים - 404', async () => {
     expect((await req('PUT', '/api/table-modes/99999', { name: 'x', columns: [] })).status).toBe(404);
+  });
+});
+
+describe('table_modes.skin (src/utils/tableSkin.ts)', () => {
+  it('ברירת מחדל קלאסי; סקין לא מוכר לא נשמר; עדכון בלי skin משאיר אותו', async () => {
+    const c = await req('POST', '/api/table-modes', { name: 'ס', columns: [] });
+    expect(c.json.skin).toBe('classic');
+    const bad = await req('POST', '/api/table-modes', { name: 'ס2', columns: [], skin: 'neon' });
+    expect(bad.json.skin).toBe('classic');
+    const u = await req('PUT', `/api/table-modes/${c.json.id}`, { name: 'ס', columns: [], skin: 'calm' });
+    expect(u.json.skin).toBe('calm');
+    const keep = await req('PUT', `/api/table-modes/${c.json.id}`, { name: 'ס', columns: [] });
+    expect(keep.json.skin).toBe('calm');
   });
 });

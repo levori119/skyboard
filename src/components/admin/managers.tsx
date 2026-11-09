@@ -20,6 +20,7 @@ import { useStripFieldCatalog } from '../../utils/stripFieldCatalog';
 import TableColumnDisplayEditor from './TableColumnDisplayEditor';
 import TableSortSpecEditor from './TableSortSpecEditor';
 import { normalizeSortSpec, type TableSortLevel } from '../../utils/tableSort';
+import { TABLE_SKIN_IDS, isTableSkinId, type TableSkinId } from '../../utils/tableSkin';
 import DisplayIconsManager from './DisplayIconsManager';
 import { hasSecondLine, columnDisplayMode } from '../../utils/tableCellDisplay';
 import { isFreePlacement, pointToCellPercent } from '../../utils/stripControls';
@@ -603,7 +604,8 @@ export const TableModesManager = () => {
   const [modes, setModes] = useState<any[]>([]);
   const [editing, setEditing] = useState<any | null>(null);
   // sortSpec - סדר המיון בעמדה לפי עדיפות (utils/tableSort.ts)
-  const [form, setForm] = useState({ name: '', columns: [] as any[], frozenColumns: 0, sortSpec: [] as TableSortLevel[] });
+  // skin - המראה של הטבלה כולה (utils/tableSkin.ts)
+  const [form, setForm] = useState({ name: '', columns: [] as any[], frozenColumns: 0, sortSpec: [] as TableSortLevel[], skin: 'classic' as TableSkinId });
   const [dragColIdx, setDragColIdx] = useState<number | null>(null);
   const [dragOverColIdx, setDragOverColIdx] = useState<number | null>(null);
   const [tableMenuOpen, setTableMenuOpen] = useState(false);
@@ -624,7 +626,7 @@ export const TableModesManager = () => {
 
   const startNew = () => {
     setEditing(null);
-    setForm({ name: '', columns: [], frozenColumns: 0, sortSpec: [] });
+    setForm({ name: '', columns: [], frozenColumns: 0, sortSpec: [], skin: 'classic' });
   };
 
   const startEdit = (mode: any) => {
@@ -639,7 +641,7 @@ export const TableModesManager = () => {
         isCustom: c.isCustom || (c.key || c.field || '').startsWith('custom_'),
       };
     });
-    setForm({ name: mode.name, columns: cols, frozenColumns: mode.frozenColumns || 0, sortSpec: normalizeSortSpec(mode.sortSpec) });
+    setForm({ name: mode.name, columns: cols, frozenColumns: mode.frozenColumns || 0, sortSpec: normalizeSortSpec(mode.sortSpec), skin: isTableSkinId(mode.skin) ? mode.skin : 'classic' });
   };
 
   /**
@@ -726,7 +728,7 @@ export const TableModesManager = () => {
     const url = editing ? `${API_URL}/table-modes/${editing.id}` : `${API_URL}/table-modes`;
     await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
     setEditing(null);
-    setForm({ name: '', columns: [], frozenColumns: 0, sortSpec: [] });
+    setForm({ name: '', columns: [], frozenColumns: 0, sortSpec: [], skin: 'classic' });
     loadModes();
   };
 
@@ -980,6 +982,26 @@ export const TableModesManager = () => {
           </div>
         </div>
 
+        {/* סקין הטבלה כולה - רווחים, מסגרת הפ"מ, זברה וכותרת (utils/tableSkin.ts) */}
+        <div data-testid="table-mode-skin" style={{ marginTop: '14px', padding: '10px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px' }}>
+          <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#e2e8f0', marginBottom: '4px' }}>{tr('tableDisplay.skinTitle')}</div>
+          <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '8px', lineHeight: 1.5 }}>{tr('tableDisplay.skinHint')}</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            {TABLE_SKIN_IDS.map(id => {
+              const on = form.skin === id;
+              return (
+                <button key={id} type="button" data-testid={`table-mode-skin-${id}`} onClick={() => setForm(f => ({ ...f, skin: id }))}
+                  title={tr(`tableDisplay.skinDesc_${id}`)}
+                  style={{ padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontFamily: 'inherit',
+                    background: on ? '#1d4ed8' : '#1e293b', color: on ? '#fff' : '#cbd5e1', border: `1px solid ${on ? '#3b82f6' : '#334155'}`, fontWeight: on ? 'bold' : 'normal' }}>
+                  {tr(`tableDisplay.skin_${id}`)}
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '6px' }}>{tr(`tableDisplay.skinDesc_${form.skin}`)}</div>
+        </div>
+
         {/* סדר המיון בעמדה - לפי עמודות המוד (לא טבלאות בן) */}
         <TableSortSpecEditor
           spec={form.sortSpec}
@@ -992,7 +1014,7 @@ export const TableModesManager = () => {
             {modeSaveLabel}
           </button>
           {editing && (
-            <button onClick={() => { setEditing(null); setForm({ name: '', columns: [], frozenColumns: 0, sortSpec: [] }); }} style={{ padding: '10px 20px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
+            <button onClick={() => { setEditing(null); setForm({ name: '', columns: [], frozenColumns: 0, sortSpec: [], skin: 'classic' }); }} style={{ padding: '10px 20px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
               {tr('shared.cancel')}
             </button>
           )}

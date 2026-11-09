@@ -474,6 +474,10 @@ const sortSpecIn = (raw) => {
     .filter(r => r.key && !seen.has(r.key) && seen.add(r.key)).slice(0, 20);
 };
 
+/** הסקינים שהלקוח מכיר (src/utils/tableSkin.ts). ערך אחר - לא נשמר. null - לא נשלח (לא נוגעים) */
+const TABLE_SKIN_IDS = ['classic', 'calm', 'compact', 'ledger'];
+const skinIn = (raw) => (typeof raw === 'string' && TABLE_SKIN_IDS.includes(raw) ? raw : null);
+
 router.get('/api/table-modes', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM table_modes ORDER BY name');
@@ -486,10 +490,10 @@ router.get('/api/table-modes', async (req, res) => {
 
 router.post('/api/table-modes', async (req, res) => {
   try {
-    const { name, columns, frozenColumns, sortSpec } = req.body;
+    const { name, columns, frozenColumns, sortSpec, skin } = req.body;
     const result = await pool.query(
-      'INSERT INTO table_modes (name, columns, frozen_columns, sort_spec) VALUES ($1, $2, $3, $4) RETURNING *',
-      [name, JSON.stringify(columns || []), frozenColumns || 0, JSON.stringify(sortSpecIn(sortSpec) || [])]
+      'INSERT INTO table_modes (name, columns, frozen_columns, sort_spec, skin) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [name, JSON.stringify(columns || []), frozenColumns || 0, JSON.stringify(sortSpecIn(sortSpec) || []), skinIn(skin) || 'classic']
     );
     res.json(tableModeOut(result.rows[0]));
   } catch (err) {
@@ -500,12 +504,12 @@ router.post('/api/table-modes', async (req, res) => {
 
 router.put('/api/table-modes/:id', async (req, res) => {
   try {
-    const { name, columns, frozenColumns, sortSpec } = req.body;
-    // לקוח שלא שולח sortSpec (גרסה ישנה) לא מוחק את סדר המיון שנקבע
+    const { name, columns, frozenColumns, sortSpec, skin } = req.body;
+    // לקוח שלא שולח sortSpec / skin (גרסה ישנה) לא מוחק את מה שנקבע
     const spec = sortSpecIn(sortSpec);
     const result = await pool.query(
-      'UPDATE table_modes SET name = $1, columns = $2, frozen_columns = $3, sort_spec = COALESCE($5::jsonb, sort_spec) WHERE id = $4 RETURNING *',
-      [name, JSON.stringify(columns || []), frozenColumns || 0, req.params.id, spec ? JSON.stringify(spec) : null]
+      'UPDATE table_modes SET name = $1, columns = $2, frozen_columns = $3, sort_spec = COALESCE($5::jsonb, sort_spec), skin = COALESCE($6, skin) WHERE id = $4 RETURNING *',
+      [name, JSON.stringify(columns || []), frozenColumns || 0, req.params.id, spec ? JSON.stringify(spec) : null, skinIn(skin)]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Table mode not found' });
     res.json(tableModeOut(result.rows[0]));
