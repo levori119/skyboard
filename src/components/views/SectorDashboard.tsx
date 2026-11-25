@@ -94,6 +94,7 @@ import { blockAltFeet, type WatchZone as ZoneWatchZone, type WatchAssignment as 
 import { zoneArrivalPhase, arrivalAckAfterStatus, zoneCornerPoint, enrouteStackIndex, type ZoneArrivalPhase } from '../../utils/zoneArrival';
 import { parsePlannedZones, matchPlannedZones, plannedZoneLabel, type PlannedZoneLabel } from '../../utils/plannedZones';
 import { isGhostClick } from '../../utils/ghostClick';
+import { compareStripsBy, stripZoneSortName, isStripListSort, STRIP_LIST_SORTS, stepStripListScale, parseStripListScale, STRIP_LIST_SCALE_MIN, STRIP_LIST_SCALE_MAX, type StripListSort } from '../../utils/stripListSort';
 import PlannedZonesChip from '../strips/PlannedZonesChip';
 /** הפניה קבועה - מערך ריק חדש בכל רינדור היה מפיל memo של צרכני ההדגשה. */
 const EMPTY_ZW_OFFENDERS: ZoneWatchOffender[] = [];
@@ -937,6 +938,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   //           (מוקדם→מאוחר), אחריהם מי שעל הקרקע לפי המראה מתוכנן. ההפרדה
   //           ויזואלית בלבד - או"ק של מי שבאוויר מוצג בכחול.
   const [fzSidebarGroup, setFzSidebarGroup] = useState<'zones'|'list'>(() => (localStorage.getItem(`fz-sidebar-group-${session.presetId}`) === 'list' ? 'list' : 'zones'));
+  // לוח הפ"מים: מיון (זמן המראה / אזור / א"ב) וגודל גופן (+/-). פר-עמדה ב-localStorage (utils/stripListSort)
+  const [stripListSort, setStripListSort] = useState<StripListSort>(() => { try { const v = localStorage.getItem(`strip-list-sort-${session.presetId}`); return isStripListSort(v) ? v : 'takeoff'; } catch { return 'takeoff'; } });
+  const [stripListScale, setStripListScale] = useState<number>(() => { try { return parseStripListScale(localStorage.getItem(`strip-list-scale-${session.presetId}`)); } catch { return 1; } });
+  useEffect(() => { try { localStorage.setItem(`strip-list-sort-${session.presetId}`, stripListSort); } catch { /* אחסון חסום - הבחירה נשארת לסשן */ } }, [stripListSort, session.presetId]);
+  useEffect(() => { try { localStorage.setItem(`strip-list-scale-${session.presetId}`, String(stripListScale)); } catch { /* אחסון חסום */ } }, [stripListScale, session.presetId]);
   // בחירת הפקח בבורר "תצוגת מבנה" (שתי המפות); null = ברירת המחדל של העמדה.
   // נשמרת פר-עמדה ב-localStorage - סגנון שנבחר לא אמור להתאפס ברענון.
   const [fzPinModeOverride, setFzPinModeOverride] = useState<PinDisplay | null>(() => {
@@ -10133,18 +10139,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 );
                 const _gst = (s: any) => { const now=new Date(); const tkDt=s.takeoff_time?new Date(s.takeoff_time):null; const tkPast=!!(tkDt&&!isNaN(tkDt.getTime())&&tkDt<now&&!s.airborne); let tkLabel=''; if(tkDt&&!isNaN(tkDt.getTime())){const hh=tkDt.getHours().toString().padStart(2,'0');const mm=tkDt.getMinutes().toString().padStart(2,'0');const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());const tkDay=new Date(tkDt.getFullYear(),tkDt.getMonth(),tkDt.getDate());tkLabel=tkDay.getTime()!==today.getTime()?`${tkDt.getDate().toString().padStart(2,'0')}/${(tkDt.getMonth()+1).toString().padStart(2,'0')} ${hh}:${mm}`:`${hh}:${mm}`;} return{now,tkDt,tkPast,tkLabel}; };
                 type _RI = {kind:'zone',zoneId:number,za:StripZoneAssignment,count:number}|{kind:'unassigned',count:number}|{kind:'strip',_rk:string,s:any,now:Date,tkDt:Date|null,tkPast:boolean,tkLabel:string};
+                // המיון שבחר הפקח (utils/stripListSort). "אזור" - המשויך, ובהיעדרו המתוכנן
+                const _zoneNameOf = (x: any) => stripZoneSortName(x, stripZoneAssignments.find((za: StripZoneAssignment) => parseInt(String(za.strip_id), 10) === parseInt(String(x.id).replace(/^s/, ''), 10))?.zone_name);
+                const _cmp = (a: any, b: any) => compareStripsBy(stripListSort, a, b, _zoneNameOf);
                 const renderItems: _RI[] = [];
                 if (isFlightZonesMode && fzSidebarGroup === 'zones') {
-                  const _sorted=[...sidebarStripList].sort((a,b)=>{const zaA=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(a.id).replace(/^s/,''),10));const zaB=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(b.id).replace(/^s/,''),10));if(zaA&&!zaB)return -1;if(!zaA&&zaB)return 1;if(zaA&&zaB&&zaA.zone_id!==zaB.zone_id)return (zaA.zone_name||'').localeCompare((zaB.zone_name||''),'he');return compareAirborneThenTakeoff(a,b);});
+                  const _sorted=[...sidebarStripList].sort((a,b)=>{const zaA=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(a.id).replace(/^s/,''),10));const zaB=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(b.id).replace(/^s/,''),10));if(zaA&&!zaB)return -1;if(!zaA&&zaB)return 1;if(zaA&&zaB&&zaA.zone_id!==zaB.zone_id)return (zaA.zone_name||'').localeCompare((zaB.zone_name||''),'he');return _cmp(a,b);});
                   const _zg=new Map<number,{za:StripZoneAssignment,strips:any[]}>();const _ua:any[]=[];
                   for(const s of _sorted){const za=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(s.id).replace(/^s/,''),10));if(za){const _seenZ=new Set<number>();let _added=false;if(za.zone_id!=null&&!_seenZ.has(za.zone_id)){_seenZ.add(za.zone_id);if(!_zg.has(za.zone_id))_zg.set(za.zone_id,{za,strips:[]});_zg.get(za.zone_id)!.strips.push(s);_added=true;}for(const ez of ((za.extra_zones||[]) as any[])){if(ez.zone_id==null||_seenZ.has(ez.zone_id))continue;_seenZ.add(ez.zone_id);const _ezM=mapZones.find((z:any)=>z.id===ez.zone_id);const _fza={...za,zone_id:ez.zone_id,zone_name:ez.zone_name||_ezM?.name||null,zone_color:ez.zone_color||_ezM?.color||null};if(!_zg.has(ez.zone_id))_zg.set(ez.zone_id,{za:_fza,strips:[]});_zg.get(ez.zone_id)!.strips.push(s);_added=true;}if(!_added)_ua.push(s);}else _ua.push(s);}
                   for(const{za,strips}of _zg.values()){renderItems.push({kind:'zone',zoneId:za.zone_id??0,za,count:strips.length});if(!fzPanelCollapsed.has(za.zone_id??0))for(const s of strips)renderItems.push({kind:'strip',_rk:`z${za.zone_id??0}-${s.id}`,s,..._gst(s)});}
                   if(_ua.length){renderItems.push({kind:'unassigned',count:_ua.length});if(!fzPanelCollapsed.has(-1))for(const s of _ua)renderItems.push({kind:'strip',_rk:`ua-${s.id}`,s,..._gst(s)});}
                 } else {
-                  // רשימת פ"מ רגילה (גם במצב אזורי טיסה כשנבחר "רשימה"):
-                  // קודם מי שבאוויר לפי זמן המראה מהמוקדם למאוחר, אחריהם מי שעל
-                  // הקרקע לפי זמן המראה המתוכנן. בלי כותרות קיבוץ - ההפרדה בצבע.
-                  const _sorted=[...sidebarStripList].sort(compareAirborneThenTakeoff);
+                  // רשימת פ"מ רגילה (גם במצב אזורי טיסה כשנבחר "רשימה"), לפי המיון שנבחר.
+                  // ברירת המחדל "זמן המראה": קודם מי שבאוויר לפי זמן המראה, אחריהם מי
+                  // שעל הקרקע לפי זמן המראה המתוכנן. בלי כותרות קיבוץ - ההפרדה בצבע.
+                  const _sorted=[...sidebarStripList].sort(_cmp);
                   for(const s of _sorted)renderItems.push({kind:'strip',_rk:`s-${s.id}`,s,..._gst(s)});
                 }
                 return (<>
@@ -10177,7 +10186,35 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   })}
                 </div>
               )}
+              {/* מיון (זמן המראה / אזור / א"ב) וגודל הגופן של הלוח - utils/stripListSort */}
+              <div role="group" aria-label={tr('ctrl.stripListSortLabel')} data-testid="strip-list-sort" style={{ display: 'flex', gap: '4px', marginBottom: '8px', direction: dir, alignItems: 'stretch' }}>
+                {STRIP_LIST_SORTS.map(mode => {
+                  const on = stripListSort === mode;
+                  return (
+                    <button key={mode} data-testid={`strip-list-sort-${mode}`} aria-pressed={on} onClick={() => setStripListSort(mode)} title={tr('ctrl.stripListSortTip', { by: tr(`ctrl.stripListSort_${mode}`) })}
+                      style={{
+                        flex: 1, padding: '3px 6px', fontSize: '11px', lineHeight: 1.4, borderRadius: '5px', cursor: 'pointer',
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                        fontWeight: on ? 'bold' : 'normal',
+                        border: `1px solid ${on ? '#0ea5e9' : T.border}`,
+                        background: on ? (lightMode ? '#0ea5e9' : '#0c4a6e') : T.surface,
+                        color: on ? (lightMode ? '#ffffff' : '#7dd3fc') : T.muted,
+                      }}
+                    >{tr(`ctrl.stripListSort_${mode}`)}</button>
+                  );
+                })}
+                {([[-1, '-', 'ctrl.stripListFontDown', STRIP_LIST_SCALE_MIN], [1, '+', 'ctrl.stripListFontUp', STRIP_LIST_SCALE_MAX]] as const).map(([dirn, sym, key, edge]) => {
+                  const atEdge = dirn < 0 ? stripListScale <= edge : stripListScale >= edge;
+                  return (
+                    <button key={sym} data-testid={dirn < 0 ? 'strip-list-font-down' : 'strip-list-font-up'} onClick={() => setStripListScale(v => stepStripListScale(v, dirn))} disabled={atEdge} title={tr(key)} aria-label={tr(key)}
+                      style={{ flex: '0 0 auto', minWidth: '26px', padding: '0 6px', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, borderRadius: '5px', cursor: atEdge ? 'default' : 'pointer', border: `1px solid ${T.border}`, background: T.surface, color: atEdge ? T.border : T.text }}
+                    >{sym}</button>
+                  );
+                })}
               </div>
+              </div>
+              {/* הגופן של הלוח - zoom על הרשימה בלבד (הכותרת והבוררים נשארים בגודלם) */}
+              <div data-testid="strip-list-items" style={{ zoom: stripListScale }}>
               {renderItems.map(item => {
                 if (item.kind === 'zone') return (
                   <div key={`fzh-z${item.zoneId}`} onClick={() => setFzPanelCollapsed(prev => { const n=new Set(prev); n.has(item.zoneId)?n.delete(item.zoneId):n.add(item.zoneId); return n; })}
@@ -10380,6 +10417,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   </div>
                 </div>
               );})}
+              </div>
               {sidebarStripList.length === 0 && (
                 <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>{isClassicMode ? 'אין פממים זמינים' : 'כל הפממים על המפה'}</div>
               )}

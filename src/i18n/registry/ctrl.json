@@ -2638,6 +2638,34 @@
       "he": "המריא - לחץ כדי לשייך אותו לאזור",
       "en": "Airborne - tap to assign it to the zone"
     },
+    "stripListSortLabel": {
+      "he": "מיון לוח הפ\"מים",
+      "en": "Sort the formation list"
+    },
+    "stripListSortTip": {
+      "he": "מיין לפי {{by}}",
+      "en": "Sort by {{by}}"
+    },
+    "stripListSort_takeoff": {
+      "he": "זמן המראה",
+      "en": "Takeoff time"
+    },
+    "stripListSort_zone": {
+      "he": "אזור",
+      "en": "Zone"
+    },
+    "stripListSort_alpha": {
+      "he": "א\"ב",
+      "en": "A-Z"
+    },
+    "stripListFontUp": {
+      "he": "הגדל גופן",
+      "en": "Larger text"
+    },
+    "stripListFontDown": {
+      "he": "הקטן גופן",
+      "en": "Smaller text"
+    },
     "zoneRestricted": {
       "he": "מוגבל",
       "en": "Restricted"
