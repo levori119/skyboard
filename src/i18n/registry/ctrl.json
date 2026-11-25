@@ -2670,6 +2670,34 @@
       "he": "גרור לשינוי רוחב הפאנל. לחיצה כפולה - חזרה לרוחב הרגיל",
       "en": "Drag to resize the panel. Double-click to restore the default width"
     },
+    "stripTrash": {
+      "he": "פח",
+      "en": "Trash"
+    },
+    "stripTrashDrop": {
+      "he": "שחרר כאן להסתרה מהעמדה",
+      "en": "Drop here to hide from this workstation"
+    },
+    "stripTrashHint": {
+      "he": "גרור לכאן פ\"מ מהלוח או מהמפה כדי להסתיר אותו מהעמדה שלך - מהלוח ומהמפה. תצוגתי בלבד: בעמדות אחרות ובשרת לא משתנה דבר. לחיצה - רשימה ושחזור",
+      "en": "Drag a formation here from the list or the map to hide it from your workstation - from the list and the map. Display only: nothing changes at other workstations or on the server. Tap for the list and restore"
+    },
+    "stripTrashed": {
+      "he": "{{cs}} הוסתר מהעמדה - לשחזור לחץ על הפח",
+      "en": "{{cs}} hidden from this workstation - tap the trash to restore"
+    },
+    "stripTrashRestore": {
+      "he": "שחזר",
+      "en": "Restore"
+    },
+    "stripTrashRestoreAll": {
+      "he": "שחזר הכל",
+      "en": "Restore all"
+    },
+    "stripTrashEmpty": {
+      "he": "הפח ריק",
+      "en": "The trash is empty"
+    },
     "zoneRestricted": {
       "he": "מוגבל",
       "en": "Restricted"

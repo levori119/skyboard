@@ -95,6 +95,7 @@ import { zoneArrivalPhase, arrivalAckAfterStatus, zoneCornerPoint, enrouteStackI
 import { parsePlannedZones, matchPlannedZones, plannedZoneLabel, type PlannedZoneLabel } from '../../utils/plannedZones';
 import { isGhostClick } from '../../utils/ghostClick';
 import { mergeZoneOperational } from '../../utils/zoneOperational';
+import { parseStripTrash, serializeStripTrash, addToTrash, removeFromTrash, pointInStripTrash } from '../../utils/stripTrash';
 import { effectiveSidebarWidth, sidebarBaseFromWidth, parseSidebarBase } from '../../utils/sidebarWidth';
 import { compareStripsBy, stripZoneSortName, isStripListSort, STRIP_LIST_SORTS, stepStripListScale, parseStripListScale, STRIP_LIST_SCALE_MIN, STRIP_LIST_SCALE_MAX, type StripListSort } from '../../utils/stripListSort';
 import PlannedZonesChip from '../strips/PlannedZonesChip';
@@ -950,6 +951,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // רוחב פאנל "פ"מ עמדה": בסיס מהספליטר × גודל הגופן (utils/sidebarWidth) - הגדלת טקסט מרחיבה, לא חותכת
   const [sidebarBase, setSidebarBase] = useState<number>(() => { try { return parseSidebarBase(localStorage.getItem(`strip-sidebar-base-${session.presetId}`)); } catch { return parseSidebarBase(null); } });
   const [sidebarDragging, setSidebarDragging] = useState(false);
+  // "פח" - פ"מים שהוסתרו מהעמדה הזו בלבד, תצוגתית (utils/stripTrash). פר-עמדה ב-localStorage
+  const [trashedStrips, setTrashedStrips] = useState<Set<number>>(() => { try { return parseStripTrash(localStorage.getItem(`strip-trash-${session.presetId}`)); } catch { return new Set(); } });
+  const [trashOpen, setTrashOpen] = useState(false);
+  useEffect(() => { try { localStorage.setItem(`strip-trash-${session.presetId}`, serializeStripTrash(trashedStrips)); } catch { /* אחסון חסום */ } }, [trashedStrips, session.presetId]);
+  const trashStripRef = useRef<(id: string | number) => void>(() => {});
   useEffect(() => { try { localStorage.setItem(`strip-sidebar-base-${session.presetId}`, String(sidebarBase)); } catch { /* אחסון חסום */ } }, [sidebarBase, session.presetId]);
   // בחירת הפקח בבורר "תצוגת מבנה" (שתי המפות); null = ברירת המחדל של העמדה.
   // נשמרת פר-עמדה ב-localStorage - סגנון שנבחר לא אמור להתאפס ברענון.
@@ -4095,6 +4101,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       }
       return;
     }
+    // שחרור על הפח - הפין נעלם מהעמדה הזו בלבד; השיוך לאזור נשאר בשרת (utils/stripTrash)
+    if (pointInStripTrash(document, e.clientX, e.clientY)) { trashStrip(dragId); return; }
     // Drag to transfer marker: check element under pointer
     // Disable the overlay that fired (per-map) so elementFromPoint sees through to real targets
     const _ov = e.currentTarget as HTMLDivElement;
@@ -6468,6 +6476,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'באזור' }),
     }).catch(() => {});
   };
+  // "פח": הפ"מ נעלם מהלוח ומהמפה **בעמדה הזו בלבד**. בשרת לא משתנה דבר (utils/stripTrash)
+  const trashStrip = (id: string | number) => {
+    const n = stripNumId(id);
+    if (n == null) return;
+    setTrashedStrips(prev => addToTrash(prev, n));
+    const st = strips.find((x: any) => stripNumId(x.id) === n);
+    flashFz(tr('ctrl.stripTrashed', { cs: String(st?.callSign || `#${n}`) }));
+  };
+  trashStripRef.current = trashStrip;
   // ── דסק משימה: השיוכים לאזורים יושבים בחלונות המפה (mdSlots) ──────────────
   // בדסק אין מפה ראשית (currentMapId ריק), ולכן כל מסלול שקרא/רענן את
   // stripZoneAssignments של המפה הראשית לא ראה את חלונות הדסק: גרירה בין אזורים
@@ -8721,6 +8738,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       clearSidebarHighlights();
       const classicMineEl = document.getElementById('classic-mine-panel');
       if (classicMineEl) classicMineEl.style.outline = 'none';
+      // שחרור על הפח - הסתרה מהעמדה (utils/stripTrash)
+      if (pointInStripTrash(document, e.clientX, e.clientY)) { trashStripRef.current(id); return; }
 
       // 1. נקודת העברה (neighbor panel) — כל מוד
       const neighborPanel = findSidebarNeighborPanel(e.clientX, e.clientY);
@@ -10144,6 +10163,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 // חלון שמשקף עמדה - הרשימה היא של העמדה המשתקפת
                 const _mirrorPid = _mdW?.settings.mirror_preset_id ?? null;
                 const sidebarStripList = (_mirrorPid != null ? stripsOfPreset(_mirrorPid) : myStrips).filter(s =>
+                  !trashedStrips.has(stripNumId(s.id) ?? -1) &&
                   (showPendingTransfer || s.status !== 'pending_transfer') &&
                   !s.onMap &&
                   // In classic mode, don't show strips already assigned to "שלי"
@@ -10224,6 +10244,55 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   );
                 })}
               </div>
+              {/* "פח" - גוררים לכאן פ"מ מהלוח או מהמפה, והוא מוסתר מהעמדה הזו בלבד (utils/stripTrash) */}
+              {(() => {
+                const dragging = fzDragStripId != null || !!sidebarPointerGhost;
+                const trashedList = strips.filter((x: any) => trashedStrips.has(stripNumId(x.id) ?? -1));
+                return (
+                  <div style={{ marginBottom: '8px' }}>
+                    <button
+                      type="button"
+                      data-strip-trash="1"
+                      data-testid="strip-trash"
+                      title={tr('ctrl.stripTrashHint')}
+                      onClick={() => setTrashOpen(v => !v)}
+                      onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+                      onDrop={e => {
+                        e.preventDefault();
+                        let id: string | number | null = e.dataTransfer.getData('text/strip-id') || e.dataTransfer.getData('text/strip-id-for-transfer') || null;
+                        if (!id) { try { id = JSON.parse(e.dataTransfer.getData('text/plain') || '{}').stripId ?? null; } catch { id = null; } }
+                        if (id != null) trashStrip(id);
+                      }}
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: dragging ? '8px 6px' : '3px 6px',
+                        fontSize: '11px', borderRadius: '5px', cursor: 'pointer', fontFamily: 'inherit', transition: 'padding 0.15s',
+                        border: `1px ${dragging ? 'solid' : 'dashed'} ${dragging ? '#ef4444' : T.border}`,
+                        background: dragging ? (lightMode ? '#fee2e2' : '#450a0a') : 'transparent',
+                        color: dragging ? (lightMode ? '#b91c1c' : '#fca5a5') : T.muted }}
+                    >
+                      <span style={{ fontSize: dragging ? '16px' : '13px' }}>🗑</span>
+                      <span>{dragging ? tr('ctrl.stripTrashDrop') : tr('ctrl.stripTrash')}</span>
+                      {trashedList.length > 0 && <span style={{ fontWeight: 'bold' }}>({trashedList.length})</span>}
+                    </button>
+                    {trashOpen && (
+                      <div data-testid="strip-trash-list" style={{ marginTop: '4px', padding: '6px', borderRadius: '5px', border: `1px solid ${T.border}`, background: T.surface, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        {trashedList.length === 0
+                          ? <span style={{ fontSize: '11px', color: T.muted, textAlign: 'center' }}>{tr('ctrl.stripTrashEmpty')}</span>
+                          : <>
+                              {trashedList.map((x: any) => (
+                                <div key={x.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: T.text }}>
+                                  <span style={{ flex: 1, fontWeight: 'bold' }}>{getFormationDisplayName(x)}</span>
+                                  <button type="button" data-testid={`strip-trash-restore-${stripNumId(x.id)}`} onClick={() => setTrashedStrips(prev => removeFromTrash(prev, x.id))}
+                                    style={{ padding: '1px 8px', fontSize: '11px', borderRadius: '4px', cursor: 'pointer', border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontFamily: 'inherit' }}>{tr('ctrl.stripTrashRestore')}</button>
+                                </div>
+                              ))}
+                              <button type="button" data-testid="strip-trash-restore-all" onClick={() => { setTrashedStrips(new Set()); setTrashOpen(false); }}
+                                style={{ marginTop: '2px', padding: '3px 8px', fontSize: '11px', borderRadius: '4px', cursor: 'pointer', border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontFamily: 'inherit' }}>{tr('ctrl.stripTrashRestoreAll')}</button>
+                            </>}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               </div>
               {/* הגופן של הלוח - zoom על הרשימה בלבד (הכותרת והבוררים נשארים בגודלם) */}
               <div data-testid="strip-list-items" style={{ zoom: stripListScale }}>
@@ -10290,6 +10359,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     setFzDragStripId(null);
                     setFzDragLabel(null);
                     setSidebarPointerGhost(null);
+                    // שחרור על הפח - הסתרה מהעמדה (utils/stripTrash)
+                    if (pointInStripTrash(document, e.clientX, e.clientY)) { trashStrip(draggedId); return; }
                     // נקודת העברה זמנית (צ'יפ בפאנל או סמן על המפה) — עדיפות, גם מחוץ ל-overlay של אזורי הטיסה
                     for (const el of Array.from(document.querySelectorAll('.prov-drop-zone[data-prov-id]'))) {
                       const pr = el.getBoundingClientRect();
@@ -11429,7 +11500,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {/* Flight Zones Mode: no overlays — zones are invisible drop targets only */}
             
             {/* Strips Layer — only show strips placed by this workstation */}
-            {strips.filter(s => s.onMap && stripBelongsToMapPanel(s, cfg.secondary, cfg.mapId) && (
+            {strips.filter(s => s.onMap && !trashedStrips.has(stripNumId(s.id) ?? -1) && stripBelongsToMapPanel(s, cfg.secondary, cfg.mapId) && (
               ((!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(viewPid)) && (showPendingTransfer || s.status !== 'pending_transfer')) ||
               (showPendingTransfer && s.status === 'pending_transfer' && outgoingTransfers.some((t: any) => String('s' + t.strip_id) === String(s.id)))
             )).map(rawS => {
@@ -11641,7 +11712,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
             {/* Formation Split/Merge Overlay — split button for multi-aircraft strips, merge for siblings */}
             {mapSplitMergeMode && (() => {
-              const onMapStrips = strips.filter(s => s.onMap && stripBelongsToMapPanel(s, cfg.secondary, cfg.mapId) && (
+              const onMapStrips = strips.filter(s => s.onMap && !trashedStrips.has(stripNumId(s.id) ?? -1) && stripBelongsToMapPanel(s, cfg.secondary, cfg.mapId) && (
                 ((!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(viewPid)) && (showPendingTransfer || s.status !== 'pending_transfer')) ||
                 (showPendingTransfer && s.status === 'pending_transfer' && outgoingTransfers.some((t: any) => String('s' + t.strip_id) === String(s.id)))
               ));
@@ -12012,7 +12083,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               for (const s of myStrips) {
                 if (s.status === 'pending_transfer') continue;
                 const sid = parseInt(String(s.id).replace(/^s/, ''), 10);
-                if (assignedIds.has(sid)) continue;
+                if (assignedIds.has(sid) || trashedStrips.has(sid)) continue;
                 const names = parsePlannedZones(s.planned_zones);
                 if (names.length === 0) continue;
                 const state = plannedZoneLabel({ airborne: !!s.airborne, takeoffTime: s.takeoff_time }, nowMs);
@@ -12061,6 +12132,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
             {/* Flight Zones Pin Markers — inside transform div, moves with zoom/pan */}
             {isFlightZonesMode && mapImgBounds && stripZoneAssignments.filter((a: StripZoneAssignment) => {
+              if (trashedStrips.has(Number(a.strip_id))) return false; // בפח של העמדה - תצוגתי
               const _s = strips.find((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10) === Number(a.strip_id));
               return !_s || showPendingTransfer || _s.status !== 'pending_transfer';
             }).map((a: StripZoneAssignment) => {
