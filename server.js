@@ -4,6 +4,7 @@ import { seedDb } from './server/db/seed.js';
 import { cleanupProvisionalTransferPoints } from './server/routes/provisional-transfers.js';
 import { cleanupEndedSeizures } from './server/routes/tempZoneSeizures.js';
 import { runAutoAcceptOnce } from './server/routes/transfers.js';
+import { runAutoAirborneOnce, AUTO_AIRBORNE_TICK_MS } from './server/db/autoAirborne.js';
 import { checkTableClassification } from './server/db/env-tables.js';
 import { syncAllEnvSchemas, forEachEnvironment } from './server/db/envs.js';
 import { rawPool } from './server/db/pool.js';
@@ -122,6 +123,20 @@ startWithDbRetry()
         autoAcceptInFlight = false;
       }
     }, AUTO_ACCEPT_TICK_MS);
+    // המראה אוטומטית - פ"מ שסומן auto_airborne מסומן "מאוויר" בזמן ההמראה.
+    // opt-in פר פ"מ: בלי פ"מים מסומנים זו שאילתת UPDATE אחת שלא נוגעת בכלום
+    let autoAirborneInFlight = false;
+    setInterval(async () => {
+      if (autoAirborneInFlight) return;
+      autoAirborneInFlight = true;
+      try {
+        await forEachEnvironment(() => runAutoAirborneOnce());
+      } catch (err) {
+        console.error('[auto-airborne] סבב נכשל:', err.message);
+      } finally {
+        autoAirborneInFlight = false;
+      }
+    }, AUTO_AIRBORNE_TICK_MS);
     // GAPI: עובדי outbox + reconciliation (no-op לכל סביבה לא-מוגדרת/כבויה).
     // ההאזנה עצמה כבר נעשית למעלה - השרת מאזין עוד לפני שה-DB מוכן,
     // כדי ש-/api/health יחזיר 503 עם הסיבה במקום 502 אילם.
