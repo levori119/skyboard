@@ -14450,7 +14450,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     {showAutoSpacesForm && <span style={{ fontSize: '10px', color: menuAcc('#38bdf8','#0369a1') }}>{tr('ctrl.active')}</span>}
                   </div>
                   )}
-                  {/* עדיפות חימושים - גבהים מועדפים ליציאה לתקיפה לפי חימוש (utils/altRecommend) */}
+                  {/* עדיפות חימושים - גבהים מועדפים ליציאה לתקיפה לפי חימוש (utils/altRecommend).
+                      מוצג רק כשהעמדה מוגדרת לכך (workstation_presets.show_armament_priority, ב"מ כן) */}
+                  {myPresetConfig?.show_armament_priority !== false && (
                   <div
                     data-testid="menu-armament-priority"
                     onClick={() => { setShowArmPriorityForm(v => !v); setShowOpsMenu(false); }}
@@ -14461,6 +14463,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <span>🎯 {tr('ctrl.armPriorityOpen')}</span>
                     {showArmPriorityForm && <span style={{ fontSize: '10px', color: menuAcc('#38bdf8','#0369a1') }}>{tr('ctrl.active')}</span>}
                   </div>
+                  )}
                 </div>
               </>
             )}
@@ -20024,7 +20027,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           />
         )}
 
-        {showArmPriorityForm && (
+        {showArmPriorityForm && myPresetConfig?.show_armament_priority !== false && (
           <ArmamentPriorityForm
             rules={normalizeAltRules((myPresetConfig as any)?.alt_armament_rules)}
             armamentOptions={[...new Set(strips.flatMap(st => stripArmaments(st)))]}

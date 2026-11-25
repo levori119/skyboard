@@ -3077,6 +3077,10 @@ REFACTOR_LOG #045.
 > תגיע גם לעמדה שהייתה מנותקת ברגע הסיום. הניקוי בפועל הוא עבודה מחזורית
 > (`cleanupEndedSeizures`) אחרי 24 שעות.
 
+### `workstation_presets.show_armament_priority` (קונפיג)
+
+BOOLEAN, ברירת מחדל `TRUE`. האם הפריט "🎯 עדיפות חימושים" מופיע בתפריט ההגדרות המבצעיות של העמדה (ניהול ← הגדרות עמדה). מוסתר - חוקי העדיפות עצמם נשמרים, רק לא מוצגים ולא נפתחים. נשמר דרך `saveAutoBlockSpace` ב-`server/routes/workstations.js` (רק ערך בוליאני). מ-2026-11-26: כבוי בכל העמדות חוץ מבת"ק עזה.
+
 ### `workstation_presets.can_seize_zone` (קונפיג)
 
 הרשאת ה**יצירה**, `BOOLEAN DEFAULT FALSE` כנדרש באפיון. **קבלה** של הלאמה אינה

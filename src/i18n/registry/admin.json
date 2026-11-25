@@ -66,6 +66,22 @@
       "he": "למרחב יש מיקום על המפה",
       "en": "Space has a map location"
     },
+    "showArmPriority": {
+      "he": "הצגת \"עדיפות חימושים\" בעמדה",
+      "en": "Show \"Armament priority\" at the workstation"
+    },
+    "showArmPriorityOn": {
+      "he": "הצג",
+      "en": "Show"
+    },
+    "showArmPriorityOff": {
+      "he": "הסתר",
+      "en": "Hide"
+    },
+    "showArmPriorityHint": {
+      "he": "האם הפריט \"עדיפות חימושים\" מופיע בתפריט ההגדרות המבצעיות של העמדה. מוסתר - הטבלה עצמה נשמרת, רק לא מוצגת",
+      "en": "Whether \"Armament priority\" appears in the workstation's operational settings menu. Hidden - the table itself is kept, just not shown"
+    },
     "seizePerm": {
       "he": "הלאמת אזור זמני",
       "en": "Temporary zone seizure"

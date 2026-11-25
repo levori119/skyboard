@@ -130,6 +130,11 @@ async function saveAutoBlockSpace(row, body) {
       [body.auto_block_space_by_target === true, row.id]);
     row = r.rows[0] || row;
   }
+  // הצגת "עדיפות חימושים" בעמדה - אותו עדכון נפרד; רק ערך בוליאני נשמר
+  if (typeof body?.show_armament_priority === 'boolean') {
+    const r = await pool.query('UPDATE workstation_presets SET show_armament_priority = $1 WHERE id = $2 RETURNING *', [body.show_armament_priority, row.id]);
+    row = r.rows[0] || row;
+  }
   // תצוגת הדסק בעליית העמדה - אותו עדכון נפרד
   if (body?.desk_default_view !== undefined) {
     const v = ['blocks', 'target_map', 'both'].includes(body.desk_default_view) ? body.desk_default_view : null;

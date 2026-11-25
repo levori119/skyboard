@@ -940,6 +940,8 @@ async function applySchemaOnce() {
   // **קבלה** של הלאמה אינה דורשת הרשאה - עמדה שלא יודעת שנתפס מרחב מעליה היא
   // בדיוק הכשל שהפיצ'ר בא למנוע.
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS can_seize_zone BOOLEAN DEFAULT false`);
+  // האם להציג בעמדה את "עדיפות חימושים" (תפריט הגדרות מבצעיות). ב"מ TRUE - עמדה קיימת לא משתנה
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS show_armament_priority BOOLEAN DEFAULT TRUE`);
 
   await sq(`CREATE TABLE IF NOT EXISTS temp_zone_seizures (
     id SERIAL PRIMARY KEY,
