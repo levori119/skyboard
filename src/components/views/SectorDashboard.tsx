@@ -93,6 +93,7 @@ import { useZoneWatch, type ZoneWatchMap as ZoneWatchMapInput, type ZoneWatchOff
 import { blockAltFeet, type WatchZone as ZoneWatchZone, type WatchAssignment as ZoneWatchAssignment } from '../../airPicture/zoneWatch';
 import { zoneArrivalPhase, arrivalAckAfterStatus, zoneCornerPoint, enrouteStackIndex, type ZoneArrivalPhase } from '../../utils/zoneArrival';
 import { parsePlannedZones, matchPlannedZones, plannedZoneLabel, type PlannedZoneLabel } from '../../utils/plannedZones';
+import { isGhostClick } from '../../utils/ghostClick';
 import PlannedZonesChip from '../strips/PlannedZonesChip';
 /** הפניה קבועה - מערך ריק חדש בכל רינדור היה מפיל memo של צרכני ההדגשה. */
 const EMPTY_ZW_OFFENDERS: ZoneWatchOffender[] = [];
@@ -3895,8 +3896,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
    * טיוטה שאינה משקפת את המצב בשרת מציג לפקח מצב שאינו קיים, וזה גרוע יותר
    * מלא לפתוח בכלל.
    */
+  // מתי נפתח תפריט האזור - שכבת הסגירה מתעלמת מקליק הרפאים של עט/מגע (utils/ghostClick)
+  const fzZoneMenuOpenedAtRef = useRef<number | null>(null);
   const fzOpenZoneMenu = (zoneId: number, x: number, y: number) => {
     const zone = findZoneWithAnchor(zoneId)?.zone ?? null;
+    fzZoneMenuOpenedAtRef.current = performance.now();
     setFzZoneHint(null);
     // הגבלת גובה ישנה (`active_alt_range_ids`) נפתחת כהגבלה, כדי שאפשר יהיה לבטל אותה
     const seed = zoneMenuSeed(zone, zoneAltBlocks(zoneId).map(b => b.id));
@@ -24418,7 +24422,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           || hasLegacyActiveAlt(zone);
         const acc = d.restriction === '' ? '#16a34a' : ZONE_RESTRICTION_COLOR[d.restriction];
         return createPortal(
-          <div style={{ position: 'fixed', inset: 0, zIndex: 9200 }} onClick={close} onContextMenu={e => { e.preventDefault(); close(); }}>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9200 }}
+            // עט/מגע: התפריט נפתח ב-pointerup, וה-click התואם שהדפדפן שולח אחריו
+            // נוחת כאן - בלי השמירה התפריט נפתח ונסגר באותה נגיעה (utils/ghostClick)
+            onClick={() => { if (!isGhostClick(fzZoneMenuOpenedAtRef.current, performance.now())) close(); }}
+            onContextMenu={e => { e.preventDefault(); if (!isGhostClick(fzZoneMenuOpenedAtRef.current, performance.now())) close(); }}>
             {/* data-zone-menu: איזה אזור התפריט פתוח עליו. הבדיקות זקוקות לכך
                 כדי לדעת על מי נגעו - גבול משותף לשני אזורים צמודים הוא נקודה
                 עמומה מטבעה, וניחוש לפי מקום הנגיעה אינו אימות. */}
