@@ -2666,6 +2666,10 @@
       "he": "הקטן גופן",
       "en": "Smaller text"
     },
+    "sidebarResize": {
+      "he": "גרור לשינוי רוחב הפאנל. לחיצה כפולה - חזרה לרוחב הרגיל",
+      "en": "Drag to resize the panel. Double-click to restore the default width"
+    },
     "zoneRestricted": {
       "he": "מוגבל",
       "en": "Restricted"

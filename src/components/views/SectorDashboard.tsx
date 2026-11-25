@@ -94,6 +94,7 @@ import { blockAltFeet, type WatchZone as ZoneWatchZone, type WatchAssignment as 
 import { zoneArrivalPhase, arrivalAckAfterStatus, zoneCornerPoint, enrouteStackIndex, type ZoneArrivalPhase } from '../../utils/zoneArrival';
 import { parsePlannedZones, matchPlannedZones, plannedZoneLabel, type PlannedZoneLabel } from '../../utils/plannedZones';
 import { isGhostClick } from '../../utils/ghostClick';
+import { effectiveSidebarWidth, sidebarBaseFromWidth, parseSidebarBase } from '../../utils/sidebarWidth';
 import { compareStripsBy, stripZoneSortName, isStripListSort, STRIP_LIST_SORTS, stepStripListScale, parseStripListScale, STRIP_LIST_SCALE_MIN, STRIP_LIST_SCALE_MAX, type StripListSort } from '../../utils/stripListSort';
 import PlannedZonesChip from '../strips/PlannedZonesChip';
 /** הפניה קבועה - מערך ריק חדש בכל רינדור היה מפיל memo של צרכני ההדגשה. */
@@ -943,6 +944,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [stripListScale, setStripListScale] = useState<number>(() => { try { return parseStripListScale(localStorage.getItem(`strip-list-scale-${session.presetId}`)); } catch { return 1; } });
   useEffect(() => { try { localStorage.setItem(`strip-list-sort-${session.presetId}`, stripListSort); } catch { /* אחסון חסום - הבחירה נשארת לסשן */ } }, [stripListSort, session.presetId]);
   useEffect(() => { try { localStorage.setItem(`strip-list-scale-${session.presetId}`, String(stripListScale)); } catch { /* אחסון חסום */ } }, [stripListScale, session.presetId]);
+  // רוחב פאנל "פ"מ עמדה": בסיס מהספליטר × גודל הגופן (utils/sidebarWidth) - הגדלת טקסט מרחיבה, לא חותכת
+  const [sidebarBase, setSidebarBase] = useState<number>(() => { try { return parseSidebarBase(localStorage.getItem(`strip-sidebar-base-${session.presetId}`)); } catch { return parseSidebarBase(null); } });
+  const [sidebarDragging, setSidebarDragging] = useState(false);
+  useEffect(() => { try { localStorage.setItem(`strip-sidebar-base-${session.presetId}`, String(sidebarBase)); } catch { /* אחסון חסום */ } }, [sidebarBase, session.presetId]);
   // בחירת הפקח בבורר "תצוגת מבנה" (שתי המפות); null = ברירת המחדל של העמדה.
   // נשמרת פר-עמדה ב-localStorage - סגנון שנבחר לא אמור להתאפס ברענון.
   const [fzPinModeOverride, setFzPinModeOverride] = useState<PinDisplay | null>(() => {
@@ -20026,11 +20031,55 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           </div>
         )}
 
+        {/* ספליטר פאנל "פ"מ עמדה" - אלמנט נפרד באותו order, לפני הפאנל ב-DOM: כך הוא
+            תמיד בין הפאנל למפה (ב-RTL וב-LTR) ולא נגלל עם הרשימה. Pointer Events -
+            עט, אצבע ועכבר; הרוחב נמדד מול הקצה החיצוני של הפאנל, ביחידות העמוד */}
+        {sidebarPinned && !isGroundMode && !isMissionDeskMode && (
+          <div
+            data-testid="sidebar-splitter"
+            role="separator"
+            aria-orientation="vertical"
+            title={tr('ctrl.sidebarResize')}
+            onPointerDown={e => {
+              const el = e.currentTarget;
+              const side = document.getElementById('sidebar-area');
+              if (!side) return;
+              el.setPointerCapture(e.pointerId);
+              const sr = side.getBoundingClientRect();
+              const hr = el.getBoundingClientRect();
+              // הספליטר מימין לפאנל → הקצה החיצוני הוא השמאלי, ולהפך
+              const handleOnRight = hr.left >= sr.left + sr.width / 2;
+              // #root תחת zoom: פיקסלים אמיתיים → יחידות העמוד
+              const ratio = side.offsetWidth > 0 ? sr.width / side.offsetWidth : 1;
+              const scale = stripListScale;
+              setSidebarDragging(true);
+              const onMove = (ev: PointerEvent) => {
+                const realW = handleOnRight ? ev.clientX - sr.left : sr.right - ev.clientX;
+                setSidebarBase(sidebarBaseFromWidth(realW / ratio, scale));
+              };
+              const onEnd = () => {
+                el.removeEventListener('pointermove', onMove);
+                el.removeEventListener('pointerup', onEnd);
+                el.removeEventListener('pointercancel', onEnd);
+                try { el.releasePointerCapture(e.pointerId); } catch { /* שוחרר כבר */ }
+                setSidebarDragging(false);
+              };
+              el.addEventListener('pointermove', onMove);
+              el.addEventListener('pointerup', onEnd);
+              el.addEventListener('pointercancel', onEnd);
+            }}
+            onDoubleClick={() => setSidebarBase(parseSidebarBase(null))}
+            style={{ order: 5, width: 7, flexShrink: 0, alignSelf: 'stretch', cursor: 'col-resize', touchAction: 'none', userSelect: 'none',
+              background: sidebarDragging ? '#0ea5e9' : 'transparent', transition: 'background 0.15s' }}
+            onMouseEnter={e => { if (!sidebarDragging) e.currentTarget.style.background = T.border; }}
+            onMouseLeave={e => { if (!sidebarDragging) e.currentTarget.style.background = 'transparent'; }}
+          />
+        )}
         {/* Sidebar - Right Side - Shows available strips (from query / received transfers, not yet on board) */}
         <div
           id="sidebar-area"
           data-help="stripsPanel"
-          style={{ display: (isGroundMode || isMissionDeskMode) ? 'none' : undefined, order: 5, width: sidebarPinned ? 240 : 36, background: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '#1a2e1a' : T.bg, padding: sidebarPinned ? '0 10px 10px' : '6px 4px', borderLeft: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '2px solid #4ade80' : fzPairSel ? '2px solid #22d3ee' : `1px solid ${T.border}`, overflowY: sidebarPinned ? 'auto' : 'hidden', direction: dir, transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}
+          style={{ display: (isGroundMode || isMissionDeskMode) ? 'none' : undefined, order: 5, width: sidebarPinned ? effectiveSidebarWidth(sidebarBase, stripListScale) : 36, background: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '#1a2e1a' : T.bg, padding: sidebarPinned ? '0 10px 10px' : '6px 4px', borderLeft: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '2px solid #4ade80' : fzPairSel ? '2px solid #22d3ee' : `1px solid ${T.border}`, overflowY: sidebarPinned ? 'auto' : 'hidden', direction: dir, transition: sidebarDragging ? 'background 0.1s' : 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}
           onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setSidebarHtmlDragOver(true); } : undefined}
           onDragLeave={tableMode ? () => setSidebarHtmlDragOver(false) : undefined}
           onDrop={tableMode ? e => {
