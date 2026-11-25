@@ -297,10 +297,26 @@ export function canvasPixelScale(dpr: number, rootScale: number): number {
  */
 export function loadErrorKey(detail: string): string {
   const d = String(detail || '').trim();
+  if (d === READER_SOURCE_DOWN) return 'reader.loadFailedSource';
   if (/^(0|502|503|504)$/.test(d) || /failed to fetch|networkerror|load failed/i.test(d)) return 'reader.loadFailedNoServer';
   if (d === '404') return 'reader.loadFailedMissing';
   if (d === '401' || d === '403') return 'reader.loadFailedAuth';
   return 'reader.loadFailed';
+}
+
+/** הסמן של "השרת המרכזי ענה, אבל כתובת העזר-הקישור לא" - ראה `readerFetchFailure`. */
+export const READER_SOURCE_DOWN = 'source';
+
+/**
+ * הפרט שנשמר כשמשיכת בתי העזר נכשלה. עזר-**קישור** נמשך דרך השרת (`/proxy`),
+ * וכשהכתובת לא עונה השרת מחזיר 502 עם `Upstream ...` - אותו קוד שה-edge מחזיר
+ * כשהשרת עצמו נפל. בלי ההבחנה הפקח קרא "אין קשר לשרת המרכזי" בזמן שהשרת תקין
+ * ורק הכתובת מתה (2026-11-25, עזר שהצביע על smoke.local).
+ */
+export function readerFetchFailure(status: number, body: unknown): string {
+  const err = (body && typeof body === 'object') ? (body as { error?: unknown }).error : undefined;
+  if (status === 502 && typeof err === 'string' && /^(Upstream\b|Failed to fetch source)/.test(err)) return READER_SOURCE_DOWN;
+  return String(status);
 }
 
 /** מנוע התצוגה לעזר נתון - עטיפה על ההכרעה המשותפת עם השרת. */

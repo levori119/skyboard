@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   defaultReaderRect, clampReaderRect, bottomBarSlots, shapeReaderDoc, engineFor, docIcon,
   READER_DEFAULT_FRACTION, READER_MIN_W, READER_MIN_H,
-  READER_SIZE_PRESETS, presetReaderRect, activeSizePreset, linkOpensInWindow, fitRectToContent, CONTENT_PAD, mergeRefreshedDocs, canvasPixelScale, loadErrorKey,
+  READER_SIZE_PRESETS, presetReaderRect, activeSizePreset, linkOpensInWindow, fitRectToContent, CONTENT_PAD, mergeRefreshedDocs, canvasPixelScale, loadErrorKey, readerFetchFailure,
 } from './reader';
 
 describe('defaultReaderRect - ב"מ 40% מגודל המסך', () => {
@@ -268,4 +268,12 @@ describe('loadErrorKey - למה העזר לא נטען, במשפט שהפקח מ
   it('הקובץ לא נמצא', () => { expect(loadErrorKey('404')).toBe('reader.loadFailedMissing'); });
   it('אין הרשאה', () => { expect(loadErrorKey('401')).toBe('reader.loadFailedAuth'); expect(loadErrorKey('403')).toBe('reader.loadFailedAuth'); });
   it('כל השאר - ההודעה הכללית', () => { expect(loadErrorKey('Invalid PDF structure')).toBe('reader.loadFailed'); });
+  it('עזר-קישור שהכתובת שלו לא עונה - לא "אין קשר לשרת" (2026-11-25)', () => {
+    expect(loadErrorKey(readerFetchFailure(502, { error: 'Upstream 404' }))).toBe('reader.loadFailedSource');
+    expect(loadErrorKey(readerFetchFailure(502, { error: 'Failed to fetch source' }))).toBe('reader.loadFailedSource');
+    // 502 מה-edge (השרת עצמו לא עונה) - בלי גוף JSON / גוף אחר
+    expect(loadErrorKey(readerFetchFailure(502, null))).toBe('reader.loadFailedNoServer');
+    expect(loadErrorKey(readerFetchFailure(502, { error: 'Application failed to respond' }))).toBe('reader.loadFailedNoServer');
+    expect(loadErrorKey(readerFetchFailure(404, { error: 'No content' }))).toBe('reader.loadFailedMissing');
+  });
 });

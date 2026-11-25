@@ -23,7 +23,7 @@ import { startPointerDrag, DRAG_HANDLE_STYLE, readRootScale } from '../../utils/
 import {
   clampReaderRect, defaultReaderRect, docBytesUrl, docIcon, engineFor,
   loadReaderState, saveReaderState, READER_MIN_W, READER_MIN_H,
-  READER_SIZE_PRESETS, presetReaderRect, activeSizePreset, fitRectToContent, canvasPixelScale, loadErrorKey, shapeReaderDoc,
+  READER_SIZE_PRESETS, presetReaderRect, activeSizePreset, fitRectToContent, canvasPixelScale, loadErrorKey, readerFetchFailure, READER_SOURCE_DOWN, shapeReaderDoc,
   type ReaderBookmark, type ReaderConfig, type ReaderDoc, type ReaderRect, type ReaderSizeKey,
 } from '../../utils/reader';
 import { useDockableWindow } from '../../hooks/useDockableWindow';
@@ -180,7 +180,8 @@ export default function ReaderWindow({
         // הבתים נמשכים ב-fetch ולא ב-src ישיר: תגית <img>/<iframe> אינה יכולה
         // לשאת כותרת Authorization, והנתיב מוגן (ראה server/middleware/auth.js).
         const res = await fetch(docBytesUrl(doc));
-        if (!res.ok) throw new Error(String(res.status));
+        // קישור שהכתובת שלו לא עונה ≠ אין קשר לשרת (utils/reader readerFetchFailure)
+        if (!res.ok) throw new Error(readerFetchFailure(res.status, await res.json().catch(() => null)));
         const buf = await res.arrayBuffer();
         if (cancelled) return;
 
@@ -476,7 +477,7 @@ export default function ReaderWindow({
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         <div ref={viewportRef} style={{ flex: 1, minWidth: 0, overflow: 'auto', background: C.body, position: 'relative' }}>
           {status === 'loading' && <Centered color={C.muted}>{tr('reader.loading')}</Centered>}
-          {status === 'error' && <Centered color={C.muted}>{tr(loadErrorKey(errorText))}{errorText ? ` (${errorText})` : ''}</Centered>}
+          {status === 'error' && <Centered color={C.muted}>{tr(loadErrorKey(errorText))}{errorText && errorText !== READER_SOURCE_DOWN ? ` (${errorText})` : ''}</Centered>}
 
           {status === 'idle' && engine === 'pdf' && (
             <canvas ref={canvasRef} style={{ display: 'block', margin: '8px auto' }} />

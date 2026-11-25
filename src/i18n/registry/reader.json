@@ -342,6 +342,10 @@
       "he": "אין קשר לשרת המרכזי - העזרים נמצאים בו. נסה שוב כשהקשר יחזור",
       "en": "No connection to the central server, where the items are stored. Try again when the connection is back"
     },
+    "loadFailedSource": {
+      "he": "כתובת העזר לא עונה - השרת המרכזי תקין, אבל הקישור שהוגדר לעזר הזה לא זמין. בדוק את הכתובת בניהול העזרים",
+      "en": "The aid's address is not responding - the central server is fine, but the link set for this aid is unavailable. Check the address in aids management"
+    },
     "loadFailedMissing": {
       "he": "הקובץ לא נמצא בשרת - ייתכן שנמחק או הוחלף בניהול. רענן את העמדה",
       "en": "File not found on the server - it may have been deleted or replaced. Refresh the workstation"
