@@ -94,6 +94,7 @@ import { blockAltFeet, type WatchZone as ZoneWatchZone, type WatchAssignment as 
 import { zoneArrivalPhase, arrivalAckAfterStatus, zoneCornerPoint, enrouteStackIndex, type ZoneArrivalPhase } from '../../utils/zoneArrival';
 import { parsePlannedZones, matchPlannedZones, plannedZoneLabel, type PlannedZoneLabel } from '../../utils/plannedZones';
 import { isGhostClick } from '../../utils/ghostClick';
+import { mergeZoneOperational } from '../../utils/zoneOperational';
 import { effectiveSidebarWidth, sidebarBaseFromWidth, parseSidebarBase } from '../../utils/sidebarWidth';
 import { compareStripsBy, stripZoneSortName, isStripListSort, STRIP_LIST_SORTS, stepStripListScale, parseStripListScale, STRIP_LIST_SCALE_MIN, STRIP_LIST_SCALE_MAX, type StripListSort } from '../../utils/stripListSort';
 import PlannedZonesChip from '../strips/PlannedZonesChip';
@@ -3192,8 +3193,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     // "סגור" היה נדלק וכבה שוב בטיק הבא - פקד בטיחותי שמהבהב הוא פקד שלא סומכים
     // עליו (וזה נכון גם כשהתוצאה הסופית נכונה).
     zoneOpWriteRef.current[zoneId] = Date.now();
+    // חלונות המפה של דסק המשימה מחזיקים עותק משלהם של האזורים - מעודכנים יחד
+    const patchMdZones = (fn: (z: MapZone) => MapZone) => setMdSlots(prev => {
+      let ch = false;
+      const out: typeof prev = {};
+      for (const [k, sl] of Object.entries(prev)) {
+        if (sl.zones?.some(z => z.id === zoneId)) { out[k] = { ...sl, zones: sl.zones.map(fn) }; ch = true; } else out[k] = sl;
+      }
+      return ch ? out : prev;
+    });
     setMapZones(prev => prev.map(z => z.id === zoneId ? { ...z, ...patch } : z));
     setMap2Zones(prev => prev.map(z => z.id === zoneId ? { ...z, ...patch } : z));
+    patchMdZones(z => z.id === zoneId ? { ...z, ...patch } : z);
     try {
       const res = await fetch(`${API_URL}/map-zones/${zoneId}/operational`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) });
       if (!res.ok) return;
@@ -3211,6 +3222,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       };
       setMapZones(prev => prev.map(settle));
       setMap2Zones(prev => prev.map(settle));
+      patchMdZones(settle);
     } catch { /* נתק - נשארים על העדכון האופטימי, והפולינג יתקן */ }
   };
 
@@ -3867,7 +3879,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // Dual-map: which map a screen point falls in + that map's placement context.
   // Pin pointer-drag captures on one overlay, so the pointer-up can land "over" the other
   // map — resolve the target map by geometry (panel rect = img's grandparent, untransformed).
-  const dmContextAtPoint = (clientX: number, clientY: number): { panKey: string; mapId: number | null; rect: DOMRect | null; imgBounds: typeof mapImgBounds; zoom: number; pan: { x: number; y: number }; zones: MapZone[]; geoAnchor: MapGeoAnchor | null } => {
+  const dmContextAtPoint = (clientX: number, clientY: number): { panKey: string; mapId: number | null; rect: DOMRect | null; imgBounds: typeof mapImgBounds; zoom: number; pan: { x: number; y: number }; zones: MapZone[]; geoAnchor: MapGeoAnchor | null; fzMode: boolean } => {
     // דסק משימה: המפות יושבות באזורי הפריסה, ולכן הפאנל שמתחת למצביע נמצא לפי
     // ה-ref של כל חלון ולא לפי map1/map2 (שאינם קיימים כאן בכלל).
     if (isMissionDeskMode) {
@@ -3877,16 +3889,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         const r = panel.getBoundingClientRect();
         if (clientX < r.left || clientX >= r.right || clientY < r.top || clientY >= r.bottom) continue;
         const slot = mdSlots[w.key] || MD_MAP_SLOT_INIT;
-        return { panKey: w.key, mapId: w.mapId, rect: r, imgBounds: slot.imgBounds, zoom: slot.zoom, pan: slot.pan, zones: slot.zones, geoAnchor: slot.geoAnchor };
+        return { panKey: w.key, mapId: w.mapId, rect: r, imgBounds: slot.imgBounds, zoom: slot.zoom, pan: slot.pan, zones: slot.zones, geoAnchor: slot.geoAnchor, fzMode: w.settings.flight_zones_mode === true };
       }
-      return { panKey: '', mapId: null, rect: null, imgBounds: null, zoom: 1, pan: { x: 0, y: 0 }, zones: [], geoAnchor: null };
+      return { panKey: '', mapId: null, rect: null, imgBounds: null, zoom: 1, pan: { x: 0, y: 0 }, zones: [], geoAnchor: null, fzMode: false };
     }
     if (isDualMapMode) {
       const p2 = map2ImgRef.current?.parentElement?.parentElement || null;
-      if (p2) { const r = p2.getBoundingClientRect(); if (clientX >= r.left && clientX < r.right && clientY >= r.top && clientY < r.bottom) return { panKey: String((effMap2Id || -2) ?? 'map2'), mapId: effMap2Id || null, rect: r, imgBounds: map2ImgBounds, zoom: map2Zoom, pan: map2Pan, zones: map2Zones, geoAnchor: map2GeoAnchor }; }
+      if (p2) { const r = p2.getBoundingClientRect(); if (clientX >= r.left && clientX < r.right && clientY >= r.top && clientY < r.bottom) return { panKey: String((effMap2Id || -2) ?? 'map2'), mapId: effMap2Id || null, rect: r, imgBounds: map2ImgBounds, zoom: map2Zoom, pan: map2Pan, zones: map2Zones, geoAnchor: map2GeoAnchor, fzMode: isFlightZonesMode }; }
     }
     const p1 = mapImgRef.current?.parentElement?.parentElement || null;
-    return { panKey: String(currentMapId ?? 'map1'), mapId: currentMapId, rect: p1 ? p1.getBoundingClientRect() : null, imgBounds: mapImgBounds, zoom: mapZoom, pan: mapPan, zones: mapZones, geoAnchor: mapGeoAnchor };
+    return { panKey: String(currentMapId ?? 'map1'), mapId: currentMapId, rect: p1 ? p1.getBoundingClientRect() : null, imgBounds: mapImgBounds, zoom: mapZoom, pan: mapPan, zones: mapZones, geoAnchor: mapGeoAnchor, fzMode: isFlightZonesMode };
   };
 
   // המרת נקודת מסך (client) לאחוזים 0..100 במרחב תמונת המפה (מתחשב בזום/פאן) — לעריכת פוליגון האזורים המחוברים
@@ -3942,8 +3954,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
   const ZONE_EDGE_TAP_PX = 14;
   const fzOpenZoneMenuOnEdge = (clientX: number, clientY: number, drawnIds?: Set<number>): boolean => {
-    if (!isFlightZonesMode) return false;
+    // מצב אזורים לפי המפה שמתחת למצביע: בדסק משימה הוא של **החלון**, לא של העמדה.
+    // קודם נבדק דגל העמדה, ובדסק (שם הוא כבוי) תפריט ההגבלות לא נפתח בכלל
     const ctx = dmContextAtPoint(clientX, clientY);
+    if (!ctx.fzMode) return false;
     const rect = ctx.rect, ib = ctx.imgBounds;
     if (!rect || !ib || !ib.width) return false;
     const { px, py } = clientToMapPct(clientX, clientY, rect, ctx.zoom, ctx.pan, ib);
@@ -6633,26 +6647,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           const rows: any[] = await res.json();
           if (!Array.isArray(rows)) continue;
           const byId = new Map<number, any>(rows.map(r => [r.id, r]));
-          const merge = (prev: MapZone[]) => {
-            let changed = false;
-            const next = prev.map(z => {
-              const r = byId.get(z.id);
-              if (!r) return z;
-              // כתיבה מקומית טרייה גוברת על התשובה מהשרת
-              if (Date.now() - (zoneOpWriteRef.current[z.id] ?? 0) < ZONE_OP_WRITE_GRACE_MS) return z;
-              const same = z.restriction === r.restriction
-                && (z.restriction_alt_min ?? null) === (r.restriction_alt_min ?? null)
-                && (z.restriction_alt_max ?? null) === (r.restriction_alt_max ?? null)
-                && JSON.stringify(z.restriction_range_ids ?? []) === JSON.stringify(r.restriction_range_ids ?? [])
-                && (z.limitation_note ?? '') === (r.limitation_note ?? '')
-                && JSON.stringify(z.active_alt_range_ids ?? []) === JSON.stringify(r.active_alt_range_ids ?? []);
-              if (same) return z;
-              changed = true;
-              return { ...z, restriction: r.restriction, restriction_range_ids: r.restriction_range_ids, restriction_alt_min: r.restriction_alt_min, restriction_alt_max: r.restriction_alt_max, limitation_note: r.limitation_note, active_alt_range_ids: r.active_alt_range_ids };
-            });
-            // אותה הפניה כשאין שינוי - אחרת כל טיק היה מרנדר מחדש את כל המפה
-            return changed ? next : prev;
-          };
+          // utils/zoneOperational: אותה הפניה כשאין שינוי, וכתיבה מקומית טרייה גוברת
+          const merge = (prev: MapZone[]) => mergeZoneOperational(prev, byId, zoneOpWriteRef.current, Date.now(), ZONE_OP_WRITE_GRACE_MS);
           if (mid === currentMapId) setMapZones(merge); else setMap2Zones(merge);
         } catch { /* נתק - נשארים על המצב הקודם */ }
       }
@@ -12717,6 +12713,38 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     })
     .filter((w): w is { svc: MissionDeskService; key: string; mapId: number; settings: MDPresetMapSettings } => w.mapId != null);
   const mdWindowsKey = mdMapWindows.map(w => `${w.key}:${w.mapId}`).join('|');
+  // דסק משימה: המצב התפעולי של האזורים (סגור/מוגבל/מגבלה) נמשך גם לחלונות המפה.
+  // בלעדיו הגבלה שנקבעה בעמדה אחרת לא הגיעה לחלון בכלל (utils/zoneOperational)
+  useEffect(() => {
+    if (!isMissionDeskMode || mdMapWindows.length === 0) return;
+    const ids = [...new Set(mdMapWindows.map(w => w.mapId))];
+    const load = async () => {
+      for (const mid of ids) {
+        try {
+          const res = await fetch(`${API_URL}/map-zones/operational?map_id=${mid}`);
+          if (!res.ok) continue;
+          const rows: any[] = await res.json();
+          if (!Array.isArray(rows)) continue;
+          const byId = new Map<number, any>(rows.map(r => [r.id, r]));
+          setMdSlots(prev => {
+            let changed = false;
+            const out: typeof prev = { ...prev };
+            for (const w of mdMapWindows) {
+              if (w.mapId !== mid) continue;
+              const sl = prev[w.key];
+              if (!sl?.zones?.length) continue;
+              const next = mergeZoneOperational(sl.zones, byId, zoneOpWriteRef.current, Date.now(), ZONE_OP_WRITE_GRACE_MS);
+              if (next !== sl.zones) { out[w.key] = { ...sl, zones: next }; changed = true; }
+            }
+            return changed ? out : prev;
+          });
+        } catch { /* נתק - נשארים על המצב הקודם */ }
+      }
+    };
+    load();
+    pollingRegistry.register('sd-md-zone-operational', load, 5000, { immediate: false });
+    return () => pollingRegistry.unregister('sd-md-zone-operational');
+  }, [isMissionDeskMode, mdWindowsKey]); // eslint-disable-line react-hooks/exhaustive-deps
   // מפה עיוורת כברירת מחדל - פר-חלון, פעם אחת לחלון+מפה (אחר כך זו בחירת הפקח)
   const mdBlindSeededRef = useRef<Set<string>>(new Set());
   useEffect(() => {
