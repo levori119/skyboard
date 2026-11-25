@@ -794,6 +794,31 @@ async function applySchemaOnce() {
   await sq(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS active_alt_range_ids JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS limitation_note TEXT DEFAULT ''`);
 
+  // ── אובייקטים על מפה ──────────────────────────────────────────────────────
+  // צורות בשם, צבע וגודל שמנהל המערכת ממקם בהגדרת המפה (MapZoneEditor),
+  // והעמדה מציגה על אותה מפה. ראה MAP_OBJECTS_SPEC.md.
+  // x/y = אחוזים מתמונת המפה (כמו map_zones.polygon). size = קוטר באחוזים
+  // מ**רוחב** המפה, ולכן האובייקט גדל עם הזום כמו אזור.
+  // קונפיג (env-tables.js) - כמו map_zones. נרשם ביומן הביטול (לא ב-UNDO_DENYLIST):
+  // עריכת הגדרה במסך הניהול, הפיכה ובלי השלכה בטיחותית - בדיוק כמו אזור מפה.
+  // משוכפל במראה לעמדה (לא ב-MIRROR_DENYLIST): שורות קטנות, ונדרשות לציור בנתק.
+  await sq(`CREATE TABLE IF NOT EXISTS map_objects (
+    id SERIAL PRIMARY KEY,
+    map_id INTEGER REFERENCES maps(id) ON DELETE CASCADE,
+    name VARCHAR(100) DEFAULT '',
+    shape VARCHAR(20) NOT NULL DEFAULT 'circle',
+    x DOUBLE PRECISION NOT NULL DEFAULT 50,
+    y DOUBLE PRECISION NOT NULL DEFAULT 50,
+    size DOUBLE PRECISION NOT NULL DEFAULT 2,
+    color VARCHAR(20) NOT NULL DEFAULT '#f59e0b',
+    filled BOOLEAN NOT NULL DEFAULT TRUE,
+    show_label BOOLEAN NOT NULL DEFAULT TRUE,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_map_objects_map ON map_objects(map_id)`);
+
   // ── מצב תפעולי של אזור מפה ────────────────────────────────────────────────
   // הבעיה שהטבלה הזו פותרת: `map_zones` היא **קונפיגורציה** (public בלבד,
   // משותפת לכל 50 הסביבות), אבל שני שדות עליה נקבעים **חי בעמדה** בקליק ימני:

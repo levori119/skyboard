@@ -24,6 +24,13 @@ describe('תוויות הפעולה', () => {
     expect(labelFor('PUT', '/api/joining-points/4').key).toBe('undo.joiningPointDef');
   });
 
+  it('אובייקט במפה - גם היצירה (תחת /api/maps/:id) מקבלת את התווית שלו ולא "מפה"', () => {
+    expect(labelFor('POST', '/api/maps/3/objects').key).toBe('undo.mapObject');
+    expect(labelFor('PUT', '/api/map-objects/7').key).toBe('undo.mapObject');
+    expect(labelFor('DELETE', '/api/map-objects/7').key).toBe('undo.mapObject');
+    expect(labelFor('PATCH', '/api/maps/3').key).toBe('undo.map');
+  });
+
   it('שאילתת query אינה משבשת התאמה', () => {
     expect(labelFor('DELETE', '/api/strips/42?force=1').key).toBe('undo.deleteStrip');
   });

@@ -14,6 +14,7 @@ import usePinchZoom from '../../hooks/usePinchZoom';
 import { localStep, pinchZoomPan, type ZoomPanView } from '../../utils/pinchZoom';
 import { measureCssZoom } from '../../utils/mapPan';
 import ZoneCoordList from './ZoneCoordList';
+import { useMapObjectsEditor, MapObjectsEditOverlay, MapObjectsPanel } from './MapObjectsEditor';
 import type { RectPct } from '../../utils/sectorFocus';
 import type { ZoneAltRange } from '../../types';
 
@@ -128,6 +129,12 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
   const [tpSel, setTpSel] = useState<{ sector_id: number; sub_label: string | null } | null>(null);
   const [tpDragPos, setTpDragPos] = useState<{ key: string; x: number; y: number } | null>(null);
   const tpDragRef = useRef<{ key: string; moved: boolean } | null>(null);
+
+  // ── אובייקטים על המפה (MAP_OBJECTS_SPEC.md) ──────────────────────────────
+  // צורות בשם, צבע וגודל. מוצגות תמיד בעורך; נבחרות ונגררות רק כשהכלי פעיל,
+  // כדי שלא יפריעו לעריכת אזורים.
+  const [objMode, setObjMode] = useState(false);
+  const objEd = useMapObjectsEditor(mapId);
 
   const [sectorMode, setSectorMode] = useState(false);
   const [sectorRect, setSectorRect] = useState<{x1:number;y1:number;x2:number;y2:number}|null>(null);
@@ -334,6 +341,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
         setAnchorStep(1);
       }
       if (tpSel) setTpSel(null);
+      if (objEd.selectedId != null) objEd.setSelectedId(null);
       if (dragRef.current) {
         dragRef.current = null;
         setDragOffset(null);
@@ -341,7 +349,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [anchorMode, tpSel]);
+  }, [anchorMode, tpSel, objEd.selectedId]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -601,7 +609,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
   };
 
   const handleZoneMouseDown = (e: React.MouseEvent, zone: MapZone) => {
-    if (tpMode || anchorMode || draftPoints.length > 0) return;
+    if (objMode || tpMode || anchorMode || draftPoints.length > 0) return;
     e.stopPropagation();
     const pt = getSvgRelativePoint(e);
     if (!pt) return;
@@ -688,6 +696,14 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
   };
 
   const handleSvgClickFixed = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (objMode) {
+      // לחיצה על שטח ריק: אם אובייקט נבחר - מבטלת את הבחירה (כמו Esc), אחרת
+      // ממקמת אובייקט חדש בסגנון שבטופס. לחיצה על אובייקט קיים לא מגיעה לכאן.
+      if (objEd.selectedId != null) { objEd.setSelectedId(null); return; }
+      const pt = getSvgRelativePoint(e);
+      if (pt) void objEd.create(pt.x, pt.y);
+      return;
+    }
     if (tpMode) {
       // לחיצה על המפה ממקמת את הנקודה שנבחרה ברשימה (או מזיזה אותה)
       if (!tpSel) return;
@@ -892,6 +908,11 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
                   : (sectorRect ? 'סקטור מסומן — הגדר שם וצור מפה' : 'גרור על המפה לסימון סקטור')}
               </span>
             )}
+            {objMode && (
+              <span style={{ color: 'white', fontSize: '12px', fontWeight: 'bold', background: '#c2410c', padding: '3px 10px', borderRadius: '10px' }}>
+                🔷 {objEd.selected ? tr('map.objEditingHint') : tr('map.objClickToPlace')}
+              </span>
+            )}
             {tpMode && (
               <span style={{ color: 'white', fontSize: '12px', fontWeight: 'bold', background: '#15803d', padding: '3px 10px', borderRadius: '10px', animation: tpSel ? 'elemBlink 1s infinite' : 'none' }}>
                 🔀 {tpSel ? tr('map.tpClickToPlace') : tr('map.tpPickFromList')}
@@ -901,12 +922,18 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
           {/* סרגל כלים - הכפתורים בלבד גדלים לפי גודל המסך (px = tbPx) */}
           <div style={{ display: 'flex', alignItems: 'center', gap: px(6), flexShrink: 0 }}>
             <button
-              onClick={() => { setTpMode(v => !v); setTpSel(null); setEditingZone(null); setDraftPoints([]); setSectorMode(false); setAnchorMode(false); setAutoMode(false); }}
+              data-map-objects-tool=""
+              onClick={() => { setObjMode(v => !v); objEd.setSelectedId(null); setTpMode(false); setTpSel(null); setEditingZone(null); setDraftPoints([]); setSectorMode(false); setAnchorMode(false); setAutoMode(false); }}
+              title={tr('map.objToolTitle')}
+              style={{ background: objMode ? '#c2410c' : '#334155', border: 'none', color: objMode ? '#ffedd5' : '#94a3b8', cursor: 'pointer', fontSize: px(13), borderRadius: px(6), padding: `${px(4)} ${px(10)}`, fontWeight: objMode ? 'bold' : 'normal', whiteSpace: 'nowrap' }}
+            >🔷 {tr('map.objTitle')}</button>
+            <button
+              onClick={() => { setTpMode(v => !v); setTpSel(null); setEditingZone(null); setDraftPoints([]); setSectorMode(false); setAnchorMode(false); setAutoMode(false); setObjMode(false); }}
               title={tr('map.tpTitle')}
               style={{ background: tpMode ? '#15803d' : '#334155', border: 'none', color: tpMode ? '#bbf7d0' : '#94a3b8', cursor: 'pointer', fontSize: px(13), borderRadius: px(6), padding: `${px(4)} ${px(10)}`, fontWeight: tpMode ? 'bold' : 'normal', whiteSpace: 'nowrap' }}
             >🔀 {tr('map.tpTitle')}</button>
             <button
-              onClick={() => { setSectorMode(v => !v); if (sectorMode) { setSectorRect(null); setSectorDraft(null); setSectorCreated(null); setSectorRebindId(null); } }}
+              onClick={() => { setSectorMode(v => !v); setObjMode(false); if (sectorMode) { setSectorRect(null); setSectorDraft(null); setSectorCreated(null); setSectorRebindId(null); } }}
               title={sectorMode ? 'ביטול מצב סקטור' : 'צור מפת סקטור ממפה זו'}
               style={{ background: sectorMode ? '#0e7490' : '#334155', border: 'none', color: sectorMode ? '#a5f3fc' : '#94a3b8', cursor: 'pointer', fontSize: px(13), borderRadius: px(6), padding: `${px(4)} ${px(10)}`, fontWeight: sectorMode ? 'bold' : 'normal', whiteSpace: 'nowrap' }}
             >{tr('map.sector')}</button>
@@ -1136,6 +1163,11 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
             ); })() : (
               <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: '13px' }}>{tr('map.loadingMap')}</div>
             )}
+            {/* אובייקטים על המפה - שכבה נפרדת בפיקסלים (לא ב-viewBox המתוח של
+                ה-SVG שמעליה), כדי שעיגול יישאר עיגול. אותו רכיב ציור של העמדה. */}
+            {imgEditorBounds && (
+              <MapObjectsEditOverlay ed={objEd} bounds={imgEditorBounds} zoom={editorZoom} active={objMode && !panMode} getPoint={getSvgRelativePoint} />
+            )}
             </div>{/* end transform wrapper */}
             {/* Geo-coordinate hover display — bottom-left, shown when map is anchored */}
             {currentAnchor && (
@@ -1157,6 +1189,9 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
 
           {/* Controls panel — right side */}
           <div style={{ width: '320px', overflowY: 'auto', background: '#0f172a', borderRight: '1px solid #1e293b', display: 'flex', flexDirection: 'column', gap: '0' }}>
+
+            {/* אובייקטים על המפה */}
+            {objMode && <MapObjectsPanel ed={objEd} />}
 
             {/* נקודות העברה קבועות */}
             {tpMode && (
@@ -1364,7 +1399,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
                                 ✏ {tr('shared.edit')}
                               </button>
                               <button
-                                onClick={() => { setSectorMode(true); setSectorSelId(s.id); setSectorRebindId(s.id); setSectorRect(null); setSectorDraft(null); setTpMode(false); setAnchorMode(false); setAutoMode(false); }}
+                                onClick={() => { setSectorMode(true); setSectorSelId(s.id); setSectorRebindId(s.id); setSectorRect(null); setSectorDraft(null); setTpMode(false); setAnchorMode(false); setAutoMode(false); setObjMode(false); }}
                                 title={tr('map.sectorReboundHint')} disabled={busy}
                                 style={{ flex: 1, background: sectorRebindId === s.id ? '#b45309' : '#1e293b', color: sectorRebindId === s.id ? '#fde68a' : '#94a3b8', border: `1px solid ${sectorRebindId === s.id ? '#f59e0b' : '#334155'}`, borderRadius: '4px', padding: '3px 6px', cursor: 'pointer', fontSize: '10px', whiteSpace: 'nowrap' }}>
                                 {tr('map.sectorRebound')}
@@ -1388,6 +1423,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
               <div style={{ color: '#7dd3fc', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>{tr('map.geoCalibration')}</div>
               {!anchorMode ? (
                 <button onClick={() => {
+                  setObjMode(false);
                   setAnchorMode(true); setAnchorStep(1); setPendingAnchor1(null); setPendingAnchor2(null);
                   setPendingDmsLat1(localMapData?.anchor1_lat != null ? decimalToDms(localMapData.anchor1_lat, true)  : { deg:'', min:'', sec:'', dir:'N' });
                   setPendingDmsLon1(localMapData?.anchor1_lon != null ? decimalToDms(localMapData.anchor1_lon, false) : { deg:'', min:'', sec:'', dir:'E' });
@@ -1543,8 +1579,8 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
               </div>
             )}
 
-            {/* Add new zone */}
-            {!editingZone && (
+            {/* Add new zone - מוסתר בכלי האובייקטים: לחיצה על המפה שם ממקמת אובייקט ולא נקודת אזור */}
+            {!editingZone && !objMode && (
               <div style={{ padding: '14px', borderBottom: '1px solid #1e293b' }}>
                 <div style={{ color: '#7dd3fc', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>{tr('map.newZone')}</div>
                 <div style={{ color: '#64748b', fontSize: '11px', marginBottom: '8px', lineHeight: 1.4 }}>

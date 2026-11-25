@@ -513,6 +513,118 @@
     "applyAltRangesAllFailed": {
       "he": "ההחלה נכשלה - נסה שוב",
       "en": "Applying failed - try again"
+    },
+    "objTitle": {
+      "he": "אובייקטים",
+      "en": "Objects"
+    },
+    "objToolTitle": {
+      "he": "אובייקטים על המפה - צורות בשם, צבע וגודל שיוצגו בעמדה",
+      "en": "Map objects - named shapes in any color and size, shown at the station"
+    },
+    "objClickToPlace": {
+      "he": "לחץ על המפה כדי למקם אובייקט חדש",
+      "en": "Click on the map to place a new object"
+    },
+    "objEditingHint": {
+      "he": "גרור את האובייקט להזזה. לחיצה על שטח ריק או Esc מסיימת",
+      "en": "Drag the object to move it. Click an empty spot or press Esc to finish"
+    },
+    "objEditSelected": {
+      "he": "עריכת האובייקט הנבחר",
+      "en": "Editing the selected object"
+    },
+    "objNewStyle": {
+      "he": "האובייקט הבא שיתווסף",
+      "en": "Next object to add"
+    },
+    "objName": {
+      "he": "שם האובייקט",
+      "en": "Object name"
+    },
+    "objShape": {
+      "he": "צורה",
+      "en": "Shape"
+    },
+    "objSize": {
+      "he": "גודל (מרוחב המפה)",
+      "en": "Size (of map width)"
+    },
+    "objColor": {
+      "he": "צבע",
+      "en": "Color"
+    },
+    "objCustomColor": {
+      "he": "צבע חופשי",
+      "en": "Custom color"
+    },
+    "objFilled": {
+      "he": "מלא",
+      "en": "Filled"
+    },
+    "objOutline": {
+      "he": "קו מתאר",
+      "en": "Outline"
+    },
+    "objShowLabel": {
+      "he": "הצג שם על המפה",
+      "en": "Show name on map"
+    },
+    "objDone": {
+      "he": "סיום עריכה",
+      "en": "Done"
+    },
+    "objDelete": {
+      "he": "מחק",
+      "en": "Delete"
+    },
+    "objConfirmDelete": {
+      "he": "למחוק את האובייקט \"{{name}}\"?",
+      "en": "Delete the object \"{{name}}\"?"
+    },
+    "objList": {
+      "he": "אובייקטים במפה ({{n}})",
+      "en": "Objects on this map ({{n}})"
+    },
+    "objNone": {
+      "he": "אין עדיין אובייקטים במפה",
+      "en": "No objects on this map yet"
+    },
+    "objUnnamed": {
+      "he": "ללא שם",
+      "en": "unnamed"
+    },
+    "objLoadFailed": {
+      "he": "טעינת האובייקטים נכשלה",
+      "en": "Failed to load objects"
+    },
+    "objShape_circle": {
+      "he": "עיגול",
+      "en": "Circle"
+    },
+    "objShape_square": {
+      "he": "ריבוע",
+      "en": "Square"
+    },
+    "objShape_triangle": {
+      "he": "משולש",
+      "en": "Triangle"
+    },
+    "objShape_diamond": {
+      "he": "מעוין",
+      "en": "Diamond"
+    },
+    "objShape_star": {
+      "he": "כוכב",
+      "en": "Star"
+    },
+    "objShape_hexagon": {
+      "he": "משושה",
+      "en": "Hexagon"
+    },
+    "objShape_cross": {
+      "he": "צלב",
+      "en": "Cross"
     }
   }
 }

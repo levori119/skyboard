@@ -2838,6 +2838,14 @@
       "he": "קווי אזורים",
       "en": "Zone lines"
     },
+    "mapObjectsShow": {
+      "he": "הצג אובייקטים על המפה",
+      "en": "Show objects on the map"
+    },
+    "mapObjectsHide": {
+      "he": "הסתר אובייקטים מהמפה",
+      "en": "Hide objects from the map"
+    },
     "zoneLineWidthHint": {
       "he": "עובי קווי האזורים על המפה - לחיצה מחליפה: דק, רגיל, עבה, עבה מאוד",
       "en": "Zone line thickness on the map - click to cycle: thin, normal, thick, extra thick"

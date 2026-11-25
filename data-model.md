@@ -843,6 +843,26 @@ COALESCE(last_seen, entered_at) > NOW() - INTERVAL '240 seconds'
 > שהשניים שמעל מתעדים.
 
 
+### טבלת `map_objects` — אובייקט על המפה
+
+צורות בשם, צבע וגודל שמנהל המערכת ממקם בעורך המפה, והעמדה מציגה על אותה מפה.
+**קונפיגורציה** (public בלבד, כמו `map_zones`); נרשמת ביומן הביטול; משוכפלת במראה
+לעמדה. ראה [MAP_OBJECTS_SPEC.md](MAP_OBJECTS_SPEC.md).
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `id` | SERIAL PK | מזהה |
+| `map_id` | INT → maps | המפה (ON DELETE CASCADE) |
+| `name` | VARCHAR(100) | שם האובייקט (ריק = בלי תווית) |
+| `shape` | VARCHAR(20) | `circle` / `square` / `triangle` / `diamond` / `star` / `hexagon` / `cross` |
+| `x`, `y` | DOUBLE PRECISION | מרכז האובייקט באחוזי-תמונה (0..100), כמו `map_zones.polygon` |
+| `size` | DOUBLE PRECISION | קוטר באחוזים מ**רוחב** תמונת המפה (0.3..30) - גדל עם הזום |
+| `color` | VARCHAR(20) | צבע hex (ברירת מחדל `#f59e0b`) |
+| `filled` | BOOLEAN | מלא (true) או קו מתאר (false) |
+| `show_label` | BOOLEAN | האם השם מוצג מתחת לצורה |
+| `sort_order` | INTEGER | סדר ציור (ואז `id`) |
+| `created_at`, `updated_at` | TIMESTAMPTZ | חותמות |
+
 ### טבלת `map_zone_operational_state` — מצב תפעולי חי של אזור
 
 **טבלה תפעולית** (מבודדת פר-סביבת תרגול), בעוד `map_zones` עצמה היא קונפיגורציה.

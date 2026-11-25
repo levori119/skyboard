@@ -203,9 +203,11 @@
 **Endpoints עיקריים:** `/api/workstation-presets`, `/api/workstation-personal-filters`, `/api/workstations/:id/strips`, `/api/preset-view-stations/:presetId`.
 **רשימת העמדות:** `GET /api/workstation-presets` מחזיר `LEFT JOIN aviation_bases` — כלומר גם `parent_base_name`, כדי שצרכן לא ייאלץ לטעון בנפרד את טבלת הבסיסים רק כדי לקבץ לפי בסיס. הסדר: `COALESCE(updated_at, created_at) DESC` (העדכני ביותר ראשון — הסדר שבורר העמדה במסך הכניסה מציג). `PUT /:id` ו-`PATCH /:id/thresholds` דורסים `updated_at = NOW()`.
 
-### `server/routes/maps.js` — 35 routes
-**תפקיד:** מפות, אזורי מפה (polygons), טווחי גובה לאזור, שיוך פ"מ לאזור (flight zones), סגירות מרחב, **נקודות העברה קבועות על המפה**.
-**Endpoints עיקריים:** `/api/maps`, `/api/map-zones`, `/api/zone-altitude-ranges`, `/api/strip-zone-assignments`, `/api/closures`, `/api/map-transfer-points`.
+### `server/routes/maps.js` — 39 routes
+**תפקיד:** מפות, אזורי מפה (polygons), טווחי גובה לאזור, שיוך פ"מ לאזור (flight zones), סגירות מרחב, **נקודות העברה קבועות על המפה**, **אובייקטים על המפה**.
+**Endpoints עיקריים:** `/api/maps`, `/api/map-zones`, `/api/zone-altitude-ranges`, `/api/strip-zone-assignments`, `/api/closures`, `/api/map-transfer-points`, `/api/maps/:id/objects`, `/api/map-objects/:id`.
+
+**אובייקטים על המפה (`GET`/`POST /api/maps/:id/objects`, `PUT`/`DELETE /api/map-objects/:id`):** צורות בשם, צבע וגודל (טבלת `map_objects`) שמנהל המערכת ממקם בעורך המפה והעמדה מציגה. השרת מנרמל כל כתיבה עם **אותו קוד** של הלקוח (`shared/mapObjects.js`): מיקום נחתך ל-0..100, גודל לגבולות, צורה לא מוכרת = עיגול, צבע לא תקין = ברירת המחדל. `PUT` הוא **עדכון חלקי** (גרירה ששולחת x/y לא מאפסת שם/צבע). יצירה על מפה שאינה קיימת = 404, מזהה לא מספרי = 400. כתיבה דורשת STAFF (אותו כלל של `/api/maps` ב-`auth.js`); תווית ביטול `undo.mapObject`. מאומת ב-`server/routes/maps.objects.test.js` (PGlite). ראה [MAP_OBJECTS_SPEC.md](MAP_OBJECTS_SPEC.md).
 
 **סטטוס בלבד (`PATCH /api/strip-zone-assignments/:strip_id/status`):** מסלול הכתיבה של **זיהוי פ"מ באזור**. נפרד מה-POST כי הוא upsert מלא: כתיבה אוטומטית דרכו הייתה מחזירה גם את ההערה, התיאום והמיקום כפי שהעמדה הכירה אותם ברענון האחרון, ודורסת עריכה שנעשתה בינתיים בעמדה אחרת. כאן משתנה שדה אחד, ורשומה שכבר נותקה מהאזור מחזירה 404 במקום להיווצר מחדש.
 
@@ -1942,6 +1944,7 @@ PUT /api/strip-aircraft/:stripId/:idx/flight-status
 
 #### maps.js
 DELETE /api/closures/:id
+DELETE /api/map-objects/:id
 DELETE /api/map-transfer-points/:id
 DELETE /api/map-zones/:id
 DELETE /api/maps/:id
@@ -1956,6 +1959,7 @@ GET /api/map-zones/operational
 GET /api/maps
 GET /api/maps/:id
 GET /api/maps/:id/imagedata
+GET /api/maps/:id/objects
 GET /api/strip-zone-assignments
 GET /api/strip-zone-extra-zones
 GET /api/zone-altitude-ranges
@@ -1970,11 +1974,13 @@ POST /api/map-transfer-points
 POST /api/map-zones
 POST /api/maps
 POST /api/maps/:id/duplicate
+POST /api/maps/:id/objects
 POST /api/maps/:id/sync-zones-from-parent
 POST /api/strip-zone-assignments
 POST /api/strip-zone-extra-zones
 POST /api/zone-altitude-ranges
 PUT /api/closures/:id
+PUT /api/map-objects/:id
 PUT /api/map-zones/:id
 PUT /api/zone-altitude-ranges/:id
 

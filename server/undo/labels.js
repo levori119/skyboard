@@ -39,6 +39,8 @@ const RULES = [
 
   // ── מפה ואזורים ───────────────────────────────────────────────────────────
   { m: null,       p: /^\/api\/map-zones/,                        key: 'undo.mapZone' },
+  // יצירה נשלחת תחת המפה (/api/maps/:id/objects), ולכן חייבת לקדום ל-/api/maps
+  { m: null,       p: /^\/api\/(map-objects|maps\/\d+\/objects)/, key: 'undo.mapObject' },
   { m: null,       p: /^\/api\/zone-altitude-ranges/,             key: 'undo.zoneAltitudes' },
   { m: null,       p: /^\/api\/map-transfer-points/,              key: 'undo.mapTransferPoint' },
   { m: null,       p: /^\/api\/closures/,                         key: 'undo.closure' },

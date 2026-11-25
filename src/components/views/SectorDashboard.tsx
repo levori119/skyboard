@@ -103,6 +103,8 @@ import { unionZones } from '../../utils/zoneUnion';
 import { pinFontInsideZone } from '../../utils/pinFitZone';
 import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
 import { useDragPosition } from '../../hooks/useDragPosition';
+import { useMapObjectsStore } from '../../hooks/useMapObjects';
+import { MapObjectsLayer } from '../map/MapObjectsLayer';
 import usePinchZoom from '../../hooks/usePinchZoom';
 import { localStep, pinchZoomPan, type ZoomPanView } from '../../utils/pinchZoom';
 import { windowFrame, frameColor } from '../../utils/windowFrame';
@@ -1033,6 +1035,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     catch { return DEFAULT_ZONE_LINE_WIDTH; }
   });
   useEffect(() => { try { localStorage.setItem('skyking.zoneLineWidth', fzZoneLineWidth); } catch { /* אין אחסון - נשאר לסשן */ } }, [fzZoneLineWidth]);
+  // אובייקטים על המפה (MAP_OBJECTS_SPEC.md): הנתונים ממטמון פר-מפה, והמתג
+  // הצג/הסתר נשמר **פר-עמדה** בדפדפן. ברירת מחדל: מוצגים - מנהל המערכת הציב
+  // אותם כדי שיראו אותם. מתג אחד לכל המפות במסך, כמו בהירות שמות האזורים.
+  const readMapObjectsFor = useMapObjectsStore();
+  const mapObjectsVisKey = `skyking.mapObjectsVisible.${session?.presetId ?? 'none'}`;
+  const [showMapObjects, setShowMapObjects] = useState<boolean>(() => {
+    try { return localStorage.getItem(mapObjectsVisKey) !== '0'; } catch { return true; }
+  });
+  useEffect(() => { try { localStorage.setItem(mapObjectsVisKey, showMapObjects ? '1' : '0'); } catch { /* אין אחסון - נשאר לסשן */ } }, [showMapObjects, mapObjectsVisKey]);
   // תפריט האזור: בלוקי גובה פעילים, הערה, ומצב האזור (סגור/מוגבל) + טווח הגבהים
   // שלו. נפתח ב**לחיצה על קו האזור** (הפקד שעובד בעט ובאצבע), וגם בקליק ימני.
   const [fzZoneMenu, setFzZoneMenu] = useState<{
@@ -10557,6 +10568,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               return r.open;
             };
             const airCtlOpen = showAirPictureControls && flyoutHere('airPicture');
+            // האובייקטים של **המפה הזו** - גם כשהשכבה מוסתרת, כדי לדעת אם להציג את המתג
+            const mapObjectsHere = readMapObjectsFor(cfg.mapId);
             const closuresOpen = showClosuresPanel && flyoutHere('closures');
             const pinTypeOpen = showPinTypePanel && flyoutHere('pinType');
             const pinOnMapOpen = showPinOnMapPanel && flyoutHere('pinOnMap');
@@ -10945,6 +10958,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   style={{ width: MAP_TOOL_BTN, height: MAP_TOOL_BTN, background: blindMapMode ? '#0f766e' : '#475569', color: 'white', border: blindMapMode ? '1px solid #2dd4bf' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '22px', lineHeight: 1, padding: 0 }}>🙈</button>
               </>
             )}
+            {/* אובייקטים על המפה - המתג מופיע רק כשבמפה הזו יש אובייקטים: מתג
+                שנדלק בלי שקורה דבר נראה כמו פיצ'ר שבור (CLAUDE.md) */}
+            {mapObjectsHere.length > 0 && (
+              <button
+                data-map-objects-toggle=""
+                data-on={showMapObjects ? '1' : '0'}
+                onClick={() => setShowMapObjects(v => !v)}
+                title={tr(showMapObjects ? 'ctrl.mapObjectsHide' : 'ctrl.mapObjectsShow')}
+                aria-label={tr(showMapObjects ? 'ctrl.mapObjectsHide' : 'ctrl.mapObjectsShow')}
+                aria-pressed={showMapObjects}
+                style={{ width: MAP_TOOL_BTN, height: MAP_TOOL_BTN, background: showMapObjects ? '#c2410c' : '#475569', color: 'white', border: showMapObjects ? '1px solid #fb923c' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '22px', lineHeight: 1, padding: 0, touchAction: 'manipulation' }}>🔷</button>
+            )}
             {/* Drawing mode toggle */}
             <>
               <button
@@ -11309,6 +11334,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 </svg>
               );
             })()}
+
+            {/* אובייקטים על המפה - מתחת לאזורים ולפ"מים (אותו zIndex, וקודמים
+                בסדר ה-DOM): הם רקע מפה שמנהל המערכת הציב, לא יישות תפעולית.
+                pointerEvents: none - לא חוסמים לחיצה, גרירה או פאן. */}
+            {showMapObjects && (
+              <MapObjectsLayer objects={mapObjectsHere} bounds={mapImgBounds} zoom={mapZoom} light={lightMode} zIndex={1} />
+            )}
 
             {/* Map Zones Overlay — שכבה **אחת**. קודם היו כאן שתי שכבות זהות
                 (legacy בפיקסלים, geo בקווי רוחב/אורך) שנבדלו רק במקור הנקודות,

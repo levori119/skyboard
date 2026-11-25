@@ -41,6 +41,7 @@
     "joiningPointReorder": { "he": "סידור מסלולים לפי דת\"קים", "en": "Reorder runways by parking" },
     "joiningPointDef": { "he": "הגדרת נקודת הצטרפות", "en": "Joining point definition" },
     "mapZone": { "he": "אזור במפה", "en": "Map zone" },
+    "mapObject": { "he": "אובייקט במפה", "en": "Map object" },
     "zoneAltitudes": { "he": "גבהים של אזור", "en": "Zone altitudes" },
     "mapTransferPoint": { "he": "נקודת העברה במפה", "en": "Map transfer point" },
     "closure": { "he": "סגירה", "en": "Closure" },

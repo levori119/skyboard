@@ -216,7 +216,7 @@ const RULES = [
   // הרשימה מקבילה ל-teamLeadTabs ב-ManagementPage.tsx: אותה חלוקת תפקידים
   // בשרת ובלקוח, לפי עקרון הרכיב המשותף. שינוי כאן מחייב שינוי שם.
   { m: WRITE, p: /^\/api\/(sectors|sub-sectors)(\/|$)/, need: NEED.STAFF, why: 'טופולוגיית סקטורים' },
-  { m: WRITE, p: /^\/api\/(maps|map-zones|map-transfer-points|zone-altitude-ranges|closures)(\/|$)/, need: NEED.STAFF, why: 'מפות ואזורים' },
+  { m: WRITE, p: /^\/api\/(maps|map-zones|map-objects|map-transfer-points|zone-altitude-ranges|closures)(\/|$)/, need: NEED.STAFF, why: 'מפות ואזורים' },
   { m: WRITE, p: /^\/api\/(workstation-presets|preset-view-stations|presets)(\/|$)/, need: NEED.STAFF, why: 'הגדרת עמדות' },
   { m: WRITE, p: /^\/api\/(bdh|bdh-items)(\/|$)/, need: NEED.STAFF, why: 'עריכת מסמכי בד"ח' },
   { m: WRITE, p: /^\/api\/(aid-groups|aid-items)(\/|$)/, need: NEED.STAFF, why: 'עזרים' },

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import pool from '../db/pool.js';
 import { captureChange } from '../gapi/hooks.js';
 import { inheritAltRanges } from '../utils/zoneAltInherit.js';
+import { normalizeMapObject, normalizeMapObjectPatch } from '../../shared/mapObjects.js';
 const router = new Router();
 
 // Maps API
@@ -470,6 +471,80 @@ router.delete('/api/map-zones/:id', async (req, res) => {
   } catch (err) {
     console.error('Error deleting map zone:', err);
     res.status(500).json({ error: 'Failed to delete map zone' });
+  }
+});
+
+// ── אובייקטים על מפה ─────────────────────────────────────────────────────────
+// צורות בשם, צבע וגודל שמנהל המערכת ממקם בהגדרת המפה, והעמדה מציגה.
+// הנרמול (מיקום 0..100, גבולות גודל, צורה וצבע תקינים) הוא אותו קוד שרץ
+// בלקוח - shared/mapObjects.js - ולכן מה שנשמר תמיד מצויר. ראה MAP_OBJECTS_SPEC.md.
+const MAP_OBJECT_COLS = 'id, map_id, name, shape, x, y, size, color, filled, show_label, sort_order, created_at, updated_at';
+const intParam = (v) => (/^\d+$/.test(String(v)) ? Number(v) : null);
+
+router.get('/api/maps/:id/objects', async (req, res) => {
+  const mapId = intParam(req.params.id);
+  if (mapId == null) return res.status(400).json({ error: 'invalid map id' });
+  try {
+    const result = await pool.query(
+      `SELECT ${MAP_OBJECT_COLS} FROM map_objects WHERE map_id = $1 ORDER BY sort_order, id`,
+      [mapId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching map objects:', err);
+    res.status(500).json({ error: 'Failed to fetch map objects' });
+  }
+});
+
+router.post('/api/maps/:id/objects', async (req, res) => {
+  const mapId = intParam(req.params.id);
+  if (mapId == null) return res.status(400).json({ error: 'invalid map id' });
+  try {
+    const map = await pool.query('SELECT id FROM maps WHERE id = $1', [mapId]);
+    if (!map.rows.length) return res.status(404).json({ error: 'Map not found' });
+    const o = normalizeMapObject(req.body);
+    const result = await pool.query(
+      `INSERT INTO map_objects (map_id, name, shape, x, y, size, color, filled, show_label, sort_order)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING ${MAP_OBJECT_COLS}`,
+      [mapId, o.name, o.shape, o.x, o.y, o.size, o.color, o.filled, o.show_label, o.sort_order]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error creating map object:', err);
+    res.status(500).json({ error: 'Failed to create map object' });
+  }
+});
+
+// עדכון **חלקי**: גרירה ששולחת רק x/y לא מאפסת שם, צבע או צורה.
+router.put('/api/map-objects/:id', async (req, res) => {
+  const id = intParam(req.params.id);
+  if (id == null) return res.status(400).json({ error: 'invalid id' });
+  try {
+    const cur = await pool.query(`SELECT ${MAP_OBJECT_COLS} FROM map_objects WHERE id = $1`, [id]);
+    if (!cur.rows.length) return res.status(404).json({ error: 'Map object not found' });
+    const o = normalizeMapObjectPatch(req.body, cur.rows[0]);
+    const result = await pool.query(
+      `UPDATE map_objects SET name = $1, shape = $2, x = $3, y = $4, size = $5, color = $6,
+              filled = $7, show_label = $8, sort_order = $9, updated_at = NOW()
+        WHERE id = $10 RETURNING ${MAP_OBJECT_COLS}`,
+      [o.name, o.shape, o.x, o.y, o.size, o.color, o.filled, o.show_label, o.sort_order, id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating map object:', err);
+    res.status(500).json({ error: 'Failed to update map object' });
+  }
+});
+
+router.delete('/api/map-objects/:id', async (req, res) => {
+  const id = intParam(req.params.id);
+  if (id == null) return res.status(400).json({ error: 'invalid id' });
+  try {
+    await pool.query('DELETE FROM map_objects WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting map object:', err);
+    res.status(500).json({ error: 'Failed to delete map object' });
   }
 });
 

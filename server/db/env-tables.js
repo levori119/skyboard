@@ -135,6 +135,8 @@ export const CONFIG_TABLES = [
   // מפות ושדות
   'maps',
   'map_zones',
+  // אובייקטים על מפה (MAP_OBJECTS_SPEC.md) - שרטוט הגדרה של המפה, כמו אזוריה
+  'map_objects',
   'map_transfer_points',
   'zone_altitude_ranges',
   'airfields',
