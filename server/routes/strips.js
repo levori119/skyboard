@@ -195,6 +195,8 @@ router.get('/api/strips/global', async (req, res) => {
       landing_airfield_id: r.landing_airfield_id || null,
       map_lat: r.map_lat ?? null,
       map_lon: r.map_lon ?? null,
+      // אזורים מתוכננים ("705, 711") - הכוונה, לא שיוך (src/utils/plannedZones.ts)
+      planned_zones: r.planned_zones || '',
       strip_type: r.strip_type || '',
       table_preset_ids: Array.isArray(r.table_preset_ids) ? r.table_preset_ids.map(Number) : [],
       at_preset_names: Array.isArray(r.at_preset_names) ? r.at_preset_names : [],
@@ -599,6 +601,7 @@ router.put('/api/strips/:id', async (req, res) => {
     if (req.body.unit !== undefined) { updates.push(`unit = $${paramIndex++}`); values.push(req.body.unit); }
     if (req.body.map_zone_name !== undefined) { updates.push(`map_zone_name = $${paramIndex++}`); values.push(req.body.map_zone_name); }
     if (req.body.map_zone_alts !== undefined) { updates.push(`map_zone_alts = $${paramIndex++}`); values.push(req.body.map_zone_alts); }
+    if (req.body.planned_zones !== undefined) { updates.push(`planned_zones = $${paramIndex++}`); values.push(String(req.body.planned_zones ?? '').slice(0, 300)); }
     if (req.body.map_pin_x !== undefined) { updates.push(`map_pin_x = $${paramIndex++}`); values.push(req.body.map_pin_x !== null ? Number(req.body.map_pin_x) : null); }
     if (req.body.map_pin_y !== undefined) { updates.push(`map_pin_y = $${paramIndex++}`); values.push(req.body.map_pin_y !== null ? Number(req.body.map_pin_y) : null); }
     if (req.body.map_lat !== undefined) { updates.push(`map_lat = $${paramIndex++}`); values.push(req.body.map_lat !== null ? Number(req.body.map_lat) : null); }

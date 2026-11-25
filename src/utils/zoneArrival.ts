@@ -1,12 +1,12 @@
-// הגעה לאזור - איך פ"מ עם אזור מצויר על המפה מההמראה ועד שהפקח אישר שהוא באזור.
+// הגעה לאזור - פין של פ"מ **משויך** שהתמונ"א זיהתה באזור והפקח עוד לא אישר.
 //
-// שלושה שלבים, ופונקציות טהורות בלבד (נבדקות ב-vitest בלי עמדה):
-//
-//   normal  - התצוגה הרגילה של הפין (לפני המראה, או אחרי שהפקח אישר).
-//   enroute - המריא ועוד לא הגיע: האו"ק **קטן ובהיר בפינת האזור** - "יש מישהו
-//             בדרך לכאן", בלי לתפוס מקום של פין אמיתי.
+//   normal  - התצוגה הרגילה של הפין. פ"מ שנגרר/שויך לאזור **תמיד** בגודל מלא.
 //   arrived - התמונ"א זיהתה אותו באזור (zoneWatch כתב "באזור") והפקח עוד לא
 //             אישר: האו"ק **מוגדל ומהבהב** עד לחיצה עליו.
+//
+// האו"ק הקטן בפינת האזור שייך לפ"מ שעוד **לא** שויך - לפי האזורים המתוכננים
+// שנרשמו בפ"מ (utils/plannedZones). עד 2026-11-25 הוא הוצג גם לפ"מ משויך
+// שהמריא, ופ"מ שנגרר לאזור "התכווץ" לפינה - וזו הייתה התקלה.
 //
 // ההבחנה בין "באזור" שהמערכת זיהתה לבין "באזור" שהפקח סימן יושבת בעמודה
 // `strip_zone_assignments.zone_arrival_ack`: רק כתיבה של מנוע הזיהוי מורידה
@@ -14,25 +14,24 @@
 
 import { ZONE_STATUS } from '../airPicture/zoneWatch';
 
-export type ZoneArrivalPhase = 'normal' | 'enroute' | 'arrived';
+export type ZoneArrivalPhase = 'normal' | 'arrived';
 
 export interface ZoneArrivalInput {
   /** לפ"מ יש אזור (לא רק מיקום חופשי על המפה). */
   hasZone: boolean;
-  /** `strips.airborne` - המריא. */
-  airborne: boolean;
+  /** `strips.airborne` - המריא. לא משנה את השלב; נשאר בחתימה לקוראים קיימים */
+  airborne?: boolean;
   /** `strip_zone_assignments.status`. */
   status: string | null | undefined;
   /** `strip_zone_assignments.zone_arrival_ack`. חסר (שרת ישן) = אושר. */
   ack: boolean | null | undefined;
 }
 
-export function zoneArrivalPhase({ hasZone, airborne, status, ack }: ZoneArrivalInput): ZoneArrivalPhase {
+export function zoneArrivalPhase({ hasZone, status, ack }: ZoneArrivalInput): ZoneArrivalPhase {
   if (!hasZone) return 'normal';
   // לא תלוי ב-airborne: הזיהוי מגיע מהתמונ"א, כלומר המטוס באוויר בפועל גם אם
   // הפקח לא סימן "מאוויר" בסטריפ
   if (status === ZONE_STATUS.inZone && ack === false) return 'arrived';
-  if (airborne && status !== ZONE_STATUS.inZone && status !== ZONE_STATUS.leaving) return 'enroute';
   return 'normal';
 }
 
@@ -67,7 +66,7 @@ export function zoneCornerPoint(polygon: Pt[], rtl: boolean, inset = 0.18): Pt |
 }
 
 /**
- * כמה פ"מים בדרך לאותו אזור נערמים בפינה אחד מתחת לשני. מחזיר לכל פ"מ את
+ * כמה פ"מים בפינת אותו אזור (אזור מתוכנן, utils/plannedZones) נערמים אחד מתחת לשני. מחזיר לכל פ"מ את
  * מקומו בערימה (0, 1, 2...) לפי סדר הופעתו - יציב בין רינדורים.
  */
 export function enrouteStackIndex(items: { stripId: number; zoneId: number }[]): Map<number, number> {

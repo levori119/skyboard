@@ -92,6 +92,8 @@ import { trackAtMapPoint, blockForAltitude } from '../../airPicture/dropHit';
 import { useZoneWatch, type ZoneWatchMap as ZoneWatchMapInput, type ZoneWatchOffender } from '../../airPicture/useZoneWatch';
 import { blockAltFeet, type WatchZone as ZoneWatchZone, type WatchAssignment as ZoneWatchAssignment } from '../../airPicture/zoneWatch';
 import { zoneArrivalPhase, arrivalAckAfterStatus, zoneCornerPoint, enrouteStackIndex, type ZoneArrivalPhase } from '../../utils/zoneArrival';
+import { parsePlannedZones, matchPlannedZones, plannedZoneLabel, type PlannedZoneLabel } from '../../utils/plannedZones';
+import PlannedZonesChip from '../strips/PlannedZonesChip';
 /** הפניה קבועה - מערך ריק חדש בכל רינדור היה מפיל memo של צרכני ההדגשה. */
 const EMPTY_ZW_OFFENDERS: ZoneWatchOffender[] = [];
 import { unionZones } from '../../utils/zoneUnion';
@@ -6402,22 +6404,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     } catch {}
   };
   // ── הגעה לאזור (utils/zoneArrival) ──────────────────────────────────────
-  // השלב של כל פ"מ ומקומו בערימת הפינה, פר רשימת שיוכים (מפה ראשית / שנייה /
+  // השלב של כל פ"מ משויך (רגיל / הגיע ומהבהב), פר רשימת שיוכים (מפה ראשית / שנייה /
   // חלון דסק משימה). מטמון לפי הפניית הרשימה: הלולאה של הפינים קוראת לכל פין
   // והחישוב רץ רק כשהרשימה או הפ"מים באמת השתנו
-  const fzArrivalCacheRef = useRef(new WeakMap<object, { strips: any[]; phase: Map<number, ZoneArrivalPhase>; stack: Map<number, number> }>());
+  const fzArrivalCacheRef = useRef(new WeakMap<object, { strips: any[]; phase: Map<number, ZoneArrivalPhase> }>());
   const fzArrivalFor = (list: StripZoneAssignment[]) => {
     const hit = fzArrivalCacheRef.current.get(list);
     if (hit && hit.strips === strips) return hit;
     const byId = new Map<number, any>(strips.map((s: any) => [parseInt(String(s.id).replace(/^s/, ''), 10), s]));
     const phase = new Map<number, ZoneArrivalPhase>();
-    const enroute: { stripId: number; zoneId: number }[] = [];
     for (const a of list) {
-      const p = zoneArrivalPhase({ hasZone: a.zone_id != null, airborne: !!byId.get(Number(a.strip_id))?.airborne, status: a.status, ack: a.zone_arrival_ack });
-      phase.set(Number(a.strip_id), p);
-      if (p === 'enroute' && a.zone_id != null) enroute.push({ stripId: Number(a.strip_id), zoneId: a.zone_id });
+      phase.set(Number(a.strip_id), zoneArrivalPhase({ hasZone: a.zone_id != null, airborne: !!byId.get(Number(a.strip_id))?.airborne, status: a.status, ack: a.zone_arrival_ack }));
     }
-    const v = { strips, phase, stack: enrouteStackIndex(enroute) };
+    const v = { strips, phase };
     fzArrivalCacheRef.current.set(list, v);
     return v;
   };
@@ -10334,6 +10333,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px', marginTop: '3px' }}>
                       <div style={{ minWidth: 0, overflow: 'hidden' }}>
                         <TakeoffBadge takeoff={s.takeoff_time} airborne={!!s.airborne} label={tkLabel} lightMode={lightMode} />
+                        <PlannedZonesChip raw={s.planned_zones} muted={T.muted} border={lightMode ? '#cbd5e1' : '#475569'} />
                       </div>
                       <StripCardLocation info={stripCardLocation(isFlightZonesMode ? stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === parseInt(String(s.id).replace(/^s/, ''), 10)) : null, s.alt)} text={T.text} muted={T.muted} border={lightMode ? '#cbd5e1' : '#334155'} bgAlt={T.bgAlt} />
                     </div>
@@ -11923,6 +11923,67 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               );
             })()}
 
+            {/* אזורים מתוכננים (utils/plannedZones): פ"מ שעוד **לא** שויך, ונרשם בו לאיזה
+                אזור הוא אמור ללכת. 10 דק' לפני ההמראה - האו"ק קטן **באפור** בפינת האזור;
+                משהמריא - **בכחול**. לחיצה משייכת אותו לאזור (אותו מסלול של שידוך בלחיצה),
+                ומאותו רגע הוא פין רגיל בגודל מלא */}
+            {isFlightZonesMode && mapImgBounds && (() => {
+              const ib = mapImgBounds;
+              const nowMs = Date.now();
+              const assignedIds = new Set(fzAssignmentsAll().map((x: StripZoneAssignment) => Number(x.strip_id)));
+              const zonesHere = (mapZones as MapZone[]).filter(z => z.enabled !== false && (z.polygon?.length ?? 0) >= 3);
+              if (zonesHere.length === 0) return null;
+              const items: { s: any; sid: number; state: PlannedZoneLabel; zone: MapZone }[] = [];
+              for (const s of myStrips) {
+                if (s.status === 'pending_transfer') continue;
+                const sid = parseInt(String(s.id).replace(/^s/, ''), 10);
+                if (assignedIds.has(sid)) continue;
+                const names = parsePlannedZones(s.planned_zones);
+                if (names.length === 0) continue;
+                const state = plannedZoneLabel({ airborne: !!s.airborne, takeoffTime: s.takeoff_time }, nowMs);
+                if (state === 'hidden') continue;
+                const zone = matchPlannedZones(names, zonesHere)[0];
+                if (zone) items.push({ s, sid, state, zone });
+              }
+              if (items.length === 0) return null;
+              const rtl = dir === 'rtl';
+              const stack = enrouteStackIndex(items.map(it => ({ stripId: it.sid, zoneId: it.zone.id })));
+              const fs = Math.max(6, (fzPinFontSizePanel * 0.8) / mapZoom);
+              return items.map(({ s, sid, state, zone }) => {
+                const corner = zoneCornerPoint(zone.polygon, rtl);
+                if (!corner) return null;
+                const label = String(s.callSign || s.call_sign || `#${sid}`);
+                const up = state === 'airborne';
+                const cx = zone.polygon.reduce((t, p) => t + p.x, 0) / zone.polygon.length;
+                const cy = zone.polygon.reduce((t, p) => t + p.y, 0) / zone.polygon.length;
+                return (
+                  <div
+                    key={`fzplan-${sid}`}
+                    role="button"
+                    data-testid={`fz-planned-${sid}`}
+                    data-planned={state}
+                    title={`${label} - ${zone.name}\n${up ? tr('ctrl.plannedZoneHintAirborne') : tr('ctrl.plannedZoneHintPending')}`}
+                    // בלי pan של המפה מתחת ללחיצה
+                    onPointerDown={e => e.stopPropagation()}
+                    onClick={e => { e.stopPropagation(); fzPlaceStripInZone({ id: sid, isPin: false, label }, zone, cx, cy, cfg.mapId ?? currentMapId); }}
+                    style={{
+                      position: 'absolute',
+                      left: ib.left + (corner.x / 100) * ib.width,
+                      top: ib.top + (corner.y / 100) * ib.height + (stack.get(sid) ?? 0) * fs * 1.35,
+                      // בפינה הטקסט נפרש פנימה לאזור: בעברית שמאלה מהפינה הימנית
+                      transform: rtl ? 'translate(-100%, 0)' : 'none',
+                      zIndex: 43, cursor: 'pointer', userSelect: 'none', touchAction: 'manipulation', pointerEvents: 'all',
+                      whiteSpace: 'nowrap', direction: dir, lineHeight: 1.15, fontSize: fs, fontWeight: up ? 'bold' : 'normal',
+                      color: up ? (lightMode ? '#1d4ed8' : '#60a5fa') : (lightMode ? '#64748b' : '#94a3b8'),
+                      textShadow: lightMode ? undefined : '0 0 3px rgba(0,0,0,0.9)',
+                    }}
+                  >
+                    {label}
+                  </div>
+                );
+              });
+            })()}
+
             {/* Flight Zones Pin Markers — inside transform div, moves with zoom/pan */}
             {isFlightZonesMode && mapImgBounds && stripZoneAssignments.filter((a: StripZoneAssignment) => {
               const _s = strips.find((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10) === Number(a.strip_id));
@@ -12057,46 +12118,32 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 },
                 title: tr('ctrl.menu'),
               };
-              // ── הגעה לאזור: המריא → או"ק קטן ובהיר בפינת האזור; התמונ"א זיהתה
-              //    אותו באזור → מוגדל ומהבהב עד שהפקח לוחץ (utils/zoneArrival) ──
-              const _arrival = fzArrivalFor(stripZoneAssignments);
-              const arrPhase = _arrival.phase.get(Number(a.strip_id)) ?? 'normal';
-              if (arrPhase !== 'normal') {
-                const arrived = arrPhase === 'arrived';
-                const rtl = dir === 'rtl';
-                const corner = arrived ? null : zoneCornerPoint(poly, rtl);
-                const smallFs = Math.max(6, (fzPinFontSize * 0.75) / mapZoom);
+              // ── הגעה לאזור: התמונ"א זיהתה את הפ"מ באזור והפקח עוד לא אישר →
+              //    האו"ק מוגדל ומהבהב במקום הפין, עד לחיצה (utils/zoneArrival).
+              //    פ"מ משויך אחר - תמיד הפין הרגיל בגודל מלא ──
+              if (fzArrivalFor(stripZoneAssignments).phase.get(Number(a.strip_id)) === 'arrived') {
                 const bigFs = Math.max(11, (fzPinFontSize * 1.7) / mapZoom);
-                const stackN = _arrival.stack.get(Number(a.strip_id)) ?? 0;
-                const lx = corner ? ib.left + (corner.x / 100) * ib.width : pixX;
-                const ly = corner ? ib.top + (corner.y / 100) * ib.height + stackN * smallFs * 1.35 : pixY;
-                const arrTitle = [callLabel + (a.zone_name ? ` - ${a.zone_name}` : ''), arrived ? tr('ctrl.zoneArrivedHint') : tr('ctrl.zoneEnrouteHint')].join('\n');
                 return (
                   <div
                     key={`fzpin-${a.strip_id}`}
                     data-testid={`fz-arrival-${a.strip_id}`}
-                    data-arrival={arrPhase}
-                    className={arrived ? 'zone-arrival-flash' : undefined}
+                    data-arrival="arrived"
+                    className="zone-arrival-flash"
                     onPointerDown={startFzPinDrag}
                     onContextMenu={e => { e.preventDefault(); e.stopPropagation(); }}
-                    title={arrTitle}
+                    title={[callLabel + (a.zone_name ? ` - ${a.zone_name}` : ''), tr('ctrl.zoneArrivedHint')].join('\n')}
                     style={{
-                      position: 'absolute', left: lx, top: ly,
-                      // בפינה הטקסט נפרש פנימה לאזור: בעברית שמאלה מהפינה הימנית
-                      transform: corner ? (rtl ? 'translate(-100%, 0)' : 'none') : 'translate(-50%, -50%)',
-                      zIndex: arrived ? 48 : 43, cursor: 'pointer', userSelect: 'none', touchAction: 'none', pointerEvents: 'all',
-                      whiteSpace: 'nowrap', direction: dir, lineHeight: 1.15,
-                      fontSize: arrived ? bigFs : smallFs, fontWeight: arrived ? 'bold' : 'normal',
-                      color: arrived ? (lightMode ? '#14532d' : '#bbf7d0') : (lightMode ? '#64748b' : '#e2e8f0'),
-                      background: arrived ? (lightMode ? 'rgba(220,252,231,0.92)' : 'rgba(5,46,22,0.88)') : 'transparent',
-                      border: arrived ? `${Math.max(1, 2 / mapZoom)}px solid #22c55e` : 'none',
-                      borderRadius: arrived ? `${5 / mapZoom}px` : 0,
-                      padding: arrived ? `${1 / mapZoom}px ${5 / mapZoom}px` : 0,
-                      textShadow: !arrived && !lightMode ? '0 0 3px rgba(0,0,0,0.9)' : undefined,
-                      opacity: isDraggingThisPin ? 0.25 : (arrived ? 1 : 0.7),
+                      position: 'absolute', left: pixX, top: pixY, transform: 'translate(-50%, -50%)',
+                      zIndex: 48, cursor: 'pointer', userSelect: 'none', touchAction: 'none', pointerEvents: 'all',
+                      whiteSpace: 'nowrap', direction: dir, lineHeight: 1.15, fontSize: bigFs, fontWeight: 'bold',
+                      color: lightMode ? '#14532d' : '#bbf7d0',
+                      background: lightMode ? 'rgba(220,252,231,0.92)' : 'rgba(5,46,22,0.88)',
+                      border: `${Math.max(1, 2 / mapZoom)}px solid #22c55e`,
+                      borderRadius: `${5 / mapZoom}px`, padding: `${1 / mapZoom}px ${5 / mapZoom}px`,
+                      opacity: isDraggingThisPin ? 0.25 : 1,
                     }}
                   >
-                    {callLabel}{arrived && <span style={{ marginInlineStart: `${4 / mapZoom}px` }}>✓</span>}
+                    {callLabel}<span style={{ marginInlineStart: `${4 / mapZoom}px` }}>✓</span>
                   </div>
                 );
               }
@@ -20052,6 +20099,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px', marginTop: '3px' }}>
                       <div style={{ minWidth: 0, overflow: 'hidden' }}>
                         <TakeoffBadge takeoff={s.takeoff_time} airborne={!!s.airborne} label={tkLabel} lightMode={lightMode} />
+                        <PlannedZonesChip raw={s.planned_zones} muted={T.muted} border={lightMode ? '#cbd5e1' : '#475569'} />
                       </div>
                       <StripCardLocation info={stripCardLocation(isFlightZonesMode ? stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === parseInt(String(s.id).replace(/^s/, ''), 10)) : null, s.alt)} text={T.text} muted={T.muted} border={lightMode ? '#cbd5e1' : '#334155'} bgAlt={T.bgAlt} />
                     </div>

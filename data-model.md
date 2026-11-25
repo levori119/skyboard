@@ -939,6 +939,8 @@ COALESCE(last_seen, entered_at) > NOW() - INTERVAL '240 seconds'
 | `preset_id` | INT → workstation_presets (SET NULL) | **העמדה שחיברה את הפ"מ לאזור.** מרכיב של "נמצא בעמדה" (ראה §`at_preset_names`). עדכון שמגיע בלי הערך משמר את הקיים (`COALESCE`), כדי שעריכת הערה לא תמחק את המחזיק |
 | `zone_arrival_ack` | BOOLEAN DEFAULT TRUE | **הגעה לאזור - אושרה.** `false` = מנוע הזיהוי כתב `באזור` (`PATCH .../status` עם `auto:true`) והפקח עוד לא לחץ: הפין מוגדל ומהבהב. כל כתיבה ידנית של סטטוס, וכל החלפת אזור ב-POST, מחזירות ל-`true`. ברירת המחדל `TRUE` כדי ששורות קיימות לא יהבהבו בעלייה. ראה [src/utils/zoneArrival.ts](src/utils/zoneArrival.ts) |
 
+> **`strips.planned_zones`** (VARCHAR(300), ברירת מחדל `''`) - האזורים שהפ"מ **אמור** ללכת אליהם ("705, 711"), כפי שנרשמו בפ"מ. **לא שיוך**: אין פין, אין בלוק ואין "תפוס". על המפה - או"ק קטן בפינת האזור 10 דק' לפני ההמראה, ולחיצה עליו יוצרת את השיוך כאן. התאמה לפי שם אזור. ראה [src/utils/plannedZones.ts](src/utils/plannedZones.ts) ו-[AIR_PICTURE_SPEC.md](AIR_PICTURE_SPEC.md) §8.6.
+
 > **חריגה מבלוק:** פ"מ נחשב חורג אם גובהו (`strips.alt`) אינו נופל באף `zone_altitude_ranges`
 > של האזור, **או** אם ה-`altitude_range_id` שלו אינו ב-`map_zones.active_alt_range_ids` (מוגבל).
 

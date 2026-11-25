@@ -4,12 +4,10 @@ import { zoneArrivalPhase, arrivalAckAfterStatus, zoneCornerPoint, enrouteStackI
 describe('zoneArrivalPhase', () => {
   const base = { hasZone: true, airborne: true, status: 'בדרך לאזור', ack: true };
 
-  it('לפני המראה - רגיל', () => {
+  it('פ"מ משויך - תמיד רגיל (גודל מלא), גם כשהמריא ובדרך (2026-11-25)', () => {
     expect(zoneArrivalPhase({ ...base, airborne: false })).toBe('normal');
-  });
-  it('המריא ובדרך - קטן בפינה (גם בסטטוס planned)', () => {
-    expect(zoneArrivalPhase(base)).toBe('enroute');
-    expect(zoneArrivalPhase({ ...base, status: 'planned' })).toBe('enroute');
+    expect(zoneArrivalPhase(base)).toBe('normal');
+    expect(zoneArrivalPhase({ ...base, status: 'planned' })).toBe('normal');
   });
   it('תמונ"א זיהתה באזור ולא אושר - מהבהב, גם בלי סימון "מאוויר"', () => {
     expect(zoneArrivalPhase({ ...base, status: 'באזור', ack: false })).toBe('arrived');

@@ -1240,6 +1240,9 @@ async function applySchemaOnce() {
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS civ_time VARCHAR(10) DEFAULT ''`);
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS civ_runway VARCHAR(10) DEFAULT ''`);
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_zone_name VARCHAR(100) DEFAULT ''`);
+  // אזורים מתוכננים - לאן הפ"מ **אמור** ללכת ("705, 711"). לא שיוך: אין פין ואין "תפוס".
+  // על המפה - או"ק קטן בפינת האזור 10 דק' לפני ההמראה (src/utils/plannedZones.ts)
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS planned_zones VARCHAR(300) DEFAULT ''`);
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_zone_alts VARCHAR(200) DEFAULT ''`);
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_pin_x FLOAT`);
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_pin_y FLOAT`);

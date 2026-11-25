@@ -2622,13 +2622,21 @@
       "he": "אזור",
       "en": "Zone"
     },
-    "zoneEnrouteHint": {
-      "he": "המריא - בדרך לאזור",
-      "en": "Airborne - en route to the zone"
-    },
     "zoneArrivedHint": {
       "he": "התמונה האווירית זיהתה אותו באזור - לחץ כדי לסמן \"באזור\"",
       "en": "The air picture detected it in the zone - tap to mark \"in zone\""
+    },
+    "plannedZonesTip": {
+      "he": "אזורים מתוכננים - לאן הפ\"מ אמור ללכת. עדיין לא שיוך לאזור",
+      "en": "Planned zones - where the formation is meant to go. Not yet assigned to a zone"
+    },
+    "plannedZoneHintPending": {
+      "he": "ממריא בעוד פחות מ-10 דקות - לחץ כדי לשייך אותו לאזור",
+      "en": "Taking off in less than 10 minutes - tap to assign it to the zone"
+    },
+    "plannedZoneHintAirborne": {
+      "he": "המריא - לחץ כדי לשייך אותו לאזור",
+      "en": "Airborne - tap to assign it to the zone"
     },
     "zoneRestricted": {
       "he": "מוגבל",
