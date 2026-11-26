@@ -98,3 +98,33 @@ describe('map objects API', () => {
     expect(rows[0].n).toBe(0);
   });
 });
+
+describe('מפה חתוכה יורשת את אובייקטי מפת האב (?inherit=1)', () => {
+  beforeAll(async () => {
+    await pool.query(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS parent_map_id INTEGER`);
+    await pool.query(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS parent_rect JSONB`);
+    await pool.query(`INSERT INTO maps (id, name) VALUES (10, 'אב')`);
+    await pool.query(`INSERT INTO maps (id, name, parent_map_id, parent_rect) VALUES (11, 'חלק', 10, '{"x1":50,"x2":75,"y1":40,"y2":60}')`);
+    await pool.query(`INSERT INTO map_objects (map_id, name, x, y, size) VALUES (10, 'בפנים', 60, 50, 1), (10, 'בחוץ', 10, 10, 1), (11, 'של הבת', 5, 5, 2)`);
+  });
+
+  it('בלי הדגל (העורך): רק האובייקטים של המפה עצמה', async () => {
+    const r = await req('GET', '/api/maps/11/objects');
+    expect(r.json.map(o => o.name)).toEqual(['של הבת']);
+  });
+
+  it('עם הדגל (העמדה): גם של האב שבתוך החיתוך, מומרים לקואורדינטות הבת', async () => {
+    const r = await req('GET', '/api/maps/11/objects?inherit=1');
+    expect(r.json.map(o => o.name)).toEqual(['בפנים', 'של הבת']);
+    const o = r.json[0];
+    expect(o.inherited).toBe(true);
+    expect(o.x).toBeCloseTo(40);   // (60-50)/25
+    expect(o.y).toBeCloseTo(50);   // (50-40)/20
+    expect(o.size).toBeCloseTo(4); // 1 * 100/25 - אותו גודל ביחס לרקע
+  });
+
+  it('מפה בלי אב: הדגל לא משנה דבר', async () => {
+    const r = await req('GET', '/api/maps/10/objects?inherit=1');
+    expect(r.json.map(o => o.name).sort()).toEqual(['בחוץ', 'בפנים']);
+  });
+});

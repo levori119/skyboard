@@ -133,3 +133,27 @@ export function mapObjectPath(shape, r) {
       return `M${fmt(-R)},0 A${fmt(R)},${fmt(R)} 0 1,0 ${fmt(R)},0 A${fmt(R)},${fmt(R)} 0 1,0 ${fmt(-R)},0 Z`;
   }
 }
+
+/**
+ * אובייקט של מפת אב, בקואורדינטות של מפה חתוכה ממנה (maps.parent_rect, באחוזים
+ * של מפת האב). אובייקט שמרכזו מחוץ לחיתוך - null.
+ *
+ * למה: מנהל המערכת מציב אובייקטים על המפה המלאה (למשל "אזורי עפרוני"), והעמדה
+ * מציגה לעתים קרובות מפה **חתוכה** ממנה ("אזורי עפרוני (חלק...)"). בלי ההמרה
+ * האובייקטים לא הופיעו בעמדה בכלל. הגודל באחוזי רוחב, ולכן מוגדל ביחס החיתוך -
+ * האובייקט נשאר באותו גודל ביחס לרקע.
+ */
+export function projectMapObjectToChild(o, rect) {
+  if (!o || !rect) return null;
+  const x1 = Number(rect.x1), x2 = Number(rect.x2), y1 = Number(rect.y1), y2 = Number(rect.y2);
+  if (![x1, x2, y1, y2].every(Number.isFinite) || x2 <= x1 || y2 <= y1) return null;
+  const x = Number(o.x), y = Number(o.y);
+  if (!(x >= x1 && x <= x2 && y >= y1 && y <= y2)) return null;
+  return {
+    ...o,
+    x: ((x - x1) / (x2 - x1)) * 100,
+    y: ((y - y1) / (y2 - y1)) * 100,
+    size: Number(o.size) * (100 / (x2 - x1)),
+    inherited: true,
+  };
+}

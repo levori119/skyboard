@@ -2,7 +2,7 @@ import { Router } from 'express';
 import pool from '../db/pool.js';
 import { captureChange } from '../gapi/hooks.js';
 import { inheritAltRanges } from '../utils/zoneAltInherit.js';
-import { normalizeMapObject, normalizeMapObjectPatch } from '../../shared/mapObjects.js';
+import { normalizeMapObject, normalizeMapObjectPatch, projectMapObjectToChild } from '../../shared/mapObjects.js';
 const router = new Router();
 
 // Maps API
@@ -489,6 +489,33 @@ router.get('/api/maps/:id/objects', async (req, res) => {
       `SELECT ${MAP_OBJECT_COLS} FROM map_objects WHERE map_id = $1 ORDER BY sort_order, id`,
       [mapId]
     );
+    // ?inherit=1 (העמדה): מפה חתוכה מציגה גם את האובייקטים של מפות האב שלה,
+    // מומרים לקואורדינטות שלה (inherited: true). העורך לא שולח את הדגל - שם
+    // עורכים רק את האובייקטים של המפה עצמה. ראה MAP_OBJECTS_SPEC.md
+    if (req.query.inherit === '1') {
+      const inherited = [];
+      let curId = mapId;
+      let chain = [];   // החיתוכים מהמפה הנוכחית כלפי מעלה
+      const seen = new Set([mapId]);
+      for (let depth = 0; depth < 4; depth++) {
+        const m = await pool.query('SELECT parent_map_id, parent_rect FROM maps WHERE id = $1', [curId]);
+        const parentId = m.rows[0]?.parent_map_id;
+        if (!parentId || seen.has(parentId)) break;
+        seen.add(parentId);
+        const rect = typeof m.rows[0].parent_rect === 'string' ? JSON.parse(m.rows[0].parent_rect) : m.rows[0].parent_rect;
+        if (!rect) break;
+        chain = [rect, ...chain];
+        const p = await pool.query(`SELECT ${MAP_OBJECT_COLS} FROM map_objects WHERE map_id = $1 ORDER BY sort_order, id`, [parentId]);
+        for (const row of p.rows) {
+          // מהאב כלפי מטה, חיתוך אחרי חיתוך, עד המפה המבוקשת
+          let o = row;
+          for (const r of chain) { o = projectMapObjectToChild(o, r); if (!o) break; }
+          if (o) inherited.push(o);
+        }
+        curId = parentId;
+      }
+      return res.json([...inherited, ...result.rows]);
+    }
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching map objects:', err);

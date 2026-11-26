@@ -25,7 +25,8 @@ async function load(mapId: number) {
   const prev = entries.get(mapId);
   entries.set(mapId, { objects: prev?.objects ?? EMPTY, at: prev?.at ?? 0, inflight: true });
   try {
-    const res = await fetch(`${API_URL}/maps/${mapId}/objects`);
+    // inherit=1: מפה חתוכה מקבלת גם את אובייקטי מפת האב (shared/mapObjects projectMapObjectToChild)
+    const res = await fetch(`${API_URL}/maps/${mapId}/objects?inherit=1`);
     const rows = res.ok ? await res.json() : null;
     const objects = Array.isArray(rows) ? sortMapObjects(rows.map(normalizeMapObject)) : (prev?.objects ?? EMPTY);
     entries.set(mapId, { objects, at: Date.now(), inflight: false });
