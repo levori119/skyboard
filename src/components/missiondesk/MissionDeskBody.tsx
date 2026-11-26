@@ -19,6 +19,7 @@ import ButtonsBoard from './ButtonsBoard';
 import InkPad from './InkPad';
 import SmartTable from './SmartTable';
 import { ImageSetupPanel, RichLabelEditor, renderLabelRuns } from './configEditors';
+import { splitterProps } from '../../utils/splitter';
 
 interface Props {
   presetId: number;
@@ -332,23 +333,16 @@ export default function MissionDeskBody({
         {node.children.map((child, i) => (
           <Fragment key={child.id}>
             {i > 0 && (
-              /* ספליטר רחב (12px) — נוח לאצבע/עט; pointer capture + touchAction:none */
+              /* ספליטר משותף (utils/splitter) - שטח תפיסה רחב לאצבע/עט; pointer capture + touchAction:none */
               <div
                 onPointerDown={e => onSplitDown(e, node, i, horizontal)}
                 onPointerMove={onSplitMove}
                 onPointerUp={onSplitUp}
                 onPointerCancel={onSplitUp}
                 title={tr('missiondesk.resizeSplitter')}
-                style={{
-                  flex: '0 0 12px', alignSelf: 'stretch', touchAction: 'none', zIndex: 5,
-                  cursor: horizontal ? 'col-resize' : 'row-resize',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                <div style={{
-                  width: horizontal ? 4 : 34, height: horizontal ? 34 : 4,
-                  borderRadius: 3, background: theme.border,
-                }} />
-              </div>
+                {...splitterProps(horizontal ? 'col' : 'row', themeMode)}
+                style={{ ...splitterProps(horizontal ? 'col' : 'row', themeMode).style, zIndex: 5 }}
+              />
             )}
             <div style={{ display: 'flex', flexBasis: `${sizes[i] ?? 100 / node.children.length}%`, flexGrow: 0, flexShrink: 1, minWidth: 0, minHeight: 0 }}>
               {renderNode(child)}

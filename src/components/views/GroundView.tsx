@@ -67,6 +67,7 @@ import { windowFrame } from '../../utils/windowFrame';
 import usePinchZoom from '../../hooks/usePinchZoom';
 import { localStep, pinchZoomPan, type ZoomPanView } from '../../utils/pinchZoom';
 import { measureCssZoom } from '../../utils/mapPan';
+import { splitterProps } from '../../utils/splitter';
 
 /**
  * כמה מקום להשאיר בתחתית פאנל השכבות לפאנל "מסלולים בשימוש".
@@ -2535,7 +2536,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
         {/* Vehicle requests panel — now a floating panel opened from view menu */}
 
       {/* Resize handle: right panel ↔ center */}
-      {!hideStrips && <div onPointerDown={startPanelResize('right')} title={tr('shared.dragToChangeWidth')} style={{ width: '5px', flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', order: 2, zIndex: 10, transition: 'background 0.15s', touchAction: 'none' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />}
+      {!hideStrips && <div onPointerDown={startPanelResize('right')} title={tr('shared.dragToChangeWidth')} {...splitterProps('col', themeMode)} style={{ ...splitterProps('col', themeMode).style, order: 2 }} />}
       {/* CENTER — Airfield map */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', order: 3 }}>
 

@@ -212,6 +212,7 @@ import FitScaleBox from '../shared/FitScaleBox';
 import VerticalView from './VerticalView';
 import Strip from '../strips/Strip';
 import { FloatingStripTrash } from '../strips/FloatingStripTrash';
+import { splitterProps } from '../../utils/splitter';
 import { TOOL_BTN, toolBtn } from '../../utils/toolbarStandard';
 import { panelTitle, sectionBar, sectionTitle } from '../../utils/panelHeader';
 import { StickyNotesLayer, SerialsPanelModal } from '../admin/managers';
@@ -16966,9 +16967,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         </div>
                         {i < split.children.length - 1 && (
                           <div
-                            style={{ ...DRAG_HANDLE_STYLE, flexShrink: 0, background: '#1e293b', cursor: isV ? 'col-resize' : 'row-resize', zIndex: 5, transition: 'background 0.15s', ...(isV ? { width: '4px' } : { height: '4px' }) }}
-                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#3b82f6'}
-                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = '#1e293b'}
+                            {...splitterProps(isV ? 'col' : 'row', themeMode)}
+                            style={{ ...splitterProps(isV ? 'col' : 'row', themeMode).style, ...DRAG_HANDLE_STYLE, zIndex: 5 }}
                             onPointerDown={e => {
                               const parent = (e.currentTarget as HTMLElement).parentElement;
                               // offsetWidth/Height ביחידות מוגדלות - באותן יחידות של ההיסט מ-startPointerDrag
@@ -20159,10 +20159,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               el.addEventListener('pointercancel', onEnd);
             }}
             onDoubleClick={() => setSidebarBase(parseSidebarBase(null))}
-            style={{ order: 5, width: 7, flexShrink: 0, alignSelf: 'stretch', cursor: 'col-resize', touchAction: 'none', userSelect: 'none',
-              background: sidebarDragging ? '#0ea5e9' : 'transparent', transition: 'background 0.15s' }}
-            onMouseEnter={e => { if (!sidebarDragging) e.currentTarget.style.background = T.border; }}
-            onMouseLeave={e => { if (!sidebarDragging) e.currentTarget.style.background = 'transparent'; }}
+            {...splitterProps('col', themeMode, sidebarDragging)}
+            style={{ ...splitterProps('col', themeMode).style, order: 5 }}
           />
         )}
         {/* Sidebar - Right Side - Shows available strips (from query / received transfers, not yet on board) */}
@@ -20638,7 +20636,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           const hasAtisNotamUpdatePanel = !!(parentBaseId && (canUpdateAtis || canUpdateNotam) && !myPresetConfig?.airfield_id);
           if (!aidGroup && aidBlockTables.length === 0 && workstationDocs.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && baseStatuses.length === 0 && !isGroundMgmtMode && !hasAtisNotamUpdatePanel) return null;
           return (<>
-            {aidsPinned && <div onPointerDown={startAidsResize} title={tr('shared.dragToChangeWidth')} style={{ ...DRAG_HANDLE_STYLE, width: '5px', order: 7, flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', zIndex: 10, transition: 'background 0.15s', alignSelf: 'stretch' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />}
+            {aidsPinned && <div onPointerDown={startAidsResize} title={tr('shared.dragToChangeWidth')} {...splitterProps('col', themeMode)} style={{ ...splitterProps('col', themeMode).style, ...DRAG_HANDLE_STYLE, order: 7 }} />}
             <div data-help="aidsPanel" style={{ width: aidsPinned ? aidsPanelW : 30, order: 7, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: aidsPinned ? 'none' : `2px solid ${T.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: aidsResizeRef.current ? 'none' : 'width 0.2s', overflow: 'visible', position: 'relative' }}>
               {/* Pin toggle */}
               <div style={{ padding: '6px 8px', minHeight: 36, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: aidsPinned ? `1px solid ${T.border}` : 'none', flexShrink: 0 }}>

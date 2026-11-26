@@ -981,3 +981,28 @@ body.light-mode #map-area table tbody tr.sk-grp-head { background: var(--sk-grp-
   padding: 0 !important;
   height: 12px;
 }
+
+/* ── ספליטר משותף (utils/splitter.ts) ──────────────────────────────────────
+   שטח תפיסה רחב לעט ולאצבע, קו מרכזי עבה וידית באמצע. ממורכז ב-inset+margin
+   ולא ב-left/translate, כדי שיעבוד זהה ב-RTL וב-LTR. */
+.sk-splitter {
+  position: relative; flex-shrink: 0; align-self: stretch;
+  touch-action: none; user-select: none; z-index: 10;
+  background: var(--sk-split-track, transparent);
+}
+.sk-splitter::after, .sk-splitter::before {
+  content: ''; position: absolute; inset: 0; margin: auto;
+  background: var(--sk-split-line, #64748b); transition: background 0.15s;
+  pointer-events: none;
+}
+.sk-splitter::after { border-radius: 2px; }
+.sk-splitter::before { border-radius: 5px; z-index: 1; }
+.sk-splitter-col { width: 14px; cursor: col-resize; }
+.sk-splitter-col::after { width: 4px; }
+.sk-splitter-col::before { width: 10px; height: 44px; }
+.sk-splitter-row { height: 14px; cursor: row-resize; }
+.sk-splitter-row::after { height: 4px; }
+.sk-splitter-row::before { width: 44px; height: 10px; }
+.sk-splitter:hover::after, .sk-splitter:hover::before,
+.sk-splitter[data-active="1"]::after, .sk-splitter[data-active="1"]::before { background: #0ea5e9; }
+.sk-splitter[data-active="1"] { background: rgba(14,165,233,0.18); }

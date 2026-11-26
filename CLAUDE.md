@@ -263,6 +263,9 @@ style={{ touchAction: 'none', userSelect: 'none' }}
 > `onMouseDown` לגיטימי רק ל**לא-גרירה** (למשל `e.preventDefault()` על כפתור
 > שמונע איבוד פוקוס מ-input).
 
+> **ספליטר חדש:** `splitterProps('col' | 'row', themeMode, active)` מ-[`src/utils/splitter.ts`](src/utils/splitter.ts) -
+> שטח תפיסה של 14px, קו עבה וידית באמצע (`.sk-splitter` ב-App.css). לא ספליטר של 4-5px בצבע מקודד: בעט אי-אפשר לפגוע בו.
+
 ---
 
 ## עקרון הרכיבים המשותפים (DRY)

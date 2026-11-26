@@ -9,6 +9,7 @@ import {
 } from '../../utils/windowDock';
 import FitScaleBox from './FitScaleBox';
 import { useIsEmbeddedWindow } from '../../hooks/useDockableWindow';
+import { splitterProps } from '../../utils/splitter';
 
 // ─── קונטיינר החלונות ─────────────────────────────────────────────────────────
 //
@@ -143,12 +144,8 @@ export const WindowContainer: React.FC<WindowContainerProps> = ({ themeMode = 'd
       key="splitter"
       onPointerDown={startResize}
       title={tr('dock.dragToResize')}
-      style={{
-        ...DRAG_HANDLE_STYLE, width: '5px', order, flexShrink: 0, cursor: 'col-resize',
-        background: C.border, zIndex: 10, transition: 'background 0.15s', alignSelf: 'stretch',
-      }}
-      onMouseEnter={e => (e.currentTarget.style.background = C.accent)}
-      onMouseLeave={e => (e.currentTarget.style.background = C.border)}
+      {...splitterProps('col', themeMode)}
+      style={{ ...splitterProps('col', themeMode).style, ...DRAG_HANDLE_STYLE, order }}
     />
   );
 
