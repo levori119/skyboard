@@ -178,7 +178,10 @@ export default function ConnectionBanner({ themeMode: themeOverride }: { themeMo
           </>
         ) : net.stale ? (
           <>
-            <span>⚠ {tr(net.online ? 'offline.staleTitle' : 'offline.title')}</span>
+            {/* שלוש סיבות, שלושה טקסטים: אין קשר / השרת עונה בשגיאה / בקשות נתקעות
+                בדרך (השרת תקין). "השרת מחזיר שגיאה" על איטיות שולח את המפעיל לחפש
+                תקלה בשרת שאינה קיימת */}
+            <span>⚠ {tr(!net.online ? 'offline.title' : net.degradedReason === 'network' ? 'offline.slowTitle' : 'offline.staleTitle')}</span>
             <div style={row}>
               {net.lastSuccessAt != null ? (
                 <>

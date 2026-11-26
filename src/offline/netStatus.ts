@@ -43,6 +43,15 @@ export type NetSnapshot = {
    * בלי חיווי) מ"אין תנועה כי משהו שבור" (חיווי אחרי STALE_DATA_MS).
    */
   degradedSince: number | null;
+  /**
+   * **למה** המידע לא מתרענן - לפי האירוע האחרון: `server` = השרת ענה בשגיאה
+   * (5xx), `network` = הבקשה לא קיבלה תשובה (נתקעה או נפלה ברשת) אבל עוד לא
+   * נחצה סף הנתק. null = תקין.
+   *
+   * בלעדיו החיווי כתב "השרת מחזיר שגיאה" גם כשהשרת תקין ורק בקשות נתקעו בדרך
+   * (2026-11-26: בקשה אחת מכל ~20 נתקעה 21 שניות בהתחברות, ה-DB ענה ב-0.2 שנ').
+   */
+  degradedReason: 'server' | 'network' | null;
   /** כמה פעולות פרטיות ממתינות ב-outbox המקומי */
   queued: number;
   /** הפעולה המשותפת האחרונה שנחסמה (לצורך הודעה למשתמש) */
@@ -72,6 +81,7 @@ const CLEAN: NetSnapshot = {
   offlineSince: null,
   failures: 0,
   degradedSince: null,
+  degradedReason: null,
   queued: 0,
   lastBlocked: null,
   servingLocal: false,
@@ -139,7 +149,7 @@ export function markOnline(now: number = Date.now()) {
   failureRun = 0;
   firstFailureAt = null;
   lastCountedAt = null;
-  update({ online: true, lastSuccessAt: now, offlineSince: null, failures: 0, degradedSince: null });
+  update({ online: true, lastSuccessAt: now, offlineSince: null, failures: 0, degradedSince: null, degradedReason: null });
 }
 
 /**
@@ -154,7 +164,7 @@ export function markReachable(now: number = Date.now()) {
   failureRun = 0;
   firstFailureAt = null;
   lastCountedAt = null;
-  update({ online: true, offlineSince: null, failures: 0, degradedSince: state.degradedSince ?? now });
+  update({ online: true, offlineSince: null, failures: 0, degradedSince: state.degradedSince ?? now, degradedReason: 'server' });
 }
 
 /**
@@ -174,8 +184,8 @@ export function noteFailure(now: number = Date.now(), sentAt: number = now) {
   if (!echo) { failureRun++; lastCountedAt = now; }
   const failures = Math.min(failureRun, FAILURE_THRESHOLD);
   const degradedSince = state.degradedSince ?? now;
-  if (failureRun < FAILURE_THRESHOLD) { update({ failures, degradedSince }); return; }
-  update({ online: false, offlineSince: firstFailureAt, failures, degradedSince });
+  if (failureRun < FAILURE_THRESHOLD) { update({ failures, degradedSince, degradedReason: 'network' }); return; }
+  update({ online: false, offlineSince: firstFailureAt, failures, degradedSince, degradedReason: 'network' });
 }
 
 export function setQueuedCount(n: number) {

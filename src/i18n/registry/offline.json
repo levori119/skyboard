@@ -10,6 +10,10 @@
       "he": "המידע אינו מתעדכן - השרת מחזיר שגיאה",
       "en": "Data is not refreshing - server returning errors"
     },
+    "slowTitle": {
+      "he": "המידע אינו מתעדכן - החיבור לשרת איטי",
+      "en": "Data is not refreshing - slow connection to the server"
+    },
     "asOf": {
       "he": "המידע נכון ל-",
       "en": "Data as of "
