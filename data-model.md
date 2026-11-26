@@ -832,7 +832,7 @@ COALESCE(last_seen, entered_at) > NOW() - INTERVAL '240 seconds'
 | `color` | VARCHAR(20) | צבע (ברירת מחדל `#3b82f6`) |
 | `polygon` | TEXT (JSON) | קודקודים באחוזי-תמונה `[{x,y}]` |
 | `polygon_geo` | TEXT (JSON) | קודקודים גאוגרפיים `[{lat,lon}]` (חלופה ל-polygon) |
-| `parent_zone_id` | INT → map_zones | אזור-אב (סנכרון לתת-מפות) |
+| `parent_zone_id` | INT → map_zones | אזור-אב (סנכרון לתת-מפות). ה-FK הוא `ON DELETE SET NULL`, ולכן `DELETE /api/map-zones/:id` מוחק את העותקים בעצמו (WITH RECURSIVE) - אחרת עותק בתת-מפה נשאר יתום |
 | `enabled` | BOOLEAN | האם מוצג |
 | **`active_alt_range_ids`** | JSONB | **מצב תפעולי — הבלוקים (גבהים) הפעילים/מותרים כרגע. `[]`/NULL = כל הגבהים פעילים. נקבע בקליק ימני בעמדה, משותף בין העמדות.** |
 | **`limitation_note`** | TEXT | **מצב תפעולי — מגבלת אזור חופשית, מוצגת בקטן ליד שם האזור. נקבע בקליק ימני בעמדה.** |
@@ -2180,7 +2180,7 @@ COALESCE(last_seen, entered_at) > NOW() - INTERVAL '240 seconds'
 | `color` | VARCHAR(20) | צבע (ברירת מחדל `#3b82f6`) |
 | `polygon` | TEXT (JSON) | קודקודים באחוזי-תמונה `[{x,y}]` |
 | `polygon_geo` | TEXT (JSON) | קודקודים גאוגרפיים `[{lat,lon}]` (חלופה ל-polygon) |
-| `parent_zone_id` | INT → map_zones | אזור-אב (סנכרון לתת-מפות) |
+| `parent_zone_id` | INT → map_zones | אזור-אב (סנכרון לתת-מפות). ה-FK הוא `ON DELETE SET NULL`, ולכן `DELETE /api/map-zones/:id` מוחק את העותקים בעצמו (WITH RECURSIVE) - אחרת עותק בתת-מפה נשאר יתום |
 | `enabled` | BOOLEAN | האם מוצג |
 | **`active_alt_range_ids`** | JSONB | **מצב תפעולי — הבלוקים (גבהים) הפעילים/מותרים כרגע. `[]`/NULL = כל הגבהים פעילים. נקבע בקליק ימני בעמדה, משותף בין העמדות.** |
 | **`limitation_note`** | TEXT | **מצב תפעולי — מגבלת אזור חופשית, מוצגת בקטן ליד שם האזור. נקבע בקליק ימני בעמדה.** |

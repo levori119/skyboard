@@ -466,7 +466,18 @@ router.patch('/api/map-zones/:id/operational', async (req, res) => {
 
 router.delete('/api/map-zones/:id', async (req, res) => {
   try {
-    await pool.query('DELETE FROM map_zones WHERE id = $1', [req.params.id]);
+    // אזור במפת אב נמחק **יחד עם העותקים שלו** במפות החתוכות ממנה (parent_zone_id,
+    // לכל העומק) - כמו שיצירה ועדכון באב מתפשטים אליהם. ה-FK הוא ON DELETE SET NULL,
+    // ולכן עד 2026-11-26 העותק רק נותק ונשאר בעמדה כאזור יתום (711 בעפרוני החתוכה)
+    await pool.query(
+      `WITH RECURSIVE tree AS (
+         SELECT id FROM map_zones WHERE id = $1
+         UNION
+         SELECT z.id FROM map_zones z JOIN tree t ON z.parent_zone_id = t.id
+       )
+       DELETE FROM map_zones WHERE id IN (SELECT id FROM tree)`,
+      [req.params.id]
+    );
     res.json({ success: true });
   } catch (err) {
     console.error('Error deleting map zone:', err);
