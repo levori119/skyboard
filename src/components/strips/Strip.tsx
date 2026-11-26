@@ -1,4 +1,5 @@
 import { tr } from '../../i18n/tr';
+import { pointInStripTrash } from '../../utils/stripTrash';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useDragControls } from 'framer-motion';
 import { createPortal } from 'react-dom';
@@ -54,7 +55,7 @@ const StripTimeField = ({ label, value, onSave }: { label: string; value?: strin
   );
 };
 
-const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onProvTransfer, onToggleAirborne, onUpdateNotes, onUpdateDetails, zoom = 1, pan = null, serials = [], serialSelections = [], onSerialSelect, onSerialDismiss, onSerialRemove, allBlockSpaces = [], allBlocks = [], allBlockTables = [], allWorkstationPresets = [], activeBlockTableId = null, mapConflictIds = null, muteConflictAlerts = false, viewerPresetId = null, lightMode = false, themeMode, onInkNote }: any) => {
+const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onProvTransfer, onToggleAirborne, onUpdateNotes, onUpdateDetails, zoom = 1, pan = null, serials = [], serialSelections = [], onSerialSelect, onSerialDismiss, onSerialRemove, allBlockSpaces = [], allBlocks = [], allBlockTables = [], allWorkstationPresets = [], activeBlockTableId = null, mapConflictIds = null, muteConflictAlerts = false, viewerPresetId = null, lightMode = false, themeMode, onInkNote, onTrash, onDragActive }: any) => {
   // התמה בפועל. עמדות ותיקות מעבירות רק `lightMode`, ולכן היא נגזרת ממנו כשלא
   // הועברה תמה מפורשת - כך ocean לא נופל בשקט ל-dark במי שכן מעביר אותה.
   const theme: 'light' | 'dark' | 'ocean' = themeMode || (lightMode ? 'light' : 'dark');
@@ -286,6 +287,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onProvTransfer, onT
         if (Math.abs(ev.clientX - pointerStartX) < 5 && Math.abs(ev.clientY - pointerStartY) < 5) return;
         dragActivated = true;
         setIsDragging(true);
+        onDragActive?.(true);
       }
       setDragPos({ x: ev.clientX - startPosRef.current.x, y: ev.clientY - startPosRef.current.y });
       clearHighlights();
@@ -300,6 +302,10 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onProvTransfer, onT
     const performDrop = (cx: number, cy: number) => {
       const mapArea = document.getElementById('map-area');
       const sidebar = document.getElementById('sidebar-area');
+
+      // פח (utils/stripTrash) - הסתרה תצוגתית מהעמדה. נבדק ראשון: הפח יושב בתוך
+      // סרגל הצד, ובלי זה השחרור עליו היה מתפרש כ"החזרה לרשימה"
+      if (onTrash && pointInStripTrash(document, cx, cy)) { onTrash(s.id); return; }
 
       // 0. נקודת העברה זמנית — עדיפות (בפאנל או על המפה) → העברת עמדה-לעמדה
       const topProv = findProvZone(cx, cy);
@@ -356,6 +362,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onProvTransfer, onT
     const handleDragUp = (ev: PointerEvent) => {
       clearHighlights();
       setIsDragging(false);
+      if (dragActivated) onDragActive?.(false);
       window.removeEventListener('pointermove', handleDragMove);
       window.removeEventListener('pointerup', handleDragUp);
       window.removeEventListener('pointercancel', handleDragCancel);
@@ -369,6 +376,8 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onProvTransfer, onT
       window.removeEventListener('pointerup', handleDragUp);
       window.removeEventListener('pointercancel', handleDragCancel);
       if (!dragActivated) return;
+      onDragActive?.(false);
+      if (onTrash && pointInStripTrash(document, lastCx, lastCy)) { onTrash(s.id); return; }
       // Tablet fallback: attempt transfer at last known position (prov / neighbor panel / marker only).
       // Does NOT reposition on map to avoid accidental moves on system-cancelled gestures.
       const topProvC = findProvZone(lastCx, lastCy);

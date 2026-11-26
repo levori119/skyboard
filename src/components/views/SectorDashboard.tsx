@@ -951,6 +951,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // רוחב פאנל "פ"מ עמדה": בסיס מהספליטר × גודל הגופן (utils/sidebarWidth) - הגדלת טקסט מרחיבה, לא חותכת
   const [sidebarBase, setSidebarBase] = useState<number>(() => { try { return parseSidebarBase(localStorage.getItem(`strip-sidebar-base-${session.presetId}`)); } catch { return parseSidebarBase(null); } });
   const [sidebarDragging, setSidebarDragging] = useState(false);
+  // סמל פ"מ על מפה רגילה בגרירה - כדי שהפח יידלק גם אז (Strip.onDragActive)
+  const [mapStripDragging, setMapStripDragging] = useState(false);
   // "פח" - פ"מים שהוסתרו מהעמדה הזו בלבד, תצוגתית (utils/stripTrash). פר-עמדה ב-localStorage
   const [trashedStrips, setTrashedStrips] = useState<Set<number>>(() => { try { return parseStripTrash(localStorage.getItem(`strip-trash-${session.presetId}`)); } catch { return new Set(); } });
   const [trashOpen, setTrashOpen] = useState(false);
@@ -10246,7 +10248,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </div>
               {/* "פח" - גוררים לכאן פ"מ מהלוח או מהמפה, והוא מוסתר מהעמדה הזו בלבד (utils/stripTrash) */}
               {(() => {
-                const dragging = fzDragStripId != null || !!sidebarPointerGhost;
+                const dragging = fzDragStripId != null || !!sidebarPointerGhost || mapStripDragging;
                 const trashedList = strips.filter((x: any) => trashedStrips.has(stripNumId(x.id) ?? -1));
                 return (
                   <div style={{ marginBottom: '8px' }}>
@@ -11539,6 +11541,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 mapConflictIds={mapStripConflictIds} muteConflictAlerts={muteConflictAlerts}
                 viewerPresetId={session.presetId ? Number(session.presetId) : null}
                 lightMode={lightMode}
+                onTrash={trashStrip}
+                onDragActive={setMapStripDragging}
               />
               {/* ההערה בכתב יד - צמודה לצד הכרטיס (רוחבו 130 על המסך) */}
               {mapInkImg(s.id, mapZoom, { left: Number(s.x) + 134 / mapZoom, top: Number(s.y) })}
