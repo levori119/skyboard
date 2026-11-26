@@ -286,8 +286,8 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 
 **נקרא ב-** `GET /api/strips/global` כמפה `station_notes = {preset_id: note}`
 (תת-שאילתה סקלרית, לא JOIN — שני JOINים מצטברים היו מכפילים שורות).
-**נכתב ב-** `PATCH /api/strips/:id/station-note` (upsert; הערה ריקה מוחקת).
-
+**נכתב ב-** `PATCH /api/strips/:id/station-note` (upsert; הערה ריקה מוחקת).
+
 ### `strip_table_assignments.block_space_id` - מרחב הבלוקים בדסק
 
 כמו הגובה: כל עמדה על אותו פ"מ במרחב בלוקים משלה. בדסק (מוד טבלה) הפ"מ נמצא במרחב
@@ -961,7 +961,7 @@ COALESCE(last_seen, entered_at) > NOW() - INTERVAL '240 seconds'
 
 > **`strips.planned_zones`** (VARCHAR(300), ברירת מחדל `''`) - האזורים שהפ"מ **אמור** ללכת אליהם ("705, 711"), כפי שנרשמו בפ"מ. **לא שיוך**: אין פין, אין בלוק ואין "תפוס". על המפה - או"ק קטן בפינת האזור 10 דק' לפני ההמראה, ולחיצה עליו יוצרת את השיוך כאן. התאמה לפי שם אזור. ראה [src/utils/plannedZones.ts](src/utils/plannedZones.ts) ו-[AIR_PICTURE_SPEC.md](AIR_PICTURE_SPEC.md) §8.6.
 
-> **`strips.auto_airborne`** (BOOLEAN, ברירת מחדל `FALSE`) - **המראה אוטומטית**: פ"מ מסומן מקבל `airborne = TRUE` לבד כשמגיע `takeoff_time` (סבב שרת כל 15 שניות, [server/db/autoAirborne.js](server/db/autoAirborne.js)), ונרשם ב-FLOW כ-`airborne` עם `auto: true`. opt-in פר פ"מ - "מאוויר" הוא בדרך כלל עובדה שהפקח מאשר, ולכן המערכת לא מסיקה אותו לבד לפ"מ שלא ביקש. לא חל על פ"מ שנחת.
+> **`strips.auto_airborne`** (BOOLEAN, ברירת מחדל `FALSE`) - **המראה אוטומטית**: פ"מ מסומן מקבל `airborne = TRUE` לבד כשמגיע `takeoff_time` (סבב שרת כל 15 שניות, [server/db/autoAirborne.js](server/db/autoAirborne.js)), ונרשם ב-FLOW כ-`airborne` עם `auto: true`. opt-in פר פ"מ - "מאוויר" הוא בדרך כלל עובדה שהפקח מאשר, ולכן המערכת לא מסיקה אותו לבד לפ"מ שלא ביקש. לא חל על פ"מ שנחת (`landed` או `status`). **חד-פעמי:** אותו עדכון מכבה את הדגל, כדי שפקח שביטל "מאוויר" או הנחית לא יידרס בסבב הבא.
 
 > **חריגה מבלוק:** פ"מ נחשב חורג אם גובהו (`strips.alt`) אינו נופל באף `zone_altitude_ranges`
 > של האזור, **או** אם ה-`altitude_range_id` שלו אינו ב-`map_zones.active_alt_range_ids` (מוגבל).
