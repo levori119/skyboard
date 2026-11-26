@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { VirtualKeyboardProvider } from './VirtualKeyboard';
 import { useDirection } from './i18n/useDirection';
-import { setAppLanguage, type AppLang } from './i18n';
+import { setAppLanguage, getLockedLanguage, type AppLang } from './i18n';
 import type { AviationBaseRef, CrewMember, WorkstationSession } from './types';
 import { getSession, saveSession, clearSession, buildRelevantSectors } from './utils/session';
 import { parsePeekPresetId } from './utils/stationPeek';
@@ -305,8 +305,8 @@ const WorkstationLogin = ({ onLogin, onManagement, initialCrewMember }: { onLogi
     }}>
       {/* יציאה מהאפליקציה - בפינה הנגדית לבורר השפה */}
       <ExitAppButton />
-      {/* בורר שפה — עברית / English */}
-      <div style={{ position: 'absolute', top: '16px', insetInlineEnd: '20px', display: 'flex', gap: '6px', zIndex: 10 }}>
+      {/* בורר שפה - עברית / English. מוסתר בפריסה עם שפה נעולה (UI_LANGUAGE) */}
+      {!getLockedLanguage() && <div style={{ position: 'absolute', top: '16px', insetInlineEnd: '20px', display: 'flex', gap: '6px', zIndex: 10 }}>
         {(['he', 'en'] as AppLang[]).map(lng => (
           <button
             key={lng}
@@ -321,7 +321,7 @@ const WorkstationLogin = ({ onLogin, onManagement, initialCrewMember }: { onLogi
             {lng === 'he' ? t('common.hebrew') : t('common.english')}
           </button>
         ))}
-      </div>
+      </div>}
       <div style={{
         background: 'white',
         color: '#1e293b',

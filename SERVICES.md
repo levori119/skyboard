@@ -2137,6 +2137,7 @@ POST /api/transfers/:id/set-eta
 DELETE /api/translations/:key
 GET /api/translations
 PUT /api/translations
+GET /api/ui-config
 
 #### workstations.js
 DELETE /api/preset-view-stations/:id

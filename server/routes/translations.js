@@ -1,6 +1,15 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
+import { buildUiConfig } from '../../shared/uiLanguage.js';
+import { isLocalDbMode } from '../db/localPool.js';
 const router = new Router();
+
+// נעילת שפת ממשק לפריסה (`UI_LANGUAGE=en` = מערכת באנגלית בלבד). בלי DB:
+// נקרא בעליית הלקוח לפני ההזדהות. במאגר המקומי שבעמדה - לא סמכותי, כדי
+// שנתק לא יבטל את הנעילה. ראה shared/uiLanguage.js
+router.get('/api/ui-config', (req, res) => {
+  res.json(buildUiConfig(process.env, { localDb: isLocalDbMode() }));
+});
 
 // ─── ניהול תרגומים (i18n) ─────────────────────────────────────────────────────
 // ברירות המחדל חיות בקבצים (src/i18n/registry/*.json, ב-git). הטבלה מחזיקה **רק

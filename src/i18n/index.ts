@@ -3,13 +3,24 @@ import { initReactI18next } from 'react-i18next';
 import he from './locales/he.json';
 import en from './locales/en.json';
 import { buildResources } from './registry';
+import { normalizeUiLanguage, resolveLock } from '../../shared/uiLanguage.js';
 
 export const LANG_STORAGE_KEY = 'bt-lang';
+/** נעילת השפה של הפריסה כפי שהשרת המרכזי מסר בפעם האחרונה (shared/uiLanguage.js) */
+export const LANG_LOCK_KEY = 'sk-lang-lock';
 export type AppLang = 'he' | 'en';
 
+function readStorage(key: string): string | null {
+  try { return typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null; } catch { return null; }
+}
+
+// הנעילה שמורה מקומית: הרינדור הראשון כבר בשפה הנכונה, וגם בנתק (אז עונה
+// המאגר המקומי, שאינו סמכותי לגבי הנעילה)
+let lockedLang: AppLang | null = normalizeUiLanguage(readStorage(LANG_LOCK_KEY));
+
 // עברית = ברירת מחדל (לפי דרישת הצוות). נשמר ב-localStorage כדי שמסך ה-LOGIN יזכור.
-const stored = (typeof localStorage !== 'undefined' && localStorage.getItem(LANG_STORAGE_KEY)) as AppLang | null;
-const initialLang: AppLang = stored === 'en' || stored === 'he' ? stored : 'he';
+const stored = readStorage(LANG_STORAGE_KEY) as AppLang | null;
+const initialLang: AppLang = lockedLang ?? (stored === 'en' || stored === 'he' ? stored : 'he');
 
 i18n.use(initReactI18next).init({
   // 'translation' — מפתחות מובְנים ידניים (t('login.x')) מ-he.json/en.json.
@@ -58,8 +69,35 @@ export async function loadTranslationOverrides(apiUrl: string) {
   } catch { /* אופליין / אין טבלה — ממשיכים עם ברירות המחדל מהקבצים */ }
 }
 
+/** השפה הנעולה של הפריסה, או null כשהמשתמש בוחר חופשית */
+export function getLockedLanguage(): AppLang | null { return lockedLang; }
+
+/** מחיל את תשובת `/api/ui-config`. תשובה לא סמכותית או פגומה = לא משנה כלום */
+export function applyUiConfig(cfg: unknown) {
+  const r = resolveLock(cfg);
+  if (r.action === 'keep') return;
+  lockedLang = r.lock;
+  try {
+    if (r.lock) localStorage.setItem(LANG_LOCK_KEY, r.lock);
+    else localStorage.removeItem(LANG_LOCK_KEY);
+  } catch { /* no-op */ }
+  if (r.lock && i18n.language !== r.lock) i18n.changeLanguage(r.lock);
+  // גם כשהשפה לא השתנתה: בורר השפה במסך הכניסה מופיע/נעלם לפי הנעילה
+  else i18n.emit('languageChanged', i18n.language);
+}
+
+/** טוען את נעילת השפה מהשרת. נכשל בשקט (נתק) ונשאר עם השמורה */
+export async function loadUiConfig(apiUrl: string) {
+  try {
+    const res = await fetch(`${apiUrl}/ui-config`);
+    if (res.ok) applyUiConfig(await res.json());
+  } catch { /* אופליין - ממשיכים עם הנעילה השמורה */ }
+}
+
 // שינוי שפה + התמדה. הכיווניות עצמה מטופלת במנגנון יחיד ב-root (useDirection).
+// בפריסה נעולה אין החלפה - גם אם משהו קורא לזה
 export function setAppLanguage(lang: AppLang) {
+  if (lockedLang) return;
   try { localStorage.setItem(LANG_STORAGE_KEY, lang); } catch { /* no-op */ }
   i18n.changeLanguage(lang);
 }

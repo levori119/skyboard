@@ -140,6 +140,7 @@ const RULES = [
   // הנתב שואל לפני שהוא מחזיר את העמדה למרכז. ספירה בלבד, מאגר מקומי בלבד.
   { m: ['GET'], p: '/api/__localdb/pending', need: NEED.PUBLIC, why: 'כמה עבודה מהנתק טרם נדחפה - מוגבל למאגר מקומי' },
   { m: ['GET'], p: '/api/environments', need: NEED.PUBLIC, why: 'בורר הסביבה במסך הכניסה, לפני ההזדהות. מחזיר מספר וסטטוס בלבד' },
+  { m: ['GET'], p: '/api/ui-config', need: NEED.PUBLIC, why: 'נעילת שפת הממשק של הפריסה - נקראת לפני מסך הכניסה. קוד שפה בלבד' },
   { m: ['GET'], p: '/api/translations', need: NEED.PUBLIC, why: 'מחרוזות ממשק, נטענות לפני הרינדור הראשון. אינן מידע תפעולי' },
   // סמלים ארגוניים נטענים כ-<img src> (utils/emblemSource.ts) - תגית img **אינה
   // יכולה** לשאת כותרת Authorization. חשיפה מודעת: לוגו, קריאה בלבד. הכתיבה

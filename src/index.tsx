@@ -3,7 +3,7 @@ import TouchKeyboard from './components/shared/TouchKeyboard';
 import ReactDOM from 'react-dom/client'
 import './App.css'
 import './i18n' // אתחול i18next (עברית ברירת מחדל) — חייב לפני רינדור
-import { loadTranslationOverrides } from './i18n'
+import { loadTranslationOverrides, loadUiConfig } from './i18n'
 import { API_URL } from './config'
 import { getCurrentEnv, installEnvFetchInterceptor } from './utils/environment'
 import { installAuthFetchInterceptor } from './utils/authToken'
@@ -70,6 +70,9 @@ installPeekPollThrottle()
 // דריסות תרגום שנערכו במסך "ניהול תרגומים" — חלות בזמן ריצה, בלי build מחדש.
 // לא חוסם רינדור: ברירות המחדל מהקבצים מוצגות מיד, והדריסות מתעדכנות כשהן מגיעות.
 loadTranslationOverrides(API_URL)
+// נעילת שפה של הפריסה (מערכת באנגלית בלבד) - הרינדור הראשון כבר משתמש בנעילה
+// השמורה, וזה רק מרענן אותה מהשרת
+loadUiConfig(API_URL)
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>

@@ -95,7 +95,7 @@ describe('נתיבים ציבוריים - רשימת היתר מפורשת בל�
     for (const [m, p] of [
       ['GET', '/api/health'], ['GET', '/api/ready'],
       ['POST', '/api/auth/mirage-login'], ['POST', '/api/auth/driver'],
-      ['GET', '/api/environments'], ['GET', '/api/translations'],
+      ['GET', '/api/environments'], ['GET', '/api/translations'], ['GET', '/api/ui-config'],
       ['GET', '/api/emblems/system/micha'],
     ]) {
       expect(`${p} => ${(await call(m, p)).status}`).toBe(`${p} => 200`);
