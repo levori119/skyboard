@@ -2694,6 +2694,10 @@
       "he": "שחזר הכל",
       "en": "Restore all"
     },
+    "stripTrashClose": {
+      "he": "סגור",
+      "en": "Close"
+    },
     "stripTrashEmpty": {
       "he": "הפח ריק",
       "en": "The trash is empty"

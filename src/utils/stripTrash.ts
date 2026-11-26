@@ -51,3 +51,24 @@ export function pointInStripTrash(doc: Document, x: number, y: number): boolean 
   }
   return false;
 }
+
+/** קוטר אייקון הפח הצף (ביחידות מוגדלות, לפני --s) */
+export const TRASH_ICON_PX = 52;
+
+/** מיקום שמור של הפח הצף: {x,y} מספריים, אחרת null */
+export function parseTrashPos(raw: unknown): { x: number; y: number } | null {
+  if (typeof raw !== 'string' || !raw) return null;
+  try {
+    const o = JSON.parse(raw);
+    const x = Number(o?.x), y = Number(o?.y);
+    return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+  } catch { return null; }
+}
+
+/** מצמיד את הפח לגבולות המסך - שלא ייעלם כשהעמדה עולה על מסך קטן יותר */
+export function clampTrashPos(p: { x: number; y: number }, vw: number, vh: number, size = TRASH_ICON_PX): { x: number; y: number } {
+  return {
+    x: Math.min(Math.max(p.x, 0), Math.max(vw - size, 0)),
+    y: Math.min(Math.max(p.y, 0), Math.max(vh - size, 0)),
+  };
+}

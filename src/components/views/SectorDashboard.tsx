@@ -211,6 +211,7 @@ import { flyoutShownOn, toggleFlyout, type MapFlyoutOwners, type SharedMapFlyout
 import FitScaleBox from '../shared/FitScaleBox';
 import VerticalView from './VerticalView';
 import Strip from '../strips/Strip';
+import { FloatingStripTrash } from '../strips/FloatingStripTrash';
 import { TOOL_BTN, toolBtn } from '../../utils/toolbarStandard';
 import { panelTitle, sectionBar, sectionTitle } from '../../utils/panelHeader';
 import { StickyNotesLayer, SerialsPanelModal } from '../admin/managers';
@@ -955,7 +956,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [mapStripDragging, setMapStripDragging] = useState(false);
   // "פח" - פ"מים שהוסתרו מהעמדה הזו בלבד, תצוגתית (utils/stripTrash). פר-עמדה ב-localStorage
   const [trashedStrips, setTrashedStrips] = useState<Set<number>>(() => { try { return parseStripTrash(localStorage.getItem(`strip-trash-${session.presetId}`)); } catch { return new Set(); } });
-  const [trashOpen, setTrashOpen] = useState(false);
   useEffect(() => { try { localStorage.setItem(`strip-trash-${session.presetId}`, serializeStripTrash(trashedStrips)); } catch { /* אחסון חסום */ } }, [trashedStrips, session.presetId]);
   const trashStripRef = useRef<(id: string | number) => void>(() => {});
   useEffect(() => { try { localStorage.setItem(`strip-sidebar-base-${session.presetId}`, String(sidebarBase)); } catch { /* אחסון חסום */ } }, [sidebarBase, session.presetId]);
@@ -10246,55 +10246,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   );
                 })}
               </div>
-              {/* "פח" - גוררים לכאן פ"מ מהלוח או מהמפה, והוא מוסתר מהעמדה הזו בלבד (utils/stripTrash) */}
-              {(() => {
-                const dragging = fzDragStripId != null || !!sidebarPointerGhost || mapStripDragging;
-                const trashedList = strips.filter((x: any) => trashedStrips.has(stripNumId(x.id) ?? -1));
-                return (
-                  <div style={{ marginBottom: '8px' }}>
-                    <button
-                      type="button"
-                      data-strip-trash="1"
-                      data-testid="strip-trash"
-                      title={tr('ctrl.stripTrashHint')}
-                      onClick={() => setTrashOpen(v => !v)}
-                      onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
-                      onDrop={e => {
-                        e.preventDefault();
-                        let id: string | number | null = e.dataTransfer.getData('text/strip-id') || e.dataTransfer.getData('text/strip-id-for-transfer') || null;
-                        if (!id) { try { id = JSON.parse(e.dataTransfer.getData('text/plain') || '{}').stripId ?? null; } catch { id = null; } }
-                        if (id != null) trashStrip(id);
-                      }}
-                      style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: dragging ? '8px 6px' : '3px 6px',
-                        fontSize: '11px', borderRadius: '5px', cursor: 'pointer', fontFamily: 'inherit', transition: 'padding 0.15s',
-                        border: `1px ${dragging ? 'solid' : 'dashed'} ${dragging ? '#ef4444' : T.border}`,
-                        background: dragging ? (lightMode ? '#fee2e2' : '#450a0a') : 'transparent',
-                        color: dragging ? (lightMode ? '#b91c1c' : '#fca5a5') : T.muted }}
-                    >
-                      <span style={{ fontSize: dragging ? '16px' : '13px' }}>🗑</span>
-                      <span>{dragging ? tr('ctrl.stripTrashDrop') : tr('ctrl.stripTrash')}</span>
-                      {trashedList.length > 0 && <span style={{ fontWeight: 'bold' }}>({trashedList.length})</span>}
-                    </button>
-                    {trashOpen && (
-                      <div data-testid="strip-trash-list" style={{ marginTop: '4px', padding: '6px', borderRadius: '5px', border: `1px solid ${T.border}`, background: T.surface, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        {trashedList.length === 0
-                          ? <span style={{ fontSize: '11px', color: T.muted, textAlign: 'center' }}>{tr('ctrl.stripTrashEmpty')}</span>
-                          : <>
-                              {trashedList.map((x: any) => (
-                                <div key={x.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: T.text }}>
-                                  <span style={{ flex: 1, fontWeight: 'bold' }}>{getFormationDisplayName(x)}</span>
-                                  <button type="button" data-testid={`strip-trash-restore-${stripNumId(x.id)}`} onClick={() => setTrashedStrips(prev => removeFromTrash(prev, x.id))}
-                                    style={{ padding: '1px 8px', fontSize: '11px', borderRadius: '4px', cursor: 'pointer', border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontFamily: 'inherit' }}>{tr('ctrl.stripTrashRestore')}</button>
-                                </div>
-                              ))}
-                              <button type="button" data-testid="strip-trash-restore-all" onClick={() => { setTrashedStrips(new Set()); setTrashOpen(false); }}
-                                style={{ marginTop: '2px', padding: '3px 8px', fontSize: '11px', borderRadius: '4px', cursor: 'pointer', border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontFamily: 'inherit' }}>{tr('ctrl.stripTrashRestoreAll')}</button>
-                            </>}
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
               </div>
               {/* הגופן של הלוח - zoom על הרשימה בלבד (הכותרת והבוררים נשארים בגודלם) */}
               <div data-testid="strip-list-items" style={{ zoom: stripListScale }}>
@@ -23029,6 +22980,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           crewName={session.crewMember?.name || ''}
           notes={stickyNotes}
           setNotes={setStickyNotes}
+        />
+
+        {/* "פח" צף - גוררים אליו פ"מ מהלוח או מהמפה, והוא מוסתר מהעמדה הזו בלבד
+            (utils/stripTrash). צף ולא בלוח, כדי שיהיה זמין גם כשהלוח מוסתר */}
+        <FloatingStripTrash
+          presetId={session.presetId}
+          dragging={fzDragStripId != null || !!sidebarPointerGhost || mapStripDragging}
+          trashed={strips.filter((x: any) => trashedStrips.has(stripNumId(x.id) ?? -1))}
+          displayName={getFormationDisplayName}
+          onDropStrip={trashStrip}
+          onRestore={id => setTrashedStrips(prev => removeFromTrash(prev, id))}
+          onRestoreAll={() => setTrashedStrips(new Set())}
+          themeMode={themeMode}
+          lightMode={lightMode}
+          T={T}
         />
       </div>
 

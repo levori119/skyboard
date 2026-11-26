@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { stripNumId, parseStripTrash, serializeStripTrash, addToTrash, removeFromTrash, isTrashed } from './stripTrash';
+import { stripNumId, parseStripTrash, serializeStripTrash, addToTrash, removeFromTrash, isTrashed, parseTrashPos, clampTrashPos } from './stripTrash';
 
 describe('stripTrash - הסתרת פ"מ מהעמדה, תצוגתית', () => {
   it('מזהה פ"מ: s12 / 12 / "12" → 12; לא תקין → null', () => {
@@ -21,5 +21,14 @@ describe('stripTrash - הסתרת פ"מ מהעמדה, תצוגתית', () => {
     expect(parseStripTrash('{oops').size).toBe(0);
     expect(parseStripTrash(null).size).toBe(0);
     expect([...parseStripTrash('["s4", 4, "x"]')]).toEqual([4]);
+  });
+  it('מיקום הפח הצף: נטען רק כשתקין, ומוצמד לגבולות המסך', () => {
+    expect(parseTrashPos('{"x":10,"y":20}')).toEqual({ x: 10, y: 20 });
+    expect(parseTrashPos('{"x":"a"}')).toBeNull();
+    expect(parseTrashPos('oops')).toBeNull();
+    expect(parseTrashPos(null)).toBeNull();
+    expect(clampTrashPos({ x: 1900, y: 1200 }, 1000, 800, 50)).toEqual({ x: 950, y: 750 });
+    expect(clampTrashPos({ x: -5, y: -5 }, 1000, 800, 50)).toEqual({ x: 0, y: 0 });
+    expect(clampTrashPos({ x: 300, y: 400 }, 1000, 800, 50)).toEqual({ x: 300, y: 400 });
   });
 });
